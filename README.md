@@ -6,8 +6,8 @@
 
 A comprehensive Home Assistant integration for managing time-based profiles and automations with an intuitive visual interface.
 
-![CronoStar](<img width="423" height="413" alt="image" src="https://github.com/user-attachments/assets/8bd1361f-53ea-4aee-943d-b8e374308e36" />
-)
+![CronoStar](https://github.com/user-attachments/assets/8bd1361f-53ea-4aee-943d-b8e374308e36)
+
 
 ## ✨ Features
 
