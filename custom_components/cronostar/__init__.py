@@ -21,6 +21,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     _LOGGER.info("CronoStar setup started.")
     
     hass.data[DOMAIN] = {"version": "1.2.8"}
+    # Registra il percorso statico per la card
+    await hass.http.async_register_static_paths([
+        StaticPathConfig(
+            url_path="/cronostar_card",
+            path=hass.config.path("custom_components/cronostar/www"),
+            must_be_authenticated=False,
+        )
+    ])
+    
+    # Aggiungi la card al frontend
+    add_extra_js_url(hass, "/cronostar_card/cronostar-card.js")
     
     # Initialize services
     file_service = FileService(hass)
