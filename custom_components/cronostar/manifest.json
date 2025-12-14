@@ -5,15 +5,15 @@
     "@FoliniC"
   ],
   "config_flow": false,
+  "dependencies": [
+    "http",
+    "frontend"
+  ],
   "documentation": "https://github.com/FoliniC/CronoStar",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/FoliniC/CronoStar/issues",
   "loggers": [
     "custom_components.cronostar"
-  ],
-  "dependencies": [
-    "http",
-    "frontend"
   ],
   "requirements": [],
   "version": "4.0.4"
