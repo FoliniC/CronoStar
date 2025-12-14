@@ -1,4 +1,4 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
@@ -7,6 +7,10 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# Virtual environments
+.venv/
+.env/
 
 # IDE
 .vscode/
@@ -26,11 +30,27 @@ desktop.ini
 htmlcov/
 .tox/
 
-# Temporary files
+# Logs and temporary files
 *.log
+*.log.*
 *.tmp
 *.bak
+home-assistant.log*
 active_filename_*.txt
+.ha_run.lock
+
+# Databases
+*.db
+*.db-wal
+home-assistant_v2.db*
+.storage/
+
+# Media and archives
+*.mp3
+*.mp4
+*.zip
+*.gz
+tts/
 
 # Node (for Lovelace card)
 node_modules/
@@ -43,9 +63,20 @@ lovelace_card/dist/*
 # Don't ignore the built card in custom_components
 !custom_components/cronostar/www/cronostar-card.js
 
-# Local development
-.env
+# Home Assistant config
 secrets.yaml
-
+*.yaml.secret
 config_cronostar_card_expanded.yaml
 generate_prompt_package.py
+
+# Dependencies
+deps/
+
+# Guacamole specific (addons)
+addons_config/guacamole/extensions/extensions-available/*.jar
+addons_config/guacamole/extensions/extensions-available/guacamole-*.jar
+addons_config/guacamole/extensions/guacamole-auth-jdbc-postgresql-*.jar
+addons_config/guacamole/postgres/pg_wal/*
+
+# Temporary directories
+temp/

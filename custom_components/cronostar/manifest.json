@@ -11,6 +11,10 @@
   "loggers": [
     "custom_components.cronostar"
   ],
+  "dependencies": [
+    "http",
+    "frontend"
+  ],
   "requirements": [],
   "version": "4.0.4"
 }

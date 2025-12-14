@@ -10,8 +10,8 @@ homeassistant:
 lovelace:
   mode: yaml
   resources:
-    - url: /local/cronostar_card/cronostar-card.js
-      type: module
+    #- url: /local/cronostar_card/cronostar-card.js
+     # type: module
 
 # Enable the CronoStar backend
 cronostar:
