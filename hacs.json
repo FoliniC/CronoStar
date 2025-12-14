@@ -1,4 +1,4 @@
 {
   "name": "CronoStar",
-  "content": ["integration", "plugin"]
+  "homeassistant": "2024.1.0"
 }
