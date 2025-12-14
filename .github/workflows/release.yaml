@@ -15,9 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Create directory structure
+      - name: Create directory structure ok
         run: |
           mkdir -p build/custom_components
+          mkdir -p build/custom_components/cronostar
           mkdir -p build/custom_components/cronostar/www
     
           cp -r custom_components/cronostar build/custom_components/
