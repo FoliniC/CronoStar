@@ -21,7 +21,8 @@ jobs:
           mkdir -p build/custom_components/cronostar
           mkdir -p build/custom_components/cronostar/www
     
-          cp -r custom_components/cronostar build/custom_components/
+          cp -v -r custom_components/cronostar build/custom_components/
+          cp -v -r www/community/cronostar_card/cronostar-card.js build/custom_components/cronostar/www/cronostar_card/
           
           [ -d blueprints ] && cp -r blueprints build/ || true
           [ -d automations ] && cp -r automations build/ || true
