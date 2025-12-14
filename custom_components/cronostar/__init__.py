@@ -1,7 +1,7 @@
 """CronoStar custom component - Fixed profile naming."""
 import logging
 import os
-from pathlib import Path  
+from pathlib import Path
 from functools import partial
 
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
@@ -11,9 +11,9 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.frontend import add_extra_js_url
 
-from .services.file_service import FileService # NEW
-from .services.profile_service import ProfileService # NEW
-from .services.automation_service import AutomationService # NEW
+from .services.file_service import FileService
+from .services.profile_service import ProfileService
+from .services.automation_service import AutomationService
 
 DOMAIN = "cronostar"
 _LOGGER = logging.getLogger(__name__)
@@ -26,36 +26,35 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     
     hass.data[DOMAIN] = {"version": "1.2.8"}
     
-    # Verifica path www (già funziona ?)
+    # Verifica path www (corretto)
     www_path = hass.config.path("custom_components/cronostar/www/cronostar_card")
     www_path = Path(www_path)
     
-    _LOGGER.info(f"Checking  www path: {www_path}")
+    _LOGGER.info("Checking www path: %s", www_path)
     
-    if not www_path.exists():
-        _LOGGER.error(f"? www directory MISSING: {www_path}")
-    elif not www_path.is_dir():
-        _LOGGER.error(f"? www path is NOT a directory: {www_path}")
-    else:
+    js_file = None
+    if www_path.exists() and www_path.is_dir():
         js_file = www_path / "cronostar-card.js"
         if js_file.exists():
-            _LOGGER.info(f"? cronostar-card.js FOUND: {js_file} ({js_file.stat().st_size} bytes)")
+            _LOGGER.info("OK cronostar-card.js FOUND: %s (%d bytes)", js_file, js_file.stat().st_size)
         else:
-            _LOGGER.warning(f"? cronostar-card.js MISSING in: {www_path}")
+            _LOGGER.warning("MISSING cronostar-card.js in: %s", www_path)
         
-        # Registra ? SENZA must_be_authenticated
+        # Registra static paths
         await hass.http.async_register_static_paths([
             StaticPathConfig(
                 url_path="/cronostar_card",
-                path=www_path  # ? Solo questi 2 parametri
+                path=www_path
             )
         ])
-        _LOGGER.info("? Static paths registered for /cronostar_card")
+        _LOGGER.info("Static paths registered for /cronostar_card")
         
         # Registra nel frontend
         add_extra_js_url(hass, "/cronostar_card/cronostar-card.js")
-        _LOGGER.info("? Frontend JS URL registered")
-
+        _LOGGER.info("Frontend JS URL registered")
+    else:
+        _LOGGER.error("www directory MISSING or not a directory: %s", www_path)
+    
     # Initialize services
     file_service = FileService(hass)
     profile_service = ProfileService(hass, file_service)
@@ -79,7 +78,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.services.async_register(DOMAIN, "add_profile", profile_service.add_profile)
     hass.services.async_register(DOMAIN, "delete_profile", profile_service.delete_profile)
     hass.services.async_register(DOMAIN, "apply_now", automation_service.apply_now)
-    hass.services.async_register(DOMAIN, "create_yaml_file", file_service.create_yaml_file) # NEW
+    hass.services.async_register(DOMAIN, "create_yaml_file", file_service.create_yaml_file)
 
     # On Home Assistant startup, verify services and notify frontend
     async def on_hass_start(event):
@@ -113,4 +112,3 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     _LOGGER.info("CronoStar setup completed.")
     
     return True
-
