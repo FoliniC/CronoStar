@@ -1,9 +1,4 @@
 {
   "name": "CronoStar",
-  "content": ["integration", "plugin"],
-  "render_readme": true,
-  "domains": ["sensor", "switch", "climate"],
-  "zip_release": true,
-  "iot_class": "Local Polling",
-  "homeassistant": "2024.1.0"
+  "content": ["integration", "plugin"]
 }
