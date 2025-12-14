@@ -14,6 +14,8 @@ from .services.automation_service import AutomationService # NEW
 DOMAIN = "cronostar"
 _LOGGER = logging.getLogger(__name__)
 
+CONFIG_SCHEMA = cv.empty_config_schema("cronostar")
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the CronoStar component."""
     _LOGGER.info("CronoStar setup started.")
