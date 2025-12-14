@@ -30,7 +30,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     www_path = hass.config.path("custom_components/cronostar/www/cronostar_card")
     www_path = Path(www_path)
     
-    _LOGGER.info(f"Checking www path: {www_path}")
+    _LOGGER.info(f"Checking  www path: {www_path}")
     
     if not www_path.exists():
         _LOGGER.error(f"? www directory MISSING: {www_path}")
