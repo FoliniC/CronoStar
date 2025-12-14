@@ -1,5 +1,5 @@
 /** Configuration management for CronoStar Card */
-export const VERSION = '4.0.0';
+export const VERSION = '4.0.3';
 export const CARD_CONFIG_PRESETS = {
   thermostat: {
     title: "CronoStar Thermostat",
