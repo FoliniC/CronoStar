@@ -5,8 +5,9 @@
 [![License](https://img.shields.io/github/license/FoliniC/cronostar.svg)](LICENSE)
 
 A comprehensive Home Assistant integration for managing time-based profiles and automations with an intuitive visual interface.
+![CronoStar](https://github.com/user-attachments/assets/54958194-a0ec-4e41-8edc-76251f07b6db)
 
-![CronoStar](https://github.com/user-attachments/assets/8bd1361f-53ea-4aee-943d-b8e374308e36)
+![CronoStar settings](https://github.com/user-attachments/assets/8bd1361f-53ea-4aee-943d-b8e374308e36)
 
 
 ## ✨ Features
