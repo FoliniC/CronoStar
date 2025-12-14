@@ -18,10 +18,9 @@ jobs:
       - name: Create directory structure
         run: |
           mkdir -p build/custom_components
-          mkdir -p build/www/community
-          
+          mkdir -p build/custom_components/cronostar/www
+    
           cp -r custom_components/cronostar build/custom_components/
-          cp -r www/community/cronostar_card build/www/community/
           
           [ -d blueprints ] && cp -r blueprints build/ || true
           [ -d automations ] && cp -r automations build/ || true
