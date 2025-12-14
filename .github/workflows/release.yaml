@@ -1,0 +1,42 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Create directory structure
+        run: |
+          mkdir -p build/custom_components
+          mkdir -p build/www/community
+          
+          cp -r custom_components/cronostar build/custom_components/
+          cp -r www/community/cronostar_card build/www/community/
+          
+          [ -d blueprints ] && cp -r blueprints build/ || true
+          [ -d automations ] && cp -r automations build/ || true
+          [ -d packages ] && cp -r packages build/ || true
+          
+          cp README.md LICENSE build/ 2>/dev/null || true
+      
+      - name: Create ZIP
+        run: |
+          cd build
+          zip -r ../CronoStar.zip . -q
+          ls -lh ../CronoStar.zip
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: CronoStar.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

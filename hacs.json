@@ -5,7 +5,5 @@
   "domains": ["sensor", "switch", "climate"],
   "zip_release": true,
   "iot_class": "Local Polling",
-  "filename": "cronostar_card.js",
-  "content_in_root": false,
   "homeassistant": "2024.1.0"
 }
