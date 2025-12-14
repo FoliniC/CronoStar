@@ -1,11 +1,15 @@
 """CronoStar custom component - Fixed profile naming."""
 import logging
 import os
+from pathlib import Path  
 from functools import partial
 
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.const import EVENT_HOMEASSISTANT_START
 from homeassistant.helpers.typing import ConfigType
+import homeassistant.helpers.config_validation as cv
+from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.frontend import add_extra_js_url
 
 from .services.file_service import FileService # NEW
 from .services.profile_service import ProfileService # NEW
@@ -21,18 +25,37 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     _LOGGER.info("CronoStar setup started.")
     
     hass.data[DOMAIN] = {"version": "1.2.8"}
-    # Registra il percorso statico per la card
-    await hass.http.async_register_static_paths([
-        StaticPathConfig(
-            url_path="/cronostar_card",
-            path=hass.config.path("custom_components/cronostar/www"),
-            must_be_authenticated=False,
-        )
-    ])
     
-    # Aggiungi la card al frontend
-    add_extra_js_url(hass, "/cronostar_card/cronostar-card.js")
+    # Verifica path www (già funziona ?)
+    www_path = hass.config.path("custom_components/cronostar/www/cronostar_card")
+    www_path = Path(www_path)
     
+    _LOGGER.info(f"Checking www path: {www_path}")
+    
+    if not www_path.exists():
+        _LOGGER.error(f"? www directory MISSING: {www_path}")
+    elif not www_path.is_dir():
+        _LOGGER.error(f"? www path is NOT a directory: {www_path}")
+    else:
+        js_file = www_path / "cronostar-card.js"
+        if js_file.exists():
+            _LOGGER.info(f"? cronostar-card.js FOUND: {js_file} ({js_file.stat().st_size} bytes)")
+        else:
+            _LOGGER.warning(f"? cronostar-card.js MISSING in: {www_path}")
+        
+        # Registra ? SENZA must_be_authenticated
+        await hass.http.async_register_static_paths([
+            StaticPathConfig(
+                url_path="/cronostar_card",
+                path=www_path  # ? Solo questi 2 parametri
+            )
+        ])
+        _LOGGER.info("? Static paths registered for /cronostar_card")
+        
+        # Registra nel frontend
+        add_extra_js_url(hass, "/cronostar_card/cronostar-card.js")
+        _LOGGER.info("? Frontend JS URL registered")
+
     # Initialize services
     file_service = FileService(hass)
     profile_service = ProfileService(hass, file_service)
