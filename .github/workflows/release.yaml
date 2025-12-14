@@ -31,12 +31,12 @@ jobs:
           cd build
           zip -r ../CronoStar.zip . -q
           ls -lh ../CronoStar.zip
-      
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: CronoStar.zip
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
