@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default {
   input: 'src/main.js',
   output: {
-    file: '../www/community/cronostar_card/cronostar-card.js',
+    file: '../custom_components/cronostar/www/cronostar_card/cronostar-card.js',
     format: 'es',
     sourcemap: false, // Disabled to prevent source map issues
     intro: '/* CronoStar Card - Bundled for Home Assistant */'
