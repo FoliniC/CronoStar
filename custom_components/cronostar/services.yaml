@@ -1,0 +1,228 @@
+save_profile:
+  name: Save Profile
+  description: Saves a CronoStar schedule profile to a JSON file.
+  fields:
+    profile_name:
+      name: Profile Name
+      description: "The name of the profile to save (e.g., Comfort)."
+      required: true
+      selector:
+        text:
+    preset_type:
+      name: Preset Type
+      description: "The type of preset this profile belongs to (e.g., thermostat, ev_charging)."
+      required: true
+      selector:
+        text:
+    schedule:
+      name: Schedule
+      description: "An array of 24 numeric values for the schedule."
+      required: true
+      selector:
+        object:
+    entity_prefix:
+      name: Entity Prefix
+      description: "The entity prefix used by the card (legacy parameter)."
+      required: false
+      selector:
+        text:
+    global_prefix:
+      name: Global Prefix
+      description: "The global identification prefix (takes priority over entity_prefix)."
+      required: false
+      selector:
+        text:
+
+load_profile:
+  name: Load Profile
+  description: "Loads a CronoStar schedule profile from a JSON file and returns its content."
+  fields:
+    profile_name:
+      name: Profile Name
+      description: "The name of the profile to load."
+      required: true
+      selector:
+        text:
+    preset_type:
+      name: Preset Type
+      description: "The type of preset to which the profile belongs."
+      required: true
+      selector:
+        text:
+    entity_prefix:
+      name: Entity Prefix
+      description: "The entity prefix used by the card (legacy parameter)."
+      required: false
+      selector:
+        text:
+    global_prefix:
+      name: Global Prefix
+      description: "The global identification prefix (takes priority over entity_prefix)."
+      required: false
+      selector:
+        text:
+
+add_profile:
+  name: Add Profile
+  description: "Creates a new profile with default values."
+  fields:
+    profile_name:
+      name: Profile Name
+      description: "The name of the profile to create."
+      required: true
+      selector:
+        text:
+    preset_type:
+      name: Preset Type
+      description: "The type of preset this profile belongs to."
+      required: true
+      selector:
+        text:
+    entity_prefix:
+      name: Entity Prefix
+      description: "The entity prefix used by the card (legacy parameter)."
+      required: false
+      selector:
+        text:
+    global_prefix:
+      name: Global Prefix
+      description: "The global identification prefix (takes priority over entity_prefix)."
+      required: false
+      selector:
+        text:
+
+delete_profile:
+  name: Delete Profile
+  description: "Deletes a CronoStar schedule profile."
+  fields:
+    profile_name:
+      name: Profile Name
+      description: "The name of the profile to delete."
+      required: true
+      selector:
+        text:
+    preset_type:
+      name: Preset Type
+      description: "The type of preset this profile belongs to."
+      required: true
+      selector:
+        text:
+    entity_prefix:
+      name: Entity Prefix
+      description: "The entity prefix used by the card (legacy parameter)."
+      required: false
+      selector:
+        text:
+    global_prefix:
+      name: Global Prefix
+      description: "The global identification prefix (takes priority over entity_prefix)."
+      required: false
+      selector:
+        text:
+
+apply_now:
+  name: Apply current hour value
+  description: Apply the scheduled value for the current hour to the target entity (CronoStar).
+  fields:
+    entity_id:
+      name: Target entity_id
+      description: Entity to control (climate, number, switch).
+      example: switch.washing_machine
+      required: true
+      selector:
+        entity:
+    preset_type:
+      name: Preset type
+      description: Preset used to decide how to apply values (e.g., thermostat, generic_switch).
+      example: generic_switch
+      required: true
+      selector:
+        select:
+          options:
+            - thermostat
+            - ev_charging
+            - generic_kwh
+            - generic_temperature
+            - generic_switch
+    allow_max_value:
+      name: Allow Max Value
+      description: 'Whether to enable the special ''Max'' value behavior (deferring action).'
+      required: false
+      selector:
+        boolean:
+    entity_prefix:
+      name: Entity Prefix
+      description: "The entity prefix used by the card (legacy parameter)."
+      required: false
+      selector:
+        text:
+    global_prefix:
+      name: Global Prefix
+      description: "The global identification prefix (takes priority over entity_prefix)."
+      required: false
+      selector:
+        text:
+
+check_setup:
+  name: Check CronoStar setup
+  description: Inspect configuration.yaml and included files to verify input_number helpers and automation storage. Emits a persistent notification and the event 'cronostar_setup_report' for the card.
+  fields:
+    prefix:
+      name: Helpers prefix
+      description: Prefix for input_number helpers (must end with underscore).
+      example: cronostar_switch_presa_balcone_
+      required: false
+      selector:
+        text:
+    hour_base:
+      name: Hour base
+      description: Hour numbering base (0 for 00..23, 1 for 01..24).
+      example: 0
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1
+          step: 1
+          mode: slider
+    alias:
+      name: Expected automation alias
+      description: Alias to check presence (as shown in Automation UI).
+      example: "CronoStar - apply switch presa balcone"
+      required: false
+      selector:
+        text:
+    expected_count:
+      name: Expected helpers count
+      description: Number of expected input_number helpers (default 24).
+      example: 24
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 48
+          step: 1
+          mode: box
+
+create_yaml_file:
+  name: Create YAML File
+  description: "Creates a YAML file with the given content. For internal use by the wizard."
+  fields:
+    file_path:
+      name: File Path
+      description: "The path to the file to create, relative to the /config directory."
+      required: true
+      selector:
+        text:
+    content:
+      name: Content
+      description: "The content to write to the file."
+      required: true
+      selector:
+        text:
+    append:
+      name: Append
+      description: "If true, append to existing file instead of overwriting."
+      required: false
+      selector:
+        boolean:

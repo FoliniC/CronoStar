@@ -1,0 +1,52 @@
+{
+  "name": "cronostar-card",
+  "version": "4.0.0",
+  "description": "Visual hourly schedule editor for Home Assistant",
+  "main": "cronostar_card/cronostar-card.js",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c ",
+    "watch": "rollup -c -w",
+    "dev": "rollup -c -w",
+    "lint:fix": "eslint src/ --fix"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FoliniC/cronostar_card.git"
+  },
+  "keywords": [
+    "home-assistant",
+    "homeassistant",
+    "hacs",
+    "lovelace",
+    "custom-card",
+    "temperature",
+    "scheduler",
+    "thermostat"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/FoliniC/cronostar_card/issues"
+  },
+  "homepage": "https://github.com/FoliniC/cronostar_card#readme",
+  "devDependencies": {
+    "@babel/core": "^7.24.7",
+    "@babel/preset-env": "^7.24.7",
+    "@eslint/js": "^9.38.0",
+    "@rollup/plugin-alias": "^6.0.0",
+    "@rollup/plugin-babel": "^6.0.4",
+    "@rollup/plugin-commonjs": "^25.0.8",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "chart.js": "^4.5.1",
+    "chartjs-plugin-dragdata": "^2.3.1",
+    "eslint": "^9.5.0",
+    "globals": "^16.4.0",
+    "rollup": "^4.18.0"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.0",
+    "lit": "^2.8.0"
+  }
+}

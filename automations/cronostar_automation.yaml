@@ -1,0 +1,217 @@
+# CronoStar - Automations
+# ===========================================================================
+# DAILY BACKUP
+# ===========================================================================
+- id: "cronostar_daily_backup"
+  alias: "CronoStar: Daily Backup"
+  description: "Performs daily automatic backup"
+  triggers:
+    - trigger: time
+      at: "03:00:00"
+  conditions: []
+  actions:
+    - action: shell_command.cronostar_backup
+    - action: system_log.write
+      data:
+        message: "[CronoStar] Daily backup completed"
+        level: info
+
+# ===========================================================================
+# THERMOSTAT - Apply scheduled temperature (every 10 minutes and on profiles loaded)
+# ===========================================================================
+- id: "cronostar_temp_apply"
+  alias: "CronoStar: Apply Scheduled Temperature"
+  description: >-
+    Updates the thermostat's setpoint based on the input_number value
+    for the current hour.
+  triggers:
+    - trigger: time_pattern
+      minutes: "/10"
+    - trigger: event
+      event_type: cronostar_profiles_loaded
+  conditions:
+    - condition: state
+      entity_id: input_boolean.cronostar_temp_paused
+      state: "off"
+  actions:
+    - variables:
+        current_hour: "{{ now().hour }}"
+        hour_str: "{{ '%02d' | format(current_hour) }}"
+        target_input: "input_number.cronostar_temp_{{ hour_str }}"
+        target_value: "{{ states(target_input) | float(20) }}"
+    - action: system_log.write
+      data:
+        message: "[CronoStar TEMP] Hour {{ hour_str }}: Setting temperature to {{ target_value }}°C"
+        level: info
+    # =========================================================
+    # CUSTOMIZE HERE: Replace with your climate entity
+    # =========================================================
+    - action: climate.set_temperature
+      target:
+        entity_id: climate.climatizzazione_appartamento
+      data:
+        temperature: "{{ target_value }}"
+
+# ===========================================================================
+# EV CHARGING - Apply scheduled power (every 10 minutes and on profiles loaded)
+# ===========================================================================
+- id: "cronostar_ev_apply"
+  alias: "CronoStar: Apply Scheduled EV Power"
+  description: >-
+    Updates the EV charger's power based on the input_number value
+    for the current hour.
+  triggers:
+    - trigger: time_pattern
+      minutes: "/10"
+    - trigger: event
+      event_type: cronostar_profiles_loaded
+  conditions:
+    - condition: state
+      entity_id: input_boolean.cronostar_ev_paused
+      state: "off"
+  actions:
+    - variables:
+        current_hour: "{{ now().hour }}"
+        hour_str: "{{ '%02d' | format(current_hour) }}"
+        target_input: "input_number.cronostar_ev_{{ hour_str }}"
+        target_value: "{{ states(target_input) | float(0) }}"
+        symbolic_max_value: "{{ state_attr(target_input, 'max') | float(1) }}"
+        is_max_value: "{{ target_value >= symbolic_max_value }}"
+        target_ampere: "{{ (target_value * 1000 / 230) | round(0) }}"
+    - if:
+        - condition: template
+          value_template: "{{ is_max_value }}"
+      then:
+        - action: system_log.write
+          data:
+            message: "[CronoStar EV] Hour {{ hour_str }}: MAX POWER requested. Deferring to other automations (e.g., solar)."
+            level: info
+        # =========================================================
+        # CUSTOMIZE HERE: Add your logic for maximum power.
+        # For example, you could call an automation that manages
+        # solar charging.
+        # Example:
+        # - action: automation.trigger
+        #   target:
+        #     entity_id: automation.your_solar_ev_charging_automation
+        # =========================================================
+      else:
+        - action: system_log.write
+          data:
+            message: "[CronoStar EV] Hour {{ hour_str }}: Setting power to {{ target_value }}kW ({{ target_ampere }}A)"
+            level: info
+        # =========================================================
+        # CUSTOMIZE HERE: Replace with your EV charger entity
+        # =========================================================
+        # Example:
+        # - action: number.set_value
+        #   target:
+        #     entity_id: number.ev_charger_current
+        #   data:
+        #     value: "{{ target_ampere }}"
+
+# ===========================================================================
+# GENERIC SWITCH - Apply scheduled state (every 10 minutes and on profiles loaded)
+# ===========================================================================
+- id: "cronostar_switch_apply"
+  alias: "CronoStar: Apply Scheduled Switch State"
+  description: >-
+    Updates the switch's state based on the input_number value
+    for the current hour.
+  triggers:
+    - trigger: time_pattern
+      minutes: "/10"
+    - trigger: event
+      event_type: cronostar_profiles_loaded
+  conditions:
+    - condition: state
+      entity_id: input_boolean.cronostar_switch_paused
+      state: "off"
+  actions:
+    - variables:
+        current_hour: "{{ now().hour }}"
+        hour_str: "{{ '%02d' | format(current_hour) }}"
+        target_input: "input_number.cronostar_switch_{{ hour_str }}"
+        target_value: "{{ states(target_input) | int(0) }}"
+        target_state: "{{ 'on' if target_value == 1 else 'off' }}"
+    - action: system_log.write
+      data:
+        message: "[CronoStar SWITCH] Hour {{ hour_str }}: Setting switch to {{ target_state | upper }}"
+        level: info
+    # =========================================================
+    # CUSTOMIZE HERE: Replace with your switch entity
+    # =========================================================
+    # Example:
+    # - if:
+    #     - condition: template
+    #       value_template: "{{ target_value == 1 }}"
+    #   then:
+    #     - action: switch.turn_on
+    #       target:
+    #         entity_id: switch.your_switch
+    #   else:
+    #     - action: switch.turn_off
+    #       target:
+    #         entity_id: switch.your_switch
+
+# ===========================================================================
+# GENERIC KWH - Apply scheduled energy limit (every 10 minutes and on profiles loaded)
+# ===========================================================================
+- id: "cronostar_kwh_apply"
+  alias: "CronoStar: Apply Scheduled kWh Limit"
+  description: >-
+    Updates the energy limit based on the input_number value
+    for the current hour.
+  triggers:
+    - trigger: time_pattern
+      minutes: "/10"
+    - trigger: event
+      event_type: cronostar_profiles_loaded
+  conditions:
+    - condition: state
+      entity_id: input_boolean.cronostar_kwh_paused
+      state: "off"
+  actions:
+    - variables:
+        current_hour: "{{ now().hour }}"
+        hour_str: "{{ '%02d' | format(current_hour) }}"
+        target_input: "input_number.cronostar_kwh_{{ hour_str }}"
+        target_value: "{{ states(target_input) | float(0) }}"
+    - action: system_log.write
+      data:
+        message: "[CronoStar KWH] Hour {{ hour_str }}: Setting limit to {{ target_value }}kWh"
+        level: info
+    # =========================================================
+    # CUSTOMIZE HERE: Add your logic
+    # =========================================================
+
+# ===========================================================================
+# GENERIC TEMPERATURE - Apply scheduled generic temperature (every 10 minutes and on profiles loaded)
+# ===========================================================================
+- id: "cronostar_gentemp_apply"
+  alias: "CronoStar: Apply Scheduled Generic Temperature"
+  description: >-
+    Updates the generic temperature based on the input_number value
+    for the current hour.
+  triggers:
+    - trigger: time_pattern
+      minutes: "/10"
+    - trigger: event
+      event_type: cronostar_profiles_loaded
+  conditions:
+    - condition: state
+      entity_id: input_boolean.cronostar_gentemp_paused
+      state: "off"
+  actions:
+    - variables:
+        current_hour: "{{ now().hour }}"
+        hour_str: "{{ '%02d' | format(current_hour) }}"
+        target_input: "input_number.cronostar_gentemp_{{ hour_str }}"
+        target_value: "{{ states(target_input) | float(20) }}"
+    - action: system_log.write
+      data:
+        message: "[CronoStar GENTEMP] Hour {{ hour_str }}: Setting temperature to {{ target_value }}°C"
+        level: info
+    # =========================================================
+    # CUSTOMIZE HERE: Add your logic
+    # =========================================================  

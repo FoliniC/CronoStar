@@ -1,0 +1,103 @@
+{
+  "profile_name": "Night",
+  "preset_type": "thermostat",
+  "schedule": [
+    {
+      "hour": 0,
+      "value": 18
+    },
+    {
+      "hour": 1,
+      "value": 18
+    },
+    {
+      "hour": 2,
+      "value": 18
+    },
+    {
+      "hour": 3,
+      "value": 18
+    },
+    {
+      "hour": 4,
+      "value": 18
+    },
+    {
+      "hour": 5,
+      "value": 18
+    },
+    {
+      "hour": 6,
+      "value": 18
+    },
+    {
+      "hour": 7,
+      "value": 18
+    },
+    {
+      "hour": 8,
+      "value": 18
+    },
+    {
+      "hour": 9,
+      "value": 18
+    },
+    {
+      "hour": 10,
+      "value": 18
+    },
+    {
+      "hour": 11,
+      "value": 18
+    },
+    {
+      "hour": 12,
+      "value": 18
+    },
+    {
+      "hour": 13,
+      "value": 18
+    },
+    {
+      "hour": 14,
+      "value": 18
+    },
+    {
+      "hour": 15,
+      "value": 18
+    },
+    {
+      "hour": 16,
+      "value": 18
+    },
+    {
+      "hour": 17,
+      "value": 18
+    },
+    {
+      "hour": 18,
+      "value": 18
+    },
+    {
+      "hour": 19,
+      "value": 18
+    },
+    {
+      "hour": 20,
+      "value": 18
+    },
+    {
+      "hour": 21,
+      "value": 18
+    },
+    {
+      "hour": 22,
+      "value": 18
+    },
+    {
+      "hour": 23,
+      "value": 18
+    }
+  ],
+  "saved_at": 321239.813309966
+}
