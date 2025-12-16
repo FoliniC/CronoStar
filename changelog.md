@@ -1,4 +1,9 @@
 # Changelog
+## v4.3.3
+
+### Bug Fixes
+- Fixed: "Waiting for automation" overlay appearing on initial load without user interaction. The overlay now only appears after a user-initiated change to the schedule.
+
 ## v4.0.0
 
 ### Added - Integration

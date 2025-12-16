@@ -119,6 +119,13 @@ export class CardSync {
             return;
         }
 
+        // Only check for sync if the user has actually edited/interacted with the card in this session
+        if (!this.card.lastEditAt) {
+            this.card.awaitingAutomation = false;
+            this.card.outOfSyncDetails = "";
+            return;
+        }
+
         const scheduled = this.getScheduledValue(hass);
         const applied = this.getTargetEntityAppliedValue(hass);
 

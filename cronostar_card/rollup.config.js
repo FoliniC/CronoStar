@@ -32,7 +32,7 @@ export default {
       extensions: ['.js', '.mjs'],
       browser: true
     }),
-    commonjs(),
+    commonjs({ include: 'node_modules/**' }),
     production && terser({
       format: {
         comments: false,

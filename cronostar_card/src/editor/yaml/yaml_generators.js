@@ -135,7 +135,7 @@ export function buildAutomationYaml(config, style = 'list') {
 }
 
 /**
- * Builds the input_number helpers YAML
+ * Builds the helpers YAML (input_number, input_boolean, input_select)
  */
 export function buildInputNumbersYaml(config, source = 'unknown') {
   const prefix = normalizePrefix(config.global_prefix || config.entity_prefix || 'cronostar_');
@@ -145,22 +145,24 @@ export function buildInputNumbersYaml(config, source = 'unknown') {
   const uom = (config.unit_of_measurement || '').trim();
   const presetName = getPresetDisplayName(config.preset);
   
+  // Extra entities configuration
+  const pauseEntity = config.pause_entity;
+  const profilesEntity = config.profiles_select_entity;
+
   const lines = [];
   lines.push('# ===============================================');
   lines.push(`# CronoStar Helpers (${presetName})`);
   lines.push(`# Prefix: ${prefix}`);
-  lines.push('# Place this file in packages/ or merge under input_number: in configuration.yaml');
+  lines.push('# Place this file in packages/ or merge under specific domains in configuration.yaml');
   lines.push('# Then restart Home Assistant.');
   lines.push('# ===============================================');
   
   const isList = source === 'include_dir_list';
   const isInline = source === 'inline';
   
-  if (isInline) {
-    lines.push('input_number:');
-  }
+  // 1. INPUT NUMBER (Current Value)
+  if (isInline) lines.push('input_number:');
   
-  // Add the "Current Value" entity
   const currentKey = `${prefix}current`;
   if (isList) {
     lines.push(`- ${currentKey}:`);
@@ -172,16 +174,60 @@ export function buildInputNumbersYaml(config, source = 'unknown') {
     lines.push(`    mode: box`);
     lines.push(`    icon: mdi:target`);
   } else {
-    const keyIndent = isInline ? '  ' : '';
-    const propIndent = isInline ? '    ' : '  ';
-    lines.push(`${keyIndent}${currentKey}:`);
-    lines.push(`${propIndent}name: "CronoStar ${presetName} Current Value"`);
-    lines.push(`${propIndent}min: ${min}`);
-    lines.push(`${propIndent}max: ${max}`);
-    lines.push(`${propIndent}step: ${step}`);
-    if (uom) lines.push(`${propIndent}unit_of_measurement: "${uom}"`);
-    lines.push(`${propIndent}mode: box`);
-    lines.push(`${propIndent}icon: mdi:target`);
+    const indent = isInline ? '  ' : '';
+    lines.push(`${indent}${currentKey}:`);
+    lines.push(`${indent}  name: "CronoStar ${presetName} Current Value"`);
+    lines.push(`${indent}  min: ${min}`);
+    lines.push(`${indent}  max: ${max}`);
+    lines.push(`${indent}  step: ${step}`);
+    if (uom) lines.push(`${indent}  unit_of_measurement: "${uom}"`);
+    lines.push(`${indent}  mode: box`);
+    lines.push(`${indent}  icon: mdi:target`);
+  }
+
+  // 2. INPUT BOOLEAN (Pause)
+  if (pauseEntity) {
+    lines.push('');
+    if (isInline) lines.push('input_boolean:');
+    // Extract key from entity_id if possible, else use full as key (cleaner if just key)
+    const pauseKey = pauseEntity.startsWith('input_boolean.') ? pauseEntity.replace('input_boolean.', '') : pauseEntity;
+    
+    if (isList) {
+      lines.push(`- ${pauseKey}:`);
+      lines.push(`    name: "CronoStar ${presetName} Paused"`);
+      lines.push(`    icon: mdi:pause-circle`);
+    } else {
+      const indent = isInline ? '  ' : '';
+      lines.push(`${indent}${pauseKey}:`);
+      lines.push(`${indent}  name: "CronoStar ${presetName} Paused"`);
+      lines.push(`${indent}  icon: mdi:pause-circle`);
+    }
+  }
+
+  // 3. INPUT SELECT (Profiles)
+  if (profilesEntity) {
+    lines.push('');
+    if (isInline) lines.push('input_select:');
+    const profileKey = profilesEntity.startsWith('input_select.') ? profilesEntity.replace('input_select.', '') : profilesEntity;
+    
+    if (isList) {
+      lines.push(`- ${profileKey}:`);
+      lines.push(`    name: "CronoStar ${presetName} Profiles"`);
+      lines.push(`    options:`);
+      lines.push(`      - "Default"`);
+      lines.push(`      - "Custom"`);
+      lines.push(`    initial: "Default"`);
+      lines.push(`    icon: mdi:format-list-bulleted`);
+    } else {
+      const indent = isInline ? '  ' : '';
+      lines.push(`${indent}${profileKey}:`);
+      lines.push(`${indent}  name: "CronoStar ${presetName} Profiles"`);
+      lines.push(`${indent}  options:`);
+      lines.push(`${indent}    - "Default"`);
+      lines.push(`${indent}    - "Custom"`);
+      lines.push(`${indent}  initial: "Default"`);
+      lines.push(`${indent}  icon: mdi:format-list-bulleted`);
+    }
   }
   
   return lines.join('\n');

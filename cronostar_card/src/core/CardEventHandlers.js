@@ -223,209 +223,222 @@ export class CardEventHandlers {
         this.card.requestUpdate();
     }
 
-    async handleAddProfile() {
-        const localize = (key, search, replace) => this.card.localizationManager.localize(this.card.language, key, search, replace);
-        try {
-            const profileName = window.prompt(localize('prompt.add_profile_name'));
-            if (!profileName || !profileName.trim()) {
-                return;
-            }
-            const name = profileName.trim();
+handleHelp() {
+    const title = this.card.localizationManager.localize(this.card.language, 'help.title');
+    const text = this.card.localizationManager.localize(this.card.language, 'help.text');
+    
+    // Current Configuration Info
+    const cardId = this.card.cardId || 'Not registered';
+    const preset = this.card.config?.preset || 'thermostat';
+    const prefix = getEffectivePrefix(this.card.config);
+    const targetEntity = this.card.config?.apply_entity || 'Not configured';
+    const profileEntity = this.card.config?.profiles_select_entity || 'Not configured';
+    const pauseEntity = this.card.config?.pause_entity || 'Not configured';
+    const currentProfile = this.card.selectedProfile || 'No profile selected';
+    
+    // Expected entities
+    const prefixBase = prefix.replace(/_+$/, '');
+    const currentEntity = `input_number.${prefix}current`;
+    const packageFile = `${prefixBase}_package.yaml`;
+    
+    // Interval info
+    const interval = this.card.config?.interval_minutes || 60;
+    const numPoints = Math.floor(1440 / interval);
+    
+    const configInfo = this.card.language === 'it' 
+      ? `=== Configurazione Attuale ===
+Card ID: ${cardId}
+Versione: ${VERSION}
+Preset: ${preset}
+Profilo Attivo: ${currentProfile}
+Prefisso: ${prefix}
 
-            await this.card.hass.callService("cronostar", "add_profile", {
-                profile_name: name,
-                preset_type: this.card.selectedPreset,
-                entity_prefix: this.card.config.entity_prefix,
-                global_prefix: this.card.config.global_prefix
-            });
-            this.showNotification(localize('notify.add_profile_success', { '{profile}': name }), 'success');
-            this.card.isMenuOpen = false;
-            this.card.keyboardHandler.enable();
-            const chartContainer = this.card.shadowRoot?.querySelector(".chart-container");
-            if (chartContainer && !this.card.isEditorContext()) {
-                chartContainer.focus();
-            }
-        } catch (err) {
-            const msg = err?.message || String(err);
-            this.showNotification(this.card.localizationManager.localize(this.card.language, 'notify.add_profile_error', { '{profile}': '', '{error}': msg }), 'error');
-            Logger.error('SAVE', '[CronoStar] Error adding profile:', err);
-        }
-    }
+=== Entità ===
+Entità Destinazione: ${targetEntity}
+Entità Valore Corrente: ${currentEntity}
+Selettore Profili: ${profileEntity}
+Entità Pausa: ${pauseEntity}
 
-    async handleDeleteProfile() {
-        const localize = (key, search, replace) => this.card.localizationManager.localize(this.card.language, key, search, replace);
-        const profileToDelete = this.card.selectedProfile;
-        if (!profileToDelete) {
-            return;
-        }
-        const confirmed = window.confirm(localize('prompt.delete_profile_confirm', { '{profile}': profileToDelete }));
-        if (!confirmed) {
-            return;
-        }
-        try {
-            await this.card.hass.callService("cronostar", "delete_profile", {
-                profile_name: profileToDelete,
-                preset_type: this.card.selectedPreset,
-                entity_prefix: this.card.config.entity_prefix,
-                global_prefix: this.card.config.global_prefix
-            });
-            this.showNotification(localize('notify.delete_profile_success', { '{profile}': profileToDelete }), 'success');
-            this.card.isMenuOpen = false;
-            this.card.keyboardHandler.enable();
-            const chartContainer = this.card.shadowRoot?.querySelector(".chart-container");
-            if (chartContainer && !this.card.isEditorContext()) {
-                chartContainer.focus();
-            }
-        } catch (err) {
-            const msg = err?.message || String(err);
-            this.showNotification(localize('notify.delete_profile_error', { '{profile}': profileToDelete, '{error}': msg }), 'error');
-            Logger.error('SAVE', '[CronoStar] Error deleting profile:', err);
-        }
-    }
+=== Configurazione ===
+File Package: /config/packages/${packageFile}
+Intervallo: ${interval} minuti
+Punti Schedule: ${numPoints}
 
-    handleHelp() {
-        const title = this.card.localizationManager.localize(this.card.language, 'help.title');
-        const text = this.card.localizationManager.localize(this.card.language, 'help.text');
-        
-        // Diagnostic Info
-        const cardId = this.card.cardId || 'Not registered';
-        const preset = this.card.config?.preset || 'thermostat';
-        const prefix = getEffectivePrefix(this.card.config);
-        
-        // Determine expected filenames and entities
-        const prefixBase = prefix.replace(/_+$/, '');
-        const currentEntity = `input_number.${prefix}current`;
-        const profileFile = `${prefixBase}_data.json`;
-        
-        const debugInfo = `Card ID: ${cardId}
+=== Istruzioni ===
+${text}
+
+=== File di Configurazione ===
+Il sistema utilizza:
+1. Package: /config/packages/${packageFile}
+   Contiene tutte le entità helper necessarie
+   
+2. Profili: /config/cronostar/profiles/${prefixBase}_data.json
+   Contiene tutti i profili salvati per questo preset
+
+3. Automazione: Da creare tramite l'editor (Step 4)
+   o manualmente in automations/
+
+=== Prossimi Passi ===
+1. Se non l'hai fatto, crea il package usando l'editor (Step 2)
+2. Copia il contenuto in /config/packages/${packageFile}
+3. Riavvia Home Assistant
+4. Crea l'automazione usando l'editor (Step 4)
+5. Salva la configurazione della card`
+      : `=== Current Configuration ===
+Card ID: ${cardId}
 Version: ${VERSION}
 Preset: ${preset}
-Profile: ${this.card.selectedProfile || 'Nessun profilo selezionato'}
+Active Profile: ${currentProfile}
 Prefix: ${prefix}
-Target Entity: ${this.card.config?.apply_entity || 'Not configured'}
+
+=== Entities ===
+Target Entity: ${targetEntity}
 Current Value Entity: ${currentEntity}
-Profile File: ${profileFile}
+Profiles Selector: ${profileEntity}
+Pause Entity: ${pauseEntity}
 
-Instructions:
-${text}`;
+=== Configuration ===
+Package File: /config/packages/${packageFile}
+Interval: ${interval} minutes
+Schedule Points: ${numPoints}
 
-        // Create custom dialog overlay
-        const overlay = document.createElement('div');
-        overlay.style.cssText = `
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 9999;
-          padding: 20px;
-        `;
-        
-        const dialog = document.createElement('div');
-        dialog.style.cssText = `
-          background: var(--card-background-color, white);
-          border-radius: 8px;
-          padding: 24px;
-          max-width: 600px;
-          max-height: 80vh;
-          overflow-y: auto;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        `;
-        
-        const headerDiv = document.createElement('div');
-        headerDiv.style.cssText = `
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-        `;
-        
-        const titleEl = document.createElement('h2');
-        titleEl.textContent = title;
-        titleEl.style.cssText = `
-          margin: 0;
-          color: var(--primary-text-color);
-        `;
-        
-        const closeBtn = document.createElement('button');
-        closeBtn.textContent = '✕';
-        closeBtn.style.cssText = `
-          background: none;
-          border: none;
-          font-size: 24px;
-          cursor: pointer;
-          color: var(--primary-text-color);
-          padding: 0;
-          width: 32px;
-          height: 32px;
-        `;
-        closeBtn.onclick = () => overlay.remove();
-        
-        const textarea = document.createElement('textarea');
-        textarea.value = debugInfo;
-        textarea.readOnly = true;
-        textarea.style.cssText = `
-          width: 100%;
-          min-height: 300px;
-          font-family: monospace;
-          font-size: 12px;
-          padding: 12px;
-          border: 1px solid var(--divider-color);
-          border-radius: 4px;
-          background: var(--code-editor-background-color, #1e1e1e);
-          color: var(--code-editor-color, #d4d4d4);
-          resize: vertical;
-          box-sizing: border-box;
-        `;
-        
-        const copyBtn = document.createElement('button');
-        copyBtn.textContent = this.card.language === 'it' ? '📋 Copia negli appunti' : '📋 Copy to clipboard';
-        copyBtn.style.cssText = `
-          margin-top: 12px;
-          padding: 8px 16px;
-          background: var(--primary-color);
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-        `;
-        copyBtn.onclick = async () => {
-          try {
-            await navigator.clipboard.writeText(debugInfo);
-            copyBtn.textContent = this.card.language === 'it' ? '✅ Copiato!' : '✅ Copied!';
-            setTimeout(() => {
-              copyBtn.textContent = this.card.language === 'it' ? '📋 Copia negli appunti' : '📋 Copy to clipboard';
-            }, 2000);
-          } catch (e) {
-            Logger.warn('HELP', 'Failed to copy to clipboard:', e);
-          }
-        };
-        
-        headerDiv.appendChild(titleEl);
-        headerDiv.appendChild(closeBtn);
-        dialog.appendChild(headerDiv);
-        dialog.appendChild(textarea);
-        dialog.appendChild(copyBtn);
-        overlay.appendChild(dialog);
-        
-        // Close on overlay click
-        overlay.addEventListener('click', (e) => {
-          if (e.target === overlay) {
-            overlay.remove();
-          }
-        });
-        
-        document.body.appendChild(overlay);
-        
-        // Select text for easy copying
-        textarea.select();
-    }
+=== Instructions ===
+${text}
 
+=== Configuration Files ===
+The system uses:
+1. Package: /config/packages/${packageFile}
+   Contains all required helper entities
+   
+2. Profiles: /config/cronostar/profiles/${prefixBase}_data.json
+   Contains all saved profiles for this preset
+
+3. Automation: To be created via editor (Step 4)
+   or manually in automations/
+
+=== Next Steps ===
+1. If not done, create package using editor (Step 2)
+2. Copy content to /config/packages/${packageFile}
+3. Restart Home Assistant
+4. Create automation using editor (Step 4)
+5. Save card configuration`;
+
+    // Create custom dialog overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 20px;
+    `;
+    
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      background: var(--card-background-color, white);
+      border-radius: 8px;
+      padding: 24px;
+      max-width: 700px;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    `;
+    
+    const headerDiv = document.createElement('div');
+    headerDiv.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    `;
+    
+    const titleEl = document.createElement('h2');
+    titleEl.textContent = title;
+    titleEl.style.cssText = `
+      margin: 0;
+      color: var(--primary-text-color);
+    `;
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = `
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--primary-text-color);
+      padding: 0;
+      width: 32px;
+      height: 32px;
+    `;
+    closeBtn.onclick = () => overlay.remove();
+    
+    const textarea = document.createElement('textarea');
+    textarea.value = configInfo;
+    textarea.readOnly = true;
+    textarea.style.cssText = `
+      width: 100%;
+      min-height: 400px;
+      font-family: monospace;
+      font-size: 12px;
+      padding: 12px;
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
+      background: var(--code-editor-background-color, #1e1e1e);
+      color: var(--code-editor-color, #d4d4d4);
+      resize: vertical;
+      box-sizing: border-box;
+    `;
+    
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = this.card.language === 'it' ? '📋 Copia negli appunti' : '📋 Copy to clipboard';
+    copyBtn.style.cssText = `
+      margin-top: 12px;
+      padding: 8px 16px;
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    `;
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(configInfo);
+        copyBtn.textContent = this.card.language === 'it' ? '✅ Copiato!' : '✅ Copied!';
+        setTimeout(() => {
+          copyBtn.textContent = this.card.language === 'it' ? '📋 Copia negli appunti' : '📋 Copy to clipboard';
+        }, 2000);
+      } catch (e) {
+        Logger.warn('HELP', 'Failed to copy to clipboard:', e);
+      }
+    };
+    
+    headerDiv.appendChild(titleEl);
+    headerDiv.appendChild(closeBtn);
+    dialog.appendChild(headerDiv);
+    dialog.appendChild(textarea);
+    dialog.appendChild(copyBtn);
+    overlay.appendChild(dialog);
+    
+    // Close on overlay click
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+      }
+    });
+    
+    document.body.appendChild(overlay);
+    
+    // Select text for easy copying
+    textarea.select();
+  } // Missing closing brace added here
     async togglePause(e) {
         try {
             const checked = e?.target?.checked === true;
