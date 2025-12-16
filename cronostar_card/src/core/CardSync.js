@@ -34,30 +34,18 @@ export class CardSync {
         return `Waiting for automation to apply the scheduled values (hour ${hour}:00).`;
     }
 
-    getCurrentHourIndex() {
-        return new Date().getHours();
-    }
-
-    getHourEntityId(hourIdx) {
-        // Use the effective prefix from utility function
-        const effectivePrefix = getEffectivePrefix(this.card.config);
-        if (this.card.hourBase === 1) {
-            const suffix = hourIdx === 0 ? '24' : hourIdx.toString().padStart(2, '0');
-            return `input_number.${effectivePrefix}${suffix}`;
-        }
-        return `input_number.${effectivePrefix}${hourIdx.toString().padStart(2, '0')}`;
-    }
-
     getScheduledValue(hass) {
         try {
-            const hourIdx = this.getCurrentHourIndex();
-            const val = this.card.stateManager?.scheduleData?.[hourIdx];
-            if (val !== null && val !== undefined) return Number(val);
-            const entityId = this.getHourEntityId(hourIdx);
-            const st = hass.states[entityId];
-            if (!st || st.state === 'unknown' || st.state === 'unavailable') return null;
-            const num = Number(st.state);
-            return Number.isFinite(num) ? num : null;
+            // Get value from internal memory
+            const hourIdx = this.card.stateManager?.getCurrentIndex() || 0;
+            const data = this.card.stateManager?.getData();
+            if (!data || data.length === 0) return null;
+            
+            // Handle different intervals
+            // If we have more than 24 points, we need to pick the correct index
+            // getCurrentIndex handles this logic (time -> index)
+            const val = data[hourIdx];
+            return (val !== null && val !== undefined) ? Number(val) : null;
         } catch {
             return null;
         }
@@ -108,11 +96,8 @@ export class CardSync {
             this.card.outOfSyncDetails = "";
             return;
         }
-        if (!this.card.cronostarReady) {
-            this.card.awaitingAutomation = false;
-            this.card.outOfSyncDetails = "";
-            return;
-        }
+        // Removed cronostarReady check related to entities
+        
         if (this.card.isPaused) {
             this.card.awaitingAutomation = false;
             this.card.outOfSyncDetails = "";
@@ -163,7 +148,8 @@ export class CardSync {
                 this.card.awaitingAutomation = persisted >= TIMEOUTS.mismatchPersistenceMs;
 
                 if (this.card.awaitingAutomation) {
-                    const hourLabel = this.card.stateManager?.getHourLabel(this.getCurrentHourIndex()) || `${this.getCurrentHourIndex().toString().padStart(2, '0')}:00`;
+                    const hourIdx = this.card.stateManager?.getCurrentIndex() || 0;
+                    const hourLabel = this.card.stateManager?.getPointLabel(hourIdx) || 'Now';
                     const details = this.card.language === 'it'
                         ? `Programma ${hourLabel}: ${scheduled} ≠ Entità (${this.card.config.apply_entity}) ${applied}`
                         : `Schedule ${hourLabel}: ${scheduled} ≠ Entity (${this.card.config.apply_entity}) ${applied}`;

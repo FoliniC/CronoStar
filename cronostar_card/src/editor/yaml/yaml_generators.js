@@ -12,6 +12,7 @@ export function buildAutomationYaml(config, style = 'list') {
   const applyEntity = config.apply_entity;
   const pauseEntity = config.pause_entity;
   const profilesSelect = config.profiles_select_entity || '';
+  const interval = config.interval_minutes || 60;
   
   const rawPrefix = normalizePrefix(config.global_prefix || config.entity_prefix || 'cronostar_');
   const idBase = rawPrefix.replace(/_+$/, '');
@@ -35,8 +36,15 @@ export function buildAutomationYaml(config, style = 'list') {
   lines.push(`${indent}  description: "Generato automaticamente da CronoStar Editor"`);
   lines.push(`${indent}  mode: restart`);
   lines.push(`${indent}  trigger:`);
-  lines.push(`${indent}    - platform: time_pattern`);
-  lines.push(`${indent}      minutes: "0"`);
+  
+  if (interval === 60) {
+    lines.push(`${indent}    - platform: time_pattern`);
+    lines.push(`${indent}      minutes: "0"`);
+  } else {
+    lines.push(`${indent}    - platform: time_pattern`);
+    lines.push(`${indent}      minutes: "/${interval}"`);
+  }
+  
   lines.push(`${indent}    - platform: event`);
   lines.push(`${indent}      event_type: cronostar_profiles_loaded`);
   
@@ -53,9 +61,21 @@ export function buildAutomationYaml(config, style = 'list') {
   lines.push(`${indent}    - variables:`);
   lines.push(`${indent}        prefix: "${rawPrefix}"`);
   lines.push(`${indent}        target_entity: "${applyEntity}"`);
-  lines.push(`${indent}        hour: "{{ now().hour }}"`);
-  lines.push(`${indent}        hh: "{{ '%02d'|format(now().hour) }}"`);
-  lines.push(`${indent}        schedule_entity: "input_number.{{ prefix }}{{ hh }}"`);
+  
+  if (interval === 60) {
+    // Legacy hourly logic
+    lines.push(`${indent}        hour: "{{ now().hour }}"`);
+    lines.push(`${indent}        hh: "{{ '%02d'|format(now().hour) }}"`);
+    lines.push(`${indent}        schedule_entity: "input_number.{{ prefix }}{{ hh }}"`);
+  } else {
+    // Interval logic
+    lines.push(`${indent}        interval: ${interval}`);
+    lines.push(`${indent}        current_total_minutes: "{{ now().hour * 60 + now().minute }}"`);
+    lines.push(`${indent}        idx: "{{ (current_total_minutes / interval) | int }}"`);
+    lines.push(`${indent}        suffix: "{{ '%02d'|format(idx) }}"`);
+    lines.push(`${indent}        schedule_entity: "input_number.{{ prefix }}{{ suffix }}"`);
+  }
+  
   lines.push(`${indent}        schedule_value: "{{ states(schedule_entity) | float(0) }}"`);
   
   if (profilesSelect && activeProfileTextEntity) {
@@ -140,30 +160,29 @@ export function buildInputNumbersYaml(config, source = 'unknown') {
     lines.push('input_number:');
   }
   
-  const hours = getHoursList(config.hour_base);
-  
-  hours.forEach(hh => {
-    const key = `${prefix}${hh}`;
-    if (isList) {
-      lines.push(`- ${key}:`);
-      lines.push(`    name: "CronoStar ${presetName} ${hh}"`);
-      lines.push(`    min: ${min}`);
-      lines.push(`    max: ${max}`);
-      lines.push(`    step: ${step}`);
-      if (uom) lines.push(`    unit_of_measurement: "${uom}"`);
-      lines.push(`    mode: slider`);
-    } else {
-      const keyIndent = isInline ? '  ' : '';
-      const propIndent = isInline ? '    ' : '  ';
-      lines.push(`${keyIndent}${key}:`);
-      lines.push(`${propIndent}name: "CronoStar ${presetName} ${hh}"`);
-      lines.push(`${propIndent}min: ${min}`);
-      lines.push(`${propIndent}max: ${max}`);
-      lines.push(`${propIndent}step: ${step}`);
-      if (uom) lines.push(`${propIndent}unit_of_measurement: "${uom}"`);
-      lines.push(`${propIndent}mode: slider`);
-    }
-  });
+  // Add the "Current Value" entity
+  const currentKey = `${prefix}current`;
+  if (isList) {
+    lines.push(`- ${currentKey}:`);
+    lines.push(`    name: "CronoStar ${presetName} Current Value"`);
+    lines.push(`    min: ${min}`);
+    lines.push(`    max: ${max}`);
+    lines.push(`    step: ${step}`);
+    if (uom) lines.push(`    unit_of_measurement: "${uom}"`);
+    lines.push(`    mode: box`);
+    lines.push(`    icon: mdi:target`);
+  } else {
+    const keyIndent = isInline ? '  ' : '';
+    const propIndent = isInline ? '    ' : '  ';
+    lines.push(`${keyIndent}${currentKey}:`);
+    lines.push(`${propIndent}name: "CronoStar ${presetName} Current Value"`);
+    lines.push(`${propIndent}min: ${min}`);
+    lines.push(`${propIndent}max: ${max}`);
+    lines.push(`${propIndent}step: ${step}`);
+    if (uom) lines.push(`${propIndent}unit_of_measurement: "${uom}"`);
+    lines.push(`${propIndent}mode: box`);
+    lines.push(`${propIndent}icon: mdi:target`);
+  }
   
   return lines.join('\n');
 }

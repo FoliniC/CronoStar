@@ -78,7 +78,22 @@ export const cardStyles = css`
   .language-menu {
     display: flex;
     align-items: center;
-    padding: 0 8px;
+    padding: 8px 16px;
+    border: 1px solid var(--divider-color, #e0e0e0);
+    border-radius: 4px;
+    margin: 8px 16px;
+    background: var(--card-background-color, white);
+  }
+
+  .language-menu mwc-button {
+    margin: 0 4px;
+  }
+  
+  .language-menu mwc-button[raised] {
+    --mdc-theme-primary: var(--primary-color, #03a9f4);
+    --mdc-theme-on-primary: white;
+    font-weight: bold;
+    border: 2px solid var(--primary-color, #03a9f4);
   }
 
   .card-content {
@@ -86,6 +101,8 @@ export const cardStyles = css`
     position: relative;
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
+    min-height: 0;
   }
 
   .chart-container {
@@ -281,6 +298,7 @@ export const cardStyles = css`
     align-items: center;
     padding-top: 12px;
     border-top: 1px solid var(--divider-color, #e0e0e0);
+    flex-shrink: 0;
   }
 
   .control-group {

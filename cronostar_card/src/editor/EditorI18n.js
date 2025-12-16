@@ -188,6 +188,13 @@ export const I18N = {
       no_report: 'Nessun report disponibile. Esegui le verifiche approfondite per generare un report.',
       expected_alias_label: 'Alias atteso',
       expected_auto_id_label: 'ID automazione atteso'
+    },
+    what_to_do_next: {
+      title: 'What to do next:',
+      step1_helpers_button: 'Click "Copy helpers YAML" (Step 2) and create the helpers file.',
+      step2_automation_button: 'Click "Create automation" (Step 4) or copy the YAML.',
+      step3_restart: 'Restart Home Assistant to load the new entities.',
+      step4_save_config: 'Click "Initialize Data File" below, then Save.'
     }
   },
   it: {
@@ -379,6 +386,13 @@ export const I18N = {
       no_report: 'Nessun report disponibile. Esegui le verifiche approfondite per generare un report.',
       expected_alias_label: 'Alias atteso',
       expected_auto_id_label: 'ID automazione atteso'
+    },
+    what_to_do_next: {
+      title: 'Cosa fare ora:',
+      step1_helpers_button: 'Clicca su "Copia YAML helpers" (Step 2) e crea il file helpers.',
+      step2_automation_button: 'Clicca su "Crea automazione" (Step 4) o copia lo YAML.',
+      step3_restart: 'Riavvia Home Assistant per caricare le nuove entità.',
+      step4_save_config: 'Clicca su "Inizializza File Dati" qui sotto, poi Salva.'
     }
   }
 };

@@ -125,9 +125,8 @@ class InputNumberInspector:
         prefix_valid = bool(re.match(r"^[a-z0-9_]+_$", prefix))
         used_prefix = prefix if prefix_valid else "cronostar_"
         
-        # Get expected entities
-        hours = self._get_hours_list(hour_base)
-        expected_entities = [f"input_number.{used_prefix}{hh}" for hh in hours]
+        # Get expected entities (only the current value entity is needed now)
+        expected_entities = [f"input_number.{used_prefix}current"]
         
         # Check runtime entities
         runtime_states = self.hass.states.async_all()

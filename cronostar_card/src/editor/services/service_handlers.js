@@ -240,6 +240,40 @@ function navigateToAutomationsUI() {
 }
 
 /**
+ * Initializes the data JSON file by saving a default profile
+ */
+export async function handleInitializeData(hass, config, language) {
+  const prefix = getEffectivePrefix(config);
+  const minVal = config.min_value ?? 0;
+  
+  // Create a flat schedule array based on interval
+  const interval = config.interval_minutes || 60;
+  const numPoints = Math.floor(1440 / interval);
+  const defaultSchedule = Array(numPoints).fill(minVal).map((v, i) => ({ index: i, value: v }));
+  
+  const preset = config.preset || 'thermostat';
+  const profileName = "Comfort"; // Default initial profile
+  
+  if (!hass) throw new Error("Home Assistant not connected");
+  
+  try {
+    await hass.callService("cronostar", "save_profile", {
+      profile_name: profileName,
+      preset_type: preset,
+      schedule: defaultSchedule,
+      global_prefix: prefix
+    });
+    
+    return {
+      success: true,
+      message: localize(language, 'ui.checks_triggered').replace('Checks', 'Data Init') // Reusing string or simplistic success msg
+    };
+  } catch (e) {
+    throw new Error("Failed to initialize data: " + e.message);
+  }
+}
+
+/**
  * Runs deep checks service
  */
 export async function runDeepChecks(hass, config, language) {
@@ -254,7 +288,7 @@ export async function runDeepChecks(hass, config, language) {
     prefix: effectivePrefix,
     hour_base: config.hour_base === '1' || config.hour_base === 1 ? 1 : 0,
     alias: alias,
-    expected_count: 24
+    expected_count: 1
   });
   
   return {
@@ -262,3 +296,4 @@ export async function runDeepChecks(hass, config, language) {
     message: localize(language, 'ui.checks_triggered')
   };
 }
+

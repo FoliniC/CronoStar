@@ -9,14 +9,18 @@ export class CardRenderer {
 
     render() {
         const isEditor = this.card.cardLifecycle.isEditorContext();
-        const isLoadingChart = !isEditor && !this.card.chartManager.isInitialized() && this.card.stateManager.scheduleData.some(val => val === null);
         const localize = (key, search, replace) => this.card.localizationManager.localize(this.card.language, key, search, replace);
         const title = this.card.config?.title || localize('ui.title');
 
         const enRaised = this.card.language === 'en';
         const itRaised = this.card.language === 'it';
 
+        // Wait for initial load (data from backend or defaults)
+        const isWaitingForData = !isEditor && !this.card.initialLoadComplete;
+        
+        // Wait for backend readiness signal (if data loaded but backend not confirmed ready)
         const showStartupOverlay = !isEditor && this.card.initialLoadComplete && !this.card.cronostarReady;
+        
         const showMissingEntitiesDetailsOverlay = !isEditor && !this.card.cronostarReady && this.card.missingEntities.length > 0 && this.card.initialLoadComplete;
 
         if (showStartupOverlay && !this.card._startupOverlayState) {
@@ -29,6 +33,7 @@ export class CardRenderer {
         const showAnomalousOverlay = !isEditor && this.card.missingEntities.length > 0 && this.card.initialLoadComplete;
         const showAwaitingAutomationOverlay =
             !isEditor &&
+            !isWaitingForData && 
             !showStartupOverlay &&
             !showMissingEntitiesDetailsOverlay &&
             this.card.awaitingAutomation &&
@@ -86,10 +91,12 @@ export class CardRenderer {
               <mwc-list-item>${localize('menu.language')}</mwc-list-item>
               <mwc-button
                 ?raised=${enRaised}
+                style="${enRaised ? 'border: 2px solid var(--primary-color, #03a9f4);' : ''}"
                 @click=${() => this.card.eventHandlers.handleLanguageSelect('en')}
               >EN</mwc-button>
               <mwc-button
                 ?raised=${itRaised}
+                style="${itRaised ? 'border: 2px solid var(--primary-color, #03a9f4);' : ''}"
                 @click=${() => this.card.eventHandlers.handleLanguageSelect('it')}
               >IT</mwc-button>
             </div>
@@ -98,22 +105,22 @@ export class CardRenderer {
 
         <div class="card-content">
           <div class="chart-container" tabindex="${isEditor ? '-1' : '0'}">
-            ${(!isEditor && this.card.initialLoadComplete && this.card.missingEntities.length > 0)
-            ? html`<div class="loading-overlay anomalous-operation-overlay">
-                  <div>
-                    <div>${localize('ui.create_missing_entities_message')}</div>
-                  </div>
-                </div>`
-            : showStartupOverlay
-                ? html`<div class="loading-overlay startup-overlay">
-                    <div>
-                      <div>${localize('ui.waiting_ha_start')}</div>
-                      <div>${localize('ui.waiting_profile_restore')}</div>
-                    </div>
-                  </div>`
-                : isLoadingChart
-                    ? html`<div class="loading-overlay"><div>${localize('ui.loading')}</div></div>`
-                    : ''}
+            ${isWaitingForData
+                ? html`<div class="loading-overlay"><div>${localize('ui.loading')}</div></div>`
+                : (!isEditor && this.card.initialLoadComplete && this.card.missingEntities.length > 0)
+                    ? html`<div class="loading-overlay anomalous-operation-overlay">
+                        <div>
+                            <div>${localize('ui.create_missing_entities_message')}</div>
+                        </div>
+                        </div>`
+                    : showStartupOverlay
+                        ? html`<div class="loading-overlay startup-overlay">
+                            <div>
+                            <div>${localize('ui.waiting_ha_start')}</div>
+                            <div>${localize('ui.waiting_profile_restore')}</div>
+                            </div>
+                        </div>`
+                        : ''}
 
             ${showAwaitingAutomationOverlay && !showAnomalousOverlay
             ? html`<div class="loading-overlay awaiting-automation-overlay" style="pointer-events:none;">
@@ -147,7 +154,7 @@ export class CardRenderer {
               </div>
             ` : ''}
 
-            ${this.card.config?.profiles_select_entity && this.card.profileOptions.length > 0 ? html`
+            ${this.card.config?.profiles_select_entity ? html`
               <div class="control-group">
                 <ha-select
                   label="${localize('ui.profile')}"
@@ -166,9 +173,12 @@ export class CardRenderer {
                 this.card.suppressClickUntil = Date.now() + 500;
             }}
                 >
-                  ${this.card.profileOptions.map(
-                (option) => html`<mwc-list-item .value=${option}>${option}</mwc-list-item>`
-            )}
+                  ${this.card.profileOptions && this.card.profileOptions.length > 0 
+                    ? this.card.profileOptions.map(
+                        (option) => html`<mwc-list-item .value=${option}>${option}</mwc-list-item>`
+                      )
+                    : html`<mwc-list-item disabled>No profiles found</mwc-list-item>`
+                  }
                 </ha-select>
               </div>
             ` : ''}

@@ -20,6 +20,29 @@ export class Step3Options {
         </div>
 
         <div class="field-group">
+          <ha-select
+            label="${this.editor.i18n._t('fields.interval_label') || 'Interval'}"
+            .value=${String(this.editor._config.interval_minutes || 60)}
+            @selected=${(e) => {
+              const val = parseInt(e.target.value, 10);
+              if (!isNaN(val) && val > 0 && val !== this.editor._config.interval_minutes) {
+                this.editor._updateConfig('interval_minutes', val);
+              }
+            }}
+            @closed=${(e) => e.stopPropagation()}
+            style="width: 100%;"
+          >
+            <mwc-list-item value="60">1 hour (24 points)</mwc-list-item>
+            <mwc-list-item value="30">30 minutes (48 points)</mwc-list-item>
+            <mwc-list-item value="15">15 minutes (96 points)</mwc-list-item>
+            <mwc-list-item value="10">10 minutes (144 points)</mwc-list-item>
+          </ha-select>
+          <div class="hint" style="font-size: 0.8em; color: var(--secondary-text-color); margin-top: 4px;">
+            ${this.editor.i18n._t('fields.interval_desc') || 'Select the time resolution. Lower values create more points but require more entities.'}
+          </div>
+        </div>
+
+        <div class="field-group">
           ${this.editor._renderTextInput('unit_of_measurement', this.editor._config.unit_of_measurement, this.editor.i18n._t('fields.unit_label'))}
         </div>
 

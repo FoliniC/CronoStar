@@ -15,36 +15,56 @@ class AutomationService:
         """Apply current hour's scheduled value immediately."""
         target_entity = call.data.get("entity_id")
         preset_type = call.data.get("preset_type")
+        allow_max = call.data.get("allow_max_value", False)
         entity_prefix = call.data.get("entity_prefix")
         global_prefix = call.data.get("global_prefix")
-        allow_max = call.data.get("allow_max_value", False)
         
         if not all((target_entity, preset_type)):
             return
         
         canonical = normalize_preset_type(preset_type)
-        current_hour = dt_util.now().hour
+        
+        # New Logic: Read from the single current_value_entity
+        config = PRESETS_CONFIG.get(canonical, {})
         
         # Determine which prefix to use
         used_prefix = normalize_prefix(
             global_prefix or entity_prefix or 
-            PRESETS_CONFIG.get(canonical, {}).get("entity_prefix", "cronostar_")
+            config.get("entity_prefix", "cronostar_")
         )
         
-        # Build schedule entity ID
-        hour_str = f"{current_hour:02d}"
-        schedule_entity = f"input_number.{used_prefix}{hour_str}"
+        # Construct dynamic entity ID
+        current_value_entity = f"input_number.{used_prefix}current"
         
-        state = self.hass.states.get(schedule_entity)
+        if not current_value_entity:
+            _LOGGER.warning("Could not determine current_value_entity for preset %s", canonical)
+            return
+            
+        state = self.hass.states.get(current_value_entity)
+        # Fallback to static config if dynamic one missing (backward compat)
+        if not state:
+             static_entity = config.get("current_value_entity")
+             if static_entity and static_entity != current_value_entity:
+                 _LOGGER.warning(
+                     "Dynamic entity %s not found. Falling back to default %s. "
+                     "Check if you reloaded YAML after creating helpers.", 
+                     current_value_entity, static_entity
+                 )
+                 state = self.hass.states.get(static_entity)
+                 if state:
+                     current_value_entity = static_entity
+
         if not state or state.state in ("unknown", "unavailable"):
-            _LOGGER.warning("Schedule entity not available: %s", schedule_entity)
+            _LOGGER.warning("Current value entity not available: %s", current_value_entity)
+            # Optional: Force a recalculation via scheduler here if needed?
+            # For now, just warn.
             return
         
         try:
             target_value = float(state.state)
             max_value = state.attributes.get("max")
         except (ValueError, TypeError):
-            _LOGGER.warning("Invalid state value for %s", schedule_entity)
+            _LOGGER.warning("Invalid state value for %s", current_value_entity)
             return
         
         # Check for Max value
@@ -81,6 +101,6 @@ class AutomationService:
         _LOGGER.info(
             "Applied value %.2f from %s to %s",
             target_value,
-            schedule_entity,
+            current_value_entity,
             target_entity
         )

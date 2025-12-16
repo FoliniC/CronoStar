@@ -1,10 +1,11 @@
 import { Logger } from '../utils.js';
 import { getEffectivePrefix } from '../utils/prefix_utils.js';
-import { validateConfig } from '../config.js';
+import { validateConfig, VERSION } from '../config.js';
 
 export class CardLifecycle {
     constructor(card) {
         this.card = card;
+        this._hasRegistered = false;
     }
 
     setConfig(config) {
@@ -19,10 +20,37 @@ export class CardLifecycle {
 
             this.card.selectedPreset = this.card.config.preset;
 
+            // Hour base is less relevant now without entities, but keep for label formatting if needed
             const hourBaseConfig = this.card.config.hour_base;
             if (typeof hourBaseConfig === 'object') {
                 this.card.hourBase = hourBaseConfig.value;
                 this.card.hourBaseDetermined = hourBaseConfig.determined;
+            } else {
+                this.card.hourBase = 0; // Default to 0 if not specified
+                this.card.hourBaseDetermined = true;
+            }
+
+            // Ensure StateManager is aligned with config (interval, min_value)
+            // StateManager constructor runs before setConfig, so it might have used defaults.
+            if (this.card.stateManager) {
+                const interval = this.card.config.interval_minutes || 60;
+                const minVal = this.card.config.min_value ?? 0;
+                
+                // Resize/Re-init data if needed
+                this.card.stateManager.resizeScheduleData(interval);
+                
+                // If data contains null/undefined (initial state), fill with min_value
+                const data = this.card.stateManager.getData();
+                let dirty = false;
+                for(let i=0; i<data.length; i++) {
+                    if (data[i] === null || data[i] === undefined) {
+                        data[i] = minVal;
+                        dirty = true;
+                    }
+                }
+                if (dirty) {
+                    this.card.stateManager.setData(data);
+                }
             }
         } catch (e) {
             Logger.error('CONFIG', '[CronoStar] Error in setConfig:', e);
@@ -53,36 +81,6 @@ export class CardLifecycle {
         }
     }
 
-    detectHourBase(hass) {
-        try {
-            if (this.card.hourBaseDetermined) return;
-
-            const effectivePrefix = getEffectivePrefix(this.card.config);
-            let countZero = 0;
-            let countOne = 0;
-
-            for (let i = 0; i < 24; i++) {
-                const id = `input_number.${effectivePrefix}${i.toString().padStart(2, '0')}`;
-                if (hass.states[id] !== undefined) countZero++;
-            }
-
-            for (let i = 1; i <= 24; i++) {
-                const id = `input_number.${effectivePrefix}${i.toString().padStart(2, '0')}`;
-                if (hass.states[id] !== undefined) countOne++;
-            }
-
-            this.card.hourBase = countOne > countZero ? 1 : 0;
-            this.card.hourBaseDetermined = true;
-
-            Logger.base(
-                `[CronoStar] Hour base detection -> 0-based: ${countZero}, 1-based: ${countOne}. ` +
-                `Selected: ${this.card.hourBase} (${this.card.hourBase === 0 ? '00-23' : '01-24'})`
-            );
-        } catch (e) {
-            Logger.error('HASS', '[CronoStar] Error in detectHourBase:', e);
-        }
-    }
-
     setHass(hass) {
         if (!hass) {
             Logger.warn('HASS', '[CronoStar] Received null hass object');
@@ -108,6 +106,18 @@ export class CardLifecycle {
                     Logger.log('LOAD', '[CronoStar] Backend service found, considering it ready.');
                     this.card.cronostarReady = true;
                     this.card.requestUpdate();
+                    
+                    // Initial load if we haven't loaded data yet
+                    if (!this.card.initialLoadComplete) {
+                        const profileToLoad = this.card.selectedProfile || ''; 
+                        // If selectedProfile is empty, we might want to check the input_select
+                        if (!profileToLoad && this.card.config.profiles_select_entity) {
+                             // Will be handled in the state update block below
+                        } else if (profileToLoad) {
+                             this.card.profileManager.loadProfile(profileToLoad);
+                        }
+                        this.card.initialLoadComplete = true;
+                    }
                 } else if (!this.card._unsubProfilesLoaded && hass.connection?.subscribeEvents) {
                     // If not ready, subscribe to the event.
                     const setReady = (event) => {
@@ -138,19 +148,9 @@ export class CardLifecycle {
                 }
             }
 
-            if (this.card.config && this.card.config.entity_prefix) {
-                this.detectHourBase(hass);
-
-                const dataChanged = this.card.stateManager.updateFromHass(hass);
-
-                const prevMissing = this.card._lastMissingCount;
-                this.card.missingEntities = this.card.stateManager.missingEntities;
-                this.card._lastMissingCount = Array.isArray(this.card.missingEntities) ? this.card.missingEntities.length : 0;
-
-                if (dataChanged && this.card.chartManager.isInitialized()) {
-                    this.card.chartManager.updateData(this.card.stateManager.getData());
-                }
-
+            if (this.card.config) {
+                // No longer updating from input_number entities
+                
                 if (this.card.config.pause_entity) {
                     const pauseStateObj = hass.states[this.card.config.pause_entity];
                     if (pauseStateObj) {
@@ -161,31 +161,33 @@ export class CardLifecycle {
                 if (this.card.config.profiles_select_entity) {
                     const profilesSelectObj = hass.states[this.card.config.profiles_select_entity];
                     if (profilesSelectObj) {
-                        this.card.selectedProfile = profilesSelectObj.state;
-                        this.card.profileOptions = profilesSelectObj.attributes.options || [];
+                        const newProfile = profilesSelectObj.state;
+                        // If profile changed externally, load it (unless we have unsaved changes we want to keep?)
+                        // Standard behavior: UI follows backend state if not dirty.
+                        // But if we are editing, we don't want to lose work.
+                        // Let's load only if we changed profile selection or if initial load.
+                        
+                        if (newProfile !== this.card.selectedProfile) {
+                             this.card.selectedProfile = newProfile;
+                             this.card.profileOptions = profilesSelectObj.attributes.options || [];
+                             if (!this.card.hasUnsavedChanges) {
+                                 this.card.profileManager.loadProfile(newProfile);
+                             }
+                        } else if (this.card.profileOptions.length === 0 && profilesSelectObj.attributes.options) {
+                             this.card.profileOptions = profilesSelectObj.attributes.options || [];
+                        }
                     }
                 }
 
-                if (dataChanged || this.card._lastMissingCount !== prevMissing) {
-                    this.updateReadyFlag({ quiet: false });
-                }
+                this.updateReadyFlag({ quiet: false });
 
-                if (!this.card._readyCheckTimer && !this.card.cronostarReady) {
-                    this.card._readyCheckIntervalMs = 5000;
-                    this.card._readyCheckTicks = 0;
-                    this.card._readyCheckTimer = setInterval(() => this._onReadyCheckTick(), this.card._readyCheckIntervalMs);
-                }
-
+                // Sync check loop (to update "awaiting automation" status)
                 this.card.cardSync.updateAutomationSync(hass);
 
                 if (!this.card._syncCheckTimer) {
                     this.card._syncCheckTimer = setInterval(() => {
                         if (!this.card._isConnected) return;
                         this.card.cardSync.updateAutomationSync(this.card._hass);
-                        if (!this.card.awaitingAutomation && this.card._syncCheckTimer) {
-                            clearInterval(this.card._syncCheckTimer);
-                            this.card._syncCheckTimer = null;
-                        }
                     }, 5000);
                 }
             }
@@ -198,60 +200,14 @@ export class CardLifecycle {
         return this.card._hass;
     }
 
-    _onReadyCheckTick() {
-        try {
-            if (this.card.cronostarReady) {
-                if (this.card._readyCheckTimer) {
-                    clearInterval(this.card._readyCheckTimer);
-                    this.card._readyCheckTimer = null;
-                }
-                return;
-            }
-            this.card._readyCheckTicks++;
-            this.updateReadyFlag({ quiet: true });
-
-            const shouldBackoffTo15s = this.card._readyCheckTicks === 6 && this.card._readyCheckIntervalMs < 15000;
-            const shouldBackoffTo60s = this.card._readyCheckTicks === 12 && this.card._readyCheckIntervalMs < this.card._readyCheckMaxMs;
-
-            if (shouldBackoffTo15s || shouldBackoffTo60s) {
-                if (this.card._readyCheckTimer) {
-                    clearInterval(this.card._readyCheckTimer);
-                    this.card._readyCheckTimer = null;
-                }
-                this.card._readyCheckIntervalMs = shouldBackoffTo60s ? this.card._readyCheckMaxMs : 15000;
-                this.card._readyCheckTimer = setInterval(() => this._onReadyCheckTick(), this.card._readyCheckIntervalMs);
-                Logger.log('LOAD', `[CronoStar] Ready check interval backoff to ${this.card._readyCheckIntervalMs}ms`);
-            }
-        } catch (e) {
-            Logger.error('LIFECYCLE', '[CronoStar] Error in _onReadyCheckTick:', e);
-        }
-    }
-
     updateReadyFlag(options = {}) {
         try {
-            const quiet = options?.quiet === true;
-
             if (this.card.cronostarReady) return;
-            const data = this.card.stateManager?.scheduleData || [];
-            const allLoaded = Array.isArray(data) && data.length === 24 && data.every(v => v !== null && !Number.isNaN(Number(v)));
-            const noMissing = Array.isArray(this.card.missingEntities) && this.card.missingEntities.length === 0;
-
-            if (allLoaded && noMissing) {
-                this.card.cronostarReady = true;
-                Logger.log('LOAD', '[CronoStar] Ready state reached by heuristic (data loaded, no missing entities)');
-                this.card.requestUpdate();
-                return;
-            }
-
-            const now = Date.now();
-            const missingCount = Array.isArray(this.card.missingEntities) ? this.card.missingEntities.length : 0;
-            const missingChanged = missingCount !== this.card._lastMissingCount;
-            const canLog = (!quiet) && ((now - this.card._lastReadyFlagNotMetLogAt) > 30000 || missingChanged);
-
-            if (canLog) {
-                this.card._lastReadyFlagNotMetLogAt = now;
-                Logger.log('LOAD', `[CronoStar] updateReadyFlag: Heuristic not met. allLoaded=${allLoaded}, noMissing=${noMissing}, missingCount=${missingCount}`);
-            }
+            
+            // Simplified check: if we have config and backend service is there (checked in setHass)
+            // we are effectively ready. 
+            // We removed dependency on 24/48 entities loading.
+            
         } catch (e) {
             Logger.error('LIFECYCLE', '[CronoStar] Error in updateReadyFlag:', e);
         }
@@ -289,11 +245,6 @@ export class CardLifecycle {
                     Logger.warn('LIFECYCLE', 'Error calling unsubscribe on disconnect:', e);
                 }
                 this.card._unsubProfilesLoaded = null;
-            }
-
-            if (this.card._readyCheckTimer) {
-                clearInterval(this.card._readyCheckTimer);
-                this.card._readyCheckTimer = null;
             }
 
             if (this.card._syncCheckTimer) {
@@ -418,11 +369,8 @@ export class CardLifecycle {
             Logger.log('LIFECYCLE', '[CronoStar] firstUpdated called');
             await this.initializeCard();
             this.card._initialized = true;
-            this.card.initialLoadComplete = true;
-            if (!this.isEditorContext()) {
-                this.updateReadyFlag({ quiet: true });
-                this.card.cardSync.updateAutomationSync(this.card._hass);
-            }
+            // Removed updateReadyFlag call
+            this.card.cardSync.updateAutomationSync(this.card._hass);
         } catch (e) {
             Logger.error('LIFECYCLE', '[CronoStar] Error in firstUpdated:', e);
             this.card.eventHandlers.showNotification(
@@ -435,6 +383,47 @@ export class CardLifecycle {
     async initializeCard() {
         try {
             Logger.log('INIT', '[CronoStar] initializeCard starting');
+
+            // Register card with backend for logging (once per session)
+            if (!this._hasRegistered && this.card._isConnected && this.card.hass) {
+                // Generate and store Card ID on the instance
+                this.card.cardId = Math.random().toString(36).substr(2, 9);
+                
+                this.card.hass.callService("cronostar", "register_card", {
+                    card_id: this.card.cardId,
+                    version: VERSION,
+                    preset: this.card.config?.preset || "unknown",
+                    entity_prefix: this.card.config?.entity_prefix,
+                    global_prefix: this.card.config?.global_prefix
+                }).then((response) => {
+                    Logger.log('INIT', '[CronoStar] Card registered. Response:', response);
+                    this._hasRegistered = true;
+                    
+                    // Handle returned profile data
+                    if (response && response.profile_data) {
+                        const rawSchedule = response.profile_data.schedule;
+                        if (Array.isArray(rawSchedule)) {
+                            let scheduleValues = rawSchedule;
+                            // Normalize object array to values if needed
+                            if (typeof rawSchedule[0] === 'object' && rawSchedule[0] !== null && 'value' in rawSchedule[0]) {
+                                scheduleValues = rawSchedule.map(item => item.value);
+                            }
+                            
+                            Logger.load('[CronoStar] Applying profile data from registration response');
+                            this.card.stateManager.setData(scheduleValues);
+                            if (this.card.chartManager?.isInitialized()) {
+                                this.card.chartManager.updateData(scheduleValues);
+                            }
+                            
+                            this.card.initialLoadComplete = true;
+                            this.card.cronostarReady = true;
+                            this.card.requestUpdate();
+                        }
+                    }
+                }).catch(err => {
+                    Logger.warn('INIT', '[CronoStar] Failed to register card:', err);
+                });
+            }
 
             const canvas = this.card.shadowRoot.getElementById("myChart");
             if (!canvas) {

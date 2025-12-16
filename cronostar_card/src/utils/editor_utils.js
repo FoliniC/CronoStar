@@ -23,14 +23,21 @@ export function pad2(n) {
 }
 
 /**
- * Gets hours list based on hour_base
+ * Gets hours list based on hour_base and interval
+ * @param {number|string} hourBase - 0 or 1
+ * @param {number} intervalMinutes - Default 60
  */
-export function getHoursList(hourBase) {
+export function getHoursList(hourBase, intervalMinutes = 60) {
+  const points = Math.floor(1440 / intervalMinutes);
   const base = hourBase === '1' || hourBase === 1 ? 1 : 0;
-  if (base === 1) {
-    return Array.from({ length: 24 }, (_, i) => pad2(i + 1));
+  
+  if (base === 1 && intervalMinutes === 60) {
+    // 1-based indexing for hourly (legacy support 01..24)
+    return Array.from({ length: points }, (_, i) => pad2(i + 1));
   }
-  return Array.from({ length: 24 }, (_, i) => pad2(i));
+  
+  // 0-based indexing for all others (00..23, 00..47, etc.)
+  return Array.from({ length: points }, (_, i) => pad2(i));
 }
 
 /**

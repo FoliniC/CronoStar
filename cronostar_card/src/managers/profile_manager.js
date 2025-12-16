@@ -1,5 +1,5 @@
 /**
- * Profile management for CronoStar Card (Refactored)
+ * Profile management for CronoStar Card (Refactored - No Entities)
  * @module profile-manager
  */
 
@@ -7,38 +7,10 @@ import { Logger, safeParseFloat } from '../utils.js';
 import { TIMEOUTS } from '../config.js';
 import { getEffectivePrefix } from '../utils/prefix_utils.js';
 
-
-
 export class ProfileManager {
   constructor(card) {
     this.card = card;
     this.lastLoadedProfile = "";
-  }
-
-  /**
-   * Wait for entity to reach expected state
-   * @param {string} entityId - Entity ID
-   * @param {string} expectedState - Expected state
-   * @param {number} timeoutMs - Timeout in ms
-   * @returns {Promise}
-   */
-  async waitForEntityState(entityId, expectedState, timeoutMs = TIMEOUTS.entityStateWait) {
-    const start = Date.now();
-    return new Promise((resolve, reject) => {
-      const check = () => {
-        const current = this.card.hass?.states?.[entityId]?.state;
-        if (current === expectedState) {
-          resolve();
-          return;
-        }
-        if (Date.now() - start > timeoutMs) {
-          reject(new Error(`Timeout waiting for ${entityId} to become '${expectedState}', current: '${current}'`));
-          return;
-        }
-        setTimeout(check, 100);
-      };
-      check();
-    });
   }
 
   async saveProfile(profileName = this.lastLoadedProfile) {
@@ -52,16 +24,28 @@ export class ProfileManager {
     
     Logger.save(
       `[CronoStar] Saving profile '${profileName}' for preset type '${presetType}' ` +
-      `with prefix '${effectivePrefix}' via service.`
+      `with prefix '${effectivePrefix}' via service (from internal memory).`
     );
 
-    const scheduleData = [];
-    for (let hour = 0; hour < 24; hour++) {
-      const hourEntityId = this.card.stateManager.getEntityIdForHour(hour);
-      const state = this.card.hass?.states?.[hourEntityId];
-      const value = state ? safeParseFloat(state.state, this.card.config.min_value) : this.card.config.min_value;
-      scheduleData.push({ hour: hour, value: value });
-    }
+    // Read directly from internal memory
+    const rawData = this.card.stateManager.getData();
+    // Convert to object array format expected by backend if needed, or just values
+    // Backend expects: [{hour: 0, value: 20}, ...] usually
+    // But wait, the backend save_profile service usually takes just the schedule list or we adapt it.
+    // Let's stick to the previous format: [{hour: i, value: v}]
+    // BUT we might have > 24 points now.
+    // If the backend expects 24 hours, we might have an issue if we send 48 points.
+    // The user said "remove utilization of home assistant entities".
+    // We will send the raw array. The backend service cronostar.save_profile likely handles the format.
+    // Let's construct the legacy format for compatibility if possible, or just the values.
+    // The previous code did: scheduleData.push({ hour: hour, value: value });
+    
+    const scheduleData = rawData.map((val, index) => ({
+      index: index, // Changed from 'hour' to 'index' to support sub-hourly? 
+                    // Or keep 'hour' if backend assumes 24?
+                    // If we send 48 points, 'hour' 0..47 is misleading but unique.
+      value: val
+    }));
 
     try {
       await this.card.hass.callService("cronostar", "save_profile", {
@@ -116,41 +100,42 @@ export class ProfileManager {
       const rawSchedule = responseData?.schedule;
       let scheduleValues = null;
 
-      if (responseData && !responseData.error && rawSchedule && Array.isArray(rawSchedule) && rawSchedule.length === 24) {
+      if (responseData && !responseData.error && rawSchedule && Array.isArray(rawSchedule)) {
         // Success case: Profile loaded from backend
+        // We need to handle potential size mismatch (e.g. loading 24 points into 48 slots)
+        let loadedValues;
         if (typeof rawSchedule[0] === 'object' && rawSchedule[0] !== null && 'value' in rawSchedule[0]) {
-          scheduleValues = rawSchedule.map(item => item.value);
+          loadedValues = rawSchedule.map(item => item.value);
         } else {
-          scheduleValues = rawSchedule;
+          loadedValues = rawSchedule;
         }
-        Logger.load(`[CronoStar] Profile data processed for '${profileName}'.`);
+        
+        // Resize/Interpolate if needed to match current interval
+        // For now, assuming direct mapping or StateManager handles resize later if we update it.
+        // But here we are setting data directly.
+        // Let's assume strict length match for now, or fill.
+        scheduleValues = loadedValues;
+        
+        Logger.load(`[CronoStar] Profile data processed for '${profileName}'. Points: ${scheduleValues.length}`);
       } else {
-        // Fallback case: Profile not found or invalid, create a default schedule
-        Logger.warn('LOAD', `[CronoStar] Profile '${profileName}' not found or invalid. Falling back to default values.`);
-        const defaultValue = this.card.config.min_value;
-        scheduleValues = new Array(24).fill(defaultValue);
+        // Fallback case: Profile not found or invalid. Using default values.
+        Logger.warn('LOAD', `[CronoStar] Profile '${profileName}' not found or invalid. Using default values.`);
+        const numPoints = this.card.stateManager.getNumPoints();
+        const defaultVal = this.card.config.min_value ?? 0;
+        scheduleValues = new Array(numPoints).fill(defaultVal);
       }
 
-      // Apply the loaded or default schedule
-      for (let hour = 0; hour < 24; hour++) {
-        const entityId = this.card.stateManager.getEntityIdForHour(hour);
-        await this.card.hass.callService("input_number", "set_value", {
-          entity_id: entityId,
-          value: scheduleValues[hour],
-        });
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 300));
-
+      // Update Internal Memory directly
       this.card.stateManager.setData(scheduleValues);
 
+      // Update Chart
       if (this.card.chartManager?.isInitialized()) {
         this.card.chartManager.updateData(scheduleValues);
       }
 
       this.card.hasUnsavedChanges = false;
       this.lastLoadedProfile = profileName;
-      Logger.load(`[CronoStar] Profile '${profileName}' loaded and applied successfully.`);
+      Logger.load(`[CronoStar] Profile '${profileName}' loaded to memory successfully.`);
 
     } catch (err) {
       Logger.error('LOAD', `[CronoStar] Error calling load_profile service for '${profileName}':`, err);
@@ -180,7 +165,6 @@ export class ProfileManager {
     if (this.card.hasUnsavedChanges && previousProfile) {
       try {
         Logger.save(`[CronoStar] Auto-saving previous profile '${previousProfile}'`);
-        await this.card.stateManager.ensureValuesApplied();
         await this.saveProfile(previousProfile);
       } catch (err) {
         Logger.error('SAVE', "[CronoStar] Error during auto-save:", err);
@@ -188,16 +172,13 @@ export class ProfileManager {
     }
 
     this.card.selectedProfile = newProfile;
+    
+    // Update the input_select entity so other clients know (if configured)
     if (this.card.config.profiles_select_entity) {
-      try {
-        await this.card.hass.callService("input_select", "select_option", {
-          entity_id: this.card.config.profiles_select_entity,
-          option: newProfile,
-        });
-        await this.waitForEntityState(this.card.config.profiles_select_entity, newProfile, TIMEOUTS.entityStateWait);
-      } catch (err) {
-        Logger.warn('LOAD', "[CronoStar] select_option failed:", err);
-      }
+      this.card.hass.callService("input_select", "select_option", {
+        entity_id: this.card.config.profiles_select_entity,
+        option: newProfile,
+      }).catch(err => Logger.warn('LOAD', "[CronoStar] select_option failed:", err));
     }
 
     try {

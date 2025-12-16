@@ -4,30 +4,35 @@ PRESETS_CONFIG = {
     "thermostat": {
         "input_text": "input_text.cronostar_active_profile_thermostat",
         "profiles_select": "input_select.cronostar_temp_profiles",
+        "current_value_entity": "input_number.cronostar_temp_current",
         "entity_prefix": "cronostar_temp_",
         "file_tag": "thermostat"
     },
     "ev_charging": {
         "input_text": "input_text.cronostar_active_profile_ev_charging",
         "profiles_select": "input_select.cronostar_ev_profiles",
+        "current_value_entity": "input_number.cronostar_ev_current",
         "entity_prefix": "cronostar_ev_",
         "file_tag": "ev_charging"
     },
     "generic_switch": {
         "input_text": "input_text.cronostar_active_profile_generic_switch",
         "profiles_select": "input_select.cronostar_switch_profiles",
+        "current_value_entity": "input_number.cronostar_switch_current",
         "entity_prefix": "cronostar_switch_",
         "file_tag": "switch"
     },
     "generic_kwh": {
         "input_text": "input_text.cronostar_active_profile_generic_kwh",
         "profiles_select": "input_select.cronostar_kwh_profiles",
+        "current_value_entity": "input_number.cronostar_kwh_current",
         "entity_prefix": "cronostar_kwh_",
         "file_tag": "kwh"
     },
     "generic_temperature": {
         "input_text": "input_text.cronostar_active_profile_generic_temperature",
         "profiles_select": "input_select.cronostar_gentemp_profiles",
+        "current_value_entity": "input_number.cronostar_gentemp_current",
         "entity_prefix": "cronostar_gentemp_",
         "file_tag": "gentemp"
     },

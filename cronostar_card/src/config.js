@@ -1,5 +1,15 @@
-/** Configuration management for CronoStar Card */
-export const VERSION = '4.0.3';
+/** Configuration management for CronoStar Card with Interval Support */
+export const VERSION = '4.3.0';
+
+// Interval options (minutes)
+export const INTERVAL_OPTIONS = [
+  { value: 60, label: '1 hour (24 points)', points: 24 },
+  { value: 30, label: '30 minutes (48 points)', points: 48 },
+  { value: 15, label: '15 minutes (96 points)', points: 96 },
+  { value: 10, label: '10 minutes (144 points)', points: 144 },
+  { value: 1, label: '1 minute (1440 points)', points: 1440 }
+];
+
 export const CARD_CONFIG_PRESETS = {
   thermostat: {
     title: "CronoStar Thermostat",
@@ -13,7 +23,8 @@ export const CARD_CONFIG_PRESETS = {
     profiles_select_entity: "input_select.cronostar_temp_profiles",
     apply_entity: "climate.climatizzazione_appartamento",
     is_switch_preset: false,
-    allow_max_value: false
+    allow_max_value: false,
+    interval_minutes: 60  // Default: hourly
   },
   ev_charging: {
     title: "CronoStar EV Charging",
@@ -27,7 +38,8 @@ export const CARD_CONFIG_PRESETS = {
     profiles_select_entity: "input_select.cronostar_ev_profiles",
     apply_entity: "number.your_ev_charger_power",
     is_switch_preset: false,
-    allow_max_value: true
+    allow_max_value: true,
+    interval_minutes: 60
   },
   generic_kwh: {
     title: "CronoStar Generic kWh",
@@ -41,7 +53,8 @@ export const CARD_CONFIG_PRESETS = {
     profiles_select_entity: "input_select.cronostar_kwh_profiles",
     apply_entity: null,
     is_switch_preset: false,
-    allow_max_value: false
+    allow_max_value: false,
+    interval_minutes: 60
   },
   generic_temperature: {
     title: "CronoStar Generic Temperature",
@@ -55,7 +68,8 @@ export const CARD_CONFIG_PRESETS = {
     profiles_select_entity: "input_select.cronostar_gentemp_profiles",
     apply_entity: null,
     is_switch_preset: false,
-    allow_max_value: false
+    allow_max_value: false,
+    interval_minutes: 60
   },
   generic_switch: {
     title: "CronoStar Generic Switch",
@@ -69,9 +83,11 @@ export const CARD_CONFIG_PRESETS = {
     profiles_select_entity: "input_select.cronostar_switch_profiles",
     apply_entity: "switch.your_generic_switch",
     is_switch_preset: true,
-    allow_max_value: false
+    allow_max_value: false,
+    interval_minutes: 60
   }
 };
+
 export const DEFAULT_CONFIG = {
   preset: 'thermostat',
   hour_base: "auto",
@@ -80,11 +96,10 @@ export const DEFAULT_CONFIG = {
   profiles_select_entity: null,
   apply_entity: null,
   allow_max_value: false,
-  // Controls how YAML for missing input_number helpers is rendered in logs and tools:
-  // 'named' -> entity_name: ... (for !include_dir_merge_named or !include file)
-  // 'list'  -> - entity_name: ... (for !include_dir_merge_list)
+  interval_minutes: 60,  // Default interval
   missing_yaml_style: 'named'
 };
+
 export const CHART_DEFAULTS = {
   minTemperature: 0,
   maxTemperature: 50,
@@ -121,6 +136,30 @@ export const COLORS = {
   max_value: '#FFD700',
   max_value_border: '#DAA520'
 };
+
+/**
+ * Calculate number of points based on interval
+ * @param {number} intervalMinutes - Interval in minutes
+ * @returns {number} Number of points in 24 hours
+ */
+export function getPointsCount(intervalMinutes) {
+  return Math.floor(1440 / intervalMinutes); // 1440 minutes in 24 hours
+}
+
+/**
+ * Get interval configuration by value
+ * @param {number} intervalMinutes - Interval value
+ * @returns {Object} Interval configuration
+ */
+export function getIntervalConfig(intervalMinutes) {
+  return INTERVAL_OPTIONS.find(opt => opt.value === intervalMinutes) || INTERVAL_OPTIONS[0];
+}
+
+/**
+ * Validate configuration with interval support
+ * @param {Object} config - Configuration to validate
+ * @returns {Object} Validated configuration
+ */
 export function validateConfig(config) {
   const presetName = config.preset || DEFAULT_CONFIG.preset;
   const presetConfig = CARD_CONFIG_PRESETS[presetName] || CARD_CONFIG_PRESETS.thermostat;
@@ -134,10 +173,18 @@ export function validateConfig(config) {
   if (!mergedConfig.entity_prefix) {
     throw new Error("Configuration error: entity_prefix is required");
   }
+  
+  // Validate interval
+  const interval = mergedConfig.interval_minutes;
+  if (!INTERVAL_OPTIONS.some(opt => opt.value === interval)) {
+    mergedConfig.interval_minutes = 60; // Fallback to hourly
+  }
+  
   mergedConfig.hour_base = normalizeHourBase(mergedConfig.hour_base);
 
   return mergedConfig;
 }
+
 export function normalizeHourBase(hourBase) {
   if (hourBase === 0 || hourBase === 1) {
     return { value: hourBase, determined: true };
@@ -153,6 +200,7 @@ export function normalizeHourBase(hourBase) {
   }
   return { value: 0, determined: false };
 }
+
 export function getStubConfig() {
   return { ...DEFAULT_CONFIG };
-}  
+}

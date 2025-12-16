@@ -235,10 +235,16 @@ export class KeyboardHandler {
     indices.forEach(i => {
       newData[i] = rounded;
       dataset.data[i] = rounded;
-      stateMgr.updateTemperatureAtHour(i, rounded);
+      stateMgr.updatePoint(i, rounded);
     });
 
-    this.card.hasUnsavedChanges = true;
+    // Save immediately
+    if (this.card.selectedProfile) {
+        this.card.profileManager.saveProfile(this.card.selectedProfile)
+            .catch(e => Logger.error('KEYBOARD', 'Save failed:', e));
+    } else {
+        this.card.hasUnsavedChanges = true;
+    }
     stateMgr.setData(newData);
     chartMgr.updatePointStyling(
       this.card.selectionManager.selectedPoint,
@@ -276,10 +282,16 @@ export class KeyboardHandler {
       val = roundTo(val, 1);
       dataset.data[i] = val;
       newData[i] = val;
-      stateMgr.updateTemperatureAtHour(i, val);
+      stateMgr.updatePoint(i, val);
     });
 
-    this.card.hasUnsavedChanges = true;
+    // Save immediately
+    if (this.card.selectedProfile) {
+        this.card.profileManager.saveProfile(this.card.selectedProfile)
+            .catch(e => Logger.error('KEYBOARD', 'Save failed:', e));
+    } else {
+        this.card.hasUnsavedChanges = true;
+    }
     stateMgr.setData(newData);
     chartMgr.updatePointStyling(selMgr.selectedPoint, selMgr.selectedPoints);
     chartMgr.update();

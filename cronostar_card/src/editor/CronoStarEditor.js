@@ -16,6 +16,7 @@ import {
   handleCreateAutomationYaml,
   handleCreateAndReloadAutomation,
   runDeepChecks,
+  handleInitializeData,
 } from './services/service_handlers.js';
 import { buildAutomationYaml, buildInputNumbersYaml } from './yaml/yaml_generators.js';
 
@@ -307,6 +308,7 @@ export class CronoStarEditor extends LitElement {
       handleCreateAutomationYaml,
       handleCreateAndReloadAutomation,
       runDeepChecks,
+      handleInitializeData,
     };
     this.yamlGenerators = { buildAutomationYaml, buildInputNumbersYaml };
   }
@@ -762,16 +764,20 @@ export class CronoStarEditor extends LitElement {
   }
 
   async _runDeepChecks() {
+    console.log('[CronoStar Editor] _runDeepChecks called');
     this._deepCheckInProgress = true;
     this.requestUpdate();
     try {
+      console.log('[CronoStar Editor] Calling serviceHandlers.runDeepChecks...');
       const result = await this.serviceHandlers.runDeepChecks(
         this.hass,
         this._config,
         this._lang,
       );
+      console.log('[CronoStar Editor] runDeepChecks result:', result);
       this._showToast(result.message);
     } catch (e) {
+      console.error('[CronoStar Editor] runDeepChecks failed:', e);
       this._showToast(`✗ ${e.message}`);
     }
   }

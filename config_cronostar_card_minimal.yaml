@@ -1,0 +1,77 @@
+task_name: CronoStar Card Files (Expanded - Full Project)
+description: All files for the Home Assistant CronoStar Card component, including recursively found files, generated from the complete project structure.
+output_dir: "."
+base_dir: "."
+output_filename_prefix: "cronostar_card_full_project"
+files:
+- path: automations/cronostar_automation.yaml
+- path: configuration.yaml
+  process_yaml: true
+  sections_to_remove:
+  - conversation
+  - intent_script
+  - mqtt
+  - light
+  - knx
+  - modbus
+  - input_datetime
+  - scheduler
+- path: cronostar/profiles/cronostar_ev_charging_sempre.json
+- path: cronostar/profiles/cronostar_switch_default.json
+- path: cronostar/profiles/cronostar_thermostat_comfort.json
+- path: cronostar/profiles/cronostar_thermostat_eco.json
+- path: cronostar/profiles/cronostar_thermostat_night.json
+- path: cronostar_card/eslint.config.js
+- path: hacs.json
+- path: cronostar_card/package.json
+- path: cronostar_card/rollup.config.js
+- path: cronostar_card/src/config.js
+- path: cronostar_card/src/core/CardEventHandlers.js
+- path: cronostar_card/src/core/CardLifecycle.js
+- path: cronostar_card/src/core/CardRenderer.js
+- path: cronostar_card/src/core/CardSync.js
+- path: cronostar_card/src/core/CronoStar.js
+- path: cronostar_card/src/core/cronostar_define_guard.js
+- path: cronostar_card/src/editor/CronoStarEditor.js
+- path: cronostar_card/src/editor/EditorI18n.js
+- path: cronostar_card/src/editor/EditorWizard.js
+- path: cronostar_card/src/editor/services/service_handlers.js
+- path: cronostar_card/src/editor/steps/Step1Preset.js
+- path: cronostar_card/src/editor/steps/Step2Entities.js
+- path: cronostar_card/src/editor/steps/Step3Options.js
+- path: cronostar_card/src/editor/steps/Step4Automation.js
+- path: cronostar_card/src/editor/steps/Step5Summary.js
+- path: cronostar_card/src/editor/yaml/yaml_generators.js
+- path: cronostar_card/src/handlers/keyboard_handler.js
+- path: cronostar_card/src/handlers/pointer_handler.js
+- path: cronostar_card/src/main.js
+- path: cronostar_card/src/managers/chart_manager.js
+- path: cronostar_card/src/managers/localization_manager.js
+- path: cronostar_card/src/managers/profile_manager.js
+- path: cronostar_card/src/managers/selection_manager.js
+- path: cronostar_card/src/managers/shared_data_manager.js
+- path: cronostar_card/src/managers/state_manager.js
+- path: cronostar_card/src/styles.js
+- path: cronostar_card/src/utils.js
+- path: cronostar_card/src/utils/editor_utils.js
+- path: cronostar_card/src/utils/filename_utils.js
+- path: cronostar_card/src/utils/prefix_utils.js
+- path: custom_components/cronostar/__init__.py
+- path: custom_components/cronostar/deep_checks.py
+- path: custom_components/cronostar/manifest.json
+- path: custom_components/cronostar/services.yaml
+- path: custom_components/cronostar/services/automation_service.py
+- path: custom_components/cronostar/services/file_service.py
+- path: custom_components/cronostar/services/profile_service.py
+- path: custom_components/cronostar/services/scheduler_service.py
+- path: custom_components/cronostar/services/interval_service.py
+- path: custom_components/cronostar/utils/filename_builder.py
+- path: custom_components/cronostar/utils/prefix_normalizer.py
+- path: custom_components/cronostar/scheduler/auto_updater.py
+- path: custom_components/cronostar/storage/storage_manager.py
+- path: packages/cronostar_ev_charging.yaml
+- path: packages/cronostar_generic_presets.yaml
+- path: packages/cronostar_profiles.yaml
+- path: packages/cronostar_thermostat.yaml
+- path: packages/cronostar_current_values.yaml
+

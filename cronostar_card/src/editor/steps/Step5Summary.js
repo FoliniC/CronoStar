@@ -67,6 +67,11 @@ export class Step5Summary {
               icon: '🧪',
               click: () => this._runDeepChecks(expectedAlias)
             })}
+            ${this.editor._renderButton({
+              label: this.editor._lang === 'it' ? 'Inizializza File Dati' : 'Initialize Data File',
+              icon: '💾',
+              click: () => this._initData()
+            })}
           </div>
 
           ${qc ? html`
@@ -143,6 +148,29 @@ export class Step5Summary {
         this.editor._lang
       );
       this.editor._showToast(result.message);
+    } catch (e) {
+      this.editor._showToast(`✗ ${e.message}`);
+    }
+  }
+
+  async _initData() {
+    try {
+      // Lazy import or assume it's attached to serviceHandlers (it is in CronoStarEditor.js if we updated it)
+      // We updated the file service_handlers.js but we need to ensure CronoStarEditor.js imports it.
+      // Actually CronoStarEditor.js imports * from service_handlers.js, so we need to update that file too
+      // to export handleInitializeData.
+      // Assuming it is available via this.editor.serviceHandlers (we need to update CronoStarEditor to map it)
+      
+      if (this.editor.serviceHandlers.handleInitializeData) {
+          const result = await this.editor.serviceHandlers.handleInitializeData(
+            this.editor.hass,
+            this.editor._config,
+            this.editor._lang
+          );
+          this.editor._showToast("✓ Data Initialized!");
+      } else {
+          this.editor._showToast("✗ Handler not found (reload required?)");
+      }
     } catch (e) {
       this.editor._showToast(`✗ ${e.message}`);
     }

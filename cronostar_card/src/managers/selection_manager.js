@@ -18,7 +18,8 @@ export class SelectionManager {
    * Select all points
    */
   selectAll() {
-    const allIndices = Array.from({ length: 24 }, (_, i) => i);
+    const count = this.card.stateManager ? this.card.stateManager.getNumPoints() : 24;
+    const allIndices = Array.from({ length: count }, (_, i) => i);
     this.selectIndices(allIndices, false);
     this.card.chartManager?.updatePointStyling(this.selectedPoint, this.selectedPoints);
     this.card.chartManager?.update();
@@ -30,7 +31,8 @@ export class SelectionManager {
    * @param {boolean} preserveAnchor - Whether to preserve anchor point
    */
   selectIndices(indices, preserveAnchor = true) {
-    const filtered = unique(indices).filter(i => i >= 0 && i < 24);
+    const maxPoints = this.card.stateManager ? this.card.stateManager.getNumPoints() : 24;
+    const filtered = unique(indices).filter(i => i >= 0 && i < maxPoints);
     this.selectedPoints = filtered;
 
     if (preserveAnchor && this.selectedPoint !== null && this.selectedPoints.includes(this.selectedPoint)) {
@@ -123,7 +125,7 @@ export class SelectionManager {
    */
   logSelection(tag = '') {
     const anchorLabel = this.selectedPoint !== null 
-      ? this.card.stateManager.getHourLabel(this.selectedPoint)
+      ? this.card.stateManager.getPointLabel(this.selectedPoint)
       : 'n/a';
     
     Logger.sel(`${tag} - anchor=${this.selectedPoint} (${anchorLabel}) points=${JSON.stringify(this.selectedPoints)}`);
@@ -131,13 +133,10 @@ export class SelectionManager {
     if (this.card.stateManager) {
       const scheduleData = this.card.stateManager.scheduleData;
       this.selectedPoints.forEach(i => {
-        const label = this.card.stateManager.getHourLabel(i);
-        const entityId = this.card.stateManager.getEntityIdForHour(i);
+        const label = this.card.stateManager.getPointLabel(i);
         const chartVal = scheduleData[i];
-        const stateObj = this.card.hass?.states?.[entityId];
-        const entityState = stateObj ? stateObj.state : undefined;
         
-        Logger.sel(`  idx=${i}, hour=${label}, entity=${entityId}, chartVal=${chartVal}, entityState=${entityState}`);
+        Logger.sel(`  idx=${i}, hour=${label}, chartVal=${chartVal}`);
       });
     }
   }

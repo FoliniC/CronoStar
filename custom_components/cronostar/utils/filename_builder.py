@@ -13,14 +13,8 @@ def build_profile_filename(
 ) -> str:
     """
     Build profile filename using the correct prefix.
-    
-    Priority:
-    1. global_prefix (if provided)
-    2. entity_prefix (if provided)
-    3. Default preset prefix
+    Generates a single file per prefix context (e.g. cronostar_prefix_data.json).
     """
-    profile_slug = slugify(profile_name)
-    
     # Determine which prefix to use
     if global_prefix:
         used_prefix = normalize_prefix(global_prefix)
@@ -36,12 +30,8 @@ def build_profile_filename(
     prefix_base = used_prefix.rstrip("_")
     
     _LOGGER.debug(
-        "Building filename: profile=%s, preset=%s, global_prefix=%s, entity_prefix=%s, used=%s",
-        profile_name,
-        canonical_preset,
-        global_prefix,
-        entity_prefix,
+        "Building filename: prefix=%s (profile_name ignored for filename)",
         prefix_base
     )
     
-    return f"{prefix_base}_{profile_slug}.json"
+    return f"{prefix_base}_data.json"

@@ -121,6 +121,30 @@ export class PointerHandler {
   onPointerDown(e) {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
 
+    // Check if click is strictly within chart area (axes check)
+    const chart = this.card.chartManager?.chart;
+    if (chart) {
+        const { scales } = chart;
+        const rect = chart.canvas.getBoundingClientRect();
+        
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+        if (e.changedTouches && e.changedTouches.length > 0) {
+            clientX = e.changedTouches[0].clientX;
+            clientY = e.changedTouches[0].clientY;
+        }
+        
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        
+        // If click is on axes/labels (outside plot area), return early to allow pan/zoom
+        if (scales && scales.x && scales.y) {
+            if (x < scales.x.left || x > scales.x.right || y < scales.y.top || y > scales.y.bottom) {
+                 return; 
+            }
+        }
+    }
+
     // Long-press for touch to enable multi-select
     if (e.pointerType === 'touch') {
       const chartMgr = this.card.chartManager;
@@ -139,7 +163,38 @@ export class PointerHandler {
     }
 
     const chartMgr = this.card.chartManager;
-    const points = chartMgr?.chart?.getElementsAtEventForMode?.(e, 'nearest', { intersect: true }, true) || [];
+    // Enhanced hit testing: Try strict intersect first, then fallback to nearest with distance check
+    let points = chartMgr?.chart?.getElementsAtEventForMode?.(e, 'nearest', { intersect: true }, true) || [];
+    
+    if (points.length === 0 && chartMgr?.chart) {
+        const nearest = chartMgr.chart.getElementsAtEventForMode(e, 'nearest', { intersect: false }, true) || [];
+        if (nearest.length > 0) {
+            const p = nearest[0];
+            const pEl = p.element;
+            const rect = chartMgr.chart.canvas.getBoundingClientRect();
+            
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+            if (e.changedTouches && e.changedTouches.length > 0) {
+                clientX = e.changedTouches[0].clientX;
+                clientY = e.changedTouches[0].clientY;
+            }
+            
+            const clickX = clientX - rect.left;
+            const clickY = clientY - rect.top;
+            
+            // Calculate distance to the nearest point center
+            const dx = clickX - pEl.x;
+            const dy = clickY - pEl.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            // Use a generous threshold (20px) to catch "near misses" that dragData might catch
+            if (dist < 20) {
+                points = [p];
+            }
+        }
+    }
+
     const clickOnPoint = points.length > 0;
 
     // Single point click selection/toggle (no Shift)

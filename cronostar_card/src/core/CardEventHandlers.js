@@ -1,4 +1,4 @@
-import { CARD_CONFIG_PRESETS, validateConfig } from '../config.js';
+import { CARD_CONFIG_PRESETS, validateConfig, VERSION } from '../config.js';
 import { Logger } from '../utils.js';
 import { getEffectivePrefix } from '../utils/prefix_utils.js';
 
@@ -164,9 +164,11 @@ export class CardEventHandlers {
 
         try {
             const profileToSave = this.card.profileManager.lastLoadedProfile || this.card.selectedProfile;
-            if (this.card.hasUnsavedChanges && profileToSave) {
-                Logger.log('APPLY', `[CronoStar] Saving current profile '${profileToSave}' before applying`);
-                await this.card.stateManager.ensureValuesApplied();
+            
+            // Force save if we have a profile, to ensure JSON is up to date with current values
+            if (profileToSave) {
+                Logger.log('APPLY', `[CronoStar] Forcing save of profile '${profileToSave}' before applying`);
+                // ensureValuesApplied removed as we don't sync with input_number entities anymore
                 await this.card.profileManager.saveProfile(profileToSave);
                 Logger.log('APPLY', `[CronoStar] Profile '${profileToSave}' saved successfully`);
             }
@@ -274,11 +276,32 @@ export class CardEventHandlers {
     handleHelp() {
         const title = this.card.localizationManager.localize(this.card.language, 'help.title');
         const text = this.card.localizationManager.localize(this.card.language, 'help.text');
+        
+        // Diagnostic Info
+        const cardId = this.card.cardId || 'Not registered';
+        const preset = this.card.config?.preset || 'thermostat';
+        const prefix = getEffectivePrefix(this.card.config);
+        
+        // Determine expected filenames and entities
+        const prefixBase = prefix.replace(/_+$/, '');
+        const currentEntity = `input_number.${prefix}current`;
+        const profileFile = `${prefixBase}_data.json`;
+        
+        const debugInfo = `CardID:${cardId}|Ver:${VERSION}|Preset:${preset}|Prefix:${prefix}|Target:${this.card.config?.apply_entity}|Current:${currentEntity}|File:${profileFile}`;
+
+        // Attempt copy to clipboard first
+        navigator.clipboard.writeText(debugInfo).then(() => {
+             this.showNotification("Diagnostics copied to clipboard!", "success");
+        }).catch(() => {});
+
+        // Show prompt as fallback/visual
         try {
-            window.alert(`${title}\n\n${text}`);
+            window.prompt(
+                "Debug Info (Ctrl+C to copy):", 
+                debugInfo
+            );
         } catch (e) {
-            Logger.warn('UI', '[CronoStar] Unable to show help via alert');
-            this.showNotification(title, 'success');
+            Logger.warn('UI', '[CronoStar] Unable to show help via prompt');
         }
     }
 
