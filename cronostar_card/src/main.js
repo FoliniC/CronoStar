@@ -1,5 +1,7 @@
 // main.js – versione pulita con log scoped
 
+console.log('[CronoStar] main.js file loaded by browser');
+
 import { CronoStarCard } from './core/CronoStar.js';
 import { CronoStarEditor } from './editor/CronoStarEditor.js';
 import { VERSION, CARD_CONFIG_PRESETS } from './config.js';

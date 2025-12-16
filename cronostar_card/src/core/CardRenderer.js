@@ -15,21 +15,10 @@ export class CardRenderer {
         const enRaised = this.card.language === 'en';
         const itRaised = this.card.language === 'it';
 
-        // Wait for initial load (data from backend or defaults)
+        // --- Overlay Logic ---
         const isWaitingForData = !isEditor && !this.card.initialLoadComplete;
-        
-        // Wait for backend readiness signal (if data loaded but backend not confirmed ready)
         const showStartupOverlay = !isEditor && this.card.initialLoadComplete && !this.card.cronostarReady;
-        
         const showMissingEntitiesDetailsOverlay = !isEditor && !this.card.cronostarReady && this.card.missingEntities.length > 0 && this.card.initialLoadComplete;
-
-        if (showStartupOverlay && !this.card._startupOverlayState) {
-            Logger.log('UI', `[CronoStar] STARTUP_OVERLAY (${this.card.selectedPreset}): State changed to ACTIVE (waiting for backend).`);
-        } else if (!showStartupOverlay && this.card._startupOverlayState) {
-            Logger.log('UI', `[CronoStar] STARTUP_OVERLAY (${this.card.selectedPreset}): State changed to INACTIVE (backend ready).`);
-        }
-        this.card._startupOverlayState = showStartupOverlay;
-
         const showAnomalousOverlay = !isEditor && this.card.missingEntities.length > 0 && this.card.initialLoadComplete;
         const showAwaitingAutomationOverlay =
             !isEditor &&
@@ -42,6 +31,20 @@ export class CardRenderer {
             !this.card.isDragging &&
             Date.now() >= this.card.overlaySuppressionUntil &&
             (!this.card.lastEditAt || (Date.now() - this.card.lastEditAt) >= TIMEOUTS.editingGraceMs);
+
+        Logger.log('UI_RENDER', `[CronoStar] Rendering Overlays Check:
+          - isWaitingForData: ${isWaitingForData} (initialLoadComplete: ${this.card.initialLoadComplete})
+          - showStartupOverlay: ${showStartupOverlay} (initialLoadComplete: ${this.card.initialLoadComplete}, cronostarReady: ${this.card.cronostarReady})
+          - showMissingEntitiesDetailsOverlay: ${showMissingEntitiesDetailsOverlay}
+          - showAwaitingAutomationOverlay: ${showAwaitingAutomationOverlay} (awaitingAutomation: ${this.card.awaitingAutomation})
+        `);
+
+        if (showStartupOverlay && !this.card._startupOverlayState) {
+            Logger.log('UI', `[CronoStar] STARTUP_OVERLAY (${this.card.selectedPreset}): State changed to ACTIVE (waiting for backend).`);
+        } else if (!showStartupOverlay && this.card._startupOverlayState) {
+            Logger.log('UI', `[CronoStar] STARTUP_OVERLAY (${this.card.selectedPreset}): State changed to INACTIVE (backend ready).`);
+        }
+        this.card._startupOverlayState = showStartupOverlay;
 
         return html`
       <ha-card @click=${(e) => this.card.eventHandlers.handleCardClick(e)}>
@@ -57,6 +60,8 @@ export class CardRenderer {
         ${this.card.isMenuOpen ? html`
           <div class="menu-content" @click=${(e) => e.stopPropagation()}>
             <mwc-list-item @click=${() => this.card.eventHandlers.handleSelectAll()}>${localize('menu.select_all')}</mwc-list-item>
+            <mwc-list-item @click=${() => this.card.eventHandlers.handleAlignLeft()}>${localize('menu.align_left', 'Align Left')}</mwc-list-item>
+            <mwc-list-item @click=${() => this.card.eventHandlers.handleAlignRight()}>${localize('menu.align_right', 'Align Right')}</mwc-list-item>
             <mwc-list-item @click=${() => this.card.eventHandlers.handleApplyNow()}>${localize('menu.apply_now')}</mwc-list-item>
             <mwc-list-item @click=${() => this.card.eventHandlers.handleAddProfile()}>${localize('menu.add_profile')}</mwc-list-item>
             <mwc-list-item .disabled=${!this.card.selectedProfile} @click=${() => this.card.eventHandlers.handleDeleteProfile()}>${localize('menu.delete_profile')}</mwc-list-item>

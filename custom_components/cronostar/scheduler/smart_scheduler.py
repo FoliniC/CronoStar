@@ -155,18 +155,27 @@ class SmartScheduler:
             preset_type, next_update_time
         )
         
+        @callback
+        def _update_callback(now):
+            self.hass.async_create_task(self.update_preset(preset_type))
+
         self._timers[preset_type] = async_track_point_in_time(
             self.hass,
-            lambda time: asyncio.create_task(self.update_preset(preset_type)),
+            _update_callback,
             next_update_time
         )
 
     def _schedule_retry(self, preset_type: str):
         """Schedule a retry if loading failed."""
         next_retry = dt_util.now() + timedelta(minutes=1)
+
+        @callback
+        def _retry_callback(now):
+            self.hass.async_create_task(self.update_preset(preset_type))
+
         self._timers[preset_type] = async_track_point_in_time(
             self.hass,
-            lambda time: asyncio.create_task(self.update_preset(preset_type)),
+            _retry_callback,
             next_retry
         )
 

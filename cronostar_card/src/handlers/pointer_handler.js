@@ -7,6 +7,9 @@ export class PointerHandler {
   constructor(card) {
     this.card = card;
     this.isSelecting = false;
+    this.isGlobalDragging = false;
+    this.globalDragStartPx = null;
+    this.initialDragValues = new Map();
     this.selStartPx = null;
     this.selEndPx = null;
     this.activePointerId = null;
@@ -197,6 +200,37 @@ export class PointerHandler {
 
     const clickOnPoint = points.length > 0;
 
+    // Global drag for Android/touch
+    if (!clickOnPoint && e.pointerType === 'touch' && this.card.selectionManager.selectedPoints.length > 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+
+      this.isGlobalDragging = true;
+      this.activePointerId = e.pointerId;
+      const { x, y } = this.getContainerRelativeCoords(e);
+      this.globalDragStartPx = { x, y };
+
+      const chart = this.card.chartManager.chart;
+      const selMgr = this.card.selectionManager;
+      const selectedIndices = selMgr.getSelectedPoints();
+      const dataset = chart.data.datasets[0];
+
+      this.initialDragValues.clear();
+      selectedIndices.forEach(index => {
+        this.initialDragValues.set(index, dataset.data[index]);
+      });
+
+      Logger.log('DRAG', `[Pointer] Initiating global drag for ${selectedIndices.length} points.`);
+      
+      const canvas = this.card.shadowRoot?.getElementById("myChart");
+      try {
+        canvas?.setPointerCapture(e.pointerId);
+      } catch (err) {}
+      
+      return;
+    }
+
     // Single point click selection/toggle (no Shift)
     if (clickOnPoint && !e.shiftKey) {
       e.preventDefault();
@@ -262,6 +296,39 @@ export class PointerHandler {
       clearTimeout(this.longPressTimeout);
       this.longPressTimeout = null;
     }
+
+    if (this.isGlobalDragging) {
+      if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
+      e.preventDefault();
+      
+      const chart = this.card.chartManager.chart;
+      const yAxis = chart.scales.y;
+      const { y } = this.getContainerRelativeCoords(e);
+      
+      const startValue = yAxis.getValueForPixel(this.globalDragStartPx.y);
+      const currentValue = yAxis.getValueForPixel(y);
+      const valueDelta = currentValue - startValue;
+
+      const selMgr = this.card.selectionManager;
+      const selectedIndices = selMgr.getSelectedPoints();
+      const dataset = chart.data.datasets[0];
+      const { min_value, max_value, step_value } = this.card.config;
+
+      selectedIndices.forEach(index => {
+        const initialValue = this.initialDragValues.get(index);
+        let newValue = initialValue + valueDelta;
+        
+        // Clamp and round to step
+        newValue = Math.max(min_value, Math.min(max_value, newValue));
+        newValue = Math.round(newValue / step_value) * step_value;
+        
+        dataset.data[index] = newValue;
+      });
+
+      this.card.chartManager.update('none'); // Update without animation
+      return;
+    }
+
     if (!this.isSelecting) return;
     if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
 
@@ -279,6 +346,32 @@ export class PointerHandler {
     if (this.longPressTimeout) {
       clearTimeout(this.longPressTimeout);
       this.longPressTimeout = null;
+    }
+
+    if (this.isGlobalDragging) {
+      if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
+      e.preventDefault();
+      
+      this.isGlobalDragging = false;
+      this.activePointerId = null;
+      this.initialDragValues.clear();
+
+      const canvas = this.card.shadowRoot?.getElementById("myChart");
+      try {
+        canvas?.releasePointerCapture(e.pointerId);
+      } catch (err) {}
+
+      this.card.hasUnsavedChanges = true;
+      this.card.requestUpdate();
+
+      // Trigger auto-save
+      if (this.card.selectedProfile) {
+          this.card.profileManager.saveProfile(this.card.selectedProfile)
+              .catch(err => Logger.error('DRAG', 'Global drag auto-save failed:', err));
+      }
+      
+      Logger.log('DRAG', '[Pointer] Global drag finished.');
+      return;
     }
 
     if (this.card.wasLongPress) {

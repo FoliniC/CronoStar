@@ -334,6 +334,7 @@ export class ChartManager {
                 this.card.cardSync.scheduleAutomationOverlaySuppression(TIMEOUTS.automationSuppression);
                 
                 // Immediately save the profile to backend
+                Logger.log('DRAG', `[ChartManager] Checking before auto-save. Selected profile: '${this.card.selectedProfile}'`);
                 if (this.card.selectedProfile) {
                     this.card.profileManager.saveProfile(this.card.selectedProfile)
                         .catch(err => Logger.error('DRAG', 'Auto-save failed:', err));

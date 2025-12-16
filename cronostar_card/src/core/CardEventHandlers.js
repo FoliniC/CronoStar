@@ -132,6 +132,16 @@ export class CardEventHandlers {
         }
     }
 
+    handleAlignLeft() {
+        this.card.stateManager.alignSelectedPoints('left');
+        this.card.isMenuOpen = false;
+    }
+
+    handleAlignRight() {
+        this.card.stateManager.alignSelectedPoints('right');
+        this.card.isMenuOpen = false;
+    }
+
     async handleApplyNow() {
         const localize = (key, search, replace) =>
             this.card.localizationManager.localize(this.card.language, key, search, replace);
@@ -287,22 +297,133 @@ export class CardEventHandlers {
         const currentEntity = `input_number.${prefix}current`;
         const profileFile = `${prefixBase}_data.json`;
         
-        const debugInfo = `CardID:${cardId}|Ver:${VERSION}|Preset:${preset}|Prefix:${prefix}|Target:${this.card.config?.apply_entity}|Current:${currentEntity}|File:${profileFile}`;
+        const debugInfo = `Card ID: ${cardId}
+Version: ${VERSION}
+Preset: ${preset}
+Profile: ${this.card.selectedProfile || 'Nessun profilo selezionato'}
+Prefix: ${prefix}
+Target Entity: ${this.card.config?.apply_entity || 'Not configured'}
+Current Value Entity: ${currentEntity}
+Profile File: ${profileFile}
 
-        // Attempt copy to clipboard first
-        navigator.clipboard.writeText(debugInfo).then(() => {
-             this.showNotification("Diagnostics copied to clipboard!", "success");
-        }).catch(() => {});
+Instructions:
+${text}`;
 
-        // Show prompt as fallback/visual
-        try {
-            window.prompt(
-                "Debug Info (Ctrl+C to copy):", 
-                debugInfo
-            );
-        } catch (e) {
-            Logger.warn('UI', '[CronoStar] Unable to show help via prompt');
-        }
+        // Create custom dialog overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          padding: 20px;
+        `;
+        
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+          background: var(--card-background-color, white);
+          border-radius: 8px;
+          padding: 24px;
+          max-width: 600px;
+          max-height: 80vh;
+          overflow-y: auto;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        `;
+        
+        const headerDiv = document.createElement('div');
+        headerDiv.style.cssText = `
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+        `;
+        
+        const titleEl = document.createElement('h2');
+        titleEl.textContent = title;
+        titleEl.style.cssText = `
+          margin: 0;
+          color: var(--primary-text-color);
+        `;
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.style.cssText = `
+          background: none;
+          border: none;
+          font-size: 24px;
+          cursor: pointer;
+          color: var(--primary-text-color);
+          padding: 0;
+          width: 32px;
+          height: 32px;
+        `;
+        closeBtn.onclick = () => overlay.remove();
+        
+        const textarea = document.createElement('textarea');
+        textarea.value = debugInfo;
+        textarea.readOnly = true;
+        textarea.style.cssText = `
+          width: 100%;
+          min-height: 300px;
+          font-family: monospace;
+          font-size: 12px;
+          padding: 12px;
+          border: 1px solid var(--divider-color);
+          border-radius: 4px;
+          background: var(--code-editor-background-color, #1e1e1e);
+          color: var(--code-editor-color, #d4d4d4);
+          resize: vertical;
+          box-sizing: border-box;
+        `;
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.textContent = this.card.language === 'it' ? '📋 Copia negli appunti' : '📋 Copy to clipboard';
+        copyBtn.style.cssText = `
+          margin-top: 12px;
+          padding: 8px 16px;
+          background: var(--primary-color);
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 14px;
+        `;
+        copyBtn.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(debugInfo);
+            copyBtn.textContent = this.card.language === 'it' ? '✅ Copiato!' : '✅ Copied!';
+            setTimeout(() => {
+              copyBtn.textContent = this.card.language === 'it' ? '📋 Copia negli appunti' : '📋 Copy to clipboard';
+            }, 2000);
+          } catch (e) {
+            Logger.warn('HELP', 'Failed to copy to clipboard:', e);
+          }
+        };
+        
+        headerDiv.appendChild(titleEl);
+        headerDiv.appendChild(closeBtn);
+        dialog.appendChild(headerDiv);
+        dialog.appendChild(textarea);
+        dialog.appendChild(copyBtn);
+        overlay.appendChild(dialog);
+        
+        // Close on overlay click
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) {
+            overlay.remove();
+          }
+        });
+        
+        document.body.appendChild(overlay);
+        
+        // Select text for easy copying
+        textarea.select();
     }
 
     async togglePause(e) {

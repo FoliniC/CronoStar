@@ -155,6 +155,9 @@ export class CardLifecycle {
                     const pauseStateObj = hass.states[this.card.config.pause_entity];
                     if (pauseStateObj) {
                         this.card.isPaused = pauseStateObj.state === "on";
+                        Logger.log('HASS', `[CronoStar] Pause state updated: ${this.card.isPaused}`);
+                    } else {
+                        Logger.warn('HASS', `[CronoStar] Pause entity not found: ${this.card.config.pause_entity}`);
                     }
                 }
 
@@ -162,20 +165,24 @@ export class CardLifecycle {
                     const profilesSelectObj = hass.states[this.card.config.profiles_select_entity];
                     if (profilesSelectObj) {
                         const newProfile = profilesSelectObj.state;
-                        // If profile changed externally, load it (unless we have unsaved changes we want to keep?)
-                        // Standard behavior: UI follows backend state if not dirty.
-                        // But if we are editing, we don't want to lose work.
-                        // Let's load only if we changed profile selection or if initial load.
+                        const newOptions = profilesSelectObj.attributes.options || [];
                         
+                        // Always update options
+                        if (JSON.stringify(this.card.profileOptions) !== JSON.stringify(newOptions)) {
+                            this.card.profileOptions = newOptions;
+                            Logger.log('HASS', `[CronoStar] Profile options updated: ${newOptions.length} profiles`);
+                        }
+                        
+                        // Update selected profile if changed
                         if (newProfile !== this.card.selectedProfile) {
                              this.card.selectedProfile = newProfile;
-                             this.card.profileOptions = profilesSelectObj.attributes.options || [];
+                             Logger.log('HASS', `[CronoStar] Selected profile updated: ${newProfile}`);
                              if (!this.card.hasUnsavedChanges) {
                                  this.card.profileManager.loadProfile(newProfile);
                              }
-                        } else if (this.card.profileOptions.length === 0 && profilesSelectObj.attributes.options) {
-                             this.card.profileOptions = profilesSelectObj.attributes.options || [];
                         }
+                    } else {
+                        Logger.warn('HASS', `[CronoStar] Profile select entity not found: ${this.card.config.profiles_select_entity}`);
                     }
                 }
 
@@ -386,17 +393,25 @@ export class CardLifecycle {
 
             // Register card with backend for logging (once per session)
             if (!this._hasRegistered && this.card._isConnected && this.card.hass) {
+                Logger.log('INIT', '[CronoStar] Attempting to register card with backend...');
                 // Generate and store Card ID on the instance
                 this.card.cardId = Math.random().toString(36).substr(2, 9);
                 
-                this.card.hass.callService("cronostar", "register_card", {
-                    card_id: this.card.cardId,
-                    version: VERSION,
-                    preset: this.card.config?.preset || "unknown",
-                    entity_prefix: this.card.config?.entity_prefix,
-                    global_prefix: this.card.config?.global_prefix
-                }).then((response) => {
-                    Logger.log('INIT', '[CronoStar] Card registered. Response:', response);
+                this.card.hass.callWS({
+                    type: 'call_service',
+                    domain: 'cronostar',
+                    service: 'register_card',
+                    service_data: {
+                        card_id: this.card.cardId,
+                        version: VERSION,
+                        preset: this.card.config?.preset || "unknown",
+                        entity_prefix: this.card.config?.entity_prefix,
+                        global_prefix: this.card.config?.global_prefix
+                    },
+                    return_response: true
+                }).then((wsResponse) => {
+                    const response = wsResponse?.response;
+                    Logger.log('INIT', '[CronoStar] Card registered. WS Response:', response);
                     this._hasRegistered = true;
                     
                     // Handle returned profile data
@@ -408,20 +423,34 @@ export class CardLifecycle {
                             if (typeof rawSchedule[0] === 'object' && rawSchedule[0] !== null && 'value' in rawSchedule[0]) {
                                 scheduleValues = rawSchedule.map(item => item.value);
                             }
+
+                            const profileName = response.profile_data.profile_name || 'Default';
+                            this.card.selectedProfile = profileName;
                             
-                            Logger.load('[CronoStar] Applying profile data from registration response');
+                            Logger.log('INIT', `[CronoStar] ✅ Applying profile '${profileName}' data from registration response`);
+                            Logger.log('INIT', `[CronoStar] 📊 Schedule length=${scheduleValues.length}, sample=${JSON.stringify(scheduleValues.slice(0, 5))}`);
+                            
                             this.card.stateManager.setData(scheduleValues);
                             if (this.card.chartManager?.isInitialized()) {
                                 this.card.chartManager.updateData(scheduleValues);
                             }
                             
+                            // Mark as loaded and ready
                             this.card.initialLoadComplete = true;
                             this.card.cronostarReady = true;
                             this.card.requestUpdate();
+                            
+                            Logger.log('INIT', '[CronoStar] ✅ Initialization complete, overlay should hide now');
                         }
+                    } else {
+                        Logger.log('INIT', '[CronoStar] ⚠️ No profile data in registration response. Overlay will remain.');
+                        // Do NOT mark as loaded/ready, so the overlay remains
+                        this.card.requestUpdate();
                     }
                 }).catch(err => {
-                    Logger.warn('INIT', '[CronoStar] Failed to register card:', err);
+                    Logger.warn('INIT', '[CronoStar] Failed to register card via WS:', err);
+                    // Do NOT mark as loaded/ready, so the overlay remains
+                    this.card.requestUpdate();
                 });
             }
 

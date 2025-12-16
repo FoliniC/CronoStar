@@ -205,53 +205,9 @@ export class KeyboardHandler {
   }
 
   handleArrowLeftRight(e, indices) {
-    const stateMgr = this.card.stateManager;
-    const chartMgr = this.card.chartManager;
-
-    if (!chartMgr?.chart?.data?.datasets?.[0]) {
-      Logger.warn('KEYBOARD', '[CronoStar] Chart not ready for arrow key handling');
-      return;
-    }
-
-    const dataset = chartMgr.chart.data.datasets[0];
-
-    let targetIndex;
-    if (e.key === "ArrowLeft") {
-      targetIndex = Math.min(...indices);
-    } else {
-      targetIndex = Math.max(...indices);
-    }
-
-    const targetVal = dataset.data[targetIndex] ?? stateMgr.scheduleData[targetIndex];
-    const rounded = roundTo(targetVal, 1);
-
-    Logger.key(
-      `[CronoStar] ${e.key} -> align to index: ${targetIndex} ` +
-      `(${stateMgr.getHourLabel(targetIndex)}) value=${rounded} ` +
-      `indices=${JSON.stringify(indices)}`
-    );
-
-    const newData = [...stateMgr.scheduleData];
-    indices.forEach(i => {
-      newData[i] = rounded;
-      dataset.data[i] = rounded;
-      stateMgr.updatePoint(i, rounded);
-    });
-
-    // Save immediately
-    if (this.card.selectedProfile) {
-        this.card.profileManager.saveProfile(this.card.selectedProfile)
-            .catch(e => Logger.error('KEYBOARD', 'Save failed:', e));
-    } else {
-        this.card.hasUnsavedChanges = true;
-    }
-    stateMgr.setData(newData);
-    chartMgr.updatePointStyling(
-      this.card.selectionManager.selectedPoint,
-      this.card.selectionManager.selectedPoints
-    );
-    chartMgr.update();
-    chartMgr.showDragValueDisplay(indices, dataset.data);
+    const direction = e.key === "ArrowLeft" ? 'left' : 'right';
+    this.card.stateManager.alignSelectedPoints(direction);
+    this.card.chartManager?.showDragValueDisplay(indices, this.card.stateManager.getData());
   }
 
   handleArrowUpDown(e, indices) {
@@ -286,6 +242,7 @@ export class KeyboardHandler {
     });
 
     // Save immediately
+    Logger.log('KEYBOARD', `[CronoStar] Checking before auto-save. Selected profile: '${this.card.selectedProfile}'`);
     if (this.card.selectedProfile) {
         this.card.profileManager.saveProfile(this.card.selectedProfile)
             .catch(e => Logger.error('KEYBOARD', 'Save failed:', e));

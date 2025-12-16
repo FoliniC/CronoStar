@@ -138,4 +138,44 @@ export class StateManager {
     
     this.scheduleData = newData;
   }
+
+  alignSelectedPoints(direction) {
+    const selMgr = this.card.selectionManager;
+    const chartMgr = this.card.chartManager;
+    const indices = selMgr.getActiveIndices();
+
+    if (indices.length === 0 || !chartMgr?.isInitialized()) {
+      return;
+    }
+
+    const dataset = chartMgr.chart.data.datasets[0];
+    let targetIndex;
+
+    if (direction === 'left') {
+      targetIndex = Math.min(...indices);
+    } else {
+      targetIndex = Math.max(...indices);
+    }
+
+    const targetVal = dataset.data[targetIndex] ?? this.scheduleData[targetIndex];
+    const rounded = Math.round(targetVal * 10) / 10; // Round to 1 decimal place
+
+    Logger.log('ALIGN', `Aligning ${indices.length} points to value of index ${targetIndex}: ${rounded}`);
+
+    const newData = [...this.scheduleData];
+    indices.forEach(i => {
+      newData[i] = rounded;
+      dataset.data[i] = rounded;
+      this.updatePoint(i, rounded);
+    });
+
+    this.setData(newData);
+    chartMgr.updatePointStyling(selMgr.selectedPoint, selMgr.selectedPoints);
+    chartMgr.update();
+
+    if (this.card.selectedProfile) {
+        this.card.profileManager.saveProfile(this.card.selectedProfile)
+            .catch(e => Logger.error('ALIGN', 'Save failed after align:', e));
+    }
+  }
 }

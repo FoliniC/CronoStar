@@ -1,4 +1,4 @@
-"""CronoStar custom component - Enhanced with auto-save."""
+""" CronoStar custom component - Enhanced with auto-save."""
 import logging
 import os
 from pathlib import Path
@@ -148,26 +148,60 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         
         # Attempt to load active profile for this preset
         response = {"success": True, "profile_data": None}
+        profile_to_load = None
         
         config = PRESETS_CONFIG.get(preset)
         if config:
             profiles_select = config.get("profiles_select")
+            _LOGGER.info("Register card: Trying to get active profile from '%s'", profiles_select)
             if profiles_select:
                 state = hass.states.get(profiles_select)
                 if state and state.state not in ("unknown", "unavailable"):
-                    profile_name = state.state
-                    
-                    data = await profile_service.get_profile_data(
-                        profile_name=profile_name,
-                        preset_type=preset,
-                        entity_prefix=entity_prefix,
-                        global_prefix=global_prefix
-                    )
-                    
-                    if "error" not in data:
-                        response["profile_data"] = data
-                        _LOGGER.info("Returning active profile '%s' to card %s", profile_name, card_id)
-        
+                    profile_to_load = state.state
+                    _LOGGER.info("Register card: Found active profile '%s'", profile_to_load)
+                else:
+                    _LOGGER.warning("Register card: profiles_select entity '%s' has no valid state. State is: %s", profiles_select, state.state if state else "Not found")
+                    # This is likely the first run, or the input_select is empty. Let's create a default profile.
+                    _LOGGER.info("Attempting to create a 'Default' profile for preset '%s'", preset)
+                    try:
+                        # Create a mock service call for add_profile
+                        add_call = ServiceCall(
+                            DOMAIN, 
+                            "add_profile", 
+                            {
+                                "profile_name": "Default",
+                                "preset_type": preset,
+                                "entity_prefix": entity_prefix,
+                                "global_prefix": global_prefix
+                            }
+                        )
+                        await profile_service.add_profile(add_call)
+                        profile_to_load = "Default"
+                        _LOGGER.info("Successfully created 'Default' profile. Setting it as active.")
+                    except Exception as e:
+                        _LOGGER.error("Failed to create default profile: %s", e)
+
+            else:
+                _LOGGER.warning("Register card: No profiles_select entity configured for preset '%s'", preset)
+        else:
+            _LOGGER.warning("Register card: No preset config found for '%s'", preset)
+
+        # If we have a profile to load (either existing or newly created default)
+        if profile_to_load:
+            data = await profile_service.get_profile_data(
+                profile_name=profile_to_load,
+                preset_type=preset,
+                entity_prefix=entity_prefix,
+                global_prefix=global_prefix
+            )
+            
+            if "error" not in data:
+                response["profile_data"] = data
+                _LOGGER.info("Returning active profile '%s' to card %s", profile_to_load, card_id)
+            else:
+                _LOGGER.warning("get_profile_data for '%s' returned an error: %s", profile_to_load, data.get('error'))
+
+        _LOGGER.info("Final response to card %s: %s", card_id, response)
         return response
 
     hass.services.async_register(DOMAIN, "enable_auto_save", enable_auto_save)

@@ -23,27 +23,26 @@ export class ProfileManager {
     const effectivePrefix = getEffectivePrefix(this.card.config);
     
     Logger.save(
-      `[CronoStar] Saving profile '${profileName}' for preset type '${presetType}' ` +
-      `with prefix '${effectivePrefix}' via service (from internal memory).`
+      `[CronoStar] === SAVE PROFILE START === Profile: '${profileName}', Preset: ${presetType}, Prefix: ${effectivePrefix}`
     );
 
     // Read directly from internal memory
     const rawData = this.card.stateManager.getData();
-    // Convert to object array format expected by backend if needed, or just values
-    // Backend expects: [{hour: 0, value: 20}, ...] usually
-    // But wait, the backend save_profile service usually takes just the schedule list or we adapt it.
-    // Let's stick to the previous format: [{hour: i, value: v}]
-    // BUT we might have > 24 points now.
-    // If the backend expects 24 hours, we might have an issue if we send 48 points.
-    // The user said "remove utilization of home assistant entities".
-    // We will send the raw array. The backend service cronostar.save_profile likely handles the format.
-    // Let's construct the legacy format for compatibility if possible, or just the values.
-    // The previous code did: scheduleData.push({ hour: hour, value: value });
+    
+    // Log outgoing data
+    if (rawData.length > 10) {
+      const sample = rawData.slice(0, 10);
+      Logger.save(
+        `[CronoStar] 📤 Outgoing schedule: length=${rawData.length}, sample=${JSON.stringify(sample)}...`
+      );
+    } else {
+      Logger.save(
+        `[CronoStar] 📤 Outgoing schedule: length=${rawData.length}, data=${JSON.stringify(rawData)}`
+      );
+    }
     
     const scheduleData = rawData.map((val, index) => ({
-      index: index, // Changed from 'hour' to 'index' to support sub-hourly? 
-                    // Or keep 'hour' if backend assumes 24?
-                    // If we send 48 points, 'hour' 0..47 is misleading but unique.
+      index: index,
       value: val
     }));
 
@@ -59,9 +58,11 @@ export class ProfileManager {
       this.card.hasUnsavedChanges = false;
       this.lastLoadedProfile = profileName;
 
-      Logger.save(`[CronoStar] Profile '${profileName}' saved successfully.`);
+      Logger.save(`[CronoStar] ✅ Profile '${profileName}' saved successfully.`);
+      Logger.save("[CronoStar] === SAVE PROFILE END ===");
     } catch (err) {
-      Logger.error('SAVE', `[CronoStar] Error calling save_profile service for '${profileName}':`, err);
+      Logger.error('SAVE', `[CronoStar] ❌ Error calling save_profile service for '${profileName}':`, err);
+      Logger.save("[CronoStar] === SAVE PROFILE END (ERROR) ===");
       throw err;
     }
   }
@@ -76,8 +77,7 @@ export class ProfileManager {
     
     const effectivePrefix = getEffectivePrefix(this.card.config);
     Logger.load(
-      `[CronoStar] Loading profile '${profileName}' via service ` +
-      `(prefix: '${effectivePrefix}')`
+      `[CronoStar] === LOAD PROFILE START === Profile: '${profileName}', Prefix: '${effectivePrefix}'`
     );
 
     try {
@@ -97,6 +97,9 @@ export class ProfileManager {
       });
 
       const responseData = result?.response;
+      
+      Logger.load(`[CronoStar] 📥 Response received:`, responseData);
+      
       const rawSchedule = responseData?.schedule;
       let scheduleValues = null;
 
@@ -110,16 +113,22 @@ export class ProfileManager {
           loadedValues = rawSchedule;
         }
         
+        // Log sample
+        const sample = loadedValues.slice(0, 5);
+        Logger.load(
+          `[CronoStar] 📊 Parsed schedule: length=${loadedValues.length}, sample=${JSON.stringify(sample)}`
+        );
+        
         // Resize/Interpolate if needed to match current interval
         // For now, assuming direct mapping or StateManager handles resize later if we update it.
         // But here we are setting data directly.
         // Let's assume strict length match for now, or fill.
         scheduleValues = loadedValues;
         
-        Logger.load(`[CronoStar] Profile data processed for '${profileName}'. Points: ${scheduleValues.length}`);
+        Logger.load(`[CronoStar] ✅ Profile data processed for '${profileName}'. Points: ${scheduleValues.length}`);
       } else {
         // Fallback case: Profile not found or invalid. Using default values.
-        Logger.warn('LOAD', `[CronoStar] Profile '${profileName}' not found or invalid. Using default values.`);
+        Logger.warn('LOAD', `[CronoStar] ⚠️ Profile '${profileName}' not found or invalid. Using default values.`);
         const numPoints = this.card.stateManager.getNumPoints();
         const defaultVal = this.card.config.min_value ?? 0;
         scheduleValues = new Array(numPoints).fill(defaultVal);
@@ -135,10 +144,12 @@ export class ProfileManager {
 
       this.card.hasUnsavedChanges = false;
       this.lastLoadedProfile = profileName;
-      Logger.load(`[CronoStar] Profile '${profileName}' loaded to memory successfully.`);
+      Logger.load(`[CronoStar] ✅ Profile '${profileName}' loaded to memory successfully.`);
+      Logger.load("[CronoStar] === LOAD PROFILE END ===");
 
     } catch (err) {
-      Logger.error('LOAD', `[CronoStar] Error calling load_profile service for '${profileName}':`, err);
+      Logger.error('LOAD', `[CronoStar] ❌ Error calling load_profile service for '${profileName}':`, err);
+      Logger.load("[CronoStar] === LOAD PROFILE END (ERROR) ===");
     } finally {
       this.card.stateManager.isLoadingProfile = false;
     }

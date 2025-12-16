@@ -24,6 +24,8 @@ const TRANSLATIONS = {
     menu: {
       language: "Language",
       select_all: "Select all",
+      align_left: "Align Left",
+      align_right: "Align Right",
       apply_now: "Apply now",
       add_profile: "Add profile",
       delete_profile: "Delete profile",
@@ -78,6 +80,8 @@ const TRANSLATIONS = {
     menu: {
       language: "Lingua",
       select_all: "Seleziona tutto",
+      align_left: "Allinea a Sinistra",
+      align_right: "Allinea a Destra",
       apply_now: "Applica ora",
       add_profile: "Aggiungi profilo",
       delete_profile: "Elimina profilo",
@@ -137,6 +141,8 @@ const TRANSLATIONS = {
     menu: {
       language: "Lingua",
       select_all: "Seleziona tutto",
+      align_left: "Allinea a Sinistra",
+      align_right: "Allinea a Destra",
       apply_now: "Applica ora",
       add_profile: "Aggiungi profilo",
       delete_profile: "Elimina profilo",

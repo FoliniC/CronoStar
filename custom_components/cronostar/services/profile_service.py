@@ -2,6 +2,7 @@
 import logging
 import os
 import time
+from collections import OrderedDict
 
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
 
@@ -39,53 +40,86 @@ class ProfileService:
             global_prefix=global_prefix
         )
         
+        _LOGGER.info(
+            "=== SAVE PROFILE START === Profile: '%s', Preset: %s, File: %s",
+            profile_name,
+            canonical,
+            filename
+        )
+        
+        # Log incoming schedule data
+        if isinstance(schedule, list):
+            if len(schedule) > 10:
+                sample = schedule[:10]
+                _LOGGER.info(
+                    "📥 Incoming schedule: length=%d, sample=%s...", 
+                    len(schedule), 
+                    sample
+                )
+            else:
+                _LOGGER.info(
+                    "📥 Incoming schedule: length=%d, data=%s", 
+                    len(schedule), 
+                    schedule
+                )
+        else:
+            _LOGGER.error("❌ Schedule data is not a list: %s", type(schedule))
+            return
+        
         # 1. Load existing data
         existing_data = await self.storage.load_profile_cached(filename) or {}
         
-        # 2. Prepare structure
-        if "profiles" not in existing_data:
-            existing_data["profiles"] = {}
-        if "meta" not in existing_data:
-            existing_data["meta"] = {
+        # 2. Prepare structure with "meta" FIRST using OrderedDict
+        new_data = OrderedDict()
+        
+        # Meta first
+        if "meta" in existing_data:
+            new_data["meta"] = existing_data["meta"]
+            new_data["meta"]["updated_at"] = time.time()
+        else:
+            new_data["meta"] = {
                 "entity_prefix": global_prefix or entity_prefix,
                 "preset_type": canonical,
-                "created_at": time.time()
+                "created_at": time.time(),
+                "updated_at": time.time()
             }
-            
+        
+        # Then profiles
+        if "profiles" in existing_data:
+            new_data["profiles"] = existing_data["profiles"]
+        else:
+            new_data["profiles"] = {}
+        
         # 3. Update specific profile
-        existing_data["profiles"][profile_name] = {
+        new_data["profiles"][profile_name] = {
             "schedule": schedule,
             "updated_at": time.time()
         }
         
-        # Update meta timestamp
-        existing_data["meta"]["updated_at"] = time.time()
-        
-        _LOGGER.info(
-            "Saving profile '%s' to container %s",
-            profile_name,
-            filename
-        )
-        
-        # Log payload details for debugging
-        if isinstance(schedule, list):
-            sample = schedule[:3] if len(schedule) > 3 else schedule
-            _LOGGER.info(
-                "Received schedule data (len=%d). Sample: %s", 
-                len(schedule), 
-                sample
-            )
-        else:
-            _LOGGER.warning("Received schedule data is not a list: %s", type(schedule))
-        
         # 4. Atomic Save
-        success = await self.storage.save_profile_atomic(filename, existing_data, backup=True)
+        success = await self.storage.save_profile_atomic(filename, new_data, backup=True)
         
         if success:
-            _LOGGER.info("? Profile container saved: %s", filename)
+            _LOGGER.info("✅ Profile saved successfully!")
+            # Log a sample of the saved data for verification
+            log_sample = {
+                "meta": new_data["meta"],
+                "profiles": {
+                    profile_name: {
+                        "schedule_length": len(schedule),
+                        "schedule_sample": schedule[:3]
+                    }
+                }
+            }
+            _LOGGER.info(
+                "📄 Saved data sample: %s",
+                log_sample
+            )
             await self.async_update_profile_selectors()
         else:
-            _LOGGER.error("? Failed to save profile container: %s", filename)
+            _LOGGER.error("❌ Failed to save profile container: %s", filename)
+        
+        _LOGGER.info("=== SAVE PROFILE END ===")
     
     async def get_profile_data(
         self,
@@ -141,6 +175,12 @@ class ProfileService:
         entity_prefix = call.data.get("entity_prefix")
         global_prefix = call.data.get("global_prefix")
         
+        _LOGGER.info(
+            "=== LOAD PROFILE START === Profile: '%s', Preset: %s",
+            profile_name,
+            preset_type
+        )
+        
         result = await self.get_profile_data(
             profile_name, 
             preset_type, 
@@ -148,13 +188,27 @@ class ProfileService:
             global_prefix
         )
         
-        if "error" not in result:
-            _LOGGER.info("? Profile loaded: %s", profile_name)
+        _LOGGER.info("✅ Profile loaded successfully: %s", profile_name)
+        
+        # Log returned data
+        schedule = result.get("schedule", [])
+        if isinstance(schedule, list):
+            if len(schedule) > 10:
+                sample = schedule[:10]
+                _LOGGER.info(
+                    "📤 Returning schedule: length=%d, sample=%s...",
+                    len(schedule),
+                    sample
+                )
+            else:
+                _LOGGER.info(
+                    "📤 Returning schedule: length=%d, data=%s",
+                    len(schedule),
+                    schedule
+                )
         else:
-            _LOGGER.warning(
-                "? Profile not found: %s", profile_name
-            )
-            
+            _LOGGER.warning("⚠️ Schedule is not a list: %s", type(schedule))
+        _LOGGER.info("=== LOAD PROFILE END ===")
         return result
     
     async def add_profile(self, call: ServiceCall):
@@ -193,10 +247,10 @@ class ProfileService:
         success = await self.storage.save_profile_atomic(filename, profile_data, backup=False)
         
         if success:
-            _LOGGER.info("? Profile created: %s", filename)
+            _LOGGER.info("✅ Profile created: %s", filename)
             await self.async_update_profile_selectors()
         else:
-            _LOGGER.error("? Failed to create profile: %s", filename)
+            _LOGGER.error("❌ Failed to create profile: %s", filename)
     
     async def delete_profile(self, call: ServiceCall):
         """Delete a profile using StorageManager."""
@@ -231,10 +285,10 @@ class ProfileService:
         for filename in filenames_to_delete:
             if await self.storage.delete_profile(filename):
                 deleted = True
-                _LOGGER.info("? Profile deleted: %s", filename)
+                _LOGGER.info("✅ Profile deleted: %s", filename)
         
         if not deleted:
-            _LOGGER.warning("? No profile file found to delete: %s", profile_name)
+            _LOGGER.warning("❌ No profile file found to delete: %s", profile_name)
         else:
             await self.async_update_profile_selectors()
     
