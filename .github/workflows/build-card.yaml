@@ -34,7 +34,6 @@ jobs:
       - name: Copy card to custom_components
         run: |
           mkdir -p custom_components/cronostar/www
-          cp -v www/community/cronostar_card/cronostar-card.js custom_components/cronostar/www/
 
       - name: Commit built card if changed
         if: github.event_name == 'push'
