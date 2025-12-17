@@ -1,7 +1,7 @@
-"""Profile management using StorageManager for robust saves."""
+"""Profile management with optimized save and ISO 8601 dates."""
 import logging
-import os
 import time
+from datetime import datetime
 from collections import OrderedDict
 
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
@@ -18,8 +18,38 @@ class ProfileService:
         self.file_service = file_service
         self.storage = storage_manager
 
+    def _to_iso8601(self, timestamp=None):
+        """Convert timestamp to ISO 8601 format."""
+        if timestamp is None:
+            timestamp = time.time()
+        return datetime.fromtimestamp(timestamp).isoformat()
+
+    def _optimize_schedule(self, schedule):
+        """Remove redundant points where value doesn't change."""
+        if not schedule or len(schedule) <= 2:
+            return schedule
+        
+        optimized = [schedule[0]]  # Always keep first
+        
+        for i in range(1, len(schedule) - 1):
+            prev_val = schedule[i - 1].get('value')
+            curr_val = schedule[i].get('value')
+            next_val = schedule[i + 1].get('value')
+            
+            # Keep if value changes
+            if abs(curr_val - prev_val) > 0.01 or abs(curr_val - next_val) > 0.01:
+                optimized.append(schedule[i])
+        
+        optimized.append(schedule[-1])  # Always keep last
+        
+        removed = len(schedule) - len(optimized)
+        if removed > 0:
+            _LOGGER.info("Optimized schedule: removed %d redundant points", removed)
+        
+        return optimized
+
     async def save_profile(self, call: ServiceCall):
-        """Save a profile using StorageManager (atomic, with backup) into a single JSON file."""
+        """Save a profile with ISO 8601 dates and optimized schedule."""
         profile_name = call.data.get("profile_name")
         preset_type = call.data.get("preset_type")
         schedule = call.data.get("schedule")
@@ -32,7 +62,6 @@ class ProfileService:
         
         canonical = normalize_preset_type(preset_type)
         
-        # Determine filename (now shared for all profiles with this prefix)
         filename = build_profile_filename(
             profile_name,
             canonical,
@@ -47,74 +76,48 @@ class ProfileService:
             filename
         )
         
-        # Log incoming schedule data
-        if isinstance(schedule, list):
-            if len(schedule) > 10:
-                sample = schedule[:10]
-                _LOGGER.info(
-                    "📥 Incoming schedule: length=%d, sample=%s...", 
-                    len(schedule), 
-                    sample
-                )
-            else:
-                _LOGGER.info(
-                    "📥 Incoming schedule: length=%d, data=%s", 
-                    len(schedule), 
-                    schedule
-                )
-        else:
-            _LOGGER.error("❌ Schedule data is not a list: %s", type(schedule))
-            return
+        # Optimize schedule
+        optimized_schedule = self._optimize_schedule(schedule)
         
-        # 1. Load existing data
+        _LOGGER.info(
+            "Schedule optimization: %d -> %d points",
+            len(schedule),
+            len(optimized_schedule)
+        )
+        
+        # Load existing data
         existing_data = await self.storage.load_profile_cached(filename) or {}
         
-        # 2. Prepare structure with "meta" FIRST using OrderedDict
+        # Prepare structure with meta first
         new_data = OrderedDict()
         
-        # Meta first
         if "meta" in existing_data:
             new_data["meta"] = existing_data["meta"]
-            new_data["meta"]["updated_at"] = time.time()
+            new_data["meta"]["updated_at"] = self._to_iso8601()
         else:
             new_data["meta"] = {
                 "entity_prefix": global_prefix or entity_prefix,
                 "preset_type": canonical,
-                "created_at": time.time(),
-                "updated_at": time.time()
+                "created_at": self._to_iso8601(),
+                "updated_at": self._to_iso8601()
             }
         
-        # Then profiles
         if "profiles" in existing_data:
             new_data["profiles"] = existing_data["profiles"]
         else:
             new_data["profiles"] = {}
         
-        # 3. Update specific profile
+        # Update specific profile
         new_data["profiles"][profile_name] = {
-            "schedule": schedule,
-            "updated_at": time.time()
+            "schedule": optimized_schedule,
+            "updated_at": self._to_iso8601()
         }
         
-        # 4. Atomic Save
+        # Atomic save
         success = await self.storage.save_profile_atomic(filename, new_data, backup=True)
         
         if success:
             _LOGGER.info("✅ Profile saved successfully!")
-            # Log a sample of the saved data for verification
-            log_sample = {
-                "meta": new_data["meta"],
-                "profiles": {
-                    profile_name: {
-                        "schedule_length": len(schedule),
-                        "schedule_sample": schedule[:3]
-                    }
-                }
-            }
-            _LOGGER.info(
-                "📄 Saved data sample: %s",
-                log_sample
-            )
             await self.async_update_profile_selectors()
         else:
             _LOGGER.error("❌ Failed to save profile container: %s", filename)
@@ -128,7 +131,7 @@ class ProfileService:
         entity_prefix: str | None = None,
         global_prefix: str | None = None
     ) -> dict:
-        """Fetch profile data directly (internal helper)."""
+        """Fetch profile data."""
         if not all((profile_name, preset_type)):
             return {"error": "Missing parameters"}
         
@@ -151,15 +154,12 @@ class ProfileService:
             build_profile_filename(profile_name, canonical)
         )
         
-        # Try each filename
         for filename in filenames_to_try:
             data = await self.storage.load_profile_cached(filename)
             
             if data and "profiles" in data:
-                # Check if specific profile exists in container
                 if profile_name in data["profiles"]:
                     profile_content = data["profiles"][profile_name]
-                    # Inject meta info for consumer
                     profile_content["entity_prefix"] = data.get("meta", {}).get("entity_prefix")
                     profile_content["profile_name"] = profile_name
                     
@@ -169,7 +169,7 @@ class ProfileService:
         return {"error": "Profile not found"}
 
     async def load_profile(self, call: ServiceCall) -> ServiceResponse:
-        """Load a profile using StorageManager (with caching)."""
+        """Load a profile."""
         profile_name = call.data.get("profile_name")
         preset_type = call.data.get("preset_type")
         entity_prefix = call.data.get("entity_prefix")
@@ -189,25 +189,6 @@ class ProfileService:
         )
         
         _LOGGER.info("✅ Profile loaded successfully: %s", profile_name)
-        
-        # Log returned data
-        schedule = result.get("schedule", [])
-        if isinstance(schedule, list):
-            if len(schedule) > 10:
-                sample = schedule[:10]
-                _LOGGER.info(
-                    "📤 Returning schedule: length=%d, sample=%s...",
-                    len(schedule),
-                    sample
-                )
-            else:
-                _LOGGER.info(
-                    "📤 Returning schedule: length=%d, data=%s",
-                    len(schedule),
-                    schedule
-                )
-        else:
-            _LOGGER.warning("⚠️ Schedule is not a list: %s", type(schedule))
         _LOGGER.info("=== LOAD PROFILE END ===")
         return result
     
@@ -223,9 +204,12 @@ class ProfileService:
         
         canonical = normalize_preset_type(preset_type)
         
-        # Get default value from preset config
+        # Get default value
         default_value = 20 if canonical == "thermostat" else 0
-        default_schedule = [{"hour": h, "value": default_value} for h in range(24)]
+        default_schedule = [
+            {"time": f"{h:02d}:00", "value": default_value} 
+            for h in range(24)
+        ]
         
         filename = build_profile_filename(
             profile_name,
@@ -239,7 +223,7 @@ class ProfileService:
             "preset_type": canonical,
             "entity_prefix": global_prefix or entity_prefix,
             "schedule": default_schedule,
-            "saved_at": time.time()
+            "saved_at": self._to_iso8601()
         }
         
         _LOGGER.info("Creating new profile: %s", filename)
@@ -253,7 +237,7 @@ class ProfileService:
             _LOGGER.error("❌ Failed to create profile: %s", filename)
     
     async def delete_profile(self, call: ServiceCall):
-        """Delete a profile using StorageManager."""
+        """Delete a profile."""
         profile_name = call.data.get("profile_name")
         preset_type = call.data.get("preset_type")
         entity_prefix = call.data.get("entity_prefix")
@@ -264,7 +248,6 @@ class ProfileService:
         
         canonical = normalize_preset_type(preset_type)
         
-        # Try multiple filename patterns
         filenames_to_delete = []
         
         if global_prefix or entity_prefix:
@@ -297,8 +280,6 @@ class ProfileService:
         _LOGGER.info("Updating profile selectors...")
         
         profiles_by_preset = {}
-        
-        # List all data files
         all_files = await self.storage.list_profiles()
         
         for filename in all_files:
@@ -317,7 +298,6 @@ class ProfileService:
                     if canonical_preset not in profiles_by_preset:
                         profiles_by_preset[canonical_preset] = []
                     
-                    # Add all profile names found in this container
                     profiles_by_preset[canonical_preset].extend(profiles_dict.keys())
             
             except Exception as e:
@@ -347,5 +327,3 @@ class ProfileService:
                     )
                 except Exception as e:
                     _LOGGER.error("Failed to update %s: %s", selector_entity_id, e)
-            else:
-                _LOGGER.debug("Profiles for %s are up to date", selector_entity_id)

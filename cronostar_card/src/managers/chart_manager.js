@@ -1,8 +1,8 @@
-/** Chart Manager for CronoStar Card with Dynamic Intervals */
+/** Chart Manager for CronoStar Card with Dynamic Points */
 import Chart from 'chart.js/auto';
 import dragDataPlugin from 'chartjs-plugin-dragdata';
 import zoomPlugin from 'chartjs-plugin-zoom';
-import { COLORS, TIMEOUTS, getPointsCount } from '../config.js';
+import { COLORS } from '../config.js';
 import { Logger } from '../utils.js';
 
 Chart.register(dragDataPlugin, zoomPlugin);
@@ -13,6 +13,7 @@ export class ChartManager {
     this.chart = null;
     this._initialized = false;
     this._hideTimer = null;
+    this.lastMousePosition = null;
   }
 
   isInitialized() {
@@ -24,97 +25,27 @@ export class ChartManager {
   }
 
   _getXTitle() {
-    try {
-      return this.card.localizationManager.localize(this.card.language, 'ui.time_label');
-    } catch (e) {
-      Logger.error('CHART', '[ChartManager] Error in _getXTitle:', e);
-      return 'Time of Day';
-    }
+    return this.card.localizationManager.localize(this.card.language, 'ui.time_label');
   }
 
   _getYTitle() {
-    try {
-      return this.card.config?.y_axis_label || 
-             this.card.localizationManager.localize(this.card.language, 'ui.temperature_label');
-    } catch (e) {
-      Logger.error('CHART', '[ChartManager] Error in _getYTitle:', e);
-      return 'Value';
-    }
+    return this.card.config?.y_axis_label || 
+           this.card.localizationManager.localize(this.card.language, 'ui.temperature_label');
   }
 
   /**
-   * Generate labels based on interval
-   * @returns {Array<string>}
+   * Generate labels from schedule data
    */
   _generateLabels() {
-    try {
-      const interval = this.card.config?.interval_minutes || 60;
-      const numPoints = getPointsCount(interval);
-      const labels = [];
-      
-      for (let i = 0; i < numPoints; i++) {
-        labels.push(this.card.stateManager.getPointLabel(i));
-      }
-      
-      return labels;
-    } catch (e) {
-      Logger.error('CHART', '[ChartManager] Error generating labels:', e);
-      return [...Array(24)].map((_, i) => `${i.toString().padStart(2, '0')}:00`);
-    }
-  }
-
-  /**
-   * Configure label decimation based on number of points
-   * @param {number} numPoints - Number of data points
-   * @returns {Object} X-axis tick configuration
-   */
-  _getTickConfig(numPoints) {
-    if (numPoints <= 24) {
-      // Show all labels for 24 or fewer points
-      return {
-        maxRotation: 45,
-        minRotation: 0,
-        autoSkip: false
-      };
-    } else if (numPoints <= 48) {
-      // Show every other label
-      return {
-        maxRotation: 45,
-        minRotation: 0,
-        autoSkip: true,
-        maxTicksLimit: 24
-      };
-    } else if (numPoints <= 96) {
-      // Show every 4th label
-      return {
-        maxRotation: 45,
-        minRotation: 0,
-        autoSkip: true,
-        maxTicksLimit: 24
-      };
-    } else {
-      // Show hourly marks for very dense schedules
-      return {
-        maxRotation: 45,
-        minRotation: 0,
-        autoSkip: true,
-        maxTicksLimit: 24,
-        callback: function(value, index, ticks) {
-          // Show only hour marks (xx:00)
-          const label = this.getLabelForValue(value);
-          return label && label.endsWith(':00') ? label : '';
-        }
-      };
-    }
+    return this.card.stateManager.scheduleData.map(p => p.time);
   }
 
   initChart(canvas) {
     if (!canvas) {
-      Logger.error('CHART', '[ChartManager] initChart: canvas is null/undefined');
+      Logger.error('CHART', '[ChartManager] initChart: canvas is null');
       return false;
     }
     
-    // Track mouse position for dynamic zoom mode
     canvas.addEventListener('mousemove', (e) => {
       const rect = canvas.getBoundingClientRect();
       this.lastMousePosition = {
@@ -123,19 +54,22 @@ export class ChartManager {
       };
     });
     
+    // Context menu handler for point deletion
+    canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      this._handleContextMenu(e);
+    });
+    
     try {
       const ctx = canvas.getContext('2d');
       const step = this.card.config?.step_value ?? 1;
       const minV = this.card.config?.min_value ?? 0;
       const maxV = this.card.config?.max_value ?? 100;
       
-      const numPoints = getPointsCount(this.card.config?.interval_minutes || 60);
-      const dataArr = Array.isArray(this.card.stateManager?.scheduleData)
-        ? this.card.stateManager.scheduleData.map(v => (v == null ? null : Number(v)))
-        : new Array(numPoints).fill(null);
-      
-      const labels = this._generateLabels();
-      const tickConfig = this._getTickConfig(numPoints);
+      const dataArr = this.card.stateManager.scheduleData.map(p => ({
+        x: this.card.stateManager.timeToMinutes(p.time),
+        y: p.value
+      }));
       
       const clamp = (val) => {
         const rounded = Math.round(val / step) * step;
@@ -145,23 +79,20 @@ export class ChartManager {
       const chartConfig = {
         type: 'line',
         data: {
-          labels,
-          datasets: [
-            {
-              label: this._getYTitle(),
-              data: dataArr,
-              borderColor: COLORS.primary,
-              backgroundColor: COLORS.primaryLight,
-              pointRadius: numPoints > 96 ? 2 : 5,  // Smaller points for dense schedules
-              pointHoverRadius: numPoints > 96 ? 4 : 8,
-              pointHitRadius: numPoints > 96 ? 6 : 12,
-              pointBackgroundColor: COLORS.primary,
-              pointBorderColor: COLORS.primary,
-              borderWidth: 2,
-              tension: 0.4,
-              spanGaps: true
-            }
-          ]
+          datasets: [{
+            label: this._getYTitle(),
+            data: dataArr,
+            borderColor: COLORS.primary,
+            backgroundColor: COLORS.primaryLight,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            pointHitRadius: 12,
+            pointBackgroundColor: COLORS.primary,
+            pointBorderColor: COLORS.primary,
+            borderWidth: 2,
+            tension: 0, // Straight lines for clearer schedule segments
+            spanGaps: true
+          }]
         },
         options: {
           responsive: true,
@@ -171,6 +102,7 @@ export class ChartManager {
             mode: 'nearest',
             intersect: true
           },
+          onClick: (evt) => this._handleChartClick(evt),
           plugins: {
             legend: { display: true },
             zoom: {
@@ -183,12 +115,8 @@ export class ChartManager {
                    const scaleX = chart.scales.x;
                    const scaleY = chart.scales.y;
                    
-                   // If within Y axis area (left of X scale left edge)
                    if (x < scaleX.left) return 'y';
-                   // If within X axis area (below Y scale bottom edge)
                    if (y > scaleY.bottom) return 'x';
-                   
-                   // Default to x inside chart area
                    return 'x';
                 },
               },
@@ -197,15 +125,15 @@ export class ChartManager {
                 mode: 'x',
               },
               limits: {
-                x: { min: 'original', max: 'original' },
+                x: { min: 0, max: 1440 }, // Limit to 24h
               }
             },
             tooltip: { 
               enabled: true,
               callbacks: {
                 title: (context) => {
-                  const index = context[0].dataIndex;
-                  return this.card.stateManager.getPointLabel(index);
+                  const minutes = context[0].parsed.x;
+                  return this.card.stateManager.minutesToTime(minutes);
                 }
               }
             },
@@ -214,74 +142,39 @@ export class ChartManager {
               showTooltip: true,
               dragX: false,
               onDragStart: (e, datasetIndex, index, value) => {
-                // Prevent drag if Shift is pressed (area selection)
                 if (e.shiftKey || this.card.keyboardHandler?.shiftDown) return false;
                 
-                // Check if click is strictly within the chart area (exclude scales)
-                const chart = this.chart;
-                const scaleX = chart.scales.x;
-                const scaleY = chart.scales.y;
-                
-                let clientX = e.clientX;
-                let clientY = e.clientY;
-                // Handle touch events if applicable
-                if (e.changedTouches && e.changedTouches.length > 0) {
-                    clientX = e.changedTouches[0].clientX;
-                    clientY = e.changedTouches[0].clientY;
-                } else if (e.nativeEvent) {
-                    // Sometimes wrapper events
-                    clientX = e.nativeEvent.clientX || clientX;
-                    clientY = e.nativeEvent.clientY || clientY;
-                }
-                
-                if (clientX !== undefined && clientY !== undefined) {
-                    const rect = chart.canvas.getBoundingClientRect();
-                    const x = clientX - rect.left;
-                    const y = clientY - rect.top;
-                    
-                    if (x < scaleX.left || x > scaleX.right || y < scaleY.top || y > scaleY.bottom) {
-                        return false;
-                    }
-                }
-                
+                // value is usually the Y value for dragX: false
                 Logger.log('DRAG', `[ChartManager] Drag start idx=${index}, value=${value}`);
                 
-                // Store initial values for multi-drag
                 this.dragStartValue = value;
                 this.dragStartIndex = index;
                 this.initialSelectedValues = {};
-                this.draggedIndices = new Set(); // Track modified indices
                 
                 const selMgr = this.card.selectionManager;
-                // If dragging a selected point, move all selected points
                 const pointsToMove = (selMgr && selMgr.isSelected(index)) 
                   ? selMgr.getSelectedPoints() 
                   : [index];
                 
-                // Save initial values
                 pointsToMove.forEach(i => {
-                   const val = this.chart.data.datasets[datasetIndex].data[i];
-                   this.initialSelectedValues[i] = val;
+                   const pointObj = this.chart.data.datasets[datasetIndex].data[i];
+                   // data[i] is {x, y}
+                   this.initialSelectedValues[i] = pointObj.y;
                 });
 
                 const disp = this.card.shadowRoot?.getElementById('drag-value-display');
-                if (disp) {
-                  disp.style.display = 'block';
-                }
+                if (disp) disp.style.display = 'block';
+                
                 this.card.isDragging = true;
                 this.card.lastEditAt = Date.now();
                 this.card.awaitingAutomation = false;
                 this.card.outOfSyncDetails = "";
-                this.card.cardSync.scheduleAutomationOverlaySuppression(TIMEOUTS.automationSuppression);
                 this._clearHideTimer();
                 this.card.requestUpdate();
               },
               onDrag: (e, datasetIndex, index, value) => {
-                // value is the raw value where the user dragged to
                 const clamped = clamp(value);
                 const ds = this.chart.data.datasets[datasetIndex];
-                
-                // Calculate delta based on rounded values
                 const delta = clamped - this.dragStartValue;
                 
                 const selMgr = this.card.selectionManager;
@@ -289,23 +182,25 @@ export class ChartManager {
                   ? selMgr.getSelectedPoints() 
                   : [index];
                 
-                // Apply delta to all points
                 pointsToUpdate.forEach(i => {
                    if (!Number.isInteger(i)) return;
                    
                    let initial = this.initialSelectedValues[i];
                    if (initial === undefined) {
-                     // Fallback if missing
-                     initial = ds.data[i] || 0;
+                     // Fallback if not captured in Start
+                     initial = ds.data[i]?.y || 0;
                      this.initialSelectedValues[i] = initial;
                    }
                    
                    let newVal = initial + delta;
                    newVal = clamp(newVal); 
-                   // Round to step
                    newVal = Math.round(newVal / step) * step;
                    
-                   ds.data[i] = newVal;
+                   // Update chart data object directly
+                   if (ds.data[i]) {
+                       ds.data[i].y = newVal;
+                   }
+                   
                    if (this.card.stateManager) {
                      this.card.stateManager.updatePoint(i, newVal);
                    }
@@ -314,7 +209,8 @@ export class ChartManager {
                 this.card.hasUnsavedChanges = true;
                 const disp = this.card.shadowRoot?.getElementById('drag-value-display');
                 if (disp) {
-                  disp.textContent = String(ds.data[index]); // Show value of the point under cursor
+                  // value is the Y value being dragged
+                  disp.textContent = String(ds.data[index]?.y ?? value);
                   const rect = this.card.shadowRoot?.querySelector('.chart-container')?.getBoundingClientRect();
                   const x = e.x ?? e.native?.x ?? 0;
                   const y = e.y ?? e.native?.y ?? 0;
@@ -331,32 +227,34 @@ export class ChartManager {
                 this.card.isDragging = false;
                 this.card.lastEditAt = Date.now();
                 this.scheduleHideDragValueDisplay(2500);
-                this.card.cardSync.scheduleAutomationOverlaySuppression(TIMEOUTS.automationSuppression);
                 
-                // Immediately save the profile to backend
-                Logger.log('DRAG', `[ChartManager] Checking before auto-save. Selected profile: '${this.card.selectedProfile}'`);
+                // Optimize schedule
+                this.card.stateManager.optimizeSchedule();
+                
                 if (this.card.selectedProfile) {
                     this.card.profileManager.saveProfile(this.card.selectedProfile)
                         .catch(err => Logger.error('DRAG', 'Auto-save failed:', err));
-                } else {
-                    Logger.warn('DRAG', 'No profile selected, cannot auto-save.');
-                    this.card.hasUnsavedChanges = true;
-                }
-                
-                try {
-                  this.card.cardSync.updateAutomationSync(this.card._hass);
-                } catch (e) { 
-                  Logger.warn('DRAG', 'Error updating automation sync on drag end:', e); 
                 }
               }
             }
           },
           scales: {
             x: {
+              type: 'linear',
               display: true,
+              min: 0,
+              max: 1440, // 24 hours in minutes
               title: { display: true, text: this._getXTitle() },
-              grid: { display: numPoints <= 24 },  // Hide grid for dense schedules
-              ticks: tickConfig
+              grid: { display: true },
+              ticks: {
+                stepSize: 60, // Every hour
+                callback: (value) => {
+                  // Convert minutes to HH:MM
+                  const h = Math.floor(value / 60);
+                  const m = value % 60;
+                  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                }
+              }
             },
             y: {
               display: true,
@@ -372,7 +270,7 @@ export class ChartManager {
 
       this.chart = new Chart(ctx, chartConfig);
       this._initialized = true;
-      Logger.log('CHART', `[ChartManager] Chart initialized with ${numPoints} points (${this.card.config.interval_minutes}min interval)`);
+      Logger.log('CHART', `[ChartManager] Chart initialized with ${dataArr.length} points`);
       this.updatePointStyling(
         this.card.selectionManager?.selectedPoint ?? null, 
         this.card.selectionManager?.selectedPoints ?? []
@@ -387,41 +285,76 @@ export class ChartManager {
   }
 
   /**
-   * Rebuild chart when interval changes
+   * Handle chart click to insert points
    */
-  async rebuildChart() {
-    const canvas = this.card.shadowRoot?.getElementById("myChart");
-    if (!canvas) {
-      Logger.error('CHART', '[ChartManager] Cannot rebuild: canvas not found');
-      return false;
-    }
+  _handleChartClick(evt) {
+    const points = this.chart.getElementsAtEventForMode(evt, 'nearest', { intersect: false }, true);
     
-    // Destroy existing chart
-    this.destroy();
+    if (points.length > 0) return; // Clicked on existing point
     
-    // Reinitialize state manager
-    this.card.stateManager._initializeScheduleData();
+    // Get click position
+    const canvasPosition = Chart.helpers.getRelativePosition(evt, this.chart);
+    const xMinutes = this.chart.scales.x.getValueForPixel(canvasPosition.x);
+    const yValue = this.chart.scales.y.getValueForPixel(canvasPosition.y);
     
-    // Recreate chart
-    const success = await this.initChart(canvas);
+    if (xMinutes === undefined || yValue === undefined) return;
     
-    if (success) {
-      // Update from HA states
-      this.card.stateManager.updateFromHass(this.card._hass);
+    // Convert minutes to HH:MM (snap to 10 mins or 15 mins? Use 5 mins for now)
+    // Actually, let's just round to nearest minute
+    let minutes = Math.round(xMinutes);
+    minutes = Math.max(0, Math.min(1439, minutes));
+    
+    const timeStr = this.card.stateManager.minutesToTime(minutes);
+    
+    // Insert new point
+    const insertedIndex = this.card.stateManager.insertPoint(timeStr, yValue);
+    
+    // Update chart
+    this.updateData(this.card.stateManager.getData());
+    
+    // Select new point
+    this.card.selectionManager.selectIndices([insertedIndex], false);
+    this.updatePointStyling(
+      insertedIndex,
+      [insertedIndex]
+    );
+    
+    Logger.log('CHART', `Inserted point at ${timeStr} = ${yValue}`);
+  }
+
+  /**
+   * Handle context menu (right-click) to delete points
+   */
+  _handleContextMenu(evt) {
+    const points = this.chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+    
+    if (points.length === 0) return;
+    
+    const index = points[0].index;
+    
+    // Remove point
+    if (this.card.stateManager.removePoint(index)) {
       this.updateData(this.card.stateManager.getData());
+      this.card.selectionManager.clearSelection();
+      Logger.log('CHART', `Removed point at index ${index}`);
     }
-    
-    return success;
   }
 
   updateData(dataArr) {
     if (!this.isInitialized()) {
-      Logger.warn('CHART', '[ChartManager] updateData called but chart is not initialized');
+      Logger.warn('CHART', '[ChartManager] updateData called but chart not initialized');
       return;
     }
     try {
-      const normalized = Array.isArray(dataArr) ? dataArr.map(v => (v == null ? null : Number(v))) : [];
-      this.chart.data.datasets[0].data = normalized;
+      const scheduleData = this.card.stateManager.scheduleData;
+      // We don't set labels for linear scale X
+      
+      // Update data with {x, y} objects
+      this.chart.data.datasets[0].data = scheduleData.map(p => ({
+          x: this.card.stateManager.timeToMinutes(p.time),
+          y: p.value
+      }));
+      
       this.updatePointStyling(
         this.card.selectionManager?.selectedPoint ?? null, 
         this.card.selectionManager?.selectedPoints ?? []
@@ -430,58 +363,6 @@ export class ChartManager {
       Logger.log('CHART', '[ChartManager] Data updated');
     } catch (err) {
       Logger.error('CHART', `[ChartManager] Error updating data: ${err?.message}`);
-      this.card.eventHandlers.showNotification(
-        this.card.localizationManager.localize(this.card.language, 'error.chart_rendering_failed') + 
-        `: ${err.message}`,
-        'error'
-      );
-    }
-  }
-
-  recreateChartOptions() {
-    if (!this.isInitialized()) {
-      Logger.warn('CHART', '[ChartManager] recreateChartOptions called but chart is not initialized');
-      return;
-    }
-    try {
-      this.chart.options.scales.y.min = this.card.config?.min_value ?? 0;
-      this.chart.options.scales.y.max = this.card.config?.max_value ?? 100;
-      this.chart.options.scales.x.title.text = this._getXTitle();
-      this.chart.options.scales.y.title.text = this._getYTitle();
-      this.chart.update();
-      Logger.log('CHART', '[ChartManager] Options recreated');
-    } catch (err) {
-      Logger.error('CHART', `[ChartManager] Error recreating chart options: ${err?.message}`);
-      this.card.eventHandlers.showNotification(
-        this.card.localizationManager.localize(this.card.language, 'error.chart_rendering_failed') + 
-        `: ${err.message}`,
-        'error'
-      );
-    }
-  }
-
-  updateChartLabels() {
-    if (!this.isInitialized()) {
-      return;
-    }
-    try {
-      const labels = this._generateLabels();
-      const numPoints = labels.length;
-      const tickConfig = this._getTickConfig(numPoints);
-      
-      this.chart.data.labels = labels;
-      this.chart.options.scales.x.title.text = this._getXTitle();
-      this.chart.options.scales.y.title.text = this._getYTitle();
-      this.chart.options.scales.x.ticks = tickConfig;
-      this.chart.update();
-      Logger.log('CHART', '[ChartManager] Labels and titles updated');
-    } catch (err) {
-      Logger.error('CHART', `[ChartManager] Error updating labels: ${err?.message}`);
-      this.card.eventHandlers.showNotification(
-        this.card.localizationManager.localize(this.card.language, 'error.chart_rendering_failed') + 
-        `: ${err.message}`,
-        'error'
-      );
     }
   }
 
@@ -489,22 +370,23 @@ export class ChartManager {
     if (!this.isInitialized()) return;
     try {
       const ds = this.chart.data.datasets[0];
-      const pointsCount = this.chart.data.labels?.length || getPointsCount(this.card.config?.interval_minutes || 60);
+      const pointsCount = this.card.stateManager.scheduleData.length;
       const selectedSet = new Set(Array.isArray(selectedPoints) ? selectedPoints : []);
-      const radii = new Array(pointsCount).fill(pointsCount > 96 ? 2 : 5);
-      const hoverRadii = new Array(pointsCount).fill(pointsCount > 96 ? 4 : 8);
+      
+      const radii = new Array(pointsCount).fill(5);
+      const hoverRadii = new Array(pointsCount).fill(8);
       const bg = new Array(pointsCount).fill(COLORS.primary);
       const border = new Array(pointsCount).fill(COLORS.primary);
 
       for (let i = 0; i < pointsCount; i++) {
         if (i === anchorPoint) {
-          radii[i] = pointsCount > 96 ? 4 : 8;
-          hoverRadii[i] = pointsCount > 96 ? 6 : 10;
+          radii[i] = 8;
+          hoverRadii[i] = 10;
           bg[i] = COLORS.anchor;
           border[i] = COLORS.anchorDark;
         } else if (selectedSet.has(i)) {
-          radii[i] = pointsCount > 96 ? 3 : 7;
-          hoverRadii[i] = pointsCount > 96 ? 5 : 9;
+          radii[i] = 7;
+          hoverRadii[i] = 9;
           bg[i] = COLORS.selected;
           border[i] = COLORS.selectedDark;
         }
@@ -516,14 +398,34 @@ export class ChartManager {
       ds.pointBorderColor = border;
 
       this.chart.update('none');
-      Logger.log('CHART', '[ChartManager] Point styling updated (anchor/selection)');
+      Logger.log('CHART', '[ChartManager] Point styling updated');
     } catch (err) {
       Logger.error('CHART', `[ChartManager] Error updating point styling: ${err?.message}`);
-      this.card.eventHandlers.showNotification(
-        this.card.localizationManager.localize(this.card.language, 'error.chart_rendering_failed') + 
-        `: ${err.message}`,
-        'error'
-      );
+    }
+  }
+
+  recreateChartOptions() {
+    if (!this.isInitialized()) return;
+    try {
+      this.chart.options.scales.y.min = this.card.config?.min_value ?? 0;
+      this.chart.options.scales.y.max = this.card.config?.max_value ?? 100;
+      this.chart.options.scales.x.title.text = this._getXTitle();
+      this.chart.options.scales.y.title.text = this._getYTitle();
+      this.chart.update();
+    } catch (err) {
+      Logger.error('CHART', `[ChartManager] Error recreating options: ${err?.message}`);
+    }
+  }
+
+  updateChartLabels() {
+    // With linear scale, we just update title
+    if (!this.isInitialized()) return;
+    try {
+      this.chart.options.scales.x.title.text = this._getXTitle();
+      this.chart.options.scales.y.title.text = this._getYTitle();
+      this.chart.update();
+    } catch (err) {
+      Logger.error('CHART', `[ChartManager] Error updating labels: ${err?.message}`);
     }
   }
 
@@ -533,6 +435,9 @@ export class ChartManager {
     if (!disp || !container || !this.isInitialized()) return;
     try {
       const idx = Array.isArray(indices) && indices.length > 0 ? indices[0] : null;
+      // data might be array of values or objects depending on what StateManager returns from getData()
+      // StateManager.getData() returns array of numbers (values).
+      // So 'data' passed here is array of numbers.
       const val = idx !== null ? data[idx] : null;
       disp.textContent = val !== null && val !== undefined ? String(val) : '';
       disp.style.display = 'block';
@@ -542,11 +447,6 @@ export class ChartManager {
       this._clearHideTimer();
     } catch (e) {
       Logger.warn('CHART', '[ChartManager] showDragValueDisplay failed:', e);
-      this.card.eventHandlers.showNotification(
-        this.card.localizationManager.localize(this.card.language, 'error.chart_rendering_failed') + 
-        `: ${e.message}`,
-        'error'
-      );
     }
   }
 
@@ -564,9 +464,7 @@ export class ChartManager {
   hideDragValueDisplay() {
     try {
       const disp = this.card.shadowRoot?.getElementById('drag-value-display');
-      if (disp) {
-        disp.style.display = 'none';
-      }
+      if (disp) disp.style.display = 'none';
       this._clearHideTimer();
     } catch (e) {
       Logger.error('CHART', '[ChartManager] Error in hideDragValueDisplay:', e);
@@ -590,11 +488,6 @@ export class ChartManager {
         this.chart.update();
       } catch (e) {
         Logger.error('CHART', '[ChartManager] Error in chart.update():', e);
-        this.card.eventHandlers.showNotification(
-          this.card.localizationManager.localize(this.card.language, 'error.chart_rendering_failed') + 
-          `: ${e.message}`,
-          'error'
-        );
       }
     }
   }
@@ -606,11 +499,6 @@ export class ChartManager {
       }
     } catch (err) {
       Logger.error('CHART', `[ChartManager] Error destroying chart: ${err?.message}`);
-      this.card.eventHandlers.showNotification(
-        this.card.localizationManager.localize(this.card.language, 'error.chart_rendering_failed') + 
-        `: ${err.message}`,
-        'error'
-      );
     } finally {
       this.chart = null;
       this._initialized = false;

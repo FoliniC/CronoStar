@@ -105,25 +105,14 @@ export class ProfileManager {
 
       if (responseData && !responseData.error && rawSchedule && Array.isArray(rawSchedule)) {
         // Success case: Profile loaded from backend
-        // We need to handle potential size mismatch (e.g. loading 24 points into 48 slots)
-        let loadedValues;
-        if (typeof rawSchedule[0] === 'object' && rawSchedule[0] !== null && 'value' in rawSchedule[0]) {
-          loadedValues = rawSchedule.map(item => item.value);
-        } else {
-          loadedValues = rawSchedule;
-        }
+        // Use raw schedule directly (objects with time/value) to preserve time info
+        scheduleValues = rawSchedule;
         
         // Log sample
-        const sample = loadedValues.slice(0, 5);
+        const sample = scheduleValues.slice(0, 5);
         Logger.load(
-          `[CronoStar] 📊 Parsed schedule: length=${loadedValues.length}, sample=${JSON.stringify(sample)}`
+          `[CronoStar] 📊 Parsed schedule: length=${scheduleValues.length}, sample=${JSON.stringify(sample)}`
         );
-        
-        // Resize/Interpolate if needed to match current interval
-        // For now, assuming direct mapping or StateManager handles resize later if we update it.
-        // But here we are setting data directly.
-        // Let's assume strict length match for now, or fill.
-        scheduleValues = loadedValues;
         
         Logger.load(`[CronoStar] ✅ Profile data processed for '${profileName}'. Points: ${scheduleValues.length}`);
       } else {
@@ -136,6 +125,10 @@ export class ProfileManager {
 
       // Update Internal Memory directly
       this.card.stateManager.setData(scheduleValues);
+      
+      // Ensure grid consistency (interpolate if sparse/dense mismatch)
+      const interval = this.card.config.interval_minutes || 60;
+      this.card.stateManager.resizeScheduleData(interval);
 
       // Update Chart
       if (this.card.chartManager?.isInitialized()) {

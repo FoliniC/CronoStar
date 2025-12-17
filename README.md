@@ -9,6 +9,25 @@ Easily add time-based schedules to any entity. The integration can automatically
 
 ![CronoStar settings](https://github.com/user-attachments/assets/8bd1361f-53ea-4aee-943d-b8e374308e36)
 
+## 🎯 What's New in v5.0
+
+### 🔧 Dynamic Point Management
+- **Click on line**: Add new point
+- **Right-click on point**: Remove point
+- **Alt+Q**: Insert point (keyboard)
+- **Alt+W**: Delete point (keyboard)
+- Points can be at any time (not just hourly)
+
+### 📊 Optimized Storage
+- ISO 8601 date format
+- Schedule with `time` field (HH:MM format)
+- Automatic removal of redundant points
+- Only saves points where value changes
+
+### ⚡ Smart Scheduler
+- Interpolates values between points
+- Triggers updates only when values change
+- Handles irregular intervals automatically
 
 ## ✨ Features
 
@@ -199,9 +218,9 @@ data:
   preset_type: thermostat
   global_prefix: cronostar_temp_
   schedule:
-    - { hour: 0, value: 20 }
-    - { hour: 1, value: 20 }
-    # ... 24 hours total
+    - { time: "00:00", value: 20 }
+    - { time: "06:30", value: 22 }
+    - { time: "22:00", value: 20 }
 ```
 
 ### `cronostar.load_profile`

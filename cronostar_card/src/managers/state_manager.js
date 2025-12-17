@@ -1,181 +1,305 @@
-/** 
- * State management for CronoStar Card - Internal Memory Version
- * Removes dependency on HA input_number entities.
- * @module state-manager
- */
-
 import { Logger, safeParseFloat, formatHourString } from '../utils.js';
-import { getPointsCount } from '../config.js';
 
 export class StateManager {
   constructor(card) {
     this.card = card;
+    // Schedule now is array of {time: "HH:MM", value: number}
     this.scheduleData = [];
     this.isLoadingProfile = false;
     
-    // Initialize with default size
     this._initializeScheduleData();
   }
 
   /**
-   * Initialize schedule data based on interval
+   * Initialize schedule with default 24 hourly points
    */
   _initializeScheduleData() {
-    const numPoints = this.getNumPoints();
-    this.scheduleData = new Array(numPoints).fill(this.card.config?.min_value || 0);
-    Logger.state(`[StateManager] Initialized with ${numPoints} points`);
+    const defaultValue = this.card.config?.min_value || 0;
+    this.scheduleData = [];
+    
+    for (let h = 0; h < 24; h++) {
+      this.scheduleData.push({
+        time: `${h.toString().padStart(2, '0')}:00`,
+        value: defaultValue
+      });
+    }
+    
+    Logger.state(`[StateManager] Initialized with ${this.scheduleData.length} points`);
   }
 
   /**
-   * Get number of points based on current interval
-   * @returns {number}
+   * Get total number of points based on current configuration or default
    */
   getNumPoints() {
     const interval = this.card.config?.interval_minutes || 60;
-    return getPointsCount(interval);
+    return Math.floor(1440 / interval);
   }
 
   /**
-   * Get time in minutes for a given index
-   * @param {number} index - Point index
-   * @returns {number} Time in minutes since midnight
+   * Resize schedule data to match the configured interval
    */
-  getTimeForIndex(index) {
-    const interval = this.card.config?.interval_minutes || 60;
-    return index * interval;
+  resizeScheduleData(intervalMinutes) {
+    const pointsNeeded = Math.floor(1440 / intervalMinutes);
+    if (this.scheduleData.length === pointsNeeded) return;
+
+    Logger.state(`[StateManager] Resizing schedule from ${this.scheduleData.length} to ${pointsNeeded} points (interval: ${intervalMinutes}m)`);
+    
+    // Create new array
+    const newData = [];
+    for (let i = 0; i < pointsNeeded; i++) {
+        const minutes = i * intervalMinutes;
+        const timeStr = this.minutesToTime(minutes);
+        
+        // Interpolate value from existing data
+        const val = this.getValueAtTime(timeStr);
+        newData.push({
+            time: timeStr,
+            value: val
+        });
+    }
+    this.scheduleData = newData;
+    this.card.hasUnsavedChanges = true;
   }
 
   /**
-   * Get index for a given time
-   * @param {number} timeMinutes - Minutes since midnight
-   * @returns {number} Point index
+   * Convert time string to minutes since midnight
    */
-  getIndexForTime(timeMinutes) {
-    const interval = this.card.config?.interval_minutes || 60;
-    return Math.floor(timeMinutes / interval);
+  timeToMinutes(timeStr) {
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
   }
 
   /**
-   * Get current time index
-   * @returns {number}
+   * Convert minutes to time string
+   */
+  minutesToTime(minutes) {
+    const h = Math.floor(minutes / 60) % 24;
+    const m = Math.round(minutes % 60);
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * Get current time index (closest point)
    */
   getCurrentIndex() {
     const now = new Date();
-    const minutesSinceMidnight = now.getHours() * 60 + now.getMinutes();
-    return this.getIndexForTime(minutesSinceMidnight);
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    
+    let closestIndex = 0;
+    let minDiff = Infinity;
+    
+    this.scheduleData.forEach((point, i) => {
+      const diff = Math.abs(this.timeToMinutes(point.time) - currentMinutes);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIndex = i;
+      }
+    });
+    
+    return closestIndex;
   }
 
   /**
-   * Get label for a point index
-   * @param {number} index - Point index
-   * @returns {string}
+   * Get label for a point
    */
   getPointLabel(index) {
-    const timeMinutes = this.getTimeForIndex(index);
-    const hours = Math.floor(timeMinutes / 60);
-    const minutes = timeMinutes % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    if (index >= 0 && index < this.scheduleData.length) {
+      return this.scheduleData[index].time;
+    }
+    return "??:??";
   }
 
   /**
-   * Get hour label (legacy, for compatibility)
-   * @param {number} hour - Hour index
-   * @returns {string}
+   * Insert new point at time
    */
-  getHourLabel(hour) {
-    return `${formatHourString(hour, this.card.hourBase)}:00`;
+  insertPoint(timeStr, value) {
+    const newMinutes = this.timeToMinutes(timeStr);
+    
+    // Find insertion position
+    let insertIndex = this.scheduleData.findIndex(p => 
+      this.timeToMinutes(p.time) > newMinutes
+    );
+    
+    if (insertIndex === -1) insertIndex = this.scheduleData.length;
+    
+    this.scheduleData.splice(insertIndex, 0, { time: timeStr, value });
+    this.card.hasUnsavedChanges = true;
+    
+    Logger.state(`[StateManager] Inserted point at ${timeStr} = ${value}`);
+    return insertIndex;
   }
 
   /**
-   * Update value for specific point in local memory
-   * @param {number} index - Point index
-   * @param {number} value - Value
+   * Remove point at index
+   */
+  removePoint(index) {
+    if (this.scheduleData.length <= 2) {
+      Logger.warn('STATE', 'Cannot remove - minimum 2 points required');
+      return false;
+    }
+    
+    if (index >= 0 && index < this.scheduleData.length) {
+      const removed = this.scheduleData.splice(index, 1);
+      this.card.hasUnsavedChanges = true;
+      Logger.state(`[StateManager] Removed point at ${removed[0].time}`);
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Update value for specific point
    */
   updatePoint(index, value) {
     if (index >= 0 && index < this.scheduleData.length) {
-      this.scheduleData[index] = value;
+      this.scheduleData[index].value = value;
       this.card.hasUnsavedChanges = true;
-      Logger.state(`[StateManager] Updated local point ${index} to ${value}`);
+      Logger.state(`[StateManager] Updated point ${index} to ${value}`);
+    }
+  }
+
+  /**
+   * Get value at specific time (interpolated if needed)
+   */
+  getValueAtTime(timeStr) {
+    const targetMinutes = this.timeToMinutes(timeStr);
+    
+    // Find surrounding points
+    let before = null, after = null;
+    let beforeMinutes = -1, afterMinutes = -1;
+    
+    for (let i = 0; i < this.scheduleData.length; i++) {
+      const pointMinutes = this.timeToMinutes(this.scheduleData[i].time);
+      
+      if (pointMinutes <= targetMinutes) {
+        if (!before || pointMinutes > beforeMinutes) {
+             before = this.scheduleData[i];
+             beforeMinutes = pointMinutes;
+        }
+      }
+      if (pointMinutes >= targetMinutes) {
+         if (!after || pointMinutes < afterMinutes) {
+             after = this.scheduleData[i];
+             afterMinutes = pointMinutes;
+         }
+      }
+    }
+    
+    // Handle edge cases
+    if (!before) {
+        before = this.scheduleData[this.scheduleData.length - 1];
+        beforeMinutes = this.timeToMinutes(before.time) - 1440; // Treat as previous day
+    }
+    if (!after) {
+        after = this.scheduleData[0];
+        afterMinutes = this.timeToMinutes(after.time) + 1440; // Treat as next day
+    }
+    
+    // Exact match
+    if (before.time === timeStr) return before.value;
+    if (after.time === timeStr) return after.value;
+    
+    const beforeVal = before.value;
+    const afterVal = after.value;
+    
+    if (beforeMinutes === afterMinutes) return beforeVal;
+    
+    const ratio = (targetMinutes - beforeMinutes) / (afterMinutes - beforeMinutes);
+    return beforeVal + ratio * (afterVal - beforeVal);
+  }
+
+  /**
+   * Optimize schedule: remove redundant points
+   */
+  optimizeSchedule() {
+    if (this.scheduleData.length <= 2) return;
+    
+    const optimized = [this.scheduleData[0]]; // Always keep first
+    
+    for (let i = 1; i < this.scheduleData.length - 1; i++) {
+      const prev = this.scheduleData[i - 1];
+      const curr = this.scheduleData[i];
+      const next = this.scheduleData[i + 1];
+      
+      // Keep if value changes
+      if (Math.abs(curr.value - prev.value) > 0.01 || 
+          Math.abs(curr.value - next.value) > 0.01) {
+        optimized.push(curr);
+      }
+    }
+    
+    optimized.push(this.scheduleData[this.scheduleData.length - 1]); // Always keep last
+    
+    const removed = this.scheduleData.length - optimized.length;
+    if (removed > 0) {
+      this.scheduleData = optimized;
+      Logger.state(`[StateManager] Optimized: removed ${removed} redundant points`);
     }
   }
 
   /**
    * Get schedule data
-   * @returns {Array<number>}
    */
   getData() {
-    return [...this.scheduleData];
+    return this.scheduleData.map(p => p.value);
   }
 
   /**
    * Set schedule data
-   * @param {Array<number>} data - New schedule data
    */
   setData(data) {
-    this.scheduleData = [...data];
+    if (Array.isArray(data)) {
+      if (data.length === 0) return;
+
+      if (typeof data[0] === 'object' && 'time' in data[0]) {
+        // Already in correct format
+        this.scheduleData = data.map(p => ({
+          time: p.time,
+          value: Number(p.value)
+        }));
+      } else {
+        // Convert from simple array (legacy/backend format)
+        // Dynamically determine interval based on data length to cover 24h
+        const count = data.length;
+        const interval = 1440 / count;
+        
+        this.scheduleData = data.map((val, i) => {
+           const minutes = Math.round(i * interval);
+           return {
+             time: this.minutesToTime(minutes),
+             value: Number(val)
+           };
+        });
+      }
+    }
   }
 
   /**
-   * Resize schedule data when interval changes
+   * Align selected points (left/right)
    */
-  resizeScheduleData(newInterval) {
-    const oldNumPoints = this.scheduleData.length;
-    const newNumPoints = getPointsCount(newInterval);
-    
-    if (oldNumPoints === newNumPoints) return;
-    
-    Logger.state(`[StateManager] Resizing: ${oldNumPoints} -> ${newNumPoints} points`);
-    
-    // Interpolate or downsample as needed
-    const newData = new Array(newNumPoints);
-    
-    for (let i = 0; i < newNumPoints; i++) {
-      const newTimeMinutes = (i * newInterval);
-      // Simple nearest neighbor mapping for resize
-      const oldIndex = Math.floor((newTimeMinutes / 1440) * oldNumPoints);
-      newData[i] = this.scheduleData[oldIndex] || this.card.config.min_value;
-    }
-    
-    this.scheduleData = newData;
-  }
-
   alignSelectedPoints(direction) {
     const selMgr = this.card.selectionManager;
-    const chartMgr = this.card.chartManager;
     const indices = selMgr.getActiveIndices();
-
-    if (indices.length === 0 || !chartMgr?.isInitialized()) {
-      return;
-    }
-
-    const dataset = chartMgr.chart.data.datasets[0];
-    let targetIndex;
-
-    if (direction === 'left') {
-      targetIndex = Math.min(...indices);
-    } else {
-      targetIndex = Math.max(...indices);
-    }
-
-    const targetVal = dataset.data[targetIndex] ?? this.scheduleData[targetIndex];
-    const rounded = Math.round(targetVal * 10) / 10; // Round to 1 decimal place
-
-    Logger.log('ALIGN', `Aligning ${indices.length} points to value of index ${targetIndex}: ${rounded}`);
-
-    const newData = [...this.scheduleData];
+    
+    if (indices.length === 0) return;
+    
+    const targetIndex = direction === 'left' 
+      ? Math.min(...indices) 
+      : Math.max(...indices);
+    
+    const targetValue = this.scheduleData[targetIndex].value;
+    
     indices.forEach(i => {
-      newData[i] = rounded;
-      dataset.data[i] = rounded;
-      this.updatePoint(i, rounded);
+      this.scheduleData[i].value = targetValue;
     });
-
-    this.setData(newData);
-    chartMgr.updatePointStyling(selMgr.selectedPoint, selMgr.selectedPoints);
-    chartMgr.update();
-
+    
+    this.card.hasUnsavedChanges = true;
+    this.card.chartManager?.update();
+    
     if (this.card.selectedProfile) {
-        this.card.profileManager.saveProfile(this.card.selectedProfile)
-            .catch(e => Logger.error('ALIGN', 'Save failed after align:', e));
+      this.card.profileManager.saveProfile(this.card.selectedProfile)
+        .catch(e => Logger.error('ALIGN', 'Save failed:', e));
     }
   }
 }

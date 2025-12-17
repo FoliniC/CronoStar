@@ -1,12 +1,10 @@
 """
-CronoStar Smart Scheduler
-Calculates the current value based on the active profile JSON and schedules the next update
-exactly when the value is due to change.
+CronoStar Smart Scheduler - Irregular Intervals Support
+Calculates values from dynamic schedule with time-based points
 """
 import logging
-import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, List, Any
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_point_in_time
@@ -17,6 +15,8 @@ from ..utils.prefix_normalizer import PRESETS_CONFIG
 _LOGGER = logging.getLogger(__name__)
 
 class SmartScheduler:
+    """Smart Scheduler for profiles with irregular intervals."""
+    
     def __init__(self, hass: HomeAssistant, profile_service):
         self.hass = hass
         self.profile_service = profile_service
@@ -31,66 +31,321 @@ class SmartScheduler:
 
     def stop(self):
         """Stop all timers."""
-        for cancel_func in self._timers.values():
+        for timer_key, cancel_func in list(self._timers.items()):
             if cancel_func:
-                cancel_func()
+                try:
+                    cancel_func()
+                except Exception as e:
+                    _LOGGER.warning("Error cancelling timer for %s: %s", timer_key, e)
         self._timers.clear()
         _LOGGER.info("Smart Scheduler stopped.")
 
+    @staticmethod
+    def _time_to_minutes(time_str: str) -> int:
+        """Convert HH:MM to minutes since midnight."""
+        try:
+            hours, minutes = map(int, time_str.split(':'))
+            if not (0 <= hours < 24 and 0 <= minutes < 60):
+                _LOGGER.warning("Invalid time value: %s", time_str)
+                return 0
+            return hours * 60 + minutes
+        except (ValueError, AttributeError) as e:
+            _LOGGER.error("Failed to parse time string '%s': %s", time_str, e)
+            return 0
+
+    @staticmethod
+    def _index_to_minutes(index: int, interval_minutes: int = 60) -> int:
+        """Convert index to minutes (for backward compatibility).
+        
+        Args:
+            index: Point index (0-23 for hourly)
+            interval_minutes: Interval between points
+            
+        Returns:
+            Minutes since midnight
+        """
+        return (index * interval_minutes) % 1440
+
+    def _normalize_schedule(self, schedule: List[Dict], interval_minutes: int = 60) -> List[Dict]:
+        """Normalize schedule to time-based format.
+        
+        Automatically converts from old format (index) to new (time) if necessary.
+        
+        Args:
+            schedule: Schedule in old or new format
+            interval_minutes: Interval for index conversion
+            
+        Returns:
+            Normalized schedule with "time" and "value" fields
+        """
+        normalized = []
+        
+        for point in schedule:
+            if not isinstance(point, dict):
+                continue
+            
+            # New format (already has "time")
+            if "time" in point and "value" in point:
+                normalized.append({
+                    "time": point["time"],
+                    "value": float(point["value"])
+                })
+            
+            # Old format (has "index")
+            elif "index" in point and "value" in point:
+                minutes = self._index_to_minutes(point["index"], interval_minutes)
+                hours = minutes // 60
+                mins = minutes % 60
+                normalized.append({
+                    "time": f"{hours:02d}:{mins:02d}",
+                    "value": float(point["value"])
+                })
+        
+        # Sort by time
+        normalized.sort(key=lambda p: p["time"])
+        
+        # Log warning if schedule is empty
+        if not normalized:
+            _LOGGER.warning("Empty schedule after normalization")
+        
+        return normalized
+
+    def _get_value_at_time(
+        self,
+        schedule: List[Dict],
+        target_time: datetime,
+        interval_minutes: int = 60
+    ) -> Optional[float]:
+        """Get interpolated value for a specific time.
+        
+        Args:
+            schedule: List of points with "time" and "value"
+            target_time: Target time to calculate value for
+            interval_minutes: Interval (used for backward compatibility)
+            
+        Returns:
+            Interpolated value or None if schedule is empty
+        """
+        if not schedule:
+            _LOGGER.debug("Empty schedule")
+            return None
+        
+        # Normalize schedule (convert from index to time if needed)
+        normalized_schedule = self._normalize_schedule(schedule, interval_minutes)
+        
+        if not normalized_schedule:
+            _LOGGER.error("Cannot normalize schedule")
+            return None
+        
+        target_minutes = target_time.hour * 60 + target_time.minute
+        
+        # Find points before and after
+        before = None
+        after = None
+        
+        for point in normalized_schedule:
+            point_minutes = self._time_to_minutes(point["time"])
+            
+            if point_minutes <= target_minutes:
+                before = point
+            if point_minutes >= target_minutes and not after:
+                after = point
+        
+        # Handle wrap-around midnight
+        if not before:
+            before = normalized_schedule[-1]
+            _LOGGER.debug("Wrap-around: using last point %s", before["time"])
+        if not after:
+            after = normalized_schedule[0]
+            _LOGGER.debug("Wrap-around: using first point %s", after["time"])
+        
+        # Exact match
+        before_minutes = self._time_to_minutes(before["time"])
+        after_minutes = self._time_to_minutes(after["time"])
+        
+        if before_minutes == target_minutes:
+            _LOGGER.debug("Exact match at %s: %.2f", before["time"], before["value"])
+            return float(before["value"])
+        
+        if after_minutes == target_minutes:
+            _LOGGER.debug("Exact match at %s: %.2f", after["time"], after["value"])
+            return float(after["value"])
+        
+        # Handle wrap-around for ratio calculation
+        if after_minutes < before_minutes:
+            after_minutes += 1440  # Add 24 hours
+        
+        if target_minutes < before_minutes:
+            target_minutes += 1440
+        
+        # Avoid division by zero
+        if after_minutes == before_minutes:
+            _LOGGER.warning("Duplicate times: %s", before["time"])
+            return float(before["value"])
+        
+        # Linear interpolation
+        ratio = (target_minutes - before_minutes) / (after_minutes - before_minutes)
+        interpolated = before["value"] + ratio * (after["value"] - before["value"])
+        result = round(interpolated, 2)
+        
+        _LOGGER.debug(
+            "Interpolation: %s (%.2f) -> %s (%.2f) at %s: ratio=%.3f, result=%.2f",
+            before["time"], before["value"],
+            after["time"], after["value"],
+            target_time.strftime("%H:%M"),
+            ratio, result
+        )
+        
+        return result
+
+    def _find_next_change(
+        self,
+        schedule: List[Dict],
+        now: datetime,
+        interval_minutes: int = 60
+    ) -> Optional[datetime]:
+        """Find next value change in schedule.
+        
+        Args:
+            schedule: Normalized schedule
+            now: Current time
+            interval_minutes: Interval (for backward compatibility)
+            
+        Returns:
+            DateTime of next change, or None if no changes found
+        """
+        if not schedule:
+            return None
+        
+        # Normalize schedule
+        normalized_schedule = self._normalize_schedule(schedule, interval_minutes)
+        
+        if not normalized_schedule:
+            return None
+        
+        current_minutes = now.hour * 60 + now.minute
+        
+        # Search next point after current time
+        for point in normalized_schedule:
+            point_minutes = self._time_to_minutes(point["time"])
+            
+            if point_minutes > current_minutes:
+                hours = point_minutes // 60
+                minutes = point_minutes % 60
+                
+                next_time = now.replace(
+                    hour=hours,
+                    minute=minutes,
+                    second=0,
+                    microsecond=0
+                )
+                
+                _LOGGER.debug("Next change today at %s", next_time.strftime("%H:%M"))
+                return next_time
+        
+        # No change today, use first point tomorrow
+        if normalized_schedule:
+            first_point = normalized_schedule[0]
+            first_minutes = self._time_to_minutes(first_point["time"])
+            
+            tomorrow = now + timedelta(days=1)
+            next_time = tomorrow.replace(
+                hour=first_minutes // 60,
+                minute=first_minutes % 60,
+                second=0,
+                microsecond=0
+            )
+            
+            _LOGGER.debug("Next change tomorrow at %s", next_time.strftime("%H:%M"))
+            return next_time
+        
+        return None
+
     async def update_preset(self, preset_type: str, profile_data: Optional[Dict] = None):
-        """
-        Update the schedule for a specific preset.
-        1. Determine active profile.
-        2. Load data (if not provided).
-        3. Calculate current value.
-        4. Update input_number.
-        5. Schedule next update.
-        """
-        # Cancel existing timer for this preset
-        if preset_type in self._timers:
-            self._timers[preset_type]()
-            del self._timers[preset_type]
+        """Update schedule for a preset."""
+        try:
+            # Cancel existing timer
+            if preset_type in self._timers:
+                try:
+                    self._timers[preset_type]()
+                except Exception as e:
+                    _LOGGER.debug("Error cancelling old timer for %s: %s", preset_type, e)
+                del self._timers[preset_type]
+
+            # Load or use profile_data
+            if not profile_data:
+                profile_data = await self._get_active_profile_data(preset_type)
+            
+            if not profile_data:
+                _LOGGER.warning("No profile data for %s", preset_type)
+                self._schedule_retry(preset_type)
+                return
+
+            # Cache profile
+            self._profiles_cache[preset_type] = profile_data
+
+            # Get schedule and interval
+            schedule = profile_data.get("schedule", [])
+            interval_minutes = profile_data.get("interval_minutes", 60)
+            
+            if not schedule:
+                _LOGGER.warning("Empty schedule for %s", preset_type)
+                self._schedule_retry(preset_type)
+                return
+            
+            # Calculate current value
+            now = dt_util.now()
+            current_value = self._get_value_at_time(schedule, now, interval_minutes)
+            
+            if current_value is None:
+                _LOGGER.warning("Cannot calculate value for %s", preset_type)
+                self._schedule_retry(preset_type)
+                return
+            
+            # Update entity
+            await self._update_current_value_entity(preset_type, current_value)
+            
+            # Schedule next update
+            next_change = self._find_next_change(schedule, now, interval_minutes)
+            
+            if next_change:
+                @callback
+                def _update_callback(now):
+                    self.hass.async_create_task(self.update_preset(preset_type))
+                
+                self._timers[preset_type] = async_track_point_in_time(
+                    self.hass,
+                    _update_callback,
+                    next_change
+                )
+                
+                _LOGGER.info(
+                    "Next update for %s at %s",
+                    preset_type,
+                    next_change.strftime("%Y-%m-%d %H:%M:%S")
+                )
+            
+        except Exception as e:
+            _LOGGER.error(
+                "Unexpected error in update_preset for %s: %s", 
+                preset_type, e, exc_info=True
+            )
+            # Schedule retry in case of error
+            self._schedule_retry(preset_type)
+
+    async def _update_current_value_entity(self, preset_type: str, current_value: float):
+        """Update the input_number entity with the calculated value."""
+        profile_data = self._profiles_cache.get(preset_type)
+        if not profile_data:
+            _LOGGER.warning("No profile data found in cache for %s during update", preset_type)
+            return
 
         config = PRESETS_CONFIG.get(preset_type)
         if not config:
+            _LOGGER.warning("No config found for %s", preset_type)
             return
 
-        # 1. Determine active profile
-        if not profile_data:
-            profile_data = await self._get_active_profile_data(preset_type)
-        
-        if not profile_data:
-            _LOGGER.debug("No active profile data for %s, will retry in 1 minute", preset_type)
-            self._schedule_retry(preset_type)
-            return
-
-        # Cache it
-        self._profiles_cache[preset_type] = profile_data
-
-        # 2. Calculate current state
-        schedule = profile_data.get("schedule", [])
-        
-        _LOGGER.info(
-            "Scheduler loaded profile '%s' (prefix=%s). Schedule len=%d",
-            profile_data.get("profile_name", "unknown"),
-            profile_data.get("entity_prefix", "unknown"),
-            len(schedule)
-        )
-
-        # Assume schedule is sorted list of { "index": int, "value": float } or similar
-        # If legacy format { "hour": int, "value": float }, convert logically.
-        # We need to handle both 24 points (hourly) and 48+ points (sub-hourly).
-        
-        # Normalize schedule to 1440 minutes list for easier calculation
-        minute_schedule = self._normalize_schedule(schedule)
-        
-        now = dt_util.now()
-        current_minute_of_day = now.hour * 60 + now.minute
-        
-        current_value = minute_schedule[current_minute_of_day]
-        
-        # 3. Update Entity
-        # Dynamic entity name based on profile prefix
+        # Update entity
         profile_prefix = profile_data.get("entity_prefix")
         target_entity = None
         
@@ -99,78 +354,45 @@ class SmartScheduler:
                 profile_prefix += "_"
             dynamic_entity = f"input_number.{profile_prefix}current"
             
-            # Check if dynamic entity exists
             if self.hass.states.get(dynamic_entity):
                 target_entity = dynamic_entity
             else:
                 default_entity = config.get("current_value_entity")
-                if default_entity and default_entity != dynamic_entity:
+                if default_entity:
                     _LOGGER.warning(
-                        "Dynamic entity %s not found. Falling back to default %s. "
-                        "Please create the helper entity to avoid conflicts.",
+                        "Dynamic entity %s not found. Falling back to %s",
                         dynamic_entity, default_entity
                     )
                     target_entity = default_entity
         
         if not target_entity:
-            # Fallback to static config if no prefix or dynamic failed checks above
             target_entity = config.get("current_value_entity")
 
         if target_entity:
             try:
-                # Only update if changed to reduce log noise, or force?
-                # Force is safer for restarts.
                 await self.hass.services.async_call(
                     "input_number",
                     "set_value",
                     {"entity_id": target_entity, "value": current_value}
                 )
                 _LOGGER.info(
-                    "Scheduler Update: input_number=%s, value=%s", 
+                    "Scheduler Update: %s = %s", 
                     target_entity, 
                     current_value
                 )
             except Exception as e:
                 _LOGGER.warning("Failed to update %s: %s", target_entity, e)
-
-        # 4. Find next change
-        minutes_until_change = 0
-        for i in range(1, 1441): # Look ahead up to 24 hours
-            check_min = (current_minute_of_day + i) % 1440
-            if minute_schedule[check_min] != current_value:
-                minutes_until_change = i
-                break
-        
-        if minutes_until_change == 0:
-            # Constant value all day? Check next day just in case, but essentially wait 24h
-            minutes_until_change = 1440
-
-        next_update_time = now + timedelta(minutes=minutes_until_change)
-        # Set seconds to 0 to align with minute boundary
-        next_update_time = next_update_time.replace(second=0, microsecond=0)
-
-        # 5. Schedule
-        _LOGGER.debug(
-            "Next update for %s scheduled at %s (value change)", 
-            preset_type, next_update_time
-        )
-        
-        @callback
-        def _update_callback(now):
-            self.hass.async_create_task(self.update_preset(preset_type))
-
-        self._timers[preset_type] = async_track_point_in_time(
-            self.hass,
-            _update_callback,
-            next_update_time
-        )
+        else:
+            _LOGGER.warning("No target entity found for preset type: %s", preset_type)
 
     def _schedule_retry(self, preset_type: str):
-        """Schedule a retry if loading failed."""
+        """Schedule retry if loading failed."""
         next_retry = dt_util.now() + timedelta(minutes=1)
+        _LOGGER.info("Scheduling retry for %s at %s", preset_type, next_retry)
 
         @callback
         def _retry_callback(now):
+            _LOGGER.debug("Retry timer fired for %s", preset_type)
             self.hass.async_create_task(self.update_preset(preset_type))
 
         self._timers[preset_type] = async_track_point_in_time(
@@ -180,111 +402,110 @@ class SmartScheduler:
         )
 
     async def _get_active_profile_data(self, preset_type: str) -> Optional[Dict]:
-        """Fetch the JSON data for the currently selected profile."""
+        """Fetch JSON data for currently selected profile."""
         config = PRESETS_CONFIG.get(preset_type)
+        if not config:
+            _LOGGER.error("No config found for preset type: %s", preset_type)
+            return None
+            
         selector_entity = config.get("profiles_select")
         
+        if not selector_entity:
+            _LOGGER.error("No selector entity configured for preset type: %s", preset_type)
+            return None
+            
         state = self.hass.states.get(selector_entity)
         if not state:
+            _LOGGER.error("Selector entity not found: %s", selector_entity)
             return None
             
         profile_name = state.state
         if not profile_name or profile_name in ("unknown", "unavailable"):
+            _LOGGER.warning("Invalid profile state for %s: %s", selector_entity, profile_name)
             return None
 
-        # Use profile service to load data from the shared file
+        _LOGGER.debug(
+            "Fetching profile data for preset %s, profile: %s", 
+            preset_type, profile_name
+        )
+
         from ..utils.prefix_normalizer import normalize_preset_type
         
         canonical = normalize_preset_type(preset_type)
         
-        # We need the prefix to locate the file. SmartScheduler doesn't inherently know the user's custom prefix.
-        # However, profile_service.get_profile_data() handles the search logic if we pass the profile name.
-        # It will try the default prefix and any global prefix if we had it.
-        # Since SmartScheduler runs in background, it might not know the custom prefix unless we stored it somewhere.
-        # BUT, since we switched to a single-file architecture per prefix, and `get_profile_data` searches by filename...
-        # Wait, `get_profile_data` needs a prefix to construct the filename to load.
-        
-        # Strategy: Iterate through all available profile containers for this preset type
-        # Collect all matches and select the most recently updated one to resolve ambiguity.
-        
         if hasattr(self.profile_service, "storage"):
-             files = await self.profile_service.storage.list_profiles()
-             matches = []
-             
-             for fname in files:
-                 data = await self.profile_service.storage.load_profile_cached(fname)
-                 # Check if this file belongs to the requested preset type
-                 if data and data.get("meta", {}).get("preset_type") == canonical:
-                     # Check if it contains the active profile
-                     if "profiles" in data and profile_name in data["profiles"]:
-                         profile_content = data["profiles"][profile_name]
-                         # Inject meta info
-                         profile_content["entity_prefix"] = data.get("meta", {}).get("entity_prefix")
-                         profile_content["profile_name"] = profile_name
-                         # Add container updated_at for sorting fallback
-                         profile_content["_container_updated_at"] = data.get("meta", {}).get("updated_at", 0)
-                         matches.append(profile_content)
-             
-             if matches:
-                 # Sort by profile updated_at, then container updated_at, descending
-                 matches.sort(
-                     key=lambda p: (p.get("updated_at", 0), p.get("_container_updated_at", 0)), 
-                     reverse=True
-                 )
-                 # Return the most recent one
-                 return matches[0]
-                     
+            try:
+                files = await self.profile_service.storage.list_profiles()
+                matches = []
+                
+                for fname in files:
+                    try:
+                        data = await self.profile_service.storage.load_profile_cached(fname)
+                        
+                        if data and data.get("meta", {}).get("preset_type") == canonical:
+                            if "profiles" in data and profile_name in data["profiles"]:
+                                profile_content = data["profiles"][profile_name]
+                                
+                                # Validate profile data
+                                if not isinstance(profile_content, dict):
+                                    _LOGGER.warning(
+                                        "Profile content is not a dict in %s/%s: %s",
+                                        fname, profile_name, type(profile_content)
+                                    )
+                                    continue
+                                
+                                # Add metadata
+                                profile_content["entity_prefix"] = data.get("meta", {}).get("entity_prefix")
+                                profile_content["profile_name"] = profile_name
+                                profile_content["_container_updated_at"] = data.get("meta", {}).get("updated_at", 0)
+                                
+                                # Validate schedule
+                                if "schedule" in profile_content:
+                                    schedule = profile_content["schedule"]
+                                    if isinstance(schedule, list):
+                                        # Remove invalid points (minimal check, full check in normalize)
+                                        valid_schedule = []
+                                        for point in schedule:
+                                            if isinstance(point, dict):
+                                                valid_schedule.append(point)
+                                        
+                                        profile_content["schedule"] = valid_schedule
+                                    else:
+                                        _LOGGER.warning(
+                                            "Schedule is not a list in %s/%s: %s",
+                                            fname, profile_name, type(schedule)
+                                        )
+                                        profile_content["schedule"] = []
+                                
+                                matches.append(profile_content)
+                                _LOGGER.debug(
+                                    "Found matching profile in %s, updated_at: %s",
+                                    fname, profile_content.get("updated_at", "unknown")
+                                )
+                    except Exception as e:
+                        _LOGGER.warning("Error loading profile %s: %s", fname, e)
+                
+                if matches:
+                    matches.sort(
+                        key=lambda p: (p.get("updated_at", 0), p.get("_container_updated_at", 0)), 
+                        reverse=True
+                    )
+                    selected = matches[0]
+                    _LOGGER.info(
+                        "Selected profile '%s' for %s (updated_at: %s)",
+                        selected.get("profile_name", "unknown"),
+                        preset_type,
+                        selected.get("updated_at", "unknown")
+                    )
+                    return selected
+                else:
+                    _LOGGER.warning(
+                        "No matching profile found for %s with name '%s'",
+                        preset_type, profile_name
+                    )
+                    
+            except Exception as e:
+                _LOGGER.error("Error fetching profile data for %s: %s", preset_type, e, exc_info=True)
+        
+        _LOGGER.warning("Could not retrieve profile data for %s", preset_type)
         return None
-
-    def _normalize_schedule(self, schedule_data: list) -> list:
-        """
-        Convert sparse or hourly schedule to 1440-minute array.
-        Handles:
-        - [{hour: 0, value: 20}, ...]
-        - [{index: 0, value: 20}, ...] (where index depends on interval)
-        - Array of values
-        """
-        minutes = [0.0] * 1440
-        
-        if not schedule_data:
-            return minutes
-
-        # Check format
-        first = schedule_data[0]
-        
-        if isinstance(first, (int, float)):
-            # Direct array. Assume it covers 24h evenly.
-            count = len(schedule_data)
-            interval = 1440 // count
-            for i in range(1440):
-                idx = i // interval
-                if idx < count:
-                    minutes[i] = float(schedule_data[idx])
-            return minutes
-
-        if isinstance(first, dict):
-            # Object array
-            # If "hour" is present, assume 60m interval
-            if "hour" in first:
-                for entry in schedule_data:
-                    h = int(entry["hour"])
-                    v = float(entry["value"])
-                    start_min = h * 60
-                    for m in range(start_min, start_min + 60):
-                        if m < 1440: minutes[m] = v
-                return minutes
-            
-            # If "index" is present, we need to infer interval or assume it fills 24h
-            if "index" in first:
-                count = len(schedule_data)
-                # Heuristic: 24 -> 60m, 48 -> 30m, 96 -> 15m
-                interval = 1440 // count
-                for entry in schedule_data:
-                    idx = int(entry["index"])
-                    v = float(entry["value"])
-                    start_min = idx * interval
-                    for m in range(start_min, start_min + interval):
-                        if m < 1440: minutes[m] = v
-                return minutes
-
-        return minutes
