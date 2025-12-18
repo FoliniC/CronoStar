@@ -7,6 +7,7 @@ export class EditorWizard {
     console.log(`[CronoStar Wizard] _nextStep called. Current step: ${this.editor._step}`);
     if (this.editor._step < 5) {
       this.editor._step++;
+      if (typeof this.editor.scrollToTop === 'function') this.editor.scrollToTop();
       console.log(`[CronoStar Wizard] Moving to step: ${this.editor._step}`);
       
       if (this.editor._step === 2) {
@@ -24,6 +25,7 @@ export class EditorWizard {
   _prevStep() {
     if (this.editor._step > 1) {
       this.editor._step--;
+      if (typeof this.editor.scrollToTop === 'function') this.editor.scrollToTop();
       if (this.editor._step !== 2) {
         this.editor._deepCheckRanForStep2 = false;
       }
@@ -32,6 +34,19 @@ export class EditorWizard {
   }
 
   _finish() {
-    this.editor._dispatchConfigChanged();
-  }
+      // Force immediate persist before closing
+      if (this.editor._persistCardConfigNow) {
+        this.editor._persistCardConfigNow()
+          .then(() => {
+            console.log('[Wizard] Config persisted on finish');
+            this.editor._dispatchConfigChanged();
+          })
+          .catch(err => {
+            console.error('[Wizard] Persist on finish failed:', err);
+            this.editor._dispatchConfigChanged();
+          });
+      } else {
+        this.editor._dispatchConfigChanged();
+      }
+    }
 }

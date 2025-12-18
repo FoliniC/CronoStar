@@ -19,7 +19,9 @@ export function buildProfileFilename(profileName, prefix) {
  */
 export function buildHelpersFilename(prefix) {
   const normalizedPrefix = normalizePrefix(prefix);
-  return `${normalizedPrefix.replace(/_+$/, '')}_helpers.yaml`;
+  // Required naming: <Identification Prefix>_package.yaml
+  // normalizedPrefix already ends with "_", so appending yields "..._package.yaml"
+  return `${normalizedPrefix}package.yaml`;
 }
 
 /**

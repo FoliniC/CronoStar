@@ -1,5 +1,4 @@
 /** * Pointer/touch event handling for area selection * @module pointer-handler */
-
 import { Logger } from '../utils.js';
 import { TIMEOUTS } from '../config.js';
 
@@ -127,25 +126,25 @@ export class PointerHandler {
     // Check if click is strictly within chart area (axes check)
     const chart = this.card.chartManager?.chart;
     if (chart) {
-        const { scales } = chart;
-        const rect = chart.canvas.getBoundingClientRect();
-        
-        let clientX = e.clientX;
-        let clientY = e.clientY;
-        if (e.changedTouches && e.changedTouches.length > 0) {
-            clientX = e.changedTouches[0].clientX;
-            clientY = e.changedTouches[0].clientY;
+      const { scales } = chart;
+      const rect = chart.canvas.getBoundingClientRect();
+
+      let clientX = e.clientX;
+      let clientY = e.clientY;
+      if (e.changedTouches && e.changedTouches.length > 0) {
+        clientX = e.changedTouches[0].clientX;
+        clientY = e.changedTouches[0].clientY;
+      }
+
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+
+      // If click is on axes/labels (outside plot area), return early to allow pan/zoom
+      if (scales && scales.x && scales.y) {
+        if (x < scales.x.left || x > scales.x.right || y < scales.y.top || y > scales.y.bottom) {
+          return;
         }
-        
-        const x = clientX - rect.left;
-        const y = clientY - rect.top;
-        
-        // If click is on axes/labels (outside plot area), return early to allow pan/zoom
-        if (scales && scales.x && scales.y) {
-            if (x < scales.x.left || x > scales.x.right || y < scales.y.top || y > scales.y.bottom) {
-                 return; 
-            }
-        }
+      }
     }
 
     // Long-press for touch to enable multi-select
@@ -168,34 +167,34 @@ export class PointerHandler {
     const chartMgr = this.card.chartManager;
     // Enhanced hit testing: Try strict intersect first, then fallback to nearest with distance check
     let points = chartMgr?.chart?.getElementsAtEventForMode?.(e, 'nearest', { intersect: true }, true) || [];
-    
+
     if (points.length === 0 && chartMgr?.chart) {
-        const nearest = chartMgr.chart.getElementsAtEventForMode(e, 'nearest', { intersect: false }, true) || [];
-        if (nearest.length > 0) {
-            const p = nearest[0];
-            const pEl = p.element;
-            const rect = chartMgr.chart.canvas.getBoundingClientRect();
-            
-            let clientX = e.clientX;
-            let clientY = e.clientY;
-            if (e.changedTouches && e.changedTouches.length > 0) {
-                clientX = e.changedTouches[0].clientX;
-                clientY = e.changedTouches[0].clientY;
-            }
-            
-            const clickX = clientX - rect.left;
-            const clickY = clientY - rect.top;
-            
-            // Calculate distance to the nearest point center
-            const dx = clickX - pEl.x;
-            const dy = clickY - pEl.y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            
-            // Use a generous threshold (20px) to catch "near misses" that dragData might catch
-            if (dist < 20) {
-                points = [p];
-            }
+      const nearest = chartMgr.chart.getElementsAtEventForMode(e, 'nearest', { intersect: false }, true) || [];
+      if (nearest.length > 0) {
+        const p = nearest[0];
+        const pEl = p.element;
+        const rect = chartMgr.chart.canvas.getBoundingClientRect();
+
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+        if (e.changedTouches && e.changedTouches.length > 0) {
+          clientX = e.changedTouches[0].clientX;
+          clientY = e.changedTouches[0].clientY;
         }
+
+        const clickX = clientX - rect.left;
+        const clickY = clientY - rect.top;
+
+        // Calculate distance to the nearest point center
+        const dx = clickX - pEl.x;
+        const dy = clickY - pEl.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        // Use a generous threshold (20px) to catch "near misses" that dragData might catch
+        if (dist < 20) {
+          points = [p];
+        }
+      }
     }
 
     const clickOnPoint = points.length > 0;
@@ -218,16 +217,16 @@ export class PointerHandler {
 
       this.initialDragValues.clear();
       selectedIndices.forEach(index => {
-        this.initialDragValues.set(index, dataset.data[index]);
+        const d = dataset.data[index];
+        const y = (typeof d === 'object' && d !== null) ? d.y : Number(d);
+        this.initialDragValues.set(index, y);
       });
 
       Logger.log('DRAG', `[Pointer] Initiating global drag for ${selectedIndices.length} points.`);
-      
+
       const canvas = this.card.shadowRoot?.getElementById("myChart");
-      try {
-        canvas?.setPointerCapture(e.pointerId);
-      } catch (err) {}
-      
+      try { canvas?.setPointerCapture(e.pointerId); } catch (err) {}
+
       return;
     }
 
@@ -300,11 +299,11 @@ export class PointerHandler {
     if (this.isGlobalDragging) {
       if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
       e.preventDefault();
-      
+
       const chart = this.card.chartManager.chart;
       const yAxis = chart.scales.y;
       const { y } = this.getContainerRelativeCoords(e);
-      
+
       const startValue = yAxis.getValueForPixel(this.globalDragStartPx.y);
       const currentValue = yAxis.getValueForPixel(y);
       const valueDelta = currentValue - startValue;
@@ -317,15 +316,21 @@ export class PointerHandler {
       selectedIndices.forEach(index => {
         const initialValue = this.initialDragValues.get(index);
         let newValue = initialValue + valueDelta;
-        
+
         // Clamp and round to step
         newValue = Math.max(min_value, Math.min(max_value, newValue));
         newValue = Math.round(newValue / step_value) * step_value;
-        
-        dataset.data[index] = newValue;
+
+        const d = dataset.data[index];
+        if (typeof d === 'object' && d !== null) {
+          d.y = newValue;
+        } else {
+          dataset.data[index] = newValue;
+        }
       });
 
-      this.card.chartManager.update('none'); // Update without animation
+      this.card.chartManager.update('none');
+      this.card.chartManager.showDragValueDisplay(selectedIndices, dataset.data);
       return;
     }
 
@@ -351,25 +356,35 @@ export class PointerHandler {
     if (this.isGlobalDragging) {
       if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
       e.preventDefault();
-      
+
       this.isGlobalDragging = false;
       this.activePointerId = null;
       this.initialDragValues.clear();
 
       const canvas = this.card.shadowRoot?.getElementById("myChart");
+      try { canvas?.releasePointerCapture(e.pointerId); } catch (err) {}
+
+      // Sync StateManager with dataset after drag
       try {
-        canvas?.releasePointerCapture(e.pointerId);
-      } catch (err) {}
+        const chart = this.card.chartManager.chart;
+        const ds = chart.data.datasets[0].data;
+        const newData = ds.map(p => ({
+          time: this.card.stateManager.minutesToTime(p.x),
+          value: (typeof p === 'object' && p !== null) ? p.y : Number(p)
+        }));
+        this.card.stateManager.setData(newData);
+      } catch {}
 
       this.card.hasUnsavedChanges = true;
       this.card.requestUpdate();
 
       // Trigger auto-save
       if (this.card.selectedProfile) {
-          this.card.profileManager.saveProfile(this.card.selectedProfile)
-              .catch(err => Logger.error('DRAG', 'Global drag auto-save failed:', err));
+        this.card.profileManager.saveProfile(this.card.selectedProfile)
+          .catch(err => Logger.error('DRAG', 'Global drag auto-save failed:', err));
       }
-      
+
+      this.card.chartManager.scheduleHideDragValueDisplay(1500);
       Logger.log('DRAG', '[Pointer] Global drag finished.');
       return;
     }

@@ -78,7 +78,7 @@ export const I18N = {
       
       // Package Configuration
       package_label: 'Configuration Package',
-      package_desc: 'Complete configuration file containing all necessary entities. Save to: {path}',
+      package_desc: 'Copy this “Configuration Package” into {path}. If you continue in the wizard, CronoStar will try to create/update the file automatically (when supported by the backend).',
       
       // Optional Features
       enable_pause_label: 'Enable Pause (input_boolean)',
@@ -335,7 +335,7 @@ export const I18N = {
       step1_helpers_button: '1. Click "Copy Package YAML" (Step 2) and create the package file',
       step2_automation_button: '2. Click "Create Automation" (Step 4) or copy the YAML',
       step3_restart: '3. Restart Home Assistant to load new entities',
-      step4_save_config: '4. Click "Initialize Data File" below, then Save'
+      step4_save_config: '4. Save the card configuration using Home Assistant’s “Save” button.'
     },
 
     // Help Dialog
@@ -422,7 +422,7 @@ export const I18N = {
       
       // Package Configuration
       package_label: 'Package di Configurazione',
-      package_desc: 'File di configurazione completo contenente tutte le entità necessarie. Salva in: {path}',
+      package_desc: 'Copia questo “Configuration Package” in {path}. Se prosegui nel wizard, CronoStar proverà a creare/aggiornare automaticamente il file (quando il backend lo supporta).',
       
       // Optional Features
       enable_pause_label: 'Abilita Pausa (input_boolean)',
@@ -679,7 +679,7 @@ export const I18N = {
       step1_helpers_button: '1. Clicca "Copia Package YAML" (Step 2) e crea il file package',
       step2_automation_button: '2. Clicca "Crea Automazione" (Step 4) o copia lo YAML',
       step3_restart: '3. Riavvia Home Assistant per caricare le nuove entità',
-      step4_save_config: '4. Clicca "Inizializza File Dati" qui sotto, poi Salva'
+      step4_save_config: '4. Salva la configurazione della card usando il pulsante “Salva” di Home Assistant.'
     },
 
     // Help Dialog

@@ -1,0 +1,22 @@
+task_name: CronoStar Card Files (Expanded - Full Project)
+description: All files for the Home Assistant CronoStar Card component, including recursively found files, generated from the complete project structure.
+output_dir: "."
+base_dir: "."
+output_filename_prefix: "cronostar_card_full_project"
+files:
+  - path: cronostar_card/src/core/CardLifecycle.js
+  - path: cronostar_card/src/core/CardSync.js
+  - path: cronostar_card/src/core/CronoStar.js
+  - path: cronostar_card/src/managers/profile_manager.js
+  - path: cronostar_card/src/managers/state_manager.js
+  - path: cronostar_card/src/utils/editor_utils.js
+  - path: cronostar_card/src/utils/filename_utils.js
+  - path: cronostar_card/src/config.js
+  - path: cronostar_card/package.json
+  - path: custom_components/cronostar/services/file_service.py
+  - path: custom_components/cronostar/services/profile_service.py
+  - path: custom_components/cronostar/utils/filename_builder.py
+  - path: custom_components/cronostar/utils/prefix_normalizer.py
+  - path: custom_components/cronostar/__init__.py
+  - path: custom_components/cronostar/services.yaml
+  - path: packages/cronostar_current_values.yaml

@@ -1,5 +1,5 @@
 /** Configuration management for CronoStar Card with Interval Support */
-export const VERSION = '5.0.0';
+export const VERSION = '5.0.1';
 
 // Interval options (minutes)
 export const INTERVAL_OPTIONS = [

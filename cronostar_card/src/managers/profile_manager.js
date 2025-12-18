@@ -27,7 +27,7 @@ export class ProfileManager {
     );
 
     // Read directly from internal memory
-    const rawData = this.card.stateManager.getData();
+    const rawData = this.card.stateManager.scheduleData || [];
     
     // Log outgoing data
     if (rawData.length > 10) {
@@ -41,9 +41,10 @@ export class ProfileManager {
       );
     }
     
-    const scheduleData = rawData.map((val, index) => ({
+    const scheduleData = rawData.map((p, index) => ({
       index: index,
-      value: val
+      time: p.time,
+      value: p.value
     }));
 
     try {
@@ -106,7 +107,13 @@ export class ProfileManager {
       if (responseData && !responseData.error && rawSchedule && Array.isArray(rawSchedule)) {
         // Success case: Profile loaded from backend
         // Use raw schedule directly (objects with time/value) to preserve time info
-        scheduleValues = rawSchedule;
+        // Prefer passing rich objects (time/value) to StateManager so X is correct.
+        const first = rawSchedule[0];
+        const hasTime = typeof first === 'object' && first !== null && 'time' in first;
+        const hasValueObject = typeof first === 'object' && first !== null && 'value' in first;
+
+        const payloadForState = hasTime || hasValueObject ? rawSchedule : rawSchedule;
+        scheduleValues = payloadForState;
         
         // Log sample
         const sample = scheduleValues.slice(0, 5);

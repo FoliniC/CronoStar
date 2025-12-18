@@ -107,6 +107,12 @@ export async function handleCreateHelpersYaml(hass, config, deepReport, language
   };
 }
 
+function minutesToTime(minutes) {
+  const h = Math.floor(minutes / 60) % 24;
+  const m = Math.floor(minutes % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 /**
  * Handles creating automation YAML file
  */
@@ -249,7 +255,11 @@ export async function handleInitializeData(hass, config, language) {
   // Create a flat schedule array based on interval
   const interval = config.interval_minutes || 60;
   const numPoints = Math.floor(1440 / interval);
-  const defaultSchedule = Array(numPoints).fill(minVal).map((v, i) => ({ index: i, value: v }));
+  const defaultSchedule = Array(numPoints).fill(minVal).map((v, i) => ({
+    index: i,
+    time: minutesToTime(i * interval),
+    value: v
+  }));
   
   const preset = config.preset || 'thermostat';
   const profileName = "Comfort"; // Default initial profile
@@ -283,12 +293,14 @@ export async function runDeepChecks(hass, config, language) {
   
   const effectivePrefix = getEffectivePrefix(config);
   const alias = getAliasWithPrefix(effectivePrefix, language);
+  const interval = config.interval_minutes || 60;
+  const expected_count = Math.floor(1440 / interval);
   
   await hass.callService('cronostar', 'check_setup', {
     prefix: effectivePrefix,
     hour_base: config.hour_base === '1' || config.hour_base === 1 ? 1 : 0,
     alias: alias,
-    expected_count: 1
+    expected_count: expected_count
   });
   
   return {

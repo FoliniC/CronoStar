@@ -1,4 +1,3 @@
-
 /**
  * Selection management for CronoStar Card
  * @module selection-manager
@@ -15,19 +14,89 @@ export class SelectionManager {
   }
 
   /**
+   * Select a single point (alias for compatibility with ChartManager)
+   * @param {number} index - Index to select
+   */
+  selectPoint(index) {
+      this.selectIndices([index], false);
+      // Ensure update is triggered safely
+      if (this.card.chartManager && typeof this.card.chartManager.updatePointStyling === 'function') {
+          this.card.chartManager.updatePointStyling(this.selectedPoint, this.selectedPoints);
+          
+          // Only call update if chart is valid and initialized
+          if (this.card.chartManager.isInitialized()) {
+              this.card.chartManager.getChart()?.update('none'); // Use 'none' mode to prevent animation glitches
+          }
+      }
+      this.card.requestUpdate();
+  }
+
+  /**
+   * Toggle a point (alias for compatibility with ChartManager)
+   * @param {number} index - Index to toggle
+   */
+  togglePoint(index) {
+      this.toggleIndexSelection(index);
+      // Ensure update is triggered safely
+      if (this.card.chartManager && typeof this.card.chartManager.updatePointStyling === 'function') {
+          this.card.chartManager.updatePointStyling(this.selectedPoint, this.selectedPoints);
+          if (this.card.chartManager.isInitialized()) {
+              this.card.chartManager.getChart()?.update('none');
+          }
+      }
+      this.card.requestUpdate();
+  }
+  
+  /**
+   * Select a range of points (required by ChartManager)
+   * @param {number} endIndex - End index of the range
+   */
+  selectRange(endIndex) {
+    if (this.selectedPoints.length === 0) {
+        this.selectPoint(endIndex);
+        return;
+    }
+    
+    const start = Math.min(...this.selectedPoints);
+    const end = Math.max(...this.selectedPoints, endIndex);
+    const rangeStart = Math.min(start, endIndex);
+    const rangeEnd = Math.max(start, endIndex); 
+
+    const newSelection = [];
+    for (let i = rangeStart; i <= rangeEnd; i++) {
+        newSelection.push(i);
+    }
+    
+    this.selectIndices(newSelection, false);
+    
+    if (this.card.chartManager && typeof this.card.chartManager.updatePointStyling === 'function') {
+        this.card.chartManager.updatePointStyling(this.selectedPoint, this.selectedPoints);
+        if (this.card.chartManager.isInitialized()) {
+            this.card.chartManager.getChart()?.update('none');
+        }
+    }
+    this.card.requestUpdate();
+  }
+
+  /**
    * Select all points
    */
   selectAll() {
     const count = this.card.stateManager ? this.card.stateManager.getNumPoints() : 24;
     const allIndices = Array.from({ length: count }, (_, i) => i);
     this.selectIndices(allIndices, false);
-    this.card.chartManager?.updatePointStyling(this.selectedPoint, this.selectedPoints);
-    this.card.chartManager?.update();
+    
+    if (this.card.chartManager && typeof this.card.chartManager.updatePointStyling === 'function') {
+        this.card.chartManager.updatePointStyling(this.selectedPoint, this.selectedPoints);
+        if (this.card.chartManager.isInitialized()) {
+            this.card.chartManager.getChart()?.update('none');
+        }
+    }
   }
 
   /**
    * Select specific indices
-   * @param {Array<number>} indices - Indices to select
+   * @param {Array} indices - Indices to select
    * @param {boolean} preserveAnchor - Whether to preserve anchor point
    */
   selectIndices(indices, preserveAnchor = true) {
@@ -40,7 +109,10 @@ export class SelectionManager {
     } else {
       this.selectedPoint = this.selectedPoints.length > 0 ? this.selectedPoints[0] : null;
     }
-
+    
+    // Sync with card property for reactivity
+    this.card.selectedPoints = [...this.selectedPoints];
+    
     this.logSelection("selectIndices");
   }
 
@@ -50,7 +122,6 @@ export class SelectionManager {
    */
   toggleIndexSelection(index) {
     const set = new Set(this.selectedPoints);
-    
     if (set.has(index)) {
       set.delete(index);
     } else {
@@ -62,6 +133,9 @@ export class SelectionManager {
     if (this.selectedPoint === null || !this.selectedPoints.includes(this.selectedPoint)) {
       this.selectedPoint = this.selectedPoints.length > 0 ? this.selectedPoints[0] : null;
     }
+    
+    // Sync with card property
+    this.card.selectedPoints = [...this.selectedPoints];
 
     this.logSelection("toggleIndexSelection");
   }
@@ -72,6 +146,7 @@ export class SelectionManager {
   clearSelection() {
     this.selectedPoints = [];
     this.selectedPoint = null;
+    this.card.selectedPoints = []; // Sync
     Logger.sel("Selection cleared");
   }
 
@@ -100,19 +175,21 @@ export class SelectionManager {
       return;
     }
 
-    const pts = Array.isArray(this.selectionSnapshot.points) 
-      ? [...this.selectionSnapshot.points] 
+    const pts = Array.isArray(this.selectionSnapshot.points)
+      ? [...this.selectionSnapshot.points]
       : [];
     
-    this.selectedPoints = pts.filter(i => i >= 0 && i < 24);
+    this.selectedPoints = pts.filter(i => i >= 0 && i < 24); 
 
     if (this.selectionSnapshot.anchor !== null && pts.includes(this.selectionSnapshot.anchor)) {
       this.selectedPoint = this.selectionSnapshot.anchor;
     } else {
       this.selectedPoint = this.selectedPoints.length > 0 ? this.selectedPoints[0] : null;
     }
+    
+    this.card.selectedPoints = [...this.selectedPoints]; // Sync
 
-    if (this.card.chartManager) {
+    if (this.card.chartManager && typeof this.card.chartManager.updatePointStyling === 'function') {
       this.card.chartManager.updatePointStyling(this.selectedPoint, this.selectedPoints);
     }
 
@@ -124,26 +201,16 @@ export class SelectionManager {
    * @param {string} tag - Log tag
    */
   logSelection(tag = '') {
-    const anchorLabel = this.selectedPoint !== null 
+    const anchorLabel = this.selectedPoint !== null && this.card.stateManager
       ? this.card.stateManager.getPointLabel(this.selectedPoint)
       : 'n/a';
     
     Logger.sel(`${tag} - anchor=${this.selectedPoint} (${anchorLabel}) points=${JSON.stringify(this.selectedPoints)}`);
-
-    if (this.card.stateManager) {
-      const scheduleData = this.card.stateManager.scheduleData;
-      this.selectedPoints.forEach(i => {
-        const label = this.card.stateManager.getPointLabel(i);
-        const chartVal = scheduleData[i];
-        
-        Logger.sel(`  idx=${i}, hour=${label}, chartVal=${chartVal}`);
-      });
-    }
   }
 
   /**
    * Get selected indices or fallback to anchor
-   * @returns {Array<number>}
+   * @returns {Array}
    */
   getActiveIndices() {
     if (Array.isArray(this.selectedPoints) && this.selectedPoints.length > 0) {
@@ -193,7 +260,7 @@ export class SelectionManager {
 
   /**
    * Get selected points
-   * @returns {Array<number>}
+   * @returns {Array}
    */
   getSelectedPoints() {
     return [...this.selectedPoints];

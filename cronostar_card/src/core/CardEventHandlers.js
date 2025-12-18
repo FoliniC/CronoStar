@@ -1,6 +1,7 @@
 import { CARD_CONFIG_PRESETS, validateConfig, VERSION } from '../config.js';
 import { Logger } from '../utils.js';
 import { getEffectivePrefix } from '../utils/prefix_utils.js';
+import { buildHelpersFilename } from '../utils/filename_utils.js';
 
 export class CardEventHandlers {
     constructor(card) {
@@ -158,13 +159,11 @@ export class CardEventHandlers {
             this.showNotification(localize('ui.apply_now_error') + ' (HA not connected)', 'error');
             return;
         }
-
         if (!this.card.cronostarReady) {
             Logger.warn('APPLY', '[CronoStar] Backend startup not completed yet, deferring apply.');
             this.showNotification(localize('ui.waiting_profile_restore'), 'error');
             return;
         }
-
         const targetEntity = this.card.config.apply_entity;
         if (!targetEntity) {
             Logger.error('APPLY', '[CronoStar] `apply_entity` is not configured in the card.');
@@ -174,11 +173,8 @@ export class CardEventHandlers {
 
         try {
             const profileToSave = this.card.profileManager.lastLoadedProfile || this.card.selectedProfile;
-            
-            // Force save if we have a profile, to ensure JSON is up to date with current values
             if (profileToSave) {
                 Logger.log('APPLY', `[CronoStar] Forcing save of profile '${profileToSave}' before applying`);
-                // ensureValuesApplied removed as we don't sync with input_number entities anymore
                 await this.card.profileManager.saveProfile(profileToSave);
                 Logger.log('APPLY', `[CronoStar] Profile '${profileToSave}' saved successfully`);
             }
@@ -203,12 +199,11 @@ export class CardEventHandlers {
             );
 
             this.card.cardSync.scheduleAutomationOverlaySuppression();
-
             setTimeout(() => {
                 try {
                     this.card.cardSync.updateAutomationSync(this.card._hass);
                     this.card.requestUpdate();
-                } catch (e) { Logger.warn('APPLY', '[CronoStar] Error in setTimeout:', e); } 
+                } catch (e) { Logger.warn('APPLY', '[CronoStar] Error in setTimeout:', e); }
             }, 1000);
         } catch (err) {
             Logger.error('APPLY', '[CronoStar] Error during "Apply Now":', err);
@@ -223,10 +218,161 @@ export class CardEventHandlers {
         this.card.requestUpdate();
     }
 
-handleHelp() {
+    // --- NEW: Add/Delete profile handlers ---
+    async handleAddProfile() {
+        const localize = (key, search, replace) =>
+            this.card.localizationManager.localize(this.card.language, key, search, replace);
+
+        try {
+            if (!this.card.hass) {
+                this.showNotification(localize('notify.add_profile_error', { '{error}': 'HA not connected' }), 'error');
+                return;
+            }
+
+            const name = (typeof window !== 'undefined')
+                ? window.prompt(localize('prompt.add_profile_name'))
+                : null;
+            const profileName = (name || '').trim();
+            if (!profileName) {
+                return; // user cancelled
+            }
+
+            // Optional: avoid duplicates client-side
+            if (Array.isArray(this.card.profileOptions) && this.card.profileOptions.includes(profileName)) {
+                this.showNotification(localize('notify.add_profile_error', { '{error}': 'Profile already exists' }), 'error');
+                return;
+            }
+
+            await this.card.hass.callService('cronostar', 'add_profile', {
+                profile_name: profileName,
+                preset_type: this.card.selectedPreset,
+                entity_prefix: this.card.config.entity_prefix,
+                global_prefix: this.card.config.global_prefix
+            });
+
+            // Update UI
+            try {
+                // Update local options list immediately (backend will also refresh the input_select)
+                if (!Array.isArray(this.card.profileOptions)) this.card.profileOptions = [];
+                if (!this.card.profileOptions.includes(profileName)) {
+                    this.card.profileOptions = [...this.card.profileOptions, profileName];
+                }
+
+                // Set selected profile and load it
+                this.card.selectedProfile = profileName;
+                await this.card.profileManager.loadProfile(profileName);
+
+                // If we have an input_select entity, set the option there too
+                if (this.card.config.profiles_select_entity) {
+                    this.card.hass.callService('input_select', 'select_option', {
+                        entity_id: this.card.config.profiles_select_entity,
+                        option: profileName
+                    }).catch(() => { /* ignore */ });
+                }
+            } catch (e) {
+                Logger.warn('PROFILE', 'Post-create UI update failed:', e);
+            }
+
+            this.showNotification(localize('notify.add_profile_success', { '{profile}': profileName }), 'success');
+
+        } catch (err) {
+            Logger.error('PROFILE', '[CronoStar] Error adding profile:', err);
+            const msg = err?.message || String(err);
+            this.showNotification(this.card.localizationManager.localize(this.card.language, 'notify.add_profile_error', { '{error}': msg }), 'error');
+        } finally {
+            // Close menu, focus chart
+            this.card.isMenuOpen = false;
+            this.card.keyboardHandler.enable();
+            const chartContainer = this.card.shadowRoot?.querySelector(".chart-container");
+            if (chartContainer && !this.card.isEditorContext()) {
+                chartContainer.focus();
+            }
+            this.card.requestUpdate();
+        }
+    }
+
+    async handleDeleteProfile() {
+        const localize = (key, search, replace) =>
+            this.card.localizationManager.localize(this.card.language, key, search, replace);
+
+        try {
+            if (!this.card.hass) {
+                this.showNotification(localize('notify.delete_profile_error', { '{error}': 'HA not connected' }), 'error');
+                return;
+            }
+
+            const current = this.card.selectedProfile;
+            if (!current) {
+                this.showNotification(localize('notify.delete_profile_error', { '{error}': 'No profile selected' }), 'error');
+                return;
+            }
+
+            const confirmed = (typeof window !== 'undefined')
+                ? window.confirm(localize('prompt.delete_profile_confirm', { '{profile}': current }))
+                : true;
+
+            if (!confirmed) return;
+
+            await this.card.hass.callService('cronostar', 'delete_profile', {
+                profile_name: current,
+                preset_type: this.card.selectedPreset,
+                entity_prefix: this.card.config.entity_prefix,
+                global_prefix: this.card.config.global_prefix
+            });
+
+            // Update options and selection
+            try {
+                const options = Array.isArray(this.card.profileOptions) ? [...this.card.profileOptions] : [];
+                const idx = options.indexOf(current);
+                if (idx >= 0) {
+                    options.splice(idx, 1);
+                    this.card.profileOptions = options;
+                }
+
+                // Pick next profile (first in list) or clear
+                const next = options.length ? options[0] : '';
+                this.card.selectedProfile = next;
+
+                if (next) {
+                    await this.card.profileManager.loadProfile(next);
+                    if (this.card.config.profiles_select_entity) {
+                        this.card.hass.callService('input_select', 'select_option', {
+                            entity_id: this.card.config.profiles_select_entity,
+                            option: next
+                        }).catch(() => { /* ignore */ });
+                    }
+                } else {
+                    // No profiles left: reset schedule to defaults
+                    this.card.stateManager._initializeScheduleData();
+                    if (this.card.chartManager?.isInitialized()) {
+                        this.card.chartManager.updateData(this.card.stateManager.getData());
+                    }
+                }
+            } catch (e) {
+                Logger.warn('PROFILE', 'Post-delete UI update failed:', e);
+            }
+
+            this.showNotification(localize('notify.delete_profile_success', { '{profile}': current }), 'success');
+
+        } catch (err) {
+            Logger.error('PROFILE', '[CronoStar] Error deleting profile:', err);
+            const msg = err?.message || String(err);
+            this.showNotification(this.card.localizationManager.localize(this.card.language, 'notify.delete_profile_error', { '{error}': msg }), 'error');
+        } finally {
+            // Close menu, focus chart
+            this.card.isMenuOpen = false;
+            this.card.keyboardHandler.enable();
+            const chartContainer = this.card.shadowRoot?.querySelector(".chart-container");
+            if (chartContainer && !this.card.isEditorContext()) {
+                chartContainer.focus();
+            }
+            this.card.requestUpdate();
+        }
+    }
+
+    handleHelp() {
     const title = this.card.localizationManager.localize(this.card.language, 'help.title');
-    const text = this.card.localizationManager.localize(this.card.language, 'help.text');
-    
+    const text = this.card.localizationManager.localize(this.card.language, 'help.text');    
     // Current Configuration Info
     const cardId = this.card.cardId || 'Not registered';
     const preset = this.card.config?.preset || 'thermostat';
@@ -234,18 +380,16 @@ handleHelp() {
     const targetEntity = this.card.config?.apply_entity || 'Not configured';
     const profileEntity = this.card.config?.profiles_select_entity || 'Not configured';
     const pauseEntity = this.card.config?.pause_entity || 'Not configured';
-    const currentProfile = this.card.selectedProfile || 'No profile selected';
-    
+    const currentProfile = this.card.selectedProfile || 'No profile selected';    
     // Expected entities
     const prefixBase = prefix.replace(/_+$/, '');
     const currentEntity = `input_number.${prefix}current`;
-    const packageFile = `${prefixBase}_package.yaml`;
-    
+    const packageFile = buildHelpersFilename(prefix);
+    const packagePath = `config/packages/${packageFile}`;    
     // Interval info
     const interval = this.card.config?.interval_minutes || 60;
-    const numPoints = Math.floor(1440 / interval);
-    
-    const configInfo = this.card.language === 'it' 
+    const numPoints = Math.floor(1440 / interval);    
+    const configInfo = this.card.language === 'it'
       ? `=== Configurazione Attuale ===
 Card ID: ${cardId}
 Versione: ${VERSION}
@@ -269,18 +413,13 @@ ${text}
 
 === File di Configurazione ===
 Il sistema utilizza:
-1. Package: /config/packages/${packageFile}
-   Contiene tutte le entità helper necessarie
-   
-2. Profili: /config/cronostar/profiles/${prefixBase}_data.json
-   Contiene tutti i profili salvati per questo preset
-
-3. Automazione: Da creare tramite l'editor (Step 4)
-   o manualmente in automations/
+1. Package: /${packagePath}   Contiene tutte le entità helper necessarie
+2. Profili: /config/cronostar/profiles/${prefixBase}_data.json   Contiene tutti i profili salvati per questo preset
+3. Automazione: Da creare tramite l'editor (Step 4)   o manualmente in automations/
 
 === Prossimi Passi ===
 1. Se non l'hai fatto, crea il package usando l'editor (Step 2)
-2. Copia il contenuto in /config/packages/${packageFile}
+2. Copia il contenuto in /${packagePath}
 3. Riavvia Home Assistant
 4. Crea l'automazione usando l'editor (Step 4)
 5. Salva la configurazione della card`
@@ -307,18 +446,13 @@ ${text}
 
 === Configuration Files ===
 The system uses:
-1. Package: /config/packages/${packageFile}
-   Contains all required helper entities
-   
-2. Profiles: /config/cronostar/profiles/${prefixBase}_data.json
-   Contains all saved profiles for this preset
-
-3. Automation: To be created via editor (Step 4)
-   or manually in automations/
+1. Package: /${packagePath}   Contains all required helper entities
+2. Profiles: /config/cronostar/profiles/${prefixBase}_data.json   Contains all saved profiles for this preset
+3. Automation: To be created via editor (Step 4)   or manually in automations/
 
 === Next Steps ===
 1. If not done, create package using editor (Step 2)
-2. Copy content to /config/packages/${packageFile}
+2. Copy content to /${packagePath}
 3. Restart Home Assistant
 4. Create automation using editor (Step 4)
 5. Save card configuration`;
@@ -337,8 +471,7 @@ The system uses:
       justify-content: center;
       z-index: 9999;
       padding: 20px;
-    `;
-    
+    `;    
     const dialog = document.createElement('div');
     dialog.style.cssText = `
       background: var(--card-background-color, white);
@@ -348,23 +481,20 @@ The system uses:
       max-height: 80vh;
       overflow-y: auto;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    `;
-    
+    `;    
     const headerDiv = document.createElement('div');
     headerDiv.style.cssText = `
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 16px;
-    `;
-    
+    `;    
     const titleEl = document.createElement('h2');
     titleEl.textContent = title;
     titleEl.style.cssText = `
       margin: 0;
       color: var(--primary-text-color);
-    `;
-    
+    `;    
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕';
     closeBtn.style.cssText = `
@@ -377,8 +507,7 @@ The system uses:
       width: 32px;
       height: 32px;
     `;
-    closeBtn.onclick = () => overlay.remove();
-    
+    closeBtn.onclick = () => overlay.remove();    
     const textarea = document.createElement('textarea');
     textarea.value = configInfo;
     textarea.readOnly = true;
@@ -394,8 +523,7 @@ The system uses:
       color: var(--code-editor-color, #d4d4d4);
       resize: vertical;
       box-sizing: border-box;
-    `;
-    
+    `;    
     const copyBtn = document.createElement('button');
     copyBtn.textContent = this.card.language === 'it' ? '📋 Copia negli appunti' : '📋 Copy to clipboard';
     copyBtn.style.cssText = `
@@ -418,24 +546,20 @@ The system uses:
       } catch (e) {
         Logger.warn('HELP', 'Failed to copy to clipboard:', e);
       }
-    };
-    
+    };    
     headerDiv.appendChild(titleEl);
     headerDiv.appendChild(closeBtn);
     dialog.appendChild(headerDiv);
     dialog.appendChild(textarea);
     dialog.appendChild(copyBtn);
-    overlay.appendChild(dialog);
-    
+    overlay.appendChild(dialog);    
     // Close on overlay click
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
         overlay.remove();
       }
-    });
-    
-    document.body.appendChild(overlay);
-    
+    });    
+    document.body.appendChild(overlay);    
     // Select text for easy copying
     textarea.select();
   } // Missing closing brace added here
@@ -493,4 +617,4 @@ The system uses:
             this.card.requestUpdate();
         }
     }
-}
+}  

@@ -33,10 +33,10 @@ export class CardRenderer {
             (!this.card.lastEditAt || (Date.now() - this.card.lastEditAt) >= TIMEOUTS.editingGraceMs);
 
         Logger.log('UI_RENDER', `[CronoStar] Rendering Overlays Check:
-          - isWaitingForData: ${isWaitingForData} (initialLoadComplete: ${this.card.initialLoadComplete})
-          - showStartupOverlay: ${showStartupOverlay} (initialLoadComplete: ${this.card.initialLoadComplete}, cronostarReady: ${this.card.cronostarReady})
-          - showMissingEntitiesDetailsOverlay: ${showMissingEntitiesDetailsOverlay}
-          - showAwaitingAutomationOverlay: ${showAwaitingAutomationOverlay} (awaitingAutomation: ${this.card.awaitingAutomation})
+         - isWaitingForData: ${isWaitingForData} (initialLoadComplete: ${this.card.initialLoadComplete})
+         - showStartupOverlay: ${showStartupOverlay} (initialLoadComplete: ${this.card.initialLoadComplete}, cronostarReady: ${this.card.cronostarReady})
+         - showMissingEntitiesDetailsOverlay: ${showMissingEntitiesDetailsOverlay}
+         - showAwaitingAutomationOverlay: ${showAwaitingAutomationOverlay} (awaitingAutomation: ${this.card.awaitingAutomation})
         `);
 
         if (showStartupOverlay && !this.card._startupOverlayState) {
@@ -63,8 +63,9 @@ export class CardRenderer {
             <mwc-list-item @click=${() => this.card.eventHandlers.handleAlignLeft()}>${localize('menu.align_left', 'Align Left')}</mwc-list-item>
             <mwc-list-item @click=${() => this.card.eventHandlers.handleAlignRight()}>${localize('menu.align_right', 'Align Right')}</mwc-list-item>
             <mwc-list-item @click=${() => this.card.eventHandlers.handleApplyNow()}>${localize('menu.apply_now')}</mwc-list-item>
-            <mwc-list-item @click=${() => this.card.eventHandlers.handleAddProfile()}>${localize('menu.add_profile')}</mwc-list-item>
-            <mwc-list-item .disabled=${!this.card.selectedProfile} @click=${() => this.card.eventHandlers.handleDeleteProfile()}>${localize('menu.delete_profile')}</mwc-list-item>
+            <!-- Use card wrappers to avoid runtime "not a function" if bundler caches an old eventHandlers -->
+            <mwc-list-item @click=${() => this.card.handleAddProfile()}>${localize('menu.add_profile')}</mwc-list-item>
+            <mwc-list-item .disabled=${!this.card.selectedProfile} @click=${() => this.card.handleDeleteProfile()}>${localize('menu.delete_profile')}</mwc-list-item>
             <mwc-list-item @click=${() => this.card.eventHandlers.handleHelp()}>${localize('menu.help')}</mwc-list-item>
             <div class="menu-item-with-switch" @click=${(e) => e.stopPropagation()}>
               <span>${localize('menu.enable_logging')}</span>
@@ -98,7 +99,7 @@ export class CardRenderer {
                 ?raised=${enRaised}
                 style="${enRaised ? 'border: 2px solid var(--primary-color, #03a9f4);' : ''}"
                 @click=${() => this.card.eventHandlers.handleLanguageSelect('en')}
-              >EN</mwc-button>
+              >IT</mwc-button>
               <mwc-button
                 ?raised=${itRaised}
                 style="${itRaised ? 'border: 2px solid var(--primary-color, #03a9f4);' : ''}"
@@ -196,10 +197,9 @@ export class CardRenderer {
                 </mwc-button>
               </div>
             ` : ''}
-
           </div>
         </div>
       </ha-card>
     `;
     }
-}
+}  

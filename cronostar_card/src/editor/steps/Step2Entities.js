@@ -1,5 +1,6 @@
 import { html } from 'lit';
 import { getEffectivePrefix, isValidPrefix } from '../../utils/prefix_utils.js';
+import { buildHelpersFilename } from '../../utils/filename_utils.js';
 
 export class Step2Entities {
   constructor(editor) {
@@ -18,7 +19,8 @@ export class Step2Entities {
     const hasProfiles = !!this.editor._config.profiles_select_entity;
     const profilesVal = this.editor._config.profiles_select_entity || `input_select.${effectivePrefix}profiles`;
 
-    const helpersDisplayPath = `/config/packages/${effectivePrefix}package.yaml`;
+    const packageFilename = buildHelpersFilename(effectivePrefix);
+    const helpersDisplayPath = `config/packages/${packageFilename}`;
 
     return html`
       <div class="step-content">
@@ -32,7 +34,7 @@ export class Step2Entities {
               <strong>ℹ️ ${this.editor.i18n._t('ui.automatic_entities_title')}</strong>
               <p>${this.editor.i18n._t('ui.automatic_entities_desc', {
                 '{entity}': `input_number.${effectivePrefix}current`,
-                '{package}': `${effectivePrefix}package.yaml`
+                '{package}': packageFilename
               })}</p>
             </div>
 
@@ -91,7 +93,7 @@ export class Step2Entities {
                     ${this.editor._renderButton({ 
                       label: this.editor.i18n._t('actions.download_package_file'), 
                       click: () => this.editor.serviceHandlers.downloadFile(
-                        `${effectivePrefix}package.yaml`, 
+                        packageFilename, 
                         this.editor._helpersYaml, 
                         this.editor.i18n._t('messages.package_yaml_downloaded'), 
                         this.editor.i18n._t('messages.file_download_error')

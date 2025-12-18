@@ -1,8 +1,4 @@
-/**
- * Keyboard input handling for CronoStar Card
- * Supports Alt+Q (insert), Alt+W (delete)
- */
-
+/** * Keyboard input handling for CronoStar Card * Supports Alt+Q (insert), Alt+W (delete) */
 import { Logger, clamp, roundTo } from '../utils.js';
 
 export class KeyboardHandler {
@@ -67,8 +63,8 @@ export class KeyboardHandler {
   focusContainer() {
     try {
       this.containerEl?.focus();
-    } catch (e) { 
-      Logger.warn('KEYBOARD', 'Error focusing container:', e); 
+    } catch (e) {
+      Logger.warn('KEYBOARD', 'Error focusing container:', e);
     }
   }
 
@@ -76,22 +72,10 @@ export class KeyboardHandler {
     Logger.log('KEYBOARD', `[CronoStar] Keydown: ${e.key}, enabled: ${this.enabled}`);
 
     // Track modifier keys
-    if (e.key === "Control") {
-      this.ctrlDown = true;
-      return;
-    }
-    if (e.key === "Meta") {
-      this.metaDown = true;
-      return;
-    }
-    if (e.key === "Shift") {
-      this.shiftDown = true;
-      return;
-    }
-    if (e.key === "Alt") {
-      this.altDown = true;
-      return;
-    }
+    if (e.key === "Control") { this.ctrlDown = true; return; }
+    if (e.key === "Meta") { this.metaDown = true; return; }
+    if (e.key === "Shift") { this.shiftDown = true; return; }
+    if (e.key === "Alt") { this.altDown = true; return; }
 
     if (!this.enabled) return;
 
@@ -217,42 +201,42 @@ export class KeyboardHandler {
   handleInsertPoint() {
     const selMgr = this.card.selectionManager;
     const indices = selMgr.getActiveIndices();
-    
+
     if (indices.length === 0) {
       Logger.warn('KEYBOARD', 'No point selected for insertion');
       return;
     }
-    
+
     const anchorIndex = indices[0];
     const scheduleData = this.card.stateManager.scheduleData;
-    
+
     if (anchorIndex >= scheduleData.length - 1) {
       Logger.warn('KEYBOARD', 'Cannot insert after last point');
       return;
     }
-    
+
     // Calculate midpoint time
     const currentTime = scheduleData[anchorIndex].time;
     const nextTime = scheduleData[anchorIndex + 1].time;
-    
+
     const currentMin = this.card.stateManager.timeToMinutes(currentTime);
     const nextMin = this.card.stateManager.timeToMinutes(nextTime);
     const midMin = Math.floor((currentMin + nextMin) / 2);
     const midTime = this.card.stateManager.minutesToTime(midMin);
-    
+
     // Calculate midpoint value
     const midValue = (scheduleData[anchorIndex].value + scheduleData[anchorIndex + 1].value) / 2;
-    
+
     // Insert
     const insertedIndex = this.card.stateManager.insertPoint(midTime, midValue);
-    
+
     // Update chart
     this.card.chartManager.updateData(this.card.stateManager.getData());
-    
+
     // Select new point
     selMgr.selectIndices([insertedIndex], false);
     this.card.chartManager.updatePointStyling(insertedIndex, [insertedIndex]);
-    
+
     Logger.log('KEYBOARD', `Inserted point at ${midTime} = ${midValue}`);
   }
 
@@ -262,14 +246,14 @@ export class KeyboardHandler {
   handleDeletePoint() {
     const selMgr = this.card.selectionManager;
     const indices = selMgr.getActiveIndices();
-    
+
     if (indices.length === 0) {
       Logger.warn('KEYBOARD', 'No point selected for deletion');
       return;
     }
-    
+
     const index = indices[0];
-    
+
     if (this.card.stateManager.removePoint(index)) {
       this.card.chartManager.updateData(this.card.stateManager.getData());
       selMgr.clearSelection();
@@ -288,7 +272,7 @@ export class KeyboardHandler {
   handleArrowLeftRight(e, indices) {
     const direction = e.key === "ArrowLeft" ? 'left' : 'right';
     this.card.stateManager.alignSelectedPoints(direction);
-    this.card.chartManager?.showDragValueDisplay(indices, this.card.stateManager.getData());
+    this.card.chartManager?.showDragValueDisplay(indices, this.card.chartManager?.chart?.data?.datasets?.[0]?.data || []);
   }
 
   handleArrowUpDown(e, indices) {
@@ -308,26 +292,34 @@ export class KeyboardHandler {
     const upperClamp = this.card.config.allow_max_value && !this.card.config.is_switch_preset
       ? this.card.config.max_value + this.card.config.step_value
       : this.card.config.max_value;
-    
+
     const dataset = chartMgr.chart.data.datasets[0];
 
     indices.forEach(i => {
-      let val = dataset.data[i] + delta;
+      const current = dataset.data[i];
+      const currentVal = (typeof current === 'object' && current !== null) ? Number(current.y) : Number(current);
+      let val = currentVal + delta;
       val = clamp(val, this.card.config.min_value, upperClamp);
       val = roundTo(val, 1);
-      dataset.data[i] = val;
+
+      if (typeof dataset.data[i] === 'object' && dataset.data[i] !== null) {
+        dataset.data[i].y = val;
+      } else {
+        dataset.data[i] = val;
+      }
+
       stateMgr.updatePoint(i, val);
     });
 
     if (this.card.selectedProfile) {
-        this.card.profileManager.saveProfile(this.card.selectedProfile)
-            .catch(e => Logger.error('KEYBOARD', 'Save failed:', e));
+      this.card.profileManager.saveProfile(this.card.selectedProfile)
+        .catch(e => Logger.error('KEYBOARD', 'Save failed:', e));
     } else {
-        this.card.hasUnsavedChanges = true;
+      this.card.hasUnsavedChanges = true;
     }
-    
+
     chartMgr.updatePointStyling(selMgr.selectedPoint, selMgr.selectedPoints);
-    chartMgr.update();
+    chartMgr.update('none');
     chartMgr.showDragValueDisplay(indices, dataset.data);
   }
 
@@ -364,4 +356,4 @@ export class KeyboardHandler {
 
     Logger.log('KEYBOARD', '[CronoStar] Keyboard listeners detached');
   }
-}
+}  

@@ -2,6 +2,7 @@
 import { LitElement } from 'lit';
 import { cardStyles } from '../styles.js';
 import { VERSION } from '../config.js';
+
 import { StateManager } from '../managers/state_manager.js';
 import { ProfileManager } from '../managers/profile_manager.js';
 import { SelectionManager } from '../managers/selection_manager.js';
@@ -20,6 +21,7 @@ import { CardSync } from './CardSync.js';
 import '../editor/CronoStarEditor.js';
 
 export class CronoStarCard extends LitElement {
+
   static get properties() {
     return {
       hass: { type: Object },
@@ -38,6 +40,7 @@ export class CronoStarCard extends LitElement {
       awaitingAutomation: { type: Boolean },
       outOfSyncDetails: { type: String },
       isDragging: { type: Boolean },
+      selectedPoints: { type: Array }, // Explicitly track selected points here too
     };
   }
 
@@ -64,11 +67,9 @@ export class CronoStarCard extends LitElement {
 
   constructor() {
     super();
-
     this.config = null;
     this.hourBase = 0;
     this.hourBaseDetermined = false;
-
     this.isPaused = false;
     this.selectedProfile = '';
     this.profileOptions = [];
@@ -85,47 +86,47 @@ export class CronoStarCard extends LitElement {
     this.isDragging = false;
     this.awaitingAutomation = false;
     this.outOfSyncDetails = '';
-
     this._initialized = false;
     this._languageInitialized = false;
-    this._isConnected = false;
+    this._cardConnected = false;
     this._unsubProfilesLoaded = null;
     this._readyCheckTimer = null;
     this._syncCheckTimer = null;
-
     this._lastReadyFlagNotMetLogAt = 0;
     this._lastMissingCount = -1;
     this._readyCheckIntervalMs = 5000;
     this._readyCheckTicks = 0;
     this._readyCheckMaxMs = 60000;
-
     this.overlaySuppressionUntil = 0;
     this.lastEditAt = 0;
     this.mismatchSince = 0;
     this._startupOverlayState = false;
-
-    this.localizationManager = new LocalizationManager(this);
-    this.stateManager = new StateManager(this);
-    this.profileManager = new ProfileManager(this);
-    this.selectionManager = new SelectionManager(this);
-    this.chartManager = new ChartManager(this);
-    this.keyboardHandler = new KeyboardHandler(this);
-    this.pointerHandler = new PointerHandler(this);
+    this.selectedPoints = []; // Initialize array
 
     try {
-      this.cardLifecycle = new CardLifecycle(this);
-      Logger.log('INIT', `[CronoStar] CardLifecycle initialized successfully (v${VERSION})`);
+        // Initialize managers in dependency order
+        this.localizationManager = new LocalizationManager(this);
+        this.stateManager = new StateManager(this);
+        this.profileManager = new ProfileManager(this);        
+        // Critical: SelectionManager must be ready before ChartManager
+        this.selectionManager = new SelectionManager(this);        
+        this.chartManager = new ChartManager(this);
+        this.keyboardHandler = new KeyboardHandler(this);
+        this.pointerHandler = new PointerHandler(this);
+
+        this.cardLifecycle = new CardLifecycle(this);
+        Logger.log('INIT', `[CronoStar] CardLifecycle initialized successfully (v${VERSION})`);        
+        this.cardRenderer = new CardRenderer(this);
+        this.eventHandlers = new CardEventHandlers(this);
+        this.cardSync = new CardSync(this);
+
+        Logger.setEnabled(true);
+        Logger.log('INIT', `[CronoStar] Card constructor completed (v${VERSION})`);
     } catch (e) {
-      Logger.error('INIT', '[CronoStar] Error initializing CardLifecycle:', e);
-      this.cardLifecycle = null;
+        Logger.error('INIT', '[CronoStar] Error initializing Managers:', e);
+        // Fallback to prevent complete crash if one manager fails
+        if (!this.cardLifecycle) this.cardLifecycle = new CardLifecycle(this); 
     }
-
-    this.cardRenderer = new CardRenderer(this);
-    this.eventHandlers = new CardEventHandlers(this);
-    this.cardSync = new CardSync(this);
-
-    Logger.setEnabled(true);
-    Logger.log('INIT', `[CronoStar] Card constructor completed (v${VERSION})`);
   }
 
   setConfig(config) {
@@ -140,7 +141,7 @@ export class CronoStarCard extends LitElement {
       this.config = config;
       if (this.eventHandlers) {
         this.eventHandlers.showNotification(
-          this.localizationManager.localize(this.language, 'error.config_error') + `: ${e.message}`,
+          this.localizationManager ? this.localizationManager.localize(this.language, 'error.config_error') : 'Config Error' + `: ${e.message}`,
           'error',
         );
       }
@@ -186,10 +187,23 @@ export class CronoStarCard extends LitElement {
   }
 
   render() {
-    return this.cardRenderer.render();
+    return this.cardRenderer ? this.cardRenderer.render() : null;
   }
 
   isEditorContext() {
     return this.cardLifecycle?.isEditorContext() ?? false;
   }
-}
+
+  // --- NEW: wrappers to avoid "handleAddProfile is not a function" if menu calls on card ---
+  handleAddProfile() {
+    try {
+      return this.eventHandlers?.handleAddProfile?.();
+    } catch {}
+  }
+
+  handleDeleteProfile() {
+    try {
+      return this.eventHandlers?.handleDeleteProfile?.();
+    } catch {}
+  }
+}  

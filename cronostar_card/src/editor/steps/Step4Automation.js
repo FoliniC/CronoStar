@@ -29,14 +29,7 @@ export class Step4Automation {
           <p>${this.editor.i18n._t('auto.to_entity')} <code class="inline">${this.editor._config.apply_entity}</code></p>
         </div>
 
-        <div class="action-buttons">
-          ${this.editor._renderButton({ label: this.editor.i18n._t('actions.copy_yaml'), click: () => this._copyAutomation() })}
-          ${this.editor._renderButton({ label: this.editor.i18n._t('actions.download_file'), click: () => this._downloadAutomation() })}
-          ${this.editor._renderButton({
-            label: `${this.editor._lang === 'it' ? 'Crea File YAML (su HA)' : 'Create YAML File (on HA)'} (${automationDisplayPath})`,
-            icon: '✏️',
-            click: () => this._createAutomationYamlFile()
-          })}
+        <div class="action-buttons" style="flex-direction: column; align-items: flex-start;">
           ${this.editor._renderButton({
             label: this.editor._creatingAutomation
               ? (this.editor._lang === 'it' ? '⏳ Creazione...' : '⏳ Creating...')
@@ -46,6 +39,18 @@ export class Step4Automation {
             disabled: this.editor._creatingAutomation,
             click: () => this._createAutomation()
           })}
+
+          <div class="secondary-action-buttons">
+            ${this.editor._renderButton({ label: this.editor.i18n._t('actions.copy_yaml'), outlined: true, raised: false, click: () => this._copyAutomation() })}
+            ${this.editor._renderButton({ label: this.editor.i18n._t('actions.download_file'), outlined: true, raised: false, click: () => this._downloadAutomation() })}
+            ${this.editor._renderButton({
+              label: `${this.editor._lang === 'it' ? 'Crea File YAML (su HA)' : 'Create YAML File (on HA)'} (${automationDisplayPath})`,
+              icon: '✏️',
+              outlined: true,
+              raised: false,
+              click: () => this._createAutomationYamlFile()
+            })}
+          </div>
         </div>
 
         <div class="field-group" style="margin-top: 20px;">

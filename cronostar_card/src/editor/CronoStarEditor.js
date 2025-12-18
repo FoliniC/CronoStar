@@ -2,6 +2,7 @@
 import { LitElement, html, css } from 'lit';
 import { CARD_CONFIG_PRESETS, DEFAULT_CONFIG } from '../config.js';
 import { normalizePrefix, getEffectivePrefix, isValidPrefix } from '../utils/prefix_utils.js';
+import { buildHelpersFilename } from '../utils/filename_utils.js';
 import { EditorI18n } from './EditorI18n.js';
 import { EditorWizard } from './EditorWizard.js';
 import { Step1Preset } from './steps/Step1Preset.js';
@@ -38,7 +39,7 @@ export class CronoStarEditor extends LitElement {
       _calculatedAutomationFilename: { type: String },
       _creatingAutomation: { type: Boolean },
       _deepCheckInProgress: { type: Boolean },
-      _showStepError: { type: Boolean },
+      _showStepError: { type: { type: Boolean } },
     };
   }
 
@@ -89,6 +90,11 @@ export class CronoStarEditor extends LitElement {
       .action-buttons button {
         margin: 0 !important;
       }
+
+      /* Secondary buttons in Step4 */
+      .secondary-action-buttons { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+      .secondary-action-buttons mwc-button { font-size: 0.85rem; }
+
       .wizard-step {
         flex: 1;
         text-align: center;
@@ -294,6 +300,10 @@ export class CronoStarEditor extends LitElement {
     this._deepCheckInProgress = false;
     this._showStepError = false;
 
+    // NEW: persist lovelace config to backend json (debounced)
+    this._persistTimer = null;
+    this._persistInFlight = false;
+
     this.i18n = new EditorI18n(this);
     this.wizard = new EditorWizard(this);
     this.step1 = new Step1Preset(this);
@@ -316,15 +326,22 @@ export class CronoStarEditor extends LitElement {
   // richiesto da HA
   setConfig(config) {
     this._config = { ...DEFAULT_CONFIG, ...config };
+    this._syncConfigAliases();
     this._selectedPreset = this._config.preset || 'thermostat';
 
-    if (!this._config.entity_prefix && CARD_CONFIG_PRESETS[this._selectedPreset]?.entity_prefix) {
+    if (
+      !this._config.entity_prefix &&
+      !this._config.entityprefix &&
+      CARD_CONFIG_PRESETS[this._selectedPreset]?.entity_prefix
+    ) {
       this._config.entity_prefix = CARD_CONFIG_PRESETS[this._selectedPreset].entity_prefix;
     }
 
     this._ensurePresetDefaults();
+    this._syncConfigAliases();
     this._updateAutomationYaml();
     this._updateHelpersYaml();
+    this._persistCardConfigDebounced();
     this.requestUpdate();
   }
 
@@ -360,6 +377,10 @@ export class CronoStarEditor extends LitElement {
       }
       this._unsubDeep = null;
     }
+    if (this._persistTimer) {
+      clearTimeout(this._persistTimer);
+      this._persistTimer = null;
+    }
   }
 
   _subscribeDeepReports() {
@@ -387,16 +408,29 @@ export class CronoStarEditor extends LitElement {
   }
 
   _canGoNext() {
+    this._syncConfigAliases();
+
     if (this._step === 1) {
-      const prefix = this._config.global_prefix || getEffectivePrefix(this._config);
+      const prefix = this._config.global_prefix || this._config.globalprefix || getEffectivePrefix(this._config);
       return isValidPrefix(prefix);
     }
     if (this._step === 2) {
       const prefix = getEffectivePrefix(this._config);
-      const applyEntity = this._config.apply_entity;
+      const applyEntity = this._config.apply_entity || this._config.applyentity;
       return isValidPrefix(prefix) && !!applyEntity;
     }
     return true;
+  }
+
+  scrollToTop() {
+    try {
+      // Works both inside dialogs and normal layout
+      const host = this.renderRoot?.querySelector('.editor-container');
+      if (host) host.scrollTop = 0;
+      this.scrollIntoView({ block: 'start' });
+    } catch (e) {
+      // no-op
+    }
   }
 
   _handleNextClick() {
@@ -406,6 +440,14 @@ export class CronoStarEditor extends LitElement {
     } else {
       this._showStepError = true;
       this.requestUpdate();
+    }
+  }
+
+  _handleFinishClick() {
+    // Persist immediately when finishing (best effort)
+    this._persistCardConfigNow();
+    if (this.wizard && typeof this.wizard._finish === 'function') {
+      this.wizard._finish();
     }
   }
 
@@ -481,16 +523,21 @@ export class CronoStarEditor extends LitElement {
                   ${this.i18n._t('messages.fix_step_to_proceed')}
                 </div>`
             : ''}
-          ${this._step < 5
+
+          ${[1, 2, 3, 4].includes(this._step)
             ? html`<mwc-button
                 class="mwc-3d"
                 raised
                 @click=${() => this._handleNextClick()}
                 >${this.i18n._t('actions.next')}</mwc-button
               >`
-            : html`<mwc-button raised @click=${() => this.wizard._finish()}
+            : ''}
+
+          ${this._step === 5
+            ? html`<mwc-button class="mwc-3d" raised @click=${() => this._handleFinishClick()}
                 >${this.i18n._t('actions.save')}</mwc-button
-              >`}
+              >`
+            : ''}
         </div>
       </div>
     `;
@@ -600,6 +647,7 @@ export class CronoStarEditor extends LitElement {
     this._config = { ...this._config, [key]: value };
     this._showStepError = false;
     this._ensurePresetDefaults();
+    this._syncConfigAliases();
     this._updateAutomationYaml();
     this._updateHelpersYaml();
     this._dispatchConfigChanged();
@@ -621,7 +669,9 @@ export class CronoStarEditor extends LitElement {
   }
 
   _updateAutomationYaml() {
-    if (!this._config.apply_entity) {
+    const applyEntity = this._config.apply_entity || this._config.applyentity;
+
+    if (!applyEntity) {
       this._automationYaml =
         this._lang === 'it'
           ? "# Configura prima l'entità di destinazione"
@@ -639,6 +689,8 @@ export class CronoStarEditor extends LitElement {
     try {
       const inputNumberSource = this._deepReport?.input_number?.source || 'unknown';
       this._helpersYaml = this.yamlGenerators.buildInputNumbersYaml(this._config, inputNumberSource);
+      const eff = this._getEffectivePrefix();
+      this._calculatedHelpersFilename = buildHelpersFilename(eff);
     } catch {
       this._helpersYaml =
         this._lang === 'it'
@@ -648,8 +700,8 @@ export class CronoStarEditor extends LitElement {
   }
 
   _getEffectivePrefix() {
-    const gp = (this._config.global_prefix || '').trim();
-    const ep = (this._config.entity_prefix || '').trim();
+    const gp = (this._config.global_prefix || this._config.globalprefix || '').trim();
+    const ep = (this._config.entity_prefix || this._config.entityprefix || '').trim();
     return gp || ep || 'cronostar_';
   }
 
@@ -663,14 +715,122 @@ export class CronoStarEditor extends LitElement {
     }
   }
 
+  _syncConfigAliases() {
+    // Keep editor-style keys (with underscores) AND card/backend-style keys (no underscores)
+    // so data always passes correctly to the card and backend services.
+    const pairs = [
+      ['entity_prefix', 'entityprefix'],
+      ['global_prefix', 'globalprefix'],
+      ['apply_entity', 'applyentity'],
+      ['pause_entity', 'pauseentity'],
+      ['profiles_select_entity', 'profilesselectentity'],
+      ['min_value', 'minvalue'],
+      ['max_value', 'maxvalue'],
+      ['step_value', 'stepvalue'],
+      ['unit_of_measurement', 'unitofmeasurement'],
+      ['y_axis_label', 'yaxislabel'],
+      ['allow_max_value', 'allowmaxvalue'],
+      ['interval_minutes', 'intervalminutes'],
+      ['logging_enabled', 'loggingenabled'],
+      ['missing_yaml_style', 'missingyamlstyle'],
+      ['is_switch_preset', 'isswitchpreset'],
+    ];
+
+    for (const [a, b] of pairs) {
+      const av = this._config?.[a];
+      const bv = this._config?.[b];
+
+      // If one exists, mirror it to the other
+      if ((av !== undefined && av !== null && av !== '') && (bv === undefined || bv === null || bv === '')) {
+        this._config[b] = av;
+      } else if ((bv !== undefined && bv !== null && bv !== '') && (av === undefined || av === null || av === '')) {
+        this._config[a] = bv;
+      }
+    }
+  }
+
+  _getConfigForCard() {
+    // Keep output clean: prefer no-underscore keys, drop underscore aliases.
+    this._syncConfigAliases();
+
+    const out = { ...this._config };
+    const underscoredKeys = [
+      'entity_prefix',
+      'global_prefix',
+      'apply_entity',
+      'pause_entity',
+      'profiles_select_entity',
+      'min_value',
+      'max_value',
+      'step_value',
+      'unit_of_measurement',
+      'y_axis_label',
+      'allow_max_value',
+      'interval_minutes',
+      'logging_enabled',
+      'missing_yaml_style',
+      'is_switch_preset',
+    ];
+
+    underscoredKeys.forEach((k) => {
+      if (k in out) delete out[k];
+    });
+
+    return out;
+  }
+
+  _persistCardConfigDebounced() {
+    if (!this.hass) return;
+
+    if (this._persistTimer) clearTimeout(this._persistTimer);
+    this._persistTimer = setTimeout(() => {
+      this._persistTimer = null;
+      this._persistCardConfigNow();
+    }, 600);
+  }
+
+  async _persistCardConfigNow() {
+      if (!this.hass) return;
+      if (this._persistInFlight) return;
+  
+      const cfg = this._getConfigForCard();
+  
+      // Require at least preset + a valid prefix before saving
+      const prefix = normalizePrefix(cfg.global_prefix || cfg.entity_prefix || '');
+      if (!cfg?.preset || !isValidPrefix(prefix)) return;
+  
+      this._persistInFlight = true;
+      try {
+        // Store ALL required info on backend in the per-prefix container json
+        await this.hass.callService('cronostar', 'save_card_config', {
+          preset_type: cfg.preset,
+          entity_prefix: cfg.entity_prefix,
+          global_prefix: cfg.global_prefix,
+          card_config: cfg,
+        });
+        
+        console.log('[CronoStarEditor] Card config saved to backend');
+      } catch (e) {
+        // no toast spam: keep silent
+        console.warn('[CronoStarEditor] save_card_config failed:', e);
+      } finally {
+        this._persistInFlight = false;
+      }
+    }
+  
   _dispatchConfigChanged() {
+    const cfg = this._getConfigForCard();
+
     this.dispatchEvent(
       new CustomEvent('config-changed', {
-        detail: { config: this._config },
+        detail: { config: cfg },
         bubbles: true,
         composed: true,
       }),
     );
+
+    // NEW: persist to backend json (debounced)
+    this._persistCardConfigDebounced();
   }
 
   // --- servizi delegati ---
