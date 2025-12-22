@@ -57,7 +57,7 @@ Easily add time-based schedules to any entity. The integration can automatically
 5. Click "Download"
 6. **Restart Home Assistant**
 7. Go to Settings → Devices & Services → Add Integration
-8. Search for "CronoStar" and configure
+8. Search for "CronoStar" and configure. The system will automatically check for `packages` and `automations` folders.
 
 ### Manual Installation
 

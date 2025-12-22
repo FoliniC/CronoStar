@@ -1,110 +1,56 @@
 /**
  * Service call handlers for CronoStar Editor
  */
-
-import { 
-  getEffectivePrefix,
-  getAliasWithPrefix
-} from '../../utils/prefix_utils.js';
-import {
-  buildHelpersFilename,
-  buildAutomationFilename
-} from '../../utils/filename_utils.js';
-import {
-  escapeHtml
-} from '../../utils/editor_utils.js';
+import { getEffectivePrefix, getAliasWithPrefix } from '../../utils/prefix_utils.js';
+import { buildHelpersFilename, buildAutomationFilename } from '../../utils/filename_utils.js';
+import { escapeHtml } from '../../utils/editor_utils.js';
 import { buildAutomationYaml, buildInputNumbersYaml } from '../yaml/yaml_generators.js';
 import { I18N } from '../EditorI18n.js';
 
-/**
- * Simple localize function for service handlers
- */
 function localize(lang, key, search, replace) {
   const parts = key.split('.');
   let obj = I18N[lang] || I18N.en;
   for (const p of parts) obj = obj?.[p];
   let value = typeof obj === 'string' ? obj : key;
-  if (search && typeof search === 'object') {
-    Object.keys(search).forEach((needle) => {
-      value = value.replace(needle, search[needle]);
-    });
-  }
-  if (replace && typeof replace === 'object') {
-    Object.keys(replace).forEach((needle) => {
-      value = value.replace(needle, replace[needle]);
-    });
-  }
+  if (search && typeof search === 'object') Object.keys(search).forEach((needle) => { value = value.replace(needle, search[needle]); });
+  if (replace && typeof replace === 'object') Object.keys(replace).forEach((needle) => { value = value.replace(needle, replace[needle]); });
   return value;
 }
 
-/**
- * Handles copying YAML to clipboard
- */
 export async function copyToClipboard(text, successMessage, errorMessage) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return { success: true, message: successMessage };
-  } catch (e) {
-    console.warn('Clipboard write failed:', e);
-    return { success: false, message: errorMessage };
-  }
+  try { await navigator.clipboard.writeText(text); return { success: true, message: successMessage }; }
+  catch (e) { console.warn('Clipboard write failed:', e); return { success: false, message: errorMessage }; }
 }
 
-/**
- * Handles downloading a file
- */
 export function downloadFile(filename, content, successMessage, errorMessage) {
   try {
     const blob = new Blob([content], { type: 'text/yaml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
+    a.href = url; a.download = filename; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     return { success: true, message: successMessage };
-  } catch (e) {
-    console.error('File download failed:', e);
-    return { success: false, message: errorMessage };
-  }
+  } catch (e) { console.error('File download failed:', e); return { success: false, message: errorMessage }; }
+}
+
+export async function createYamlFile(hass, filePath, content, append = false) {
+  if (!hass?.services?.cronostar?.create_yaml_file) throw new Error('Service cronostar.create_yaml_file not available');
+  await hass.callService('cronostar', 'create_yaml_file', { file_path: filePath, content, append });
 }
 
 /**
- * Creates a YAML file on the Home Assistant server
- */
-export async function createYamlFile(hass, filePath, content) {
-  if (!hass?.services?.cronostar?.create_yaml_file) {
-    throw new Error('Service cronostar.create_yaml_file not available');
-  }
-  
-  await hass.callService("cronostar", "create_yaml_file", {
-    file_path: filePath,
-    content: content
-  });
-}
-
-/**
- * Handles creating helpers YAML file
+ * Helpers YAML file creation
  */
 export async function handleCreateHelpersYaml(hass, config, deepReport, language) {
+  // Force deep check to determine include paths if possible
+  try { await runDeepChecks(hass, config, language); } catch { }
   const effectivePrefix = getEffectivePrefix(config);
   const filename = buildHelpersFilename(effectivePrefix);
-  const source = deepReport?.input_number?.source || 'unknown';
-  const inputNumberDir = deepReport?.input_number?.full_path;
-  
-  if (!inputNumberDir || source === 'none') {
-    throw new Error(localize(language, 'ui.run_deep_checks_first'));
-  }
-  
-  const content = buildInputNumbersYaml(config, source);
-  const fullPath = `${inputNumberDir}/${filename}`;
-  
-  await createYamlFile(hass, fullPath, content);
-  
-  return {
-    success: true,
-    message: `✓ File created: ${fullPath}`
-  };
+  // Always generate a proper package file with headers and place it under 'packages'
+  const content = buildInputNumbersYaml(config, true);
+  const fullPath = `packages/${filename}`;
+  await createYamlFile(hass, fullPath, content, false);
+  return { success: true, message: `✓ File created: ${fullPath}` };
 }
 
 function minutesToTime(minutes) {
@@ -114,198 +60,138 @@ function minutesToTime(minutes) {
 }
 
 /**
- * Handles creating automation YAML file
+ * Automation YAML file creation
  */
 export async function handleCreateAutomationYaml(hass, config, deepReport, language) {
+  // Force deep check to determine include paths if possible
+  try { await runDeepChecks(hass, config, language); } catch { }
   const effectivePrefix = getEffectivePrefix(config);
   const filename = buildAutomationFilename(effectivePrefix);
   const autoSource = deepReport?.automation?.source || 'unknown';
   const autoDir = deepReport?.automation?.full_path;
-  
-  if (!autoSource || !autoDir || autoSource === 'none') {
-    throw new Error(localize(language, 'ui.automations_path_not_determined'));
-  }
-  
+  if (!autoSource || !autoDir || autoSource === 'none') throw new Error(localize(language, 'ui.automations_path_not_determined'));
   const style = autoSource === 'inline' ? 'inline' : 'list';
   const content = buildAutomationYaml(config, style);
-  
   if (autoSource === 'include_dir_list') {
     const fullPath = `${autoDir}/${filename}`;
     await createYamlFile(hass, fullPath, content);
-    return {
-      success: true,
-      message: `✓ File created: ${fullPath}`
-    };
+    return { success: true, message: `✓ File created: ${fullPath}` };
   } else if (autoSource === 'include_file') {
     await createYamlFile(hass, autoDir, `\n# ==== CronoStar Automation ====`, true);
-    return {
-      success: true,
-      message: `✓ Appended to: ${autoDir}`
-    };
+    return { success: true, message: `✓ Appended to: ${autoDir}` };
   } else if (autoSource === 'inline') {
     throw new Error(localize(language, 'ui.inline_automation_use_ui'));
   }
-  
   throw new Error('Unknown automation source');
 }
 
 /**
- * Handles creating and reloading automation
+ * Create and reload automation
  */
 export async function handleCreateAndReloadAutomation(hass, config, deepReport, language) {
-  // Check if backend service is available
+  // Ensure deep checks run before attempting creation
+  try { await runDeepChecks(hass, config, language); } catch { }
   const hasCreateFile = !!hass?.services?.cronostar?.create_yaml_file;
   const deepOk = !!deepReport?.automation?.source;
-  
   if (hasCreateFile && deepOk) {
-    // Use backend path
     await handleCreateAutomationYaml(hass, config, deepReport, language);
-    
-    // Reload automations
-    try {
-      await hass.callService('automation', 'reload', {});
-    } catch (e) {
-      console.warn('automation.reload failed:', e);
-    }
-    
-    return {
-      success: true,
-      message: localize(language, 'ui.automation_created_successfully')
-    };
+    try { await hass.callService('automation', 'reload', {}); } catch (e) { console.warn('automation.reload failed:', e); }
+    return { success: true, message: localize(language, 'ui.automation_created_successfully') };
   }
-  
-  // Fallback: open in new tab with YAML
   const style = deepReport?.automation?.source === 'inline' ? 'inline' : 'list';
   const yaml = buildAutomationYaml(config, style);
-  
-  try {
-    await navigator.clipboard.writeText(yaml);
-  } catch (e) {
-    console.warn('Clipboard write failed:', e);
-  }
-  
-  // Open YAML preview window
-  const w = window.open('', '_blank');
-  if (w) {
-    const doc = w.document;
-    doc.open();
-    doc.write(`<!doctype html>
-<html lang="${language}">
-<head>
-<meta charset="utf-8">
-<title>CronoStar Automation YAML</title>
-<style>
-  body{font-family:system-ui;padding:16px;}
-  pre{background:#f5f5f5;border:1px solid #ddd;padding:12px;white-space:pre-wrap;}
-  button{padding:6px 10px;margin-right:8px;}
-</style>
-<body>
-  <h2>${localize(language, 'ui.cronostar_automation_yaml')}</h2>
-  <button onclick="navigator.clipboard.writeText(document.getElementById('yaml').innerText)">
-    ${localize(language, 'ui.copy')}
-  </button>
-  <pre id="yaml">${escapeHtml(yaml)}</pre>
-</body>
-</html>`);
-    doc.close();
-  }
-  
-  // Navigate to automations UI
-  navigateToAutomationsUI();
-  
-  return {
-    success: true,
-    message: localize(language, 'ui.yaml_copied_go_to_automations')
-  };
+  // Do not open a new window; just copy YAML to clipboard and inform the user
+  try { await navigator.clipboard.writeText(yaml); } catch (e) { console.warn('Clipboard write failed:', e); }
+  return { success: true, message: localize(language, 'ui.yaml_copied_go_to_automations') };
 }
 
 /**
- * Navigates to the automations UI
- */
-function navigateToAutomationsUI() {
-  const path = '/config/automation/dashboard';
-  
-  try {
-    // Try dispatching navigation event
-    const event = new CustomEvent('hass-navigate', {
-      detail: { path },
-      bubbles: true,
-      composed: true
-    });
-    document.dispatchEvent(event);
-    
-    // Fallback to window.open after a delay
-    setTimeout(() => {
-      if (!location.pathname.includes('/config/automation')) {
-        window.open(path, '_blank');
-      }
-    }, 300);
-  } catch {
-    window.open(path, '_blank');
-  }
-}
-
-/**
- * Initializes the data JSON file by saving a default profile
- */
-export async function handleInitializeData(hass, config, language) {
-  const prefix = getEffectivePrefix(config);
-  const minVal = config.min_value ?? 0;
-  
-  // Create a flat schedule array based on interval
-  const interval = config.interval_minutes || 60;
-  const numPoints = Math.floor(1440 / interval);
-  const defaultSchedule = Array(numPoints).fill(minVal).map((v, i) => ({
-    index: i,
-    time: minutesToTime(i * interval),
-    value: v
-  }));
-  
-  const preset = config.preset || 'thermostat';
-  const profileName = "Comfort"; // Default initial profile
-  
-  if (!hass) throw new Error("Home Assistant not connected");
-  
-  try {
-    await hass.callService("cronostar", "save_profile", {
-      profile_name: profileName,
-      preset_type: preset,
-      schedule: defaultSchedule,
-      global_prefix: prefix
-    });
-    
-    return {
-      success: true,
-      message: localize(language, 'ui.checks_triggered').replace('Checks', 'Data Init') // Reusing string or simplistic success msg
-    };
-  } catch (e) {
-    throw new Error("Failed to initialize data: " + e.message);
-  }
-}
-
-/**
- * Runs deep checks service
+ * Deep checks service call (exported for editor)
  */
 export async function runDeepChecks(hass, config, language) {
   if (!hass?.services?.cronostar?.check_setup) {
     throw new Error(localize(language, 'ui.service_check_setup_not_available'));
   }
-  
   const effectivePrefix = getEffectivePrefix(config);
   const alias = getAliasWithPrefix(effectivePrefix, language);
-  const interval = config.interval_minutes || 60;
-  const expected_count = Math.floor(1440 / interval);
-  
   await hass.callService('cronostar', 'check_setup', {
     prefix: effectivePrefix,
     hour_base: config.hour_base === '1' || config.hour_base === 1 ? 1 : 0,
     alias: alias,
-    expected_count: expected_count
   });
-  
-  return {
-    success: true,
-    message: localize(language, 'ui.checks_triggered')
-  };
+  return { success: true, message: localize(language, 'ui.checks_triggered') };
 }
 
+/**
+ * Initializes the data JSON file with a default profile
+ */
+export async function handleInitializeData(hass, config, language) {
+  const prefix = getEffectivePrefix(config);
+  const minVal = config.min_value ?? 0;
+  // Sparse mode: initialize with a single point at 00:00
+  const defaultSchedule = [{ time: '00:00', value: minVal }];
+  const preset = config.preset || 'thermostat';
+  const profileName = 'Comfort';
+  if (!hass) throw new Error('Home Assistant not connected');
+  // Persist wizard config into the profile container meta (single source of truth)
+  const safeMeta = (() => {
+    const src = (config && typeof config === 'object') ? config : {};
+    const { entity_prefix, ...rest } = src;
+    if (!rest.global_prefix && prefix) rest.global_prefix = prefix;
+    return rest;
+  })();
+  await hass.callService('cronostar', 'save_profile', {
+    profile_name: profileName,
+    preset_type: preset,
+    schedule: defaultSchedule,
+    global_prefix: prefix,
+    meta: safeMeta,
+  });
+  return { success: true, message: '✓ Data Init OK' };
+}
+
+/**
+ * One-click save: JSON profile + YAML package + YAML automation (+reload)
+ */
+export async function handleSaveAll(hass, config, deepReport, language) {
+  const messages = [];
+  // Force deep check at the start to try to discover paths
+  try {
+    const checks = await runDeepChecks(hass, config, language);
+    messages.push(checks.message);
+  } catch (e) {
+    messages.push(`✗ Deep Checks: ${e.message}`);
+  }
+  const effectivePrefix = getEffectivePrefix(config);
+  const packageFilename = buildHelpersFilename(effectivePrefix);
+  const automationFilename = buildAutomationFilename(effectivePrefix);
+
+  // IMPORTANT: Do not overwrite existing schedule during Save All.
+  // Data initialization is now opt-in via config.init_on_save === true.
+  try {
+    if (config && config.init_on_save === true) {
+      const init = await handleInitializeData(hass, config, language);
+      messages.push(init.message);
+    } else {
+      messages.push('• Skipped data initialization to preserve existing schedule');
+    }
+  } catch (e) {
+    messages.push(`✗ Data Init: ${e.message}`);
+  }
+
+  try {
+    const pkg = await handleCreateHelpersYaml(hass, config, deepReport, language);
+    messages.push(pkg.message);
+  } catch (e) {
+    messages.push(`✗ Package (${packageFilename}): ${e.message}`);
+  }
+
+  try {
+    const auto = await handleCreateAndReloadAutomation(hass, config, deepReport, language);
+    messages.push(auto.message);
+  } catch (e) {
+    messages.push(`✗ Automation (${automationFilename}): ${e.message}`);
+  }
+
+  return { success: true, message: messages.join('\n') };
+}

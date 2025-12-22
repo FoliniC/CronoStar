@@ -1,8 +1,8 @@
 // editor/CronoStarEditor.js
 import { LitElement, html, css } from 'lit';
-import { CARD_CONFIG_PRESETS, DEFAULT_CONFIG } from '../config.js';
+import { CARD_CONFIG_PRESETS, DEFAULT_CONFIG, COLORS, validateConfig } from '../config.js';
 import { normalizePrefix, getEffectivePrefix, isValidPrefix } from '../utils/prefix_utils.js';
-import { buildHelpersFilename } from '../utils/filename_utils.js';
+import { buildHelpersFilename, buildAutomationFilename } from '../utils/filename_utils.js';
 import { EditorI18n } from './EditorI18n.js';
 import { EditorWizard } from './EditorWizard.js';
 import { Step1Preset } from './steps/Step1Preset.js';
@@ -18,6 +18,7 @@ import {
   handleCreateAndReloadAutomation,
   runDeepChecks,
   handleInitializeData,
+  handleSaveAll
 } from './services/service_handlers.js';
 import { buildAutomationYaml, buildInputNumbersYaml } from './yaml/yaml_generators.js';
 
@@ -35,282 +36,458 @@ export class CronoStarEditor extends LitElement {
       _language: { type: String },
       _quickCheck: { type: Object },
       _deepReport: { type: Object },
+      _deepCheckRanForStep1: { type: Boolean },
+      _deepCheckSubscribed: { type: Boolean },
       _calculatedHelpersFilename: { type: String },
       _calculatedAutomationFilename: { type: String },
       _creatingAutomation: { type: Boolean },
       _deepCheckInProgress: { type: Boolean },
-      _showStepError: { type: { type: Boolean } },
+      _showStepError: { type: Boolean }
     };
   }
 
   static get styles() {
     return css`
-      .editor-container {
-        padding: 16px;
+      .editor-container { 
+        padding: 24px;
+        background: linear-gradient(135deg, 
+          #1a1f2e 0%,
+          #252b3d 100%
+        );
+        border-radius: 12px;
+        color: #e8eaf0;
       }
-      .wizard-steps {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 24px;
-        padding: 0 20px;
+      
+      .wizard-steps { 
+        display: flex; 
+        justify-content: space-between; 
+        margin-bottom: 32px;
+        padding: 20px;
+        background: linear-gradient(135deg, 
+          rgba(42, 48, 66, 0.95) 0%,
+          rgba(32, 38, 56, 0.95) 100%
+        );
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        box-shadow: 
+          0 8px 32px rgba(0, 0, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.1);
       }
-
-      /* Wizard actions layout and spacing */
-      .wizard-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        margin-top: 12px;
-        padding: 0 16px; /* horizontal gutter */
-      }
-
-      .wizard-actions > div {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 0 8px;
-      }
-
-      .wizard-actions mwc-button {
-        margin: 6px 12px; /* give horizontal breathing room */
-      }
-
-      /* Action buttons container used in steps (copy/download/create) */
-      .action-buttons {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-        align-items: center;
-        margin: 6px 0;
-      }
-
-      /* Ensure buttons inside action-buttons don't collapse together */
-      .action-buttons mwc-button,
-      .action-buttons button {
-        margin: 0 !important;
-      }
-
-      /* Secondary buttons in Step4 */
-      .secondary-action-buttons { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-      .secondary-action-buttons mwc-button { font-size: 0.85rem; }
-
-      .wizard-step {
-        flex: 1;
-        text-align: center;
+      
+      .step-badge {
+        width: 52px; 
+        height: 52px; 
+        border-radius: 50%;
+        background: linear-gradient(145deg, 
+          #3a4158,
+          #2a3042
+        );
+        color: #a0a8c0; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.3rem;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 
+          0 8px 20px rgba(0, 0, 0, 0.5),
+          inset 0 -2px 4px rgba(0, 0, 0, 0.4),
+          inset 0 2px 4px rgba(255, 255, 255, 0.1);
         position: relative;
-        padding: 10px;
+        border: 2px solid rgba(255, 255, 255, 0.05);
       }
-      .wizard-step::before {
+      
+      .step-badge::before {
         content: '';
         position: absolute;
-        top: 20px;
-        left: -50%;
-        right: 50%;
-        height: 2px;
-        background: var(--divider-color);
-        z-index: -1;
-      }
-      .wizard-step:first-child::before {
-        display: none;
-      }
-      .step-circle {
-        width: 40px;
-        height: 40px;
+        top: 3px;
+        left: 3px;
+        right: 3px;
+        height: 45%;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.15), transparent);
         border-radius: 50%;
-        background: var(--divider-color);
-        color: var(--secondary-text-color);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        margin-bottom: 8px;
-        transition: all 0.3s;
-      }
-      .wizard-step.active .step-circle {
-        background: var(--primary-color);
-        color: white;
-      }
-      .wizard-step.completed .step-circle {
-        background: var(--success-color, #4caf50);
-        color: white;
-      }
-      .step-title {
-        font-size: 12px;
-        color: var(--secondary-text-color);
-      }
-      .wizard-step.active .step-title {
-        color: var(--primary-text-color);
-        font-weight: 500;
-      }
-      .step-content {
-        background: var(--card-background-color);
-        border: 1px solid var(--divider-color);
-        border-radius: 8px;
-        padding: 20px;
-        margin-bottom: 16px;
-      }
-      /* 3D styled Material Web buttons for the editor wizard */
-      mwc-button.mwc-3d {
-        --mdc-theme-primary: var(--primary-color, #1e88e5);
-        box-shadow: 0 10px 28px rgba(16,24,40,0.12), 0 4px 12px rgba(16,24,40,0.08);
-        transform: translateZ(0);
-        transition: transform 220ms cubic-bezier(.2,.9,.2,1), box-shadow 220ms ease, outline 160ms;
-        border-radius: 10px;
-      }
-      mwc-button.mwc-3d:hover {
-        transform: translateY(-6px) rotateX(2deg) scale(1.02);
-        box-shadow: 0 20px 44px rgba(16,24,40,0.16), 0 8px 18px rgba(16,24,40,0.08);
-      }
-      mwc-button.mwc-3d:active {
-        transform: translateY(-2px) scale(0.995);
-        box-shadow: 0 8px 20px rgba(16,24,40,0.10);
-      }
-      mwc-button.mwc-3d.outlined {
-        --mdc-button-outline-color: color-mix(in srgb, var(--primary-color, #1e88e5) 36%, var(--divider-color, #e0e0e0) 64%);
-        background: linear-gradient(180deg, color-mix(in srgb, var(--card-background-color, #fff) 94%, #000 6%), var(--card-background-color, #fff));
-      }
-      mwc-button.mwc-3d:focus-visible {
-        outline: 3px solid color-mix(in srgb, var(--primary-color, #1e88e5) 18%, transparent 82%);
-        outline-offset: 4px;
-      }
-      /* Fallback/base styles for mwc-button when module isn't loaded */
-      mwc-button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        padding: 8px 14px;
-        font-size: 0.95rem;
-        border-radius: 8px;
-        border: 1px solid transparent;
-        background: var(--mdc-theme-primary, var(--primary-color, #1e88e5));
-        color: var(--mwc-button-foreground, #ffffff);
-        cursor: pointer;
-        text-transform: none;
-        line-height: 1;
-        box-sizing: border-box;
-        transition: transform 160ms ease, box-shadow 160ms ease, background 120ms ease, border-color 120ms ease;
-      }
-
-      mwc-button[raised] {
-        box-shadow: 0 8px 24px rgba(16,24,40,0.12), 0 4px 12px rgba(16,24,40,0.06);
-      }
-
-      mwc-button.outlined {
-        background: transparent;
-        color: var(--primary-color, #1e88e5);
-        border-color: var(--mdc-button-outline-color, var(--divider-color, #e0e0e0));
-      }
-
-      mwc-button:focus-visible {
-        outline: 3px solid color-mix(in srgb, var(--primary-color, #1e88e5) 18%, transparent 82%);
-        outline-offset: 3px;
-      }
-
-      mwc-button[disabled], mwc-button[disabled] * {
-        opacity: 0.6;
-        cursor: default;
         pointer-events: none;
       }
-      .step-header {
-        font-size: 20px;
-        font-weight: 500;
-        margin-bottom: 8px;
-        color: var(--primary-text-color);
+      
+      .step-badge:hover {
+        transform: translateY(-3px) scale(1.08);
+        box-shadow: 
+          0 12px 28px rgba(0, 0, 0, 0.6),
+          inset 0 -2px 4px rgba(0, 0, 0, 0.4),
+          inset 0 2px 4px rgba(255, 255, 255, 0.15);
+        color: #cbd3e8;
+        border-color: rgba(255, 255, 255, 0.1);
       }
-      .step-description {
-        font-size: 14px;
-        color: var(--secondary-text-color);
-        margin-bottom: 20px;
-        line-height: 1.5;
+      
+      .step-badge:active {
+        transform: translateY(0px) scale(0.96);
+        box-shadow: 
+          0 4px 12px rgba(0, 0, 0, 0.5),
+          inset 0 2px 6px rgba(0, 0, 0, 0.5);
       }
-      .field-group {
-        margin-bottom: 16px;
+      
+      .step-badge.active { 
+        background: linear-gradient(145deg, 
+          #0ea5e9,
+          #0284c7
+        );
+        color: #ffffff;
+        box-shadow: 
+          0 12px 32px rgba(14, 165, 233, 0.5),
+          0 0 40px rgba(14, 165, 233, 0.3),
+          inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+          inset 0 2px 4px rgba(255, 255, 255, 0.3);
+        border-color: rgba(255, 255, 255, 0.2);
+        animation: pulse 2.5s ease-in-out infinite;
       }
-      .field-group ha-textfield,
-      .field-group ha-entity-picker {
-        display: block;
+      
+      @keyframes pulse {
+        0%, 100% { 
+          box-shadow: 
+            0 12px 32px rgba(14, 165, 233, 0.5),
+            0 0 40px rgba(14, 165, 233, 0.3),
+            inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+            inset 0 2px 4px rgba(255, 255, 255, 0.3);
+        }
+        50% { 
+          box-shadow: 
+            0 12px 40px rgba(14, 165, 233, 0.7),
+            0 0 60px rgba(14, 165, 233, 0.5),
+            inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+            inset 0 2px 4px rgba(255, 255, 255, 0.4);
+        }
       }
-      .wizard-actions {
-        display: flex;
-        justify-content: space-between;
-        padding-top: 16px;
-        border-top: 1px solid var(--divider-color);
+      
+      .step-content { 
+        min-height: 300px;
+        padding: 28px;
+        background: linear-gradient(135deg, 
+          rgba(42, 48, 66, 0.9) 0%,
+          rgba(32, 38, 56, 0.9) 100%
+        );
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        box-shadow: 
+          0 8px 32px rgba(0, 0, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
       }
-      .preset-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 16px;
-        margin-top: 20px;
+      
+      .wizard-actions { 
+        display: flex; 
+        justify-content: space-between; 
+        margin-top: 24px;
+        padding: 20px;
+        background: linear-gradient(135deg, 
+          rgba(42, 48, 66, 0.95) 0%,
+          rgba(32, 38, 56, 0.95) 100%
+        );
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        box-shadow: 
+          0 8px 32px rgba(0, 0, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.08);
       }
-      .preset-card {
-        border: 1px solid var(--divider-color);
+      
+      mwc-button {
+        --mdc-theme-primary: #0ea5e9;
+        position: relative;
+        overflow: visible;
+      }
+      
+      mwc-button[raised] {
+        background: linear-gradient(145deg, 
+          #0ea5e9,
+          #0284c7
+        ) !important;
+        box-shadow: 
+          0 8px 20px rgba(14, 165, 233, 0.4),
+          0 0 30px rgba(14, 165, 233, 0.2),
+          inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+          inset 0 2px 4px rgba(255, 255, 255, 0.2) !important;
+        border: 2px solid rgba(255, 255, 255, 0.1) !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        color: #ffffff !important;
+      }
+      
+      mwc-button[raised]::before {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 8px;
+        right: 8px;
+        height: 40%;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.25), transparent);
+        border-radius: 4px;
+        pointer-events: none;
+      }
+      
+      mwc-button[raised]:hover {
+        transform: translateY(-3px);
+        box-shadow: 
+          0 12px 28px rgba(14, 165, 233, 0.5),
+          0 0 40px rgba(14, 165, 233, 0.3),
+          inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+          inset 0 2px 4px rgba(255, 255, 255, 0.3) !important;
+        border-color: rgba(255, 255, 255, 0.2) !important;
+      }
+      
+      mwc-button[raised]:active {
+        transform: translateY(0px);
+        box-shadow: 
+          0 4px 12px rgba(14, 165, 233, 0.4),
+          inset 0 2px 6px rgba(0, 0, 0, 0.4) !important;
+      }
+      
+      mwc-button[outlined] {
+        border: 2px solid #0ea5e9 !important;
+        background: linear-gradient(145deg, 
+          rgba(48, 55, 75, 0.95),
+          rgba(38, 44, 62, 0.95)
+        ) !important;
+        color: #60d5ff !important;
+        box-shadow: 
+          0 6px 16px rgba(0, 0, 0, 0.3),
+          inset 0 1px 2px rgba(255, 255, 255, 0.1) !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      }
+      
+      mwc-button[outlined]:hover {
+        transform: translateY(-3px);
+        box-shadow: 
+          0 8px 20px rgba(0, 0, 0, 0.4),
+          0 0 30px rgba(14, 165, 233, 0.2),
+          inset 0 1px 2px rgba(255, 255, 255, 0.15) !important;
+        background: linear-gradient(145deg, 
+          rgba(58, 65, 85, 0.95),
+          rgba(48, 54, 72, 0.95)
+        ) !important;
+        border-color: #60d5ff !important;
+      }
+      
+      mwc-button[outlined]:active {
+        transform: translateY(0px);
+        box-shadow: 
+          0 3px 10px rgba(0, 0, 0, 0.3),
+          inset 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+      }
+      
+      .field-group { 
+        margin-bottom: 24px;
+        padding: 20px;
+        background: linear-gradient(145deg, 
+          rgba(48, 55, 75, 0.7),
+          rgba(38, 44, 62, 0.7)
+        );
+        border-radius: 12px;
+        box-shadow: 
+          0 6px 20px rgba(0, 0, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        transition: all 0.3s ease;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      
+      .field-group:hover {
+        box-shadow: 
+          0 8px 24px rgba(0, 0, 0, 0.5),
+          inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        transform: translateY(-2px);
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+      
+      .field-label { 
+        display: block; 
+        font-weight: 600; 
+        margin-bottom: 10px;
+        color: #ffffff;
+        font-size: 1.05rem;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      }
+      
+      .field-description { 
+        font-size: 0.9em; 
+        color: #a0a8c0; 
+        margin-bottom: 14px;
+        line-height: 1.6;
+      }
+      
+      .hint { 
+        font-size: 0.85em; 
+        color: #8891a8; 
+        margin-top: 10px;
+        padding: 10px 14px;
+        background: rgba(14, 165, 233, 0.08);
         border-radius: 8px;
-        padding: 16px;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.2s ease-in-out;
-        background: var(--card-background-color);
-        color: var(--primary-text-color);
+        border-left: 3px solid #0ea5e9;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
       }
+      
+      .success-box { 
+        background: linear-gradient(145deg,
+          rgba(34, 197, 94, 0.15),
+          rgba(22, 163, 74, 0.12)
+        );
+        padding: 18px; 
+        border-radius: 12px; 
+        border-left: 4px solid #22c55e;
+        box-shadow: 
+          0 6px 20px rgba(34, 197, 94, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        margin: 20px 0;
+        color: #bbf7d0;
+      }
+      
+      .info-box { 
+        background: linear-gradient(145deg,
+          rgba(14, 165, 233, 0.15),
+          rgba(2, 132, 199, 0.12)
+        );
+        padding: 18px; 
+        border-radius: 12px; 
+        border-left: 4px solid #0ea5e9;
+        box-shadow: 
+          0 6px 20px rgba(14, 165, 233, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        margin: 20px 0;
+        color: #bae6fd;
+      }
+      
+      .warning-box {
+        background: linear-gradient(145deg,
+          rgba(251, 146, 60, 0.15),
+          rgba(249, 115, 22, 0.12)
+        );
+        padding: 18px;
+        border-radius: 12px;
+        border-left: 4px solid #fb923c;
+        box-shadow: 
+          0 6px 20px rgba(251, 146, 60, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        margin: 20px 0;
+        color: #fed7aa;
+      }
+      
+      ha-textfield, ha-select {
+        width: 100%;
+        --mdc-theme-primary: #0ea5e9;
+        --mdc-text-field-fill-color: rgba(38, 44, 62, 0.6);
+        --mdc-text-field-ink-color: #e8eaf0;
+        --mdc-text-field-label-ink-color: #a0a8c0;
+        --mdc-text-field-outlined-idle-border-color: rgba(255, 255, 255, 0.12);
+        --mdc-text-field-outlined-hover-border-color: rgba(14, 165, 233, 0.5);
+      }
+      
+      ha-switch {
+        --mdc-theme-secondary: #0ea5e9;
+        --switch-checked-button-color: #0ea5e9;
+        --switch-checked-track-color: rgba(14, 165, 233, 0.5);
+      }
+      
+      .action-buttons {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+      
+      textarea { 
+        width: 100%; 
+        font-family: 'Courier New', monospace; 
+        min-height: 200px;
+        padding: 14px;
+        border: 2px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+        background: rgba(28, 33, 48, 0.8);
+        color: #e8eaf0;
+        transition: all 0.3s ease;
+        box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3);
+      }
+      
+      textarea:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 
+          0 0 0 4px rgba(14, 165, 233, 0.2),
+          inset 0 2px 6px rgba(0, 0, 0, 0.3);
+        background: rgba(28, 33, 48, 0.95);
+      }
+      
+      .step-header {
+        font-size: 1.6rem;
+        font-weight: 700;
+        margin-bottom: 18px;
+        color: #ffffff;
+        background: linear-gradient(135deg, #0ea5e9, #60d5ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        text-shadow: 0 4px 8px rgba(14, 165, 233, 0.3);
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+      }
+      
+      .step-description {
+        font-size: 1rem;
+        color: #cbd3e8;
+        margin-bottom: 28px;
+        line-height: 1.7;
+      }
+
+      /* Grid for Presets */
+      .preset-cards {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 12px !important;
+        margin-top: 16px !important;
+        width: 100% !important;
+      }
+
+      .preset-card {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        padding: 16px !important;
+        background: #3c3c3c !important;
+        border-radius: 8px !important;
+        border: 1px solid #555 !important;
+        color: #ffffff !important;
+        cursor: pointer !important;
+        min-height: 110px !important;
+        transition: all 0.2s ease !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+
       .preset-card:hover {
-        border-color: var(--primary-color);
-        box-shadow: var(--ha-card-box-shadow, 0px 2px 4px rgba(0, 0, 0, 0.1));
+        background: #4a4a4a !important;
       }
+
       .preset-card.selected {
-        border-color: var(--primary-color);
-        box-shadow: 0 0 0 2px var(--primary-color);
-        background: var(--primary-color-light, rgba(3, 169, 244, 0.1));
+        border: 2px solid #00b0ff !important;
+        box-shadow: 0 0 10px rgba(0, 176, 255, 0.4) !important;
       }
-      .preset-icon {
-        font-size: 2em;
-        margin-bottom: 8px;
-      }
-      .preset-title {
-        font-weight: 500;
-        font-size: 1.1em;
-        margin-bottom: 4px;
-      }
-      .preset-description {
-        font-size: 0.85em;
-        color: var(--secondary-text-color);
-      }
+
+      .preset-icon { font-size: 2.2rem !important; margin-bottom: 4px !important; }
+      .preset-title { font-weight: 600 !important; font-size: 1rem !important; }
+      .preset-description { font-size: 0.8rem !important; color: #b0b0b0 !important; }
     `;
   }
-
   constructor() {
     super();
-
-    this._config = { ...DEFAULT_CONFIG };
     this._step = 1;
-    this._selectedPreset = 'thermostat';
-    this._automationYaml = '';
-    this._showAutomationPreview = false;
-    this._helpersYaml = '';
-    this._showHelpersPreview = false;
+    this._config = { ...DEFAULT_CONFIG };
     this._language = 'en';
-    this._quickCheck = null;
-    this._deepReport = null;
-    this._unsubDeep = null;
-    this._deepCheckRanForStep2 = false;
-    this._calculatedHelpersFilename = '';
-    this._calculatedAutomationFilename = '';
-    this._creatingAutomation = false;
-    this._deepCheckInProgress = false;
-    this._showStepError = false;
-
-    // NEW: persist lovelace config to backend json (debounced)
-    this._persistTimer = null;
-    this._persistInFlight = false;
-
-    this.i18n = new EditorI18n(this);
+    this.i18n = new EditorI18n('en');
     this.wizard = new EditorWizard(this);
-    this.step1 = new Step1Preset(this);
-    this.step2 = new Step2Entities(this);
-    this.step3 = new Step3Options(this);
-    this.step4 = new Step4Automation(this);
-    this.step5 = new Step5Summary(this);
+
+    // Bind methods
+    this._renderTextInput = this._renderTextInput.bind(this);
+    this._renderButton = this._renderButton.bind(this);
+
+    // Expose ALL service handlers to children steps
     this.serviceHandlers = {
       copyToClipboard,
       downloadFile,
@@ -319,118 +496,203 @@ export class CronoStarEditor extends LitElement {
       handleCreateAndReloadAutomation,
       runDeepChecks,
       handleInitializeData,
+      handleSaveAll
     };
-    this.yamlGenerators = { buildAutomationYaml, buildInputNumbersYaml };
-  }
-
-  // richiesto da HA
-  setConfig(config) {
-    this._config = { ...DEFAULT_CONFIG, ...config };
-    this._syncConfigAliases();
-    this._selectedPreset = this._config.preset || 'thermostat';
-
-    if (
-      !this._config.entity_prefix &&
-      !this._config.entityprefix &&
-      CARD_CONFIG_PRESETS[this._selectedPreset]?.entity_prefix
-    ) {
-      this._config.entity_prefix = CARD_CONFIG_PRESETS[this._selectedPreset].entity_prefix;
-    }
-
-    this._ensurePresetDefaults();
-    this._syncConfigAliases();
-    this._updateAutomationYaml();
-    this._updateHelpersYaml();
-    this._persistCardConfigDebounced();
-    this.requestUpdate();
-  }
-
-  set hass(hass) {
-    this._hass = hass;
-    const lang = hass?.language?.toLowerCase() || this._language || 'en';
-    this._language = lang.startsWith('it') ? 'it' : 'en';
-    this._subscribeDeepReports();
-    this.requestUpdate();
-  }
-
-  get hass() {
-    return this._hass;
-  }
-
-  get _lang() {
-    const lang = this.hass?.language?.toLowerCase() || this._language || 'en';
-    return lang.startsWith('it') ? 'it' : 'en';
   }
 
   connectedCallback() {
     super.connectedCallback();
-    this._subscribeDeepReports();
+    this._deepCheckRanForStep1 = false;
+    this._deepCheckSubscribed = false;
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    if (typeof this._unsubDeep === 'function') {
+    if (this._unsubscribeDeep) {
+      try { this._unsubscribeDeep(); } catch { }
+      this._unsubscribeDeep = null;
+    }
+    this._deepCheckSubscribed = false;
+  }
+
+  async _ensureDeepCheckSubscription() {
+    if (this.hass?.connection && !this._deepCheckSubscribed) {
       try {
-        this._unsubDeep();
+        this._unsubscribeDeep = await this.hass.connection.subscribeEvents((ev) => {
+          const data = ev?.event?.data ?? ev?.data ?? ev;
+          if (data) {
+            this._deepReport = data;
+            this.requestUpdate();
+          }
+        }, 'cronostar_setup_report');
+        this._deepCheckSubscribed = true;
       } catch (e) {
-        console.error('Error unsubscribing from deep reports:', e);
+        console.warn('Failed to subscribe to deep check reports:', e);
       }
-      this._unsubDeep = null;
-    }
-    if (this._persistTimer) {
-      clearTimeout(this._persistTimer);
-      this._persistTimer = null;
     }
   }
 
-  _subscribeDeepReports() {
+  updated(changedProps) {
+    super.updated?.(changedProps);
+    if (changedProps.has('hass')) {
+      this._ensureDeepCheckSubscription();
+      if (this.hass && this._step === 1 && !this._deepCheckRanForStep1) {
+        this._deepCheckRanForStep1 = true;
+        this._runDeepChecks();
+      }
+    }
+    if (changedProps.has('_step') && this._step === 1 && this.hass && !this._deepCheckRanForStep1) {
+      this._deepCheckRanForStep1 = true;
+      this._runDeepChecks();
+    }
+  }
+
+  setConfig(config) {
     try {
-      if (this.hass?.connection && !this._unsubDeep) {
-        this._unsubDeep = this.hass.connection.subscribeEvents(
-          (ev) => {
-            try {
-              const payload = ev?.data ?? ev?.event?.data ?? ev;
-              if (payload && typeof payload === 'object') {
-                this._deepReport = payload;
-                this._deepCheckInProgress = false;
-                this.requestUpdate();
-              }
-            } catch (e) {
-              console.error('Error processing deep report payload:', e);
-            }
-          },
-          'cronostar_setup_report',
-        );
-      }
+      this._config = validateConfig(config);
     } catch (e) {
-      console.error('Error subscribing to deep reports:', e);
+      console.warn("Config validation warning:", e);
+      this._config = { ...DEFAULT_CONFIG, ...config };
     }
-  }
 
-  _canGoNext() {
+    if (this._config.preset) this._selectedPreset = this._config.preset;
+
+    if (this.hass && this.hass.language) {
+      this._language = this.hass.language.split('-')[0];
+      this.i18n = new EditorI18n(this._language);
+    }
+
     this._syncConfigAliases();
-
-    if (this._step === 1) {
-      const prefix = this._config.global_prefix || this._config.globalprefix || getEffectivePrefix(this._config);
-      return isValidPrefix(prefix);
-    }
-    if (this._step === 2) {
-      const prefix = getEffectivePrefix(this._config);
-      const applyEntity = this._config.apply_entity || this._config.applyentity;
-      return isValidPrefix(prefix) && !!applyEntity;
-    }
-    return true;
+    this._updateAutomationYaml();
+    this._updateHelpersYaml();
   }
 
-  scrollToTop() {
+  _isElDefined(tag) {
+    return customElements.get(tag) !== undefined;
+  }
+
+  _syncConfigAliases() {
+    const p = normalizePrefix(this._config.global_prefix);
+    this._calculatedHelpersFilename = buildHelpersFilename(p);
+    this._calculatedAutomationFilename = buildAutomationFilename(p);
+  }
+
+  _updateAutomationYaml() {
+    this._automationYaml = buildAutomationYaml(this._config, 'list');
+  }
+
+  _updateHelpersYaml() {
+    this._helpersYaml = buildInputNumbersYaml(this._config, false);
+  }
+
+  _dispatchConfigChanged() {
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config } }));
+  }
+
+  _persistCardConfigNow() {
+    // Config persistence is unified into save_profile (meta).
+    return Promise.resolve();
+  }
+
+  _showToast(message) {
+    const event = new CustomEvent('hass-notification', {
+      detail: { message, duration: 3000 },
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(event);
+  }
+
+  // Implementation of _runDeepChecks called by Wizard
+  async _runDeepChecks() {
+    if (!this.hass) return;
+    this._deepCheckInProgress = true;
+    this.requestUpdate();
+
     try {
-      // Works both inside dialogs and normal layout
-      const host = this.renderRoot?.querySelector('.editor-container');
-      if (host) host.scrollTop = 0;
-      this.scrollIntoView({ block: 'start' });
+      await runDeepChecks(this.hass, this._config, this._language);
+      // The actual report will arrive via the 'cronostar_setup_report' event subscription.
     } catch (e) {
-      // no-op
+      console.warn("Deep check failed:", e);
+    } finally {
+      this._deepCheckInProgress = false;
+      this.requestUpdate();
     }
+  }
+
+  _renderWizardSteps() {
+    const steps = [1, 2, 3, 4, 5];
+    return html`
+      <div class="wizard-steps">
+        ${steps.map(s => html`
+          <div class="step-badge ${this._step === s ? 'active' : ''}" 
+               @click=${() => { if (s < this._step) this._step = s; }}>
+            ${s}
+          </div>
+        `)}
+      </div>
+    `;
+  }
+
+  _renderStepContent() {
+    switch (this._step) {
+      case 1: return new Step1Preset(this).render();
+      case 2: return new Step2Entities(this).render();
+      case 3: return new Step3Options(this).render();
+      case 4: return new Step4Automation(this).render();
+      case 5: return new Step5Summary(this).render();
+      default: return html`<div>Unknown Step</div>`;
+    }
+  }
+
+  _renderTextInput(key, value, placeholder = '') {
+    return html`
+      <ha-textfield
+        .label=${placeholder}
+        .value=${value || ''}
+        @input=${(e) => this._updateConfig(key, e.target.value)}
+        style="width: 100%;"
+      ></ha-textfield>
+    `;
+  }
+
+  renderTextInput(key, value, placeholder) {
+    return this._renderTextInput(key, value, placeholder);
+  }
+
+  // Public wrapper for renderButton
+  renderButton(label, click, disabled = false, outlined = false) {
+    return this._renderButton({ label, click, disabled, outlined });
+  }
+
+  _renderButton({ label, click, disabled = false, outlined = false }) {
+    if (outlined) {
+      return html`<mwc-button outlined ?disabled=${disabled} @click=${click}>${label}</mwc-button>`;
+    }
+    return html`<mwc-button raised ?disabled=${disabled} @click=${click}>${label}</mwc-button>`;
+  }
+
+
+  _updateConfig(key, value) {
+    const newConfig = { ...this._config, [key]: value };
+    // Hard-remove deprecated keys (breaking change)
+    if ('entity_prefix' in newConfig) delete newConfig.entity_prefix;
+    this._config = newConfig;
+
+    if (key === 'preset') {
+      const presetConfig = CARD_CONFIG_PRESETS[value];
+      if (presetConfig) {
+        const merged = { ...this._config, ...presetConfig };
+        if ('entity_prefix' in merged) delete merged.entity_prefix;
+        this._config = merged;
+        this._selectedPreset = value;
+      }
+    }
+
+    this._syncConfigAliases();
+    this._updateAutomationYaml();
+    this._updateHelpersYaml();
+    this._dispatchConfigChanged();
   }
 
   _handleNextClick() {
@@ -443,12 +705,63 @@ export class CronoStarEditor extends LitElement {
     }
   }
 
-  _handleFinishClick() {
-    // Persist immediately when finishing (best effort)
-    this._persistCardConfigNow();
-    if (this.wizard && typeof this.wizard._finish === 'function') {
-      this.wizard._finish();
+  async _handleFinishClick(options = {}) {
+    const force = options.force === true;
+
+    if ((this._step === 5 || force) && this.hass) {
+      try {
+        const result = await handleSaveAll(this.hass, this._config, this._deepReport, this._language);
+        this._showToast(result.message);
+
+        if (force) {
+          const closeEvent = new CustomEvent('closed', { bubbles: true, composed: true });
+          this.dispatchEvent(closeEvent);
+        }
+
+      } catch (e) {
+        this._showToast(`✗ ${e.message}`);
+      }
     }
+
+    this._persistCardConfigNow();
+    if (this.wizard && typeof this.wizard._finish === 'function') this.wizard._finish();
+  }
+
+  _canGoNext() {
+    if (this._step === 1) {
+      const p = normalizePrefix(this._config.global_prefix);
+      return isValidPrefix(p) && !!this._config.target_entity;
+    }
+    return true;
+  }
+
+  _renderWizardActions() {
+    if (this._step === 1) {
+      const valid = this._canGoNext();
+      if (!valid) {
+        return html`
+               <div class="wizard-actions">
+                  <div style="flex:1"></div>
+                  <div class="hint" style="color: var(--error-color);">
+                    ${this.i18n._t('ui.minimal_config_needed')}
+                  </div>
+               </div>`;
+      }
+      return html``;
+    }
+
+    return html`
+      <div class="wizard-actions">
+        <div>
+          ${this._step > 1 ? html`<mwc-button outlined @click=${() => this.wizard._prevStep()}>${this.i18n._t('actions.back')}</mwc-button>` : html``}
+        </div>
+        <div>
+          ${this._step === 5
+        ? html`<mwc-button raised @click=${() => this._handleFinishClick()}>${this.i18n._t('actions.save')}</mwc-button>`
+        : html`<mwc-button raised @click=${() => this._handleNextClick()}>${this.i18n._t('actions.next')}</mwc-button>`}
+        </div>
+      </div>
+    `;
   }
 
   render() {
@@ -460,496 +773,6 @@ export class CronoStarEditor extends LitElement {
       </div>
     `;
   }
-
-  _renderWizardSteps() {
-    const steps = [
-      { id: 1, title: this.i18n._t('steps.tipo') },
-      { id: 2, title: this.i18n._t('steps.entita') },
-      { id: 3, title: this.i18n._t('steps.opzioni') },
-      { id: 4, title: this.i18n._t('steps.automazione') },
-      { id: 5, title: this.i18n._t('steps.fine') },
-    ];
-    return html`
-      <div class="wizard-steps">
-        ${steps.map(
-          (step) => html`
-            <div
-              class="wizard-step ${this._step === step.id ? 'active' : ''} ${this._step > step.id
-                ? 'completed'
-                : ''}"
-            >
-              <div class="step-circle">${this._step > step.id ? '✓' : step.id}</div>
-              <div class="step-title">${step.title}</div>
-            </div>
-          `,
-        )}
-      </div>
-    `;
-  }
-
-  _renderStepContent() {
-    switch (this._step) {
-      case 1:
-        return this.step1.render();
-      case 2:
-        return this.step2.render();
-      case 3:
-        return this.step3.render();
-      case 4:
-        return this.step4.render();
-      case 5:
-        return this.step5.render();
-      default:
-        return html``;
-    }
-  }
-
-  _renderWizardActions() {
-    return html`
-      <div class="wizard-actions">
-        <div>
-          ${this._step > 1
-            ? html`<mwc-button
-                class="mwc-3d outlined"
-                outlined
-                @click=${() => this.wizard._prevStep()}
-                >${this.i18n._t('actions.back')}</mwc-button
-              >`
-            : ''}
-        </div>
-        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
-          ${this._showStepError
-            ? html`<div class="warning-box" style="margin-bottom: 0px; padding: 8px 12px;">
-                  ${this.i18n._t('messages.fix_step_to_proceed')}
-                </div>`
-            : ''}
-
-          ${[1, 2, 3, 4].includes(this._step)
-            ? html`<mwc-button
-                class="mwc-3d"
-                raised
-                @click=${() => this._handleNextClick()}
-                >${this.i18n._t('actions.next')}</mwc-button
-              >`
-            : ''}
-
-          ${this._step === 5
-            ? html`<mwc-button class="mwc-3d" raised @click=${() => this._handleFinishClick()}
-                >${this.i18n._t('actions.save')}</mwc-button
-              >`
-            : ''}
-        </div>
-      </div>
-    `;
-  }
-
-  // --- utilità e binding config ---
-
-  _t(path) {
-    return this.i18n._t(path);
-  }
-
-  _isElDefined(tag) {
-    try {
-      return typeof customElements !== 'undefined' && !!customElements.get(tag);
-    } catch {
-      return false;
-    }
-  }
-
-  _renderTextInput(key, value, label) {
-    const hasHaTextfield = this._isElDefined('ha-textfield');
-    const hasMwcTextfield = this._isElDefined('mwc-textfield');
-
-    if (hasHaTextfield) {
-      return html`
-        <ha-textfield
-          style="margin-top:8px;"
-          .value=${value || ''}
-          .label=${label}
-          @input=${(e) => this._updateConfig(key, (e.target.value || '').trim())}
-        ></ha-textfield>
-      `;
-    }
-    if (hasMwcTextfield) {
-      return html`
-        <mwc-textfield
-          style="margin-top:8px;"
-          .value=${value || ''}
-          label=${label}
-          @input=${(e) => this._updateConfig(key, (e.target.value || '').trim())}
-        ></mwc-textfield>
-      `;
-    }
-    return html`
-      <input
-        type="text"
-        style="margin-top:8px;width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--divider-color);border-radius:4px;"
-        .value=${value || ''}
-        placeholder=${label}
-        @input=${(e) => this._updateConfig(key, (e.target.value || '').trim())}
-      />
-    `;
-  }
-
-  _handleButtonClick(e, fn) {
-    try {
-      if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      if (typeof fn === 'function') {
-        fn(e);
-      } else {
-        console.warn('[CronoStarEditor] Button clicked but no handler provided');
-      }
-    } catch (err) {
-      console.warn('[CronoStarEditor] Button click error:', err);
-      this._showToast(
-        this._lang === 'it'
-          ? `Errore: ${err?.message || err}`
-          : `Error: ${err?.message || err}`,
-      );
-    }
-  }
-
-  _renderButton({
-    label,
-    click,
-    primary = false,
-    outlined = false,
-    raised = true,
-    text = false,
-    icon = '',
-    disabled = false,
-  }) {
-    // If text is true, force others to false
-    if (text) {
-      raised = false;
-      outlined = false;
-    }
-    return html`
-      <mwc-button
-        class="${primary ? 'primary' : ''}"
-        ?raised=${raised && !outlined}
-        ?outlined=${outlined}
-        ?unelevated=${!raised && !outlined && !text}
-        ?disabled=${disabled}
-        aria-busy="${disabled ? 'true' : 'false'}"
-        @click=${(e) => this._handleButtonClick(e, click)}
-      >
-        ${icon ? `${icon} ` : ''}${label}
-      </mwc-button>
-    `;
-  }
-
-  _updateConfig(key, value) {
-    this._config = { ...this._config, [key]: value };
-    this._showStepError = false;
-    this._ensurePresetDefaults();
-    this._syncConfigAliases();
-    this._updateAutomationYaml();
-    this._updateHelpersYaml();
-    this._dispatchConfigChanged();
-  }
-
-  _updateNumber(key, value) {
-    const num = value === '' || value === null || value === undefined ? null : Number(value);
-    this._updateConfig(key, Number.isFinite(num) ? num : this._config[key]);
-  }
-
-  _ensurePresetDefaults() {
-    const p = CARD_CONFIG_PRESETS[this._selectedPreset] || {};
-    if (this._config.min_value === undefined || this._config.min_value === null) this._config.min_value = p.min_value;
-    if (this._config.max_value === undefined || this._config.max_value === null) this._config.max_value = p.max_value;
-    if (this._config.step_value === undefined || this._config.step_value === null) this._config.step_value = p.step_value;
-    if (!this._config.unit_of_measurement && p.unit_of_measurement) this._config.unit_of_measurement = p.unit_of_measurement;
-    if (!this._config.y_axis_label && p.y_axis_label) this._config.y_axis_label = p.y_axis_label;
-    if (!this._config.entity_prefix && p.entity_prefix) this._config.entity_prefix = p.entity_prefix;
-  }
-
-  _updateAutomationYaml() {
-    const applyEntity = this._config.apply_entity || this._config.applyentity;
-
-    if (!applyEntity) {
-      this._automationYaml =
-        this._lang === 'it'
-          ? "# Configura prima l'entità di destinazione"
-          : '# Configure the target entity first';
-      return;
-    }
-    const autoSource = this._deepReport?.automation?.source;
-    const style = autoSource === 'inline' ? 'inline' : 'list';
-    const autoPrefix = this._getEffectivePrefix().replace(/_+$/, '');
-    this._calculatedAutomationFilename = `${autoPrefix}_automation.yaml`;
-    this._automationYaml = this.yamlGenerators.buildAutomationYaml(this._config, style);
-  }
-
-  _updateHelpersYaml() {
-    try {
-      const inputNumberSource = this._deepReport?.input_number?.source || 'unknown';
-      this._helpersYaml = this.yamlGenerators.buildInputNumbersYaml(this._config, inputNumberSource);
-      const eff = this._getEffectivePrefix();
-      this._calculatedHelpersFilename = buildHelpersFilename(eff);
-    } catch {
-      this._helpersYaml =
-        this._lang === 'it'
-          ? "# Errore nel generare gli helpers. Controlla prefisso e valori min/max/step."
-          : '# Error generating helpers. Check prefix and min/max/step values.';
-    }
-  }
-
-  _getEffectivePrefix() {
-    const gp = (this._config.global_prefix || this._config.globalprefix || '').trim();
-    const ep = (this._config.entity_prefix || this._config.entityprefix || '').trim();
-    return gp || ep || 'cronostar_';
-  }
-
-  _showToast(message) {
-    if (this.hass) {
-      this.hass.callService('persistent_notification', 'create', {
-        title: 'CronoStar Editor',
-        message,
-        notification_id: `cronostar_editor_${Date.now()}`,
-      });
-    }
-  }
-
-  _syncConfigAliases() {
-    // Keep editor-style keys (with underscores) AND card/backend-style keys (no underscores)
-    // so data always passes correctly to the card and backend services.
-    const pairs = [
-      ['entity_prefix', 'entityprefix'],
-      ['global_prefix', 'globalprefix'],
-      ['apply_entity', 'applyentity'],
-      ['pause_entity', 'pauseentity'],
-      ['profiles_select_entity', 'profilesselectentity'],
-      ['min_value', 'minvalue'],
-      ['max_value', 'maxvalue'],
-      ['step_value', 'stepvalue'],
-      ['unit_of_measurement', 'unitofmeasurement'],
-      ['y_axis_label', 'yaxislabel'],
-      ['allow_max_value', 'allowmaxvalue'],
-      ['interval_minutes', 'intervalminutes'],
-      ['logging_enabled', 'loggingenabled'],
-      ['missing_yaml_style', 'missingyamlstyle'],
-      ['is_switch_preset', 'isswitchpreset'],
-    ];
-
-    for (const [a, b] of pairs) {
-      const av = this._config?.[a];
-      const bv = this._config?.[b];
-
-      // If one exists, mirror it to the other
-      if ((av !== undefined && av !== null && av !== '') && (bv === undefined || bv === null || bv === '')) {
-        this._config[b] = av;
-      } else if ((bv !== undefined && bv !== null && bv !== '') && (av === undefined || av === null || av === '')) {
-        this._config[a] = bv;
-      }
-    }
-  }
-
-  _getConfigForCard() {
-    // Keep output clean: prefer no-underscore keys, drop underscore aliases.
-    this._syncConfigAliases();
-
-    const out = { ...this._config };
-    const underscoredKeys = [
-      'entity_prefix',
-      'global_prefix',
-      'apply_entity',
-      'pause_entity',
-      'profiles_select_entity',
-      'min_value',
-      'max_value',
-      'step_value',
-      'unit_of_measurement',
-      'y_axis_label',
-      'allow_max_value',
-      'interval_minutes',
-      'logging_enabled',
-      'missing_yaml_style',
-      'is_switch_preset',
-    ];
-
-    underscoredKeys.forEach((k) => {
-      if (k in out) delete out[k];
-    });
-
-    return out;
-  }
-
-  _persistCardConfigDebounced() {
-    if (!this.hass) return;
-
-    if (this._persistTimer) clearTimeout(this._persistTimer);
-    this._persistTimer = setTimeout(() => {
-      this._persistTimer = null;
-      this._persistCardConfigNow();
-    }, 600);
-  }
-
-  async _persistCardConfigNow() {
-      if (!this.hass) return;
-      if (this._persistInFlight) return;
-  
-      const cfg = this._getConfigForCard();
-  
-      // Require at least preset + a valid prefix before saving
-      const prefix = normalizePrefix(cfg.global_prefix || cfg.entity_prefix || '');
-      if (!cfg?.preset || !isValidPrefix(prefix)) return;
-  
-      this._persistInFlight = true;
-      try {
-        // Store ALL required info on backend in the per-prefix container json
-        await this.hass.callService('cronostar', 'save_card_config', {
-          preset_type: cfg.preset,
-          entity_prefix: cfg.entity_prefix,
-          global_prefix: cfg.global_prefix,
-          card_config: cfg,
-        });
-        
-        console.log('[CronoStarEditor] Card config saved to backend');
-      } catch (e) {
-        // no toast spam: keep silent
-        console.warn('[CronoStarEditor] save_card_config failed:', e);
-      } finally {
-        this._persistInFlight = false;
-      }
-    }
-  
-  _dispatchConfigChanged() {
-    const cfg = this._getConfigForCard();
-
-    this.dispatchEvent(
-      new CustomEvent('config-changed', {
-        detail: { config: cfg },
-        bubbles: true,
-        composed: true,
-      }),
-    );
-
-    // NEW: persist to backend json (debounced)
-    this._persistCardConfigDebounced();
-  }
-
-  // --- servizi delegati ---
-
-  async _copyAutomation() {
-    const result = await this.serviceHandlers.copyToClipboard(
-      this._automationYaml,
-      this.i18n._t('messages.yaml_copied'),
-      this.i18n._t('messages.yaml_copy_error'),
-    );
-    this._showToast(result.message);
-  }
-
-  _downloadAutomation() {
-    const result = this.serviceHandlers.downloadFile(
-      this._calculatedAutomationFilename,
-      this._automationYaml,
-      this.i18n._t('messages.file_downloaded'),
-      this.i18n._t('messages.file_download_error'),
-    );
-    this._showToast(result.message);
-  }
-
-  async _copyHelpersYaml() {
-    const result = await this.serviceHandlers.copyToClipboard(
-      this._helpersYaml,
-      this.i18n._t('messages.helpers_yaml_copied'),
-      this.i18n._t('messages.helpers_yaml_error'),
-    );
-    this._showToast(result.message);
-  }
-
-  _downloadHelpersYaml() {
-    const result = this.serviceHandlers.downloadFile(
-      this._calculatedHelpersFilename,
-      this._helpersYaml,
-      this.i18n._t('messages.helpers_yaml_downloaded'),
-      this.i18n._t('messages.file_download_error'),
-    );
-    this._showToast(result.message);
-  }
-
-  async _createHelpersYamlFile() {
-    try {
-      const result = await this.serviceHandlers.handleCreateHelpersYaml(
-        this.hass,
-        this._config,
-        this._deepReport,
-        this._lang,
-      );
-      this._showToast(result.message);
-    } catch (e) {
-      this._showToast(`✗ ${e.message}`);
-    }
-  }
-
-  async _createAutomationYamlFile() {
-    try {
-      const result = await this.serviceHandlers.handleCreateAutomationYaml(
-        this.hass,
-        this._config,
-        this._deepReport,
-        this._lang,
-      );
-      this._showToast(result.message);
-    } catch (e) {
-      this._showToast(`✗ ${e.message}`);
-    }
-  }
-
-  async _createAutomation() {
-    if (this._creatingAutomation) return;
-
-    this._creatingAutomation = true;
-    this.requestUpdate();
-
-    try {
-      const result = await this.serviceHandlers.handleCreateAndReloadAutomation(
-        this.hass,
-        this._config,
-        this._deepReport,
-        this._lang,
-      );
-      this._showToast(result.message);
-    } catch (e) {
-      this._showToast(this.i18n._t('messages.auto_error_prefix') + e.message);
-    } finally {
-      this._creatingAutomation = false;
-      this.requestUpdate();
-    }
-  }
-
-  async _runDeepChecks() {
-    console.log('[CronoStar Editor] _runDeepChecks called');
-    this._deepCheckInProgress = true;
-    this.requestUpdate();
-    try {
-      console.log('[CronoStar Editor] Calling serviceHandlers.runDeepChecks...');
-      const result = await this.serviceHandlers.runDeepChecks(
-        this.hass,
-        this._config,
-        this._lang,
-      );
-      console.log('[CronoStar Editor] runDeepChecks result:', result);
-      this._showToast(result.message);
-    } catch (e) {
-      console.error('[CronoStar Editor] runDeepChecks failed:', e);
-      this._showToast(`✗ ${e.message}`);
-    }
-  }
 }
 
-// Registrazione semplice (se non già fatta da main.js)
-if (!customElements.get('cronostar-card-editor')) {
-  try {
-    customElements.define('cronostar-card-editor', CronoStarEditor);
-  } catch (e) {
-    if (!String(e).includes('already been used') && !String(e).includes('already defined')) {
-      throw e;
-    }
-  }
-}
+customElements.define('cronostar-card-editor', CronoStarEditor);

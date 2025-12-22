@@ -114,7 +114,7 @@ export class CardEventHandlers {
             this.card.chartManager.updateChartLabels();
         }
 
-        this.card.cardSync.updateAutomationSync(this.card._hass);
+        this.card.cardSync.updateAutomationSync(this.card.hass);
     }
 
     handleSelectAll() {
@@ -164,32 +164,77 @@ export class CardEventHandlers {
             this.showNotification(localize('ui.waiting_profile_restore'), 'error');
             return;
         }
-        const targetEntity = this.card.config.apply_entity;
+        const targetEntity = this.card.config.target_entity;
         if (!targetEntity) {
-            Logger.error('APPLY', '[CronoStar] `apply_entity` is not configured in the card.');
-            this.showNotification(localize('ui.apply_now_error') + ': apply_entity not set', 'error');
+            Logger.error('APPLY', '[CronoStar] `target_entity` is not configured in the card.');
+            this.showNotification(localize('ui.apply_now_error') + ': target_entity not set', 'error');
             return;
         }
 
         try {
-            const profileToSave = this.card.profileManager.lastLoadedProfile || this.card.selectedProfile;
-            if (profileToSave) {
-                Logger.log('APPLY', `[CronoStar] Forcing save of profile '${profileToSave}' before applying`);
-                await this.card.profileManager.saveProfile(profileToSave);
-                Logger.log('APPLY', `[CronoStar] Profile '${profileToSave}' saved successfully`);
-            }
-            this.card.hasUnsavedChanges = false;
-
             const effectivePrefix = getEffectivePrefix(this.card.config);
 
+            // Build sparse schedule payload for persistence
+            const rawData = this.card.stateManager.getData() || [];
+            const scheduleData = rawData
+                .map((p) => ({
+                    minutes: this.card.stateManager.timeToMinutes(p.time),
+                    time: String(p.time),
+                    value: Number(p.value)
+                }))
+                .filter((pt) => Number.isFinite(pt.value) && /^\d{2}:\d{2}$/.test(pt.time))
+                .sort((a, b) => a.minutes - b.minutes)
+                .map(({ time, value }) => ({ time, value }));
+
+            const profileName = this.card.selectedProfile || this.card.profileManager.lastLoadedProfile || 'Comfort';
+
+            // Persist profile explicitly like the wizard
+            const safeMeta = (() => {
+                const src = (this.card.config && typeof this.card.config === 'object') ? this.card.config : {};
+                const { entity_prefix, ...rest } = src;
+                if (!rest.global_prefix && effectivePrefix) rest.global_prefix = effectivePrefix;
+                // Ensure scheduler can apply immediately by persisting the canonical target entity in profile meta
+                if (!rest.target_entity && targetEntity) rest.target_entity = targetEntity;
+                return rest;
+            })();
+
+            await this.card.hass.callService('cronostar', 'save_profile', {
+                profile_name: profileName,
+                preset_type: this.card.selectedPreset,
+                schedule: scheduleData,
+                global_prefix: effectivePrefix,
+                meta: safeMeta,
+            });
+
+            this.card.hasUnsavedChanges = false;
+
             Logger.log('APPLY', `[CronoStar] Calling service 'cronostar.apply_now' for entity '${targetEntity}' with prefix '${effectivePrefix}'`);
+            try {
+                const first = scheduleData?.[0];
+                const last = scheduleData?.[scheduleData.length - 1];
+                Logger.log(
+                    'APPLY',
+                    `[CronoStar] apply_now payload: profile_name='${profileName}' preset_type='${this.card.selectedPreset}' global_prefix='${effectivePrefix}' schedule_len=${scheduleData?.length || 0} first=${first ? JSON.stringify(first) : 'null'} last=${last ? JSON.stringify(last) : 'null'} apply_entity='${targetEntity}'`
+                );
+            } catch (e) {
+                Logger.warn('APPLY', '[CronoStar] Failed to log apply_now payload:', e);
+            }
 
             await this.card.hass.callService("cronostar", "apply_now", {
-                entity_id: targetEntity,
+                target_entity: targetEntity,
                 preset_type: this.card.selectedPreset,
                 allow_max_value: this.card.config.allow_max_value,
-                entity_prefix: this.card.config.entity_prefix,
-                global_prefix: this.card.config.global_prefix
+                // IMPORTANT: backend save_profile requires global_prefix.
+                // Use the same effective prefix used elsewhere (and ensure trailing underscore via getEffectivePrefix).
+                global_prefix: effectivePrefix,
+                // Provide optional persistence params so backend can save after apply
+                profile_name: profileName,
+                schedule: scheduleData,
+                // Let backend persist enough config for later scheduler apply.
+                // (safe: profile_service only uses meta when provided)
+                meta: {
+                    target_entity: targetEntity,
+                },
             });
 
             const currentHour = new Date().getHours().toString().padStart(2, '0');
@@ -201,7 +246,7 @@ export class CardEventHandlers {
             this.card.cardSync.scheduleAutomationOverlaySuppression();
             setTimeout(() => {
                 try {
-                    this.card.cardSync.updateAutomationSync(this.card._hass);
+                    this.card.cardSync.updateAutomationSync(this.card.hass);
                     this.card.requestUpdate();
                 } catch (e) { Logger.warn('APPLY', '[CronoStar] Error in setTimeout:', e); }
             }, 1000);
@@ -246,7 +291,6 @@ export class CardEventHandlers {
             await this.card.hass.callService('cronostar', 'add_profile', {
                 profile_name: profileName,
                 preset_type: this.card.selectedPreset,
-                entity_prefix: this.card.config.entity_prefix,
                 global_prefix: this.card.config.global_prefix
             });
 
@@ -316,7 +360,6 @@ export class CardEventHandlers {
             await this.card.hass.callService('cronostar', 'delete_profile', {
                 profile_name: current,
                 preset_type: this.card.selectedPreset,
-                entity_prefix: this.card.config.entity_prefix,
                 global_prefix: this.card.config.global_prefix
             });
 
@@ -371,26 +414,26 @@ export class CardEventHandlers {
     }
 
     handleHelp() {
-    const title = this.card.localizationManager.localize(this.card.language, 'help.title');
-    const text = this.card.localizationManager.localize(this.card.language, 'help.text');    
-    // Current Configuration Info
-    const cardId = this.card.cardId || 'Not registered';
-    const preset = this.card.config?.preset || 'thermostat';
-    const prefix = getEffectivePrefix(this.card.config);
-    const targetEntity = this.card.config?.apply_entity || 'Not configured';
-    const profileEntity = this.card.config?.profiles_select_entity || 'Not configured';
-    const pauseEntity = this.card.config?.pause_entity || 'Not configured';
-    const currentProfile = this.card.selectedProfile || 'No profile selected';    
-    // Expected entities
-    const prefixBase = prefix.replace(/_+$/, '');
-    const currentEntity = `input_number.${prefix}current`;
-    const packageFile = buildHelpersFilename(prefix);
-    const packagePath = `config/packages/${packageFile}`;    
-    // Interval info
-    const interval = this.card.config?.interval_minutes || 60;
-    const numPoints = Math.floor(1440 / interval);    
-    const configInfo = this.card.language === 'it'
-      ? `=== Configurazione Attuale ===
+        const title = this.card.localizationManager.localize(this.card.language, 'help.title');
+        const text = this.card.localizationManager.localize(this.card.language, 'help.text');
+        // Current Configuration Info
+        const cardId = this.card.cardId || 'Not registered';
+        const preset = this.card.config?.preset || 'thermostat';
+        const prefix = getEffectivePrefix(this.card.config);
+        const targetEntity = this.card.config?.apply_entity || 'Not configured';
+        const profileEntity = this.card.config?.profiles_select_entity || 'Not configured';
+        const pauseEntity = this.card.config?.pause_entity || 'Not configured';
+        const currentProfile = this.card.selectedProfile || 'No profile selected';
+        // Expected entities
+        const prefixBase = prefix.replace(/_+$/, '');
+        const currentEntity = `input_number.${prefix}current`;
+        const packageFile = buildHelpersFilename(prefix);
+        const packagePath = `config/packages/${packageFile}`;
+        // Interval info
+        const interval = this.card.config?.interval_minutes || 60;
+        const numPoints = Math.floor(1440 / interval);
+        const configInfo = this.card.language === 'it'
+            ? `=== Configurazione Attuale ===
 Card ID: ${cardId}
 Versione: ${VERSION}
 Preset: ${preset}
@@ -423,7 +466,7 @@ Il sistema utilizza:
 3. Riavvia Home Assistant
 4. Crea l'automazione usando l'editor (Step 4)
 5. Salva la configurazione della card`
-      : `=== Current Configuration ===
+            : `=== Current Configuration ===
 Card ID: ${cardId}
 Version: ${VERSION}
 Preset: ${preset}
@@ -457,9 +500,9 @@ The system uses:
 4. Create automation using editor (Step 4)
 5. Save card configuration`;
 
-    // Create custom dialog overlay
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
+        // Create custom dialog overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
       position: fixed;
       top: 0;
       left: 0;
@@ -471,9 +514,9 @@ The system uses:
       justify-content: center;
       z-index: 9999;
       padding: 20px;
-    `;    
-    const dialog = document.createElement('div');
-    dialog.style.cssText = `
+    `;
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
       background: var(--card-background-color, white);
       border-radius: 8px;
       padding: 24px;
@@ -481,23 +524,23 @@ The system uses:
       max-height: 80vh;
       overflow-y: auto;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    `;    
-    const headerDiv = document.createElement('div');
-    headerDiv.style.cssText = `
+    `;
+        const headerDiv = document.createElement('div');
+        headerDiv.style.cssText = `
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 16px;
-    `;    
-    const titleEl = document.createElement('h2');
-    titleEl.textContent = title;
-    titleEl.style.cssText = `
+    `;
+        const titleEl = document.createElement('h2');
+        titleEl.textContent = title;
+        titleEl.style.cssText = `
       margin: 0;
       color: var(--primary-text-color);
-    `;    
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '✕';
-    closeBtn.style.cssText = `
+    `;
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.style.cssText = `
       background: none;
       border: none;
       font-size: 24px;
@@ -507,11 +550,11 @@ The system uses:
       width: 32px;
       height: 32px;
     `;
-    closeBtn.onclick = () => overlay.remove();    
-    const textarea = document.createElement('textarea');
-    textarea.value = configInfo;
-    textarea.readOnly = true;
-    textarea.style.cssText = `
+        closeBtn.onclick = () => overlay.remove();
+        const textarea = document.createElement('textarea');
+        textarea.value = configInfo;
+        textarea.readOnly = true;
+        textarea.style.cssText = `
       width: 100%;
       min-height: 400px;
       font-family: monospace;
@@ -523,10 +566,10 @@ The system uses:
       color: var(--code-editor-color, #d4d4d4);
       resize: vertical;
       box-sizing: border-box;
-    `;    
-    const copyBtn = document.createElement('button');
-    copyBtn.textContent = this.card.language === 'it' ? '📋 Copia negli appunti' : '📋 Copy to clipboard';
-    copyBtn.style.cssText = `
+    `;
+        const copyBtn = document.createElement('button');
+        copyBtn.textContent = this.card.language === 'it' ? '📋 Copia negli appunti' : '📋 Copy to clipboard';
+        copyBtn.style.cssText = `
       margin-top: 12px;
       padding: 8px 16px;
       background: var(--primary-color);
@@ -536,33 +579,33 @@ The system uses:
       cursor: pointer;
       font-size: 14px;
     `;
-    copyBtn.onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(configInfo);
-        copyBtn.textContent = this.card.language === 'it' ? '✅ Copiato!' : '✅ Copied!';
-        setTimeout(() => {
-          copyBtn.textContent = this.card.language === 'it' ? '📋 Copia negli appunti' : '📋 Copy to clipboard';
-        }, 2000);
-      } catch (e) {
-        Logger.warn('HELP', 'Failed to copy to clipboard:', e);
-      }
-    };    
-    headerDiv.appendChild(titleEl);
-    headerDiv.appendChild(closeBtn);
-    dialog.appendChild(headerDiv);
-    dialog.appendChild(textarea);
-    dialog.appendChild(copyBtn);
-    overlay.appendChild(dialog);    
-    // Close on overlay click
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) {
-        overlay.remove();
-      }
-    });    
-    document.body.appendChild(overlay);    
-    // Select text for easy copying
-    textarea.select();
-  } // Missing closing brace added here
+        copyBtn.onclick = async () => {
+            try {
+                await navigator.clipboard.writeText(configInfo);
+                copyBtn.textContent = this.card.language === 'it' ? '✅ Copiato!' : '✅ Copied!';
+                setTimeout(() => {
+                    copyBtn.textContent = this.card.language === 'it' ? '📋 Copia negli appunti' : '📋 Copy to clipboard';
+                }, 2000);
+            } catch (e) {
+                Logger.warn('HELP', 'Failed to copy to clipboard:', e);
+            }
+        };
+        headerDiv.appendChild(titleEl);
+        headerDiv.appendChild(closeBtn);
+        dialog.appendChild(headerDiv);
+        dialog.appendChild(textarea);
+        dialog.appendChild(copyBtn);
+        overlay.appendChild(dialog);
+        // Close on overlay click
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+            }
+        });
+        document.body.appendChild(overlay);
+        // Select text for easy copying
+        textarea.select();
+    } // Missing closing brace added here
     async togglePause(e) {
         try {
             const checked = e?.target?.checked === true;

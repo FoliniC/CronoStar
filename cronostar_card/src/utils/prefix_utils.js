@@ -36,12 +36,11 @@ export function humanizePrefix(prefix, language = 'en') {
 }
 
 /**
- * Gets the effective prefix (global_prefix or entity_prefix)
+ * Gets the effective prefix (global_prefix only)
  */
 export function getEffectivePrefix(config) {
   const globalPrefix = (config.global_prefix || '').trim();
-  const entityPrefix = (config.entity_prefix || '').trim();
-  return globalPrefix || entityPrefix || 'cronostar_';
+  return globalPrefix || 'cronostar_';
 }
 
 /**

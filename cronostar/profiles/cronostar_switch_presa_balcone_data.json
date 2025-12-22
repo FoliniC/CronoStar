@@ -1,0 +1,79 @@
+{
+  "meta": {
+    "global_prefix": "cronostar_switch_presa_balcone_",
+    "preset_type": "generic_switch",
+    "created_at": "2025-12-21T01:35:46.499569",
+    "updated_at": "2025-12-21T22:27:36.981824",
+    "preset": "generic_switch",
+    "hour_base": {
+      "value": 0,
+      "determined": false
+    },
+    "logging_enabled": true,
+    "pause_entity": null,
+    "profiles_select_entity": null,
+    "apply_entity": "switch.your_generic_switch",
+    "allow_max_value": false,
+    "missing_yaml_style": "named",
+    "title": "Presa balcone",
+    "y_axis_label": "State",
+    "unit_of_measurement": "",
+    "min_value": "0",
+    "max_value": 1,
+    "step_value": 1,
+    "is_switch_preset": true,
+    "type": "custom:cronostar-card",
+    "entity_prefix": "cronostar_switch_",
+    "target_entity": "switch.wifi_breaker_switch_luci_natale"
+  },
+  "profiles": {
+    "Comfort": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 0
+        },
+        {
+          "time": "06:45",
+          "value": 0
+        },
+        {
+          "time": "06:46",
+          "value": 1
+        },
+        {
+          "time": "08:05",
+          "value": 1
+        },
+        {
+          "time": "08:06",
+          "value": 0
+        },
+        {
+          "time": "16:42",
+          "value": 0
+        },
+        {
+          "time": "16:43",
+          "value": 1
+        },
+        {
+          "time": "23:00",
+          "value": 1
+        },
+        {
+          "time": "23:01",
+          "value": 0
+        },
+        {
+          "time": "23:59",
+          "value": 0
+        }
+      ],
+      "updated_at": "2025-12-21T22:27:36.981861"
+    }
+  },
+  "saved_at": 1766352456.9818962,
+  "saved_at_iso": "2025-12-21T21:27:36.981896Z",
+  "version": 2
+}

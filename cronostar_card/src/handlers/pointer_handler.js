@@ -6,6 +6,7 @@ export class PointerHandler {
   constructor(card) {
     this.card = card;
     this.isSelecting = false;
+    this.pendingSelectStart = null; // start position before threshold exceeded
     this.isGlobalDragging = false;
     this.globalDragStartPx = null;
     this.initialDragValues = new Map();
@@ -14,6 +15,7 @@ export class PointerHandler {
     this.activePointerId = null;
     this.selectionAdditive = false;
     this.longPressTimeout = null;
+    this.dragThresholdPx = 6; // pixels before turning into area selection
 
     this.onPointerDown = this.onPointerDown.bind(this);
     this.onPointerMove = this.onPointerMove.bind(this);
@@ -69,373 +71,145 @@ export class PointerHandler {
 
     el.style.left = `${minX}px`;
     el.style.top = `${minY}px`;
-    el.style.width = `${Math.max(0, maxX - minX)}px`;
-    el.style.height = `${Math.max(0, maxY - minY)}px`;
-  }
-
-  /**
-   * Get indices within current selection rectangle
-   * @returns {Array<number>}
-   */
-  getIndicesInSelectionRect() {
-    const chartMgr = this.card.chartManager;
-    if (!chartMgr?.chart || !this.selStartPx || !this.selEndPx) return [];
-
-    const meta = chartMgr.chart.getDatasetMeta(0);
-    if (!meta?.data) return [];
-
-    const container = this.card.shadowRoot?.querySelector(".chart-container");
-    const canvas = this.card.shadowRoot?.getElementById("myChart");
-    if (!container || !canvas) return [];
-
-    const containerRect = container.getBoundingClientRect();
-    const canvasRect = canvas.getBoundingClientRect();
-
-    const offsetX = canvasRect.left - containerRect.left;
-    const offsetY = canvasRect.top - containerRect.top;
-
-    const minX = Math.min(this.selStartPx.x, this.selEndPx.x);
-    const minY = Math.min(this.selStartPx.y, this.selEndPx.y);
-    const maxX = Math.max(this.selStartPx.x, this.selEndPx.x);
-    const maxY = Math.max(this.selStartPx.y, this.selEndPx.y);
-
-    const inside = [];
-    meta.data.forEach((elem, idx) => {
-      const pos = typeof elem.tooltipPosition === 'function'
-        ? elem.tooltipPosition()
-        : { x: elem.x, y: elem.y };
-      const px = pos.x + offsetX;
-      const py = pos.y + offsetY;
-
-      if (px >= minX && px <= maxX && py >= minY && py <= maxY) {
-        inside.push(idx);
-      }
-    });
-
-    Logger.sel(`Area selection: nodes in rectangle -> ${JSON.stringify(inside)}`);
-    return inside;
+    el.style.width = `${Math.max(2, maxX - minX)}px`;
+    el.style.height = `${Math.max(2, maxY - minY)}px`;
   }
 
   /**
    * Handle pointer down event
-   * @param {PointerEvent} e - Pointer event
    */
   onPointerDown(e) {
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-
-    // Check if click is strictly within chart area (axes check)
-    const chart = this.card.chartManager?.chart;
-    if (chart) {
-      const { scales } = chart;
-      const rect = chart.canvas.getBoundingClientRect();
-
-      let clientX = e.clientX;
-      let clientY = e.clientY;
-      if (e.changedTouches && e.changedTouches.length > 0) {
-        clientX = e.changedTouches[0].clientX;
-        clientY = e.changedTouches[0].clientY;
-      }
-
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
-
-      // If click is on axes/labels (outside plot area), return early to allow pan/zoom
-      if (scales && scales.x && scales.y) {
-        if (x < scales.x.left || x > scales.x.right || y < scales.y.top || y > scales.y.bottom) {
-          return;
-        }
-      }
-    }
-
-    // Long-press for touch to enable multi-select
-    if (e.pointerType === 'touch') {
-      const chartMgr = this.card.chartManager;
-      const points = chartMgr?.chart?.getElementsAtEventForMode?.(e, 'nearest', { intersect: true }, true) || [];
-      if (points.length > 0) {
-        this.longPressTimeout = setTimeout(() => {
-          this.card.wasLongPress = true;
-          const selMgr = this.card.selectionManager;
-          const index = points[0].index;
-          selMgr.toggleIndexSelection(index);
-          chartMgr.updatePointStyling(selMgr.selectedPoint, selMgr.selectedPoints);
-          chartMgr.update();
-          this.longPressTimeout = null;
-        }, 500); // 500ms for long press
-      }
-    }
-
-    const chartMgr = this.card.chartManager;
-    // Enhanced hit testing: Try strict intersect first, then fallback to nearest with distance check
-    let points = chartMgr?.chart?.getElementsAtEventForMode?.(e, 'nearest', { intersect: true }, true) || [];
-
-    if (points.length === 0 && chartMgr?.chart) {
-      const nearest = chartMgr.chart.getElementsAtEventForMode(e, 'nearest', { intersect: false }, true) || [];
-      if (nearest.length > 0) {
-        const p = nearest[0];
-        const pEl = p.element;
-        const rect = chartMgr.chart.canvas.getBoundingClientRect();
-
-        let clientX = e.clientX;
-        let clientY = e.clientY;
-        if (e.changedTouches && e.changedTouches.length > 0) {
-          clientX = e.changedTouches[0].clientX;
-          clientY = e.changedTouches[0].clientY;
-        }
-
-        const clickX = clientX - rect.left;
-        const clickY = clientY - rect.top;
-
-        // Calculate distance to the nearest point center
-        const dx = clickX - pEl.x;
-        const dy = clickY - pEl.y;
-        const dist = Math.sqrt(dx*dx + dy*dy);
-
-        // Use a generous threshold (20px) to catch "near misses" that dragData might catch
-        if (dist < 20) {
-          points = [p];
-        }
-      }
-    }
-
-    const clickOnPoint = points.length > 0;
-
-    // Global drag for Android/touch
-    if (!clickOnPoint && e.pointerType === 'touch' && this.card.selectionManager.selectedPoints.length > 0) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-
-      this.isGlobalDragging = true;
-      this.activePointerId = e.pointerId;
-      const { x, y } = this.getContainerRelativeCoords(e);
-      this.globalDragStartPx = { x, y };
-
-      const chart = this.card.chartManager.chart;
-      const selMgr = this.card.selectionManager;
-      const selectedIndices = selMgr.getSelectedPoints();
-      const dataset = chart.data.datasets[0];
-
-      this.initialDragValues.clear();
-      selectedIndices.forEach(index => {
-        const d = dataset.data[index];
-        const y = (typeof d === 'object' && d !== null) ? d.y : Number(d);
-        this.initialDragValues.set(index, y);
-      });
-
-      Logger.log('DRAG', `[Pointer] Initiating global drag for ${selectedIndices.length} points.`);
-
-      const canvas = this.card.shadowRoot?.getElementById("myChart");
-      try { canvas?.setPointerCapture(e.pointerId); } catch (err) {}
-
-      return;
-    }
-
-    // Single point click selection/toggle (no Shift)
-    if (clickOnPoint && !e.shiftKey) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-
-      const index = points[0].index;
-      const selMgr = this.card.selectionManager;
-
-      // Ctrl/Cmd toggles, otherwise single selection
-      if (this.card.keyboardHandler?.ctrlDown || this.card.keyboardHandler?.metaDown || e.ctrlKey || e.metaKey) {
-        selMgr.toggleIndexSelection(index);
-      } else {
-        selMgr.selectIndices([index], false);
-      }
-
-      chartMgr.updatePointStyling(selMgr.selectedPoint, selMgr.selectedPoints);
-      chartMgr.update();
-
-      this.card.suppressClickUntil = Date.now() + TIMEOUTS.clickSuppression;
-      return;
-    }
-
-    const shouldSelectArea = !!e.shiftKey || !clickOnPoint;
-    if (!shouldSelectArea) {
-      return;
-    }
-
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-
-    this.isSelecting = true;
-    this.activePointerId = e.pointerId;
-    this.selectionAdditive = !!(
-      this.card.keyboardHandler?.ctrlDown ||
-      this.card.keyboardHandler?.metaDown ||
-      e.ctrlKey ||
-      e.metaKey
-    );
-
-    const canvas = this.card.shadowRoot?.getElementById("myChart");
     try {
-      canvas?.setPointerCapture(e.pointerId);
+      // Ignore pointer selection while a chart drag is in progress
+      if (this.card?.isDragging) {
+        Logger.log('POINTER', 'onPointerDown ignored: isDragging');
+        return;
+      }
+      // Pointerdown may prevent default in some interactions
+      e.stopPropagation();
+      // Do not call preventDefault unconditionally: keep compatibility with passive listeners
+
+      const pos = this.getContainerRelativeCoords(e);
+      // Defer selection start until movement exceeds threshold
+      this.pendingSelectStart = pos;
+      this.selStartPx = null;
+      this.selEndPx = null;
+      this.activePointerId = e.pointerId;
+      this.isSelecting = false;
+      // Do not mark pointerSelecting yet; allow click selection to proceed if no drag
+      this.card.selectionJustCompletedAt = 0;
+      this.selectionAdditive = !!(e.ctrlKey || e.metaKey || e.shiftKey);
     } catch (err) {
-      // Ignore capture errors
+      Logger.warn('POINTER', 'onPointerDown failed:', err);
     }
-
-    const { x, y } = this.getContainerRelativeCoords(e);
-    this.selStartPx = { x, y };
-    this.selEndPx = { x, y };
-    this.showSelectionOverlay();
-
-    this.card.suppressClickUntil = Date.now() + TIMEOUTS.clickSuppression;
   }
 
   /**
    * Handle pointer move event
-   * @param {PointerEvent} e - Pointer event
    */
   onPointerMove(e) {
-    if (this.longPressTimeout) {
-      clearTimeout(this.longPressTimeout);
-      this.longPressTimeout = null;
-    }
+    try {
+      // Ignore area selection while chart drag is active
+      if (this.card?.isDragging) return;
+      if (e.pointerId !== this.activePointerId) return;
+      const pos = this.getContainerRelativeCoords(e);
 
-    if (this.isGlobalDragging) {
-      if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
-      e.preventDefault();
-
-      const chart = this.card.chartManager.chart;
-      const yAxis = chart.scales.y;
-      const { y } = this.getContainerRelativeCoords(e);
-
-      const startValue = yAxis.getValueForPixel(this.globalDragStartPx.y);
-      const currentValue = yAxis.getValueForPixel(y);
-      const valueDelta = currentValue - startValue;
-
-      const selMgr = this.card.selectionManager;
-      const selectedIndices = selMgr.getSelectedPoints();
-      const dataset = chart.data.datasets[0];
-      const { min_value, max_value, step_value } = this.card.config;
-
-      selectedIndices.forEach(index => {
-        const initialValue = this.initialDragValues.get(index);
-        let newValue = initialValue + valueDelta;
-
-        // Clamp and round to step
-        newValue = Math.max(min_value, Math.min(max_value, newValue));
-        newValue = Math.round(newValue / step_value) * step_value;
-
-        const d = dataset.data[index];
-        if (typeof d === 'object' && d !== null) {
-          d.y = newValue;
-        } else {
-          dataset.data[index] = newValue;
+      if (!this.isSelecting) {
+        // Check if movement exceeded threshold to start area selection
+        if (this.pendingSelectStart) {
+          const dx = pos.x - this.pendingSelectStart.x;
+          const dy = pos.y - this.pendingSelectStart.y;
+          if (Math.sqrt(dx * dx + dy * dy) >= this.dragThresholdPx) {
+            // Begin selection
+            this.isSelecting = true;
+            this.card.pointerSelecting = true;
+            this.selStartPx = { ...this.pendingSelectStart };
+            this.selEndPx = { ...pos };
+            this.showSelectionOverlay();
+          }
         }
-      });
-
-      this.card.chartManager.update('none');
-      this.card.chartManager.showDragValueDisplay(selectedIndices, dataset.data);
-      return;
+      } else {
+        // Update selection rectangle
+        this.selEndPx = pos;
+        this.updateSelectionOverlay();
+      }
+    } catch (err) {
+      Logger.warn('POINTER', 'onPointerMove failed:', err);
     }
-
-    if (!this.isSelecting) return;
-    if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
-
-    e.preventDefault();
-    const pos = this.getContainerRelativeCoords(e);
-    this.selEndPx = pos;
-    this.updateSelectionOverlay();
   }
 
   /**
    * Handle pointer up event
-   * @param {PointerEvent} e - Pointer event
    */
   onPointerUp(e) {
-    if (this.longPressTimeout) {
-      clearTimeout(this.longPressTimeout);
-      this.longPressTimeout = null;
-    }
-
-    if (this.isGlobalDragging) {
-      if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
-      e.preventDefault();
-
-      this.isGlobalDragging = false;
-      this.activePointerId = null;
-      this.initialDragValues.clear();
-
-      const canvas = this.card.shadowRoot?.getElementById("myChart");
-      try { canvas?.releasePointerCapture(e.pointerId); } catch (err) {}
-
-      // Sync StateManager with dataset after drag
-      try {
-        const chart = this.card.chartManager.chart;
-        const ds = chart.data.datasets[0].data;
-        const newData = ds.map(p => ({
-          time: this.card.stateManager.minutesToTime(p.x),
-          value: (typeof p === 'object' && p !== null) ? p.y : Number(p)
-        }));
-        this.card.stateManager.setData(newData);
-      } catch {}
-
-      this.card.hasUnsavedChanges = true;
-      this.card.requestUpdate();
-
-      // Trigger auto-save
-      if (this.card.selectedProfile) {
-        this.card.profileManager.saveProfile(this.card.selectedProfile)
-          .catch(err => Logger.error('DRAG', 'Global drag auto-save failed:', err));
-      }
-
-      this.card.chartManager.scheduleHideDragValueDisplay(1500);
-      Logger.log('DRAG', '[Pointer] Global drag finished.');
-      return;
-    }
-
-    if (this.card.wasLongPress) {
-      this.card.wasLongPress = false; // Reset for next click
-      // Prevent chart's own click handler from firing
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      return;
-    }
-
-    if (!this.isSelecting) return;
-    if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
-
-    this.isSelecting = false;
-    this.activePointerId = null;
-
-    const canvas = this.card.shadowRoot?.getElementById("myChart");
     try {
-      canvas?.releasePointerCapture(e.pointerId);
-    } catch (err) {
-      // Ignore release errors
-    }
-
-    this.hideSelectionOverlay();
-
-    const indices = this.getIndicesInSelectionRect();
-    const selMgr = this.card.selectionManager;
-    const chartMgr = this.card.chartManager;
-
-    if (indices.length > 0) {
-      if (this.selectionAdditive) {
-        const union = [...selMgr.getSelectedPoints()];
-        indices.forEach(i => {
-          if (!union.includes(i)) union.push(i);
-        });
-        selMgr.selectIndices(union, true);
-      } else {
-        selMgr.selectIndices(indices, true);
+      // Ignore pointer up selection completion while chart drag is active
+      if (this.card?.isDragging) {
+        this.activePointerId = null;
+        this.pendingSelectStart = null;
+        this.selStartPx = null;
+        this.selEndPx = null;
+        this.card.pointerSelecting = false;
+        this.hideSelectionOverlay();
+        Logger.log('POINTER', 'onPointerUp ignored: isDragging');
+        return;
       }
-    } else {
-      selMgr.clearSelection();
+      if (e.pointerId !== this.activePointerId) return;
+      this.activePointerId = null;
+
+      // If no selection started (click), do not interfere; reset state and exit
+      if (!this.isSelecting) {
+        this.pendingSelectStart = null;
+        this.selStartPx = null;
+        this.selEndPx = null;
+        this.card.pointerSelecting = false;
+        this.hideSelectionOverlay();
+        return;
+      }
+
+      // Complete area selection
+      const minX = Math.min(this.selStartPx.x, this.selEndPx.x);
+      const minY = Math.min(this.selStartPx.y, this.selEndPx.y);
+      const maxX = Math.max(this.selStartPx.x, this.selEndPx.x);
+      const maxY = Math.max(this.selStartPx.y, this.selEndPx.y);
+
+      // Compute selected indices from area (delegated to ChartManager)
+      const indices = this.card.chartManager?.getIndicesInArea?.(minX, minY, maxX, maxY) || [];
+
+      const selMgr = this.card.selectionManager;
+      const chartMgr = this.card.chartManager;
+
+      if (indices.length > 0) {
+        if (this.selectionAdditive) {
+          const union = [...selMgr.getSelectedPoints()];
+          indices.forEach((i) => { if (!union.includes(i)) union.push(i); });
+          selMgr.selectIndices(union, true);
+        } else {
+          selMgr.selectIndices(indices, true);
+        }
+      } else {
+        selMgr.clearSelection();
+      }
+
+      chartMgr.updatePointStyling(selMgr.selectedPoint, selMgr.selectedPoints);
+      chartMgr.update();
+      selMgr.logSelection('area selection completed');
+
+      // Suppress immediate click after selection
+      this.card.selectionJustCompletedAt = Date.now();
+      this.card.suppressClickUntil = Date.now() + TIMEOUTS.clickSuppression;
+
+      this.hideSelectionOverlay();
+
+      // Reset selection state
+      this.isSelecting = false;
+      this.card.pointerSelecting = false;
+      this.pendingSelectStart = null;
+      this.selStartPx = null;
+      this.selEndPx = null;
+    } catch (err) {
+      Logger.warn('POINTER', 'onPointerUp failed:', err);
     }
-
-    chartMgr.updatePointStyling(selMgr.selectedPoint, selMgr.selectedPoints);
-    chartMgr.update();
-    selMgr.logSelection("area selection completed");
-
-    this.card.suppressClickUntil = Date.now() + TIMEOUTS.clickSuppression;
   }
 
   /**
@@ -445,6 +219,10 @@ export class PointerHandler {
     if (!this.isSelecting) return;
     this.isSelecting = false;
     this.activePointerId = null;
+    this.card.pointerSelecting = false;
+    this.pendingSelectStart = null;
+    this.selStartPx = null;
+    this.selEndPx = null;
     this.hideSelectionOverlay();
     this.card.suppressClickUntil = Date.now() + 300;
   }
@@ -455,9 +233,9 @@ export class PointerHandler {
    */
   attachListeners(canvas) {
     canvas.addEventListener('pointerdown', this.onPointerDown, { passive: false, capture: true });
-    window.addEventListener('pointermove', this.onPointerMove, true);
-    window.addEventListener('pointerup', this.onPointerUp, true);
-    window.addEventListener('pointercancel', this.onPointerCancel, true);
+    window.addEventListener('pointermove', this.onPointerMove, { passive: true, capture: true });
+    window.addEventListener('pointerup', this.onPointerUp, { passive: true, capture: true });
+    window.addEventListener('pointercancel', this.onPointerCancel, { passive: true, capture: true });
   }
 
   /**
@@ -466,8 +244,8 @@ export class PointerHandler {
    */
   detachListeners(canvas) {
     canvas.removeEventListener('pointerdown', this.onPointerDown, { capture: true });
-    window.removeEventListener('pointermove', this.onPointerMove, true);
-    window.removeEventListener('pointerup', this.onPointerUp, true);
-    window.removeEventListener('pointercancel', this.onPointerCancel, true);
+    window.removeEventListener('pointermove', this.onPointerMove, { capture: true });
+    window.removeEventListener('pointerup', this.onPointerUp, { capture: true });
+    window.removeEventListener('pointercancel', this.onPointerCancel, { capture: true });
   }
-}  
+}

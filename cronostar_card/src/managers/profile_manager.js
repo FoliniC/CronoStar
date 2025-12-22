@@ -13,6 +13,19 @@ export class ProfileManager {
     this.lastLoadedProfile = "";
   }
 
+  _buildMetaFromConfig(config) {
+    const src = (config && typeof config === 'object') ? config : {};
+    // Persist only safe wizard/card config keys (single source of truth).
+    // IMPORTANT: do not leak deprecated keys like entity_prefix into saved JSON.
+    const { entity_prefix, ...rest } = src;
+    // Ensure meta carries global_prefix consistently.
+    if (!rest.global_prefix) {
+      const effectivePrefix = getEffectivePrefix(src);
+      if (effectivePrefix) rest.global_prefix = effectivePrefix;
+    }
+    return rest;
+  }
+
   async saveProfile(profileName = this.lastLoadedProfile) {
     if (!profileName) {
       Logger.warn('SAVE', "[CronoStar] No profile specified for saving.");
@@ -21,39 +34,36 @@ export class ProfileManager {
 
     const presetType = this.card.selectedPreset || 'thermostat';
     const effectivePrefix = getEffectivePrefix(this.card.config);
-    
+
     Logger.save(
       `[CronoStar] === SAVE PROFILE START === Profile: '${profileName}', Preset: ${presetType}, Prefix: ${effectivePrefix}`
     );
 
-    // Read directly from internal memory
-    const rawData = this.card.stateManager.scheduleData || [];
-    
-    // Log outgoing data
-    if (rawData.length > 10) {
-      const sample = rawData.slice(0, 10);
-      Logger.save(
-        `[CronoStar] 📤 Outgoing schedule: length=${rawData.length}, sample=${JSON.stringify(sample)}...`
-      );
-    } else {
-      Logger.save(
-        `[CronoStar] 📤 Outgoing schedule: length=${rawData.length}, data=${JSON.stringify(rawData)}`
-      );
-    }
-    
-    const scheduleData = rawData.map((p, index) => ({
-      index: index,
-      time: p.time,
-      value: p.value
-    }));
+    // Build schedule from current points without extra compression;
+    // backend will normalize and optimize.
+    const rawData = this.card.stateManager.getData() || [];
+    const scheduleData = rawData
+      .map((p) => ({
+        minutes: this.card.stateManager.timeToMinutes(p.time),
+        time: String(p.time),
+        value: Number(p.value)
+      }))
+      .filter((pt) => Number.isFinite(pt.value) && /^\d{2}:\d{2}$/.test(pt.time))
+      .sort((a, b) => a.minutes - b.minutes)
+      .map(({ time, value }) => ({ time, value }));
+
+    // Log outgoing sparse schedule
+    Logger.save(
+      `[CronoStar] 📤 Outgoing schedule: count=${scheduleData.length}, sample=${JSON.stringify(scheduleData.slice(0, 10))}`
+    );
 
     try {
-      await this.card.hass.callService("cronostar", "save_profile", {
+      await this.card.hass.callService('cronostar', 'save_profile', {
         profile_name: profileName,
         preset_type: presetType,
         schedule: scheduleData,
-        entity_prefix: this.card.config.entity_prefix,
-        global_prefix: this.card.config.global_prefix
+        global_prefix: effectivePrefix,
+        meta: this._buildMetaFromConfig(this.card.config),
       });
 
       this.card.hasUnsavedChanges = false;
@@ -75,7 +85,7 @@ export class ProfileManager {
    */
   async loadProfile(profileName) {
     this.card.stateManager.isLoadingProfile = true;
-    
+
     const effectivePrefix = getEffectivePrefix(this.card.config);
     Logger.load(
       `[CronoStar] === LOAD PROFILE START === Profile: '${profileName}', Prefix: '${effectivePrefix}'`
@@ -91,51 +101,40 @@ export class ProfileManager {
         service_data: {
           profile_name: profileName,
           preset_type: presetType,
-          entity_prefix: this.card.config.entity_prefix,
-          global_prefix: this.card.config.global_prefix
+          global_prefix: effectivePrefix
         },
         return_response: true,
       });
 
       const responseData = result?.response;
-      
+
       Logger.load(`[CronoStar] 📥 Response received:`, responseData);
-      
+
       const rawSchedule = responseData?.schedule;
       let scheduleValues = null;
 
       if (responseData && !responseData.error && rawSchedule && Array.isArray(rawSchedule)) {
         // Success case: Profile loaded from backend
-        // Use raw schedule directly (objects with time/value) to preserve time info
-        // Prefer passing rich objects (time/value) to StateManager so X is correct.
-        const first = rawSchedule[0];
-        const hasTime = typeof first === 'object' && first !== null && 'time' in first;
-        const hasValueObject = typeof first === 'object' && first !== null && 'value' in first;
+        // Sparse mode: expect {time,value} or {x,y} objects and pass through
+        scheduleValues = rawSchedule;
 
-        const payloadForState = hasTime || hasValueObject ? rawSchedule : rawSchedule;
-        scheduleValues = payloadForState;
-        
         // Log sample
         const sample = scheduleValues.slice(0, 5);
         Logger.load(
           `[CronoStar] 📊 Parsed schedule: length=${scheduleValues.length}, sample=${JSON.stringify(sample)}`
         );
-        
+
         Logger.load(`[CronoStar] ✅ Profile data processed for '${profileName}'. Points: ${scheduleValues.length}`);
       } else {
-        // Fallback case: Profile not found or invalid. Using default values.
-        Logger.warn('LOAD', `[CronoStar] ⚠️ Profile '${profileName}' not found or invalid. Using default values.`);
-        const numPoints = this.card.stateManager.getNumPoints();
-        const defaultVal = this.card.config.min_value ?? 0;
-        scheduleValues = new Array(numPoints).fill(defaultVal);
+        // Fallback: no schedule returned; keep existing data (sparse mode)
+        Logger.warn('LOAD', `[CronoStar] ⚠️ Profile '${profileName}' not found or invalid. Keeping existing schedule.`);
+        scheduleValues = this.card.stateManager.getData();
       }
 
       // Update Internal Memory directly
       this.card.stateManager.setData(scheduleValues);
-      
-      // Ensure grid consistency (interpolate if sparse/dense mismatch)
-      const interval = this.card.config.interval_minutes || 60;
-      this.card.stateManager.resizeScheduleData(interval);
+
+      // Sparse mode: no grid resize
 
       // Update Chart
       if (this.card.chartManager?.isInitialized()) {
@@ -183,7 +182,7 @@ export class ProfileManager {
     }
 
     this.card.selectedProfile = newProfile;
-    
+
     // Update the input_select entity so other clients know (if configured)
     if (this.card.config.profiles_select_entity) {
       this.card.hass.callService("input_select", "select_option", {

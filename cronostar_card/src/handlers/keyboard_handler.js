@@ -186,7 +186,7 @@ export class KeyboardHandler {
     }
 
     if (e.key === "ArrowUp" || e.key === "ArrowDown" ||
-        e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.key === "ArrowLeft" || e.key === "ArrowRight") {
       this.card.isDragging = false;
       this.card.lastEditAt = Date.now();
       this.card.chartManager?.scheduleHideDragValueDisplay(2500);
@@ -270,15 +270,80 @@ export class KeyboardHandler {
   }
 
   handleArrowLeftRight(e, indices) {
-    const direction = e.key === "ArrowLeft" ? 'left' : 'right';
-    this.card.stateManager.alignSelectedPoints(direction);
-    this.card.chartManager?.showDragValueDisplay(indices, this.card.chartManager?.chart?.data?.datasets?.[0]?.data || []);
+    // Move selected points horizontally in time, preserving their values
+    let minutesStep = Number(this.card.config?.keyboard_time_step_minutes) || 5;
+
+    if (e.altKey) minutesStep = 30;
+    else if (e.ctrlKey || e.metaKey) minutesStep = 1;
+
+    const dx = e.key === "ArrowLeft" ? -minutesStep : minutesStep;
+
+    const chartMgr = this.card.chartManager;
+    const stateMgr = this.card.stateManager;
+    if (!chartMgr?.chart?.data?.datasets?.[0]) return;
+
+    const dataset = chartMgr.chart.data.datasets[0];
+    const data = dataset.data;
+
+    // Build time-sorted list to compute non-crossing bounds
+    const allByTime = data
+      .map((pt, idx) => ({ idx, x: Math.round(Number(pt?.x ?? 0)) }))
+      .sort((a, b) => a.x - b.x);
+    const selectedSet = new Set(indices);
+
+    // Determine first and last indices by time
+    const firstIdx = allByTime[0]?.idx;
+    const lastIdx = allByTime[allByTime.length - 1]?.idx;
+
+    // Compute bounds per selected point
+    const boundsMap = new Map();
+    indices.forEach((selIdx) => {
+      const entryPos = allByTime.findIndex((e2) => e2.idx === selIdx);
+      let leftBound = 0;
+      let rightBound = 1440;
+
+      // Scan left for nearest non-selected neighbor
+      for (let k = entryPos - 1; k >= 0; k--) {
+        const e2 = allByTime[k];
+        if (!selectedSet.has(e2.idx)) { leftBound = e2.x + 1; break; }
+      }
+
+      // Scan right for nearest non-selected neighbor
+      for (let k = entryPos + 1; k < allByTime.length; k++) {
+        const e2 = allByTime[k];
+        if (!selectedSet.has(e2.idx)) { rightBound = e2.x - 1; break; }
+      }
+
+      boundsMap.set(selIdx, { left: Math.max(0, leftBound), right: Math.min(1440, rightBound) });
+    });
+
+    // Apply movement with clamping, do not move first/last points completely
+    indices.forEach((i) => {
+      const p = data[i];
+      if (!p) return;
+      if (i === firstIdx || i === lastIdx) return; // keep anchors fixed
+      const b = boundsMap.get(i) || { left: 0, right: 1440 };
+      let desiredX = Math.round(Number(p.x) + dx);
+      desiredX = Math.max(b.left, Math.min(b.right, desiredX));
+      desiredX = Math.max(0, Math.min(1440, desiredX));
+      p.x = desiredX; // preserve y unchanged
+    });
+
+    // Persist to state and update chart
+    try {
+      const newData = data.map((pt) => ({ x: Number(pt.x), y: Number(pt.y) }));
+      stateMgr.setData(newData);
+    } catch { }
+
+    chartMgr.updatePointStyling(this.card.selectionManager.selectedPoint, this.card.selectionManager.selectedPoints);
+    chartMgr.update('none');
+    chartMgr.showDragValueDisplay(indices, data);
   }
 
   handleArrowUpDown(e, indices) {
-    const delta = e.key === "ArrowUp"
-      ? this.card.config.step_value
-      : -this.card.config.step_value;
+    const isSwitch = !!this.card.config?.is_switch_preset;
+    const step = isSwitch ? 1 : this.card.config.step_value;
+    const delta = e.key === "ArrowUp" ? step : -step;
 
     const selMgr = this.card.selectionManager;
     const stateMgr = this.card.stateManager;
@@ -299,8 +364,13 @@ export class KeyboardHandler {
       const current = dataset.data[i];
       const currentVal = (typeof current === 'object' && current !== null) ? Number(current.y) : Number(current);
       let val = currentVal + delta;
-      val = clamp(val, this.card.config.min_value, upperClamp);
-      val = roundTo(val, 1);
+      if (isSwitch) {
+        // Preserve ON by only changing on ArrowDown; ArrowUp sets to ON
+        val = e.key === 'ArrowUp' ? 1 : 0;
+      } else {
+        val = clamp(val, this.card.config.min_value, upperClamp);
+        val = roundTo(val, 1);
+      }
 
       if (typeof dataset.data[i] === 'object' && dataset.data[i] !== null) {
         dataset.data[i].y = val;

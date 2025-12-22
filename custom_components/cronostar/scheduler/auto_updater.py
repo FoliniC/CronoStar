@@ -49,7 +49,7 @@ class AutoUpdater:
         """Start monitoring input_number entities for changes.
         
         Args:
-            prefixes: Dict mapping preset_type to entity_prefix
+            prefixes: Dict mapping preset_type to global_prefix
         """
         if self._unsub:
             self._unsub()
@@ -241,7 +241,7 @@ class AutoUpdater:
         from ..utils.prefix_normalizer import PRESETS_CONFIG
         
         config = PRESETS_CONFIG.get(preset_type, {})
-        prefix = config.get("entity_prefix", "cronostar_")
+        prefix = config.get("global_prefix", config.get("entity_prefix", "cronostar_"))
         
         schedule = []
         for hour in range(24):
@@ -266,7 +266,7 @@ class AutoUpdater:
         from ..utils.prefix_normalizer import PRESETS_CONFIG
         
         for preset_type, config in PRESETS_CONFIG.items():
-            prefix = config.get("entity_prefix", "")
+            prefix = config.get("global_prefix", config.get("entity_prefix", ""))
             if entity_id.startswith(f"input_number.{prefix}"):
                 return preset_type
         

@@ -1,8 +1,8 @@
-task_name: CronoStar Card Files (Expanded - Full Project)
+task_name: CronoStar Card Files Minimal
 description: All files for the Home Assistant CronoStar Card component, including recursively found files, generated from the complete project structure.
 output_dir: "."
 base_dir: "."
-output_filename_prefix: "cronostar_card_full_project"
+output_filename_prefix: "cronostar_card_minimal_project"
 files:
 - path: automations/cronostar_automation.yaml
 - path: configuration.yaml
@@ -16,11 +16,7 @@ files:
   - modbus
   - input_datetime
   - scheduler
-- path: cronostar/profiles/cronostar_ev_charging_sempre.json
-- path: cronostar/profiles/cronostar_switch_default.json
-- path: cronostar/profiles/cronostar_thermostat_comfort.json
-- path: cronostar/profiles/cronostar_thermostat_eco.json
-- path: cronostar/profiles/cronostar_thermostat_night.json
+- path: cronostar/profiles/cronostar_termostato_appartamento_data.json
 - path: cronostar_card/eslint.config.js
 - path: hacs.json
 - path: cronostar_card/package.json
@@ -69,9 +65,4 @@ files:
 - path: custom_components/cronostar/utils/prefix_normalizer.py
 - path: custom_components/cronostar/scheduler/auto_updater.py
 - path: custom_components/cronostar/storage/storage_manager.py
-- path: packages/cronostar_ev_charging.yaml
-- path: packages/cronostar_generic_presets.yaml
-- path: packages/cronostar_profiles.yaml
-- path: packages/cronostar_thermostat.yaml
-- path: packages/cronostar_current_values.yaml
 

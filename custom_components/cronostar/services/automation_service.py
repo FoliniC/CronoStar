@@ -16,7 +16,6 @@ class AutomationService:
         target_entity = call.data.get("entity_id")
         preset_type = call.data.get("preset_type")
         allow_max = call.data.get("allow_max_value", False)
-        entity_prefix = call.data.get("entity_prefix")
         global_prefix = call.data.get("global_prefix")
         
         if not all((target_entity, preset_type)):
@@ -28,10 +27,11 @@ class AutomationService:
         config = PRESETS_CONFIG.get(canonical, {})
         
         # Determine which prefix to use
-        used_prefix = normalize_prefix(
-            global_prefix or entity_prefix or 
-            config.get("entity_prefix", "cronostar_")
-        )
+        if not global_prefix:
+            _LOGGER.warning("apply_now: missing global_prefix")
+            return
+
+        used_prefix = normalize_prefix(global_prefix)
         
         # Construct dynamic entity ID
         current_value_entity = f"input_number.{used_prefix}current"
@@ -40,24 +40,12 @@ class AutomationService:
             _LOGGER.warning("Could not determine current_value_entity for preset %s", canonical)
             return
             
+        # Read from the single current_value_entity (scheduler is the source of truth)
         state = self.hass.states.get(current_value_entity)
-        # Fallback to static config if dynamic one missing (backward compat)
-        if not state:
-             static_entity = config.get("current_value_entity")
-             if static_entity and static_entity != current_value_entity:
-                 _LOGGER.warning(
-                     "Dynamic entity %s not found. Falling back to default %s. "
-                     "Check if you reloaded YAML after creating helpers.", 
-                     current_value_entity, static_entity
-                 )
-                 state = self.hass.states.get(static_entity)
-                 if state:
-                     current_value_entity = static_entity
+        # No fallback: global_prefix is the only supported configuration
 
         if not state or state.state in ("unknown", "unavailable"):
             _LOGGER.warning("Current value entity not available: %s", current_value_entity)
-            # Optional: Force a recalculation via scheduler here if needed?
-            # For now, just warn.
             return
         
         try:
@@ -74,6 +62,7 @@ class AutomationService:
                 target_entity
             )
             return
+
         
         # Apply value based on target entity domain
         domain = target_entity.split('.')[0]
@@ -104,3 +93,4 @@ class AutomationService:
             current_value_entity,
             target_entity
         )
+

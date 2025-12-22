@@ -58,3 +58,9 @@ input_number:
     step: 1
     initial: 0
     icon: mdi:toggle-switch
+
+cronostar:
+homeassistant:
+  allowlist_external_dirs:
+    - /config/cronostar
+    - /config/www/cronostar_profiles

@@ -1,4 +1,5 @@
 import { html } from 'lit';
+import { CARD_CONFIG_PRESETS } from '../../config.js';
 
 export class Step3Options {
   constructor(editor) {
@@ -6,60 +7,71 @@ export class Step3Options {
   }
 
   render() {
+    const presetConfig = CARD_CONFIG_PRESETS[this.editor._config.preset || 'thermostat'] || {};
+
     return html`
       <div class="step-content">
         <div class="step-header">${this.editor.i18n._t('headers.step3')}</div>
         <div class="step-description">${this.editor.i18n._t('descriptions.step3')}</div>
-        
+
         <div class="field-group">
-          ${this.editor._renderTextInput('title', this.editor._config.title, this.editor.i18n._t('fields.title_label'))}
+          <label class="field-label">${this.editor.i18n._t('fields.titlelabel')}</label>
+          ${this.editor.renderTextInput('title', this.editor._config.title || presetConfig.title || 'CronoStar Schedule')}
         </div>
 
         <div class="field-group">
-          ${this.editor._renderTextInput('y_axis_label', this.editor._config.y_axis_label, this.editor.i18n._t('fields.y_axis_label'))}
+          <label class="field-label">${this.editor.i18n._t('fields.yaxislabel')}</label>
+          ${this.editor.renderTextInput('y_axis_label', this.editor._config.y_axis_label || presetConfig.yaxislabel)}
         </div>
 
         <div class="field-group">
-          <ha-select
-            label="${this.editor.i18n._t('fields.interval_label') || 'Interval'}"
-            .value=${String(this.editor._config.interval_minutes || 60)}
-            @selected=${(e) => {
-              const val = parseInt(e.target.value, 10);
-              if (!isNaN(val) && val > 0 && val !== this.editor._config.interval_minutes) {
-                this.editor._updateConfig('interval_minutes', val);
-              }
-            }}
-            @closed=${(e) => e.stopPropagation()}
-            style="width: 100%;"
-          >
-            <mwc-list-item value="60">1 hour (24 points)</mwc-list-item>
-            <mwc-list-item value="30">30 minutes (48 points)</mwc-list-item>
-            <mwc-list-item value="15">15 minutes (96 points)</mwc-list-item>
-            <mwc-list-item value="10">10 minutes (144 points)</mwc-list-item>
-          </ha-select>
-          <div class="hint" style="font-size: 0.8em; color: var(--secondary-text-color); margin-top: 4px;">
-            ${this.editor.i18n._t('fields.interval_desc') || 'Select the time resolution. Lower values create more points but require more entities.'}
-          </div>
+          <label class="field-label">${this.editor.i18n._t('fields.unitlabel')}</label>
+          ${this.editor.renderTextInput('unit_of_measurement', this.editor._config.unit_of_measurement || presetConfig.unitofmeasurement)}
         </div>
 
         <div class="field-group">
-          ${this.editor._renderTextInput('unit_of_measurement', this.editor._config.unit_of_measurement, this.editor.i18n._t('fields.unit_label'))}
-        </div>
-
-        <div style="display: flex; gap: 16px;">
-          <ha-textfield style="flex: 1" type="number" .label=${this.editor.i18n._t('fields.min_label')} .value=${this.editor._config.min_value} @input=${(e) => this.editor._updateNumber('min_value', e.target.value)}></ha-textfield>
-          <ha-textfield style="flex: 1" type="number" .label=${this.editor.i18n._t('fields.max_label')} .value=${this.editor._config.max_value} @input=${(e) => this.editor._updateNumber('max_value', e.target.value)}></ha-textfield>
-          <ha-textfield style="flex: 1" type="number" .label=${this.editor.i18n._t('fields.step_label')} .value=${this.editor._config.step_value} @input=${(e) => this.editor._updateNumber('step_value', e.target.value)}></ha-textfield>
+          <label class="field-label">${this.editor.i18n._t('fields.minlabel')}</label>
+          <div class="field-description">Chart min value.</div>
+          ${this.editor.renderTextInput('min_value', this.editor._config.min_value !== undefined ? this.editor._config.min_value : presetConfig.minvalue)}
         </div>
 
         <div class="field-group">
-          <ha-formfield .label=${this.editor.i18n._t('fields.allow_max_label')}>
+          <label class="field-label">${this.editor.i18n._t('fields.maxlabel')}</label>
+          <div class="field-description">Chart max value.</div>
+          ${this.editor.renderTextInput('max_value', this.editor._config.max_value !== undefined ? this.editor._config.max_value : presetConfig.maxvalue)}
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">${this.editor.i18n._t('fields.steplabel')}</label>
+          ${this.editor.renderTextInput('step_value', this.editor._config.step_value !== undefined ? this.editor._config.step_value : presetConfig.stepvalue)}
+        </div>
+
+        <div class="field-group">
+          <ha-formfield .label=${this.editor.i18n._t('fields.allowmaxlabel')}>
             <ha-switch .checked=${!!this.editor._config.allow_max_value} @change=${(e) => this.editor._updateConfig('allow_max_value', e.target.checked)}></ha-switch>
           </ha-formfield>
         </div>
+
         <div class="field-group">
-          <ha-formfield .label=${this.editor.i18n._t('fields.logging_label')}>
-            <ha-switch .checked=${this.editor._config.logging_enabled !== false} @change=${(e) => this.editor._updateConfig('logging_enabled', e.target.checked)}></ha-switch>
+          <label class="field-label">${this.editor.i18n._t('fields.intervallabel')}</label>
+          <ha-select
+            .value=${this.editor._config.interval_minutes || 60}
+            @value-changed=${(e) => {
+        const v = e?.detail?.value ?? e?.target?.value;
+        if (v === undefined || v === null || v === '') return;
+        const n = parseInt(v);
+        if (Number.isFinite(n)) this.editor._updateConfig('interval_minutes', n);
+      }}
+            label="Interval">
+            <mwc-list-item value="60">1 hour (24 points)</mwc-list-item>
+            <mwc-list-item value="30">30 min (48)</mwc-list-item>
+            <mwc-list-item value="15">15 min (96)</mwc-list-item>
+          </ha-select>
+        </div>
+
+        <div class="field-group">
+          <ha-formfield .label=${this.editor.i18n._t('fields.logginglabel')}>
+            <ha-switch .checked=${!!this.editor._config.logging_enabled} @change=${(e) => this.editor._updateConfig('logging_enabled', e.target.checked)}></ha-switch>
           </ha-formfield>
         </div>
       </div>

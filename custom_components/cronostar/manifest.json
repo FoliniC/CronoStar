@@ -4,7 +4,7 @@
   "codeowners": [
     "@FoliniC"
   ],
-  "config_flow": false,
+  "config_flow": true,
   "dependencies": [
     "http",
     "frontend"
@@ -16,5 +16,5 @@
     "custom_components.cronostar"
   ],
   "requirements": [],
-  "version": "4.0.4"
+  "version": "4.3.0"
 }

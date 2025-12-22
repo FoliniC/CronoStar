@@ -6,6 +6,11 @@ export class CardLifecycle {
     this.card = card;
     this.hasRegistered = false;
 
+    // When HA changes view/cards, the element may remain connected but become hidden.
+    // We use IntersectionObserver to detect re-visibility and force a safe chart rebuild.
+    this._visibilityObserver = null;
+    this._lastVisible = null;
+
     // spam guards
     this.loggedProfileSelectEntityMissing = false;
     this.loggedPauseEntityMissing = false;
@@ -22,13 +27,13 @@ export class CardLifecycle {
       this.card.config = validateConfig(config);
       Logger.log('CONFIG', 'CronoStar setConfig validated config:', this.card.config);
 
-      this.card.loggingEnabled = this.card.config.loggingenabled !== false;
+      this.card.loggingEnabled = this.card.config.logging_enabled !== false;
       Logger.setEnabled(this.card.loggingEnabled);
       Logger.log('LOG', 'CronoStar Logging enabled:', this.card.loggingEnabled);
 
       this.card.selectedPreset = this.card.config.preset;
 
-      const hourBaseConfig = this.card.config.hourbase;
+      const hourBaseConfig = this.card.config.hour_base;
       if (typeof hourBaseConfig === 'object') {
         this.card.hourBase = hourBaseConfig.value;
         this.card.hourBaseDetermined = hourBaseConfig.determined;
@@ -37,28 +42,12 @@ export class CardLifecycle {
         this.card.hourBaseDetermined = true;
       }
 
-      if (this.card.stateManager) {
-        const interval = this.card.config.intervalminutes || 60;
-        const minVal = this.card.config.minvalue ?? 0;
-
-        this.card.stateManager.resizeScheduleData(interval);
-
-        // sanitize nulls
-        const data = this.card.stateManager.getData();
-        let dirty = false;
-        for (let i = 0; i < data.length; i++) {
-          if (data[i] === null || data[i] === undefined) {
-            data[i] = minVal;
-            dirty = true;
-          }
-        }
-        if (dirty) this.card.stateManager.setData(data);
-      }
+      // Sparse mode: no interval-based resizing or grid sanitization
     } catch (e) {
       Logger.error('CONFIG', 'CronoStar Error in setConfig:', e);
       this.card.eventHandlers?.showNotification?.(
         this.card.localizationManager?.localize?.(this.card.language, 'error.configerror', e.message) ||
-          `Config error: ${e.message}`,
+        `Config error: ${e.message}`,
         'error',
       );
     }
@@ -72,8 +61,8 @@ export class CardLifecycle {
 
           const chart = this.card.chartManager.getChart?.();
           if (chart && chart.options?.scales?.y) {
-            chart.options.scales.y.min = this.card.config.minvalue;
-            chart.options.scales.y.max = this.card.config.maxvalue;
+            chart.options.scales.y.min = this.card.config.min_value;
+            chart.options.scales.y.max = this.card.config.max_value;
             chart.update();
           }
           this.card.chartManager.updateChartLabels?.();
@@ -91,31 +80,43 @@ export class CardLifecycle {
     }
 
     try {
-      this.card.hass = hass;
+      // Store hass safely for getters and internal usage
+      this._hass = hass;
+      // IMPORTANT: do NOT assign this.card.hass = hass here, to avoid recursion with CronoStarCard.set hass.
+      // Use the passed-in hass for all reads/writes instead.
+      const card = this.card;
 
-      if (!this.card.languageInitialized && hass.language) {
-        this.card.language = hass.language;
-        this.card.languageInitialized = true;
-        Logger.log('LANG', 'CronoStar Language initialized to:', this.card.language);
+      if (!card.languageInitialized && hass.language) {
+        card.language = hass.language;
+        card.languageInitialized = true;
+        Logger.log('LANG', 'CronoStar Language initialized to:', card.language);
       }
 
       if (this.isEditorContext()) return;
 
       // mark ready when backend service exists
-      if (!this.card.cronostarReady) {
-        if (hass.services?.cronostar?.applynow) {
+      if (!card.cronostarReady) {
+        // Support both apply_now (snake) and legacy applynow (no underscore)
+        if (hass.services?.cronostar?.apply_now || hass.services?.cronostar?.applynow) {
           Logger.log('LOAD', 'CronoStar Backend service found, considering it ready.');
-          this.card.cronostarReady = true;
-          this.card.requestUpdate();
+          card.cronostarReady = true;
+          card.requestUpdate();
         }
       }
 
+      // Register the card with backend as soon as the service is available
+      if (!this.hasRegistered && hass.services?.cronostar && (hass.services.cronostar.register_card || hass.services.cronostar.registercard)) {
+        this.registerCard(hass).catch((e) => {
+          Logger.warn('LOAD', 'CronoStar register_card call failed:', e);
+        });
+      }
+
       // pause entity check (spam-free)
-      if (this.card.config?.pauseentity) {
-        const pauseId = this.card.config.pauseentity;
+      if (card.config?.pause_entity) {
+        const pauseId = card.config.pause_entity;
         const pauseStateObj = hass.states[pauseId];
         if (pauseStateObj) {
-          this.card.isPaused = pauseStateObj.state === 'on';
+          card.isPaused = pauseStateObj.state === 'on';
           this.loggedPauseEntityMissing = false;
         } else {
           let alreadyWarnedGlobally = false;
@@ -133,25 +134,27 @@ export class CardLifecycle {
       }
 
       // profiles select entity read
-      if (this.card.config?.profilesselectentity) {
-        const selId = this.card.config.profilesselectentity;
+      if (card.config?.profiles_select_entity) {
+        const selId = card.config.profiles_select_entity;
         const selObj = hass.states[selId];
         if (selObj) {
           this.loggedProfileSelectEntityMissing = false;
           const newProfile = selObj.state;
           const newOptions = selObj.attributes?.options;
 
-          if (JSON.stringify(this.card.profileOptions) !== JSON.stringify(newOptions)) {
-            this.card.profileOptions = newOptions;
+          if (JSON.stringify(card.profileOptions) !== JSON.stringify(newOptions)) {
+            card.profileOptions = newOptions;
             Logger.log('HASS', 'CronoStar Profile options updated:', newOptions?.length, 'profiles');
           }
 
-          if (newProfile && newProfile !== this.card.selectedProfile) {
-            this.card.selectedProfile = newProfile;
+          if (newProfile && newProfile !== card.selectedProfile) {
+            card.selectedProfile = newProfile;
             Logger.log('HASS', 'CronoStar Selected profile updated:', newProfile);
 
-            if (!this.card.hasUnsavedChanges) {
-              this.card.profileManager?.loadProfile?.(newProfile);
+            if (!card.hasUnsavedChanges) {
+              card.profileManager?.loadProfile?.(newProfile).catch((e) => {
+                Logger.warn('LOAD', 'Profile load failed:', e);
+              });
             }
           }
         } else if (!this.loggedProfileSelectEntityMissing) {
@@ -161,11 +164,16 @@ export class CardLifecycle {
       }
 
       // periodic sync check
-      this.card.cardSync?.updateAutomationSync?.(hass);
-      if (!this.card.syncCheckTimer) {
-        this.card.syncCheckTimer = setInterval(() => {
-          if (!this.card._cardConnected) return;
-          this.card.cardSync?.updateAutomationSync?.(this.card.hass);
+      card.cardSync?.updateAutomationSync?.(hass);
+      if (!card.syncCheckTimer) {
+        card.syncCheckTimer = setInterval(() => {
+          if (!card._cardConnected) return;
+          card.cardSync?.updateAutomationSync?.(hass);
+          
+          // Redraw chart to update current time indicator
+          if (card.chartManager?.isInitialized()) {
+            card.chartManager.update('none');
+          }
         }, 5000);
       }
     } catch (err) {
@@ -177,6 +185,44 @@ export class CardLifecycle {
     try {
       this.card._cardConnected = true;
       Logger.log('LIFECYCLE', 'CronoStar connectedCallback - element added to DOM');
+
+      // If the element is re-attached after being hidden/removed, Chart.js may be stuck with a 0x0 canvas.
+      // Use ONLY the canvas size check as requested. Defer until render completes.
+      try {
+        if (!this.isEditorContext()) {
+          const doCanvasCheck = () => {
+            try {
+              const canvas = this.card.shadowRoot?.getElementById('myChart');
+              if (!canvas) {
+                // Canvas not yet rendered; retry shortly
+                setTimeout(doCanvasCheck, 100);
+                return;
+              }
+              const rect = canvas.getBoundingClientRect();
+              const w = Math.round(rect?.width || 0);
+              const h = Math.round(rect?.height || 0);
+              Logger.log('LIFECYCLE', `CronoStar canvas check: ${w}x${h}`);
+              const chartReady = !!(this.card.chartManager?.isInitialized?.() && this.card.chartManager?.getChart?.());
+              if (w === 0 || h === 0 || !chartReady) {
+                Logger.log('LIFECYCLE', `CronoStar chart not ready (size=${w}x${h}, ready=${chartReady}); rebuilding`);
+                this.reinitializeCard();
+              } else {
+                // Chart exists and canvas has size: trigger a safe update
+                try { this.card.chartManager?.update?.('none'); } catch { }
+              }
+            } catch (err) {
+              Logger.warn('LIFECYCLE', 'Canvas check error:', err);
+            }
+          };
+
+          // After the next render cycle
+          try { this.card.updateComplete?.then(() => setTimeout(doCanvasCheck, 0)); } catch { }
+          // Also schedule via RAF as a fallback
+          requestAnimationFrame(() => setTimeout(doCanvasCheck, 0));
+        }
+      } catch (e) {
+        Logger.warn('LIFECYCLE', 'Canvas size check failed:', e);
+      }
 
       if (this.card.initialized) {
         Logger.log('LIFECYCLE', 'CronoStar Reconnected - scheduling reinitialization');
@@ -192,6 +238,8 @@ export class CardLifecycle {
       this.card._cardConnected = false;
 
       Logger.log('LIFECYCLE', 'CronoStar disconnectedCallback - element removed from DOM');
+
+      // No visibility observers used (canvas size check only)
 
       if (this.card.syncCheckTimer) {
         clearInterval(this.card.syncCheckTimer);
@@ -236,266 +284,116 @@ export class CardLifecycle {
     }
   }
 
-  async initializeCard() {
-      try {
-        Logger.log('INIT', 'CronoStar initializeCard starting');
-  
-        // Register once: server returns profiledata + cardconfig
-        if (!this.hasRegistered && this.card._cardConnected && this.card.hass) {
-          Logger.log('INIT', 'CronoStar Attempting to register card with backend...');
-  
-          this.card.cardId = Math.random().toString(36).substr(2, 9);
-  
-          const wsResponse = await this.card.hass.callWS({
-            type: 'call_service',
-            domain: 'cronostar',
-            service: 'register_card',
-            service_data: {
-              card_id: this.card.cardId,
-              version: VERSION,
-              preset: this.card.config?.preset || 'unknown',
-              entity_prefix: this.card.config?.entity_prefix,
-              global_prefix: this.card.config?.global_prefix,
-            },
-            return_response: true,
-          });
-  
-          const response = wsResponse?.response;
-          Logger.log('INIT', 'CronoStar Card registered. WS Response:', response);
-  
-          this.hasRegistered = true;
-  
-          // NEW: Apply persisted card_config if present
-          if (response?.card_config && typeof response.card_config === 'object') {
-            Logger.log('INIT', 'CronoStar Applying persisted card_config from backend');
-            
-            // Merge with current config (persisted takes priority)
-            const merged = { 
-              ...(this.card.config || {}), 
-              ...response.card_config 
-            };
-            
-            this.setConfig(merged);
-            Logger.log('INIT', 'CronoStar Config updated from backend:', merged);
-          } else {
-            Logger.log('INIT', 'CronoStar No persisted card_config found, using defaults');
-          }
-  
-          // Apply profile schedule if provided
-          if (response?.profile_data) {
-            const rawSchedule = response.profile_data.schedule;
-            if (Array.isArray(rawSchedule)) {
-              const first = rawSchedule[0];
-              const hasTime = typeof first === 'object' && first !== null && 'time' in first;
-              const hasValueObject = typeof first === 'object' && first !== null && 'value' in first;
-              const schedulePayload = hasTime && hasValueObject ? rawSchedule : rawSchedule;
-  
-              const profileName = response.profile_data.profile_name || 'Default';
-              this.card.selectedProfile = profileName;
-  
-              Logger.log('INIT', 'CronoStar Applying profile', profileName, 'data from registration response');
-              this.card.stateManager?.setData?.(schedulePayload);
-              if (this.card.chartManager?.isInitialized) {
-                this.card.chartManager.updateData(this.card.stateManager.getData());
-              }
-  
-              this.card.initialLoadComplete = true;
-              this.card.cronostarReady = true;
-              this.card.requestUpdate();
-            }
-          } else {
-            Logger.log('INIT', 'CronoStar No profile data in registration response.');
-            this.card.requestUpdate();
-          }
-        }
-  
-        // Continue with chart initialization...
-        const canvas = this.card.shadowRoot?.getElementById('myChart');
-        if (!canvas) {
-          Logger.error('INIT', 'CronoStar Canvas element not found');
-          return;
-        }
-  
-        Logger.log('CHART', 'CronoStar initializeCard initChart starting');
-        const success = await this.card.chartManager?.initChart?.(canvas);
-        Logger.log('CHART', 'CronoStar initializeCard initChart result:', success);
-  
-        if (!success) {
-          Logger.error('INIT', 'CronoStar Failed to initialize chart');
-          this.card.eventHandlers?.showNotification?.(
-            this.card.localizationManager?.localize?.(this.card.language, 'error.chart_init_failed') ||
-              'Chart init failed',
-            'error',
-          );
-          return;
-        }
-  
-        this.card.pointerHandler?.attachListeners?.(canvas);
-  
-        const chartContainer = this.card.shadowRoot?.querySelector('.chart-container');
-        if (chartContainer) {
-          chartContainer.setAttribute('tabindex', this.isEditorContext() ? -1 : 0);
-          if (!this.isEditorContext()) {
-            this.card.keyboardHandler?.attachListeners?.(chartContainer);
-            Logger.log('INIT', 'CronoStar Keyboard listeners attached');
-          } else {
-            this.card.keyboardHandler?.detachListeners?.(chartContainer);
-            this.card.keyboardHandler?.disable?.();
-          }
-  
-          chartContainer.addEventListener('pointerdown', (e) => {
-            if (e.target.closest('.controls')) return;
-            if (e.target.closest('.menu-content')) return;
-            chartContainer.focus();
-            this.card.keyboardHandler?.enable?.();
-          });
-        } else {
-          Logger.error('INIT', 'CronoStar Chart container not found');
-        }
-  
-        Logger.log('INIT', 'CronoStar Card initialized successfully');
-      } catch (e) {
-        Logger.error('INIT', 'CronoStar Error in initializeCard:', e);
-        this.card.eventHandlers?.showNotification?.(
-          this.card.localizationManager?.localize?.(this.card.language, 'error.initialization_failed', e.message) ||
-            `Initialization failed: ${e.message}`,
-          'error',
-        );
-      }
-    }
-
-  async firstUpdated() {
+  /**
+   * First update hook: initialize chart and handlers once after render
+   */
+  firstUpdated() {
     try {
       Logger.log('LIFECYCLE', 'CronoStar firstUpdated called');
-      await this.initializeCard();
-      this.card.initialized = true;
+
+      const canvas = this.card.shadowRoot?.getElementById('myChart');
+      if (canvas && typeof this.card.chartManager?.initChart === 'function') {
+        this.card.chartManager.initChart(canvas);
+      }
+
+      const container = this.card.shadowRoot?.querySelector('.chart-container');
+      if (container) {
+        this.card.keyboardHandler?.attachListeners?.(container);
+      }
+      if (canvas) {
+        this.card.pointerHandler?.attachListeners?.(canvas);
+      }
+
       this.card.cardSync?.updateAutomationSync?.(this.card.hass);
     } catch (e) {
       Logger.error('LIFECYCLE', 'CronoStar Error in firstUpdated:', e);
-      this.card.eventHandlers?.showNotification?.(
-        this.card.localizationManager?.localize?.(this.card.language, 'error.firstupdatefailed', e.message) ||
-          `First update failed: ${e.message}`,
-        'error',
-      );
     }
   }
 
-  async initializeCard() {
+  /**
+   * Reinitialize the card safely after reconnection.
+   * Recreates chart, reattaches keyboard/pointer listeners and refreshes UI.
+   */
+  reinitializeCard() {
     try {
-      Logger.log('INIT', 'CronoStar initializeCard starting');
+      Logger.log('LIFECYCLE', 'CronoStar reinitializeCard starting');
 
-      // Register once: server returns profiledata + NEW cardconfig
-      if (!this.hasRegistered && this.card._cardConnected && this.card.hass) {
-        Logger.log('INIT', 'CronoStar Attempting to register card with backend...');
-
-        this.card.cardId = Math.random().toString(36).substr(2, 9);
-
-        const wsResponse = await this.card.hass.callWS({
-          type: 'call_service',
-          domain: 'cronostar',
-          service: 'registercard',
-          service_data: {
-            cardid: this.card.cardId,
-            version: VERSION,
-            preset: this.card.config?.preset || 'unknown',
-            entityprefix: this.card.config?.entityprefix,
-            globalprefix: this.card.config?.globalprefix,
-          },
-          return_response: true,
-        });
-
-        const response = wsResponse?.response;
-        Logger.log('INIT', 'CronoStar Card registered. WS Response:', response);
-
-        this.hasRegistered = true;
-
-        // Apply persisted config coming from backend
-        if (response?.cardconfig && typeof response.cardconfig === 'object') {
-          Logger.log('INIT', 'CronoStar Applying persisted cardconfig from backend');
-          const merged = { ...(this.card.config || {}), ...response.cardconfig };
-          this.setConfig(merged);
-        }
-
-        // Apply profile schedule if provided
-        if (response?.profiledata) {
-          const rawSchedule = response.profiledata.schedule;
-          if (Array.isArray(rawSchedule)) {
-            const first = rawSchedule[0];
-            const hasTime = typeof first === 'object' && first !== null && 'time' in first;
-            const hasValueObject = typeof first === 'object' && first !== null && 'value' in first;
-            const schedulePayload = hasTime && hasValueObject ? rawSchedule : rawSchedule;
-
-            const profileName = response.profiledata.profilename || 'Default';
-            this.card.selectedProfile = profileName;
-
-            Logger.log('INIT', 'CronoStar Applying profile', profileName, 'data from registration response');
-            this.card.stateManager?.setData?.(schedulePayload);
-            if (this.card.chartManager?.isInitialized) {
-              this.card.chartManager.updateData(this.card.stateManager.getData());
-            }
-
-            this.card.initialLoadComplete = true;
-            this.card.cronostarReady = true;
-            this.card.requestUpdate();
-          }
-        } else {
-          Logger.log('INIT', 'CronoStar No profile data in registration response.');
-          this.card.requestUpdate();
-        }
-      }
-
-      // Init chart
+      // Recreate chart
       const canvas = this.card.shadowRoot?.getElementById('myChart');
-      if (!canvas) {
-        Logger.error('INIT', 'CronoStar Canvas element not found');
-        return;
-      }
-
-      Logger.log('CHART', 'CronoStar initializeCard initChart starting');
-      const success = await this.card.chartManager?.initChart?.(canvas);
-      Logger.log('CHART', 'CronoStar initializeCard initChart result:', success);
-
-      if (!success) {
-        Logger.error('INIT', 'CronoStar Failed to initialize chart');
-        this.card.eventHandlers?.showNotification?.(
-          this.card.localizationManager?.localize?.(this.card.language, 'error.chartinitfailed') ||
-            'Chart init failed',
-          'error',
-        );
-        return;
-      }
-
-      this.card.pointerHandler?.attachListeners?.(canvas);
-
-      const chartContainer = this.card.shadowRoot?.querySelector('.chart-container');
-      if (chartContainer) {
-        chartContainer.setAttribute('tabindex', this.isEditorContext() ? -1 : 0);
-        if (!this.isEditorContext()) {
-          this.card.keyboardHandler?.attachListeners?.(chartContainer);
-          Logger.log('INIT', 'CronoStar Keyboard listeners attached');
-        } else {
-          this.card.keyboardHandler?.detachListeners?.(chartContainer);
-          this.card.keyboardHandler?.disable?.();
+      if (canvas) {
+        try { this.card.chartManager?.destroy?.(); } catch { }
+        if (typeof this.card.chartManager?.initChart === 'function') {
+          this.card.chartManager.initChart(canvas);
         }
-
-        chartContainer.addEventListener('pointerdown', (e) => {
-          if (e.target.closest('.controls')) return;
-          if (e.target.closest('.menu-content')) return;
-          chartContainer.focus();
-          this.card.keyboardHandler?.enable?.();
-        });
-      } else {
-        Logger.error('INIT', 'CronoStar Chart container not found');
       }
 
-      Logger.log('INIT', 'CronoStar Card initialized successfully');
+      // Reattach keyboard listeners to chart-container
+      const container = this.card.shadowRoot?.querySelector('.chart-container');
+      if (container) {
+        try { this.card.keyboardHandler?.detachListeners?.(container); } catch { }
+        this.card.keyboardHandler?.attachListeners?.(container);
+      }
+
+      // Reattach pointer listeners to canvas
+      if (canvas) {
+        try { this.card.pointerHandler?.detachListeners?.(canvas); } catch { }
+        this.card.pointerHandler?.attachListeners?.(canvas);
+      }
+
+      // Refresh UI
+      this.card.requestUpdate();
+      Logger.log('LIFECYCLE', 'CronoStar reinitializeCard done');
     } catch (e) {
-      Logger.error('INIT', 'CronoStar Error in initializeCard:', e);
-      this.card.eventHandlers?.showNotification?.(
-        this.card.localizationManager?.localize?.(this.card.language, 'error.initializationfailed', e.message) ||
-          `Initialization failed: ${e.message}`,
-        'error',
-      );
+      Logger.error('LIFECYCLE', 'CronoStar Error in reinitializeCard:', e);
+    }
+  }
+
+  /**
+   * Register the card with the backend and apply any initialization data returned.
+   */
+  async registerCard(hass) {
+    try {
+      const cfg = this.card.config || {};
+      const serviceData = {
+        card_id: 'cronostar-card',
+        version: VERSION,
+        preset: cfg.preset || 'thermostat',
+        global_prefix: cfg.global_prefix,
+      };
+
+      const result = await hass.callWS({
+        type: 'call_service',
+        domain: 'cronostar',
+        service: 'register_card',
+        service_data: serviceData,
+        return_response: true,
+      });
+
+      const response = result?.response ?? result;
+      Logger.log('LOAD', 'CronoStar register_card response:', response);
+
+      // NOTE: persisted wizard/card config is now stored in profile meta and not returned here.
+
+      // Initialize schedule from profile data, if provided
+      const profileData = response?.profile_data;
+      const rawSchedule = profileData?.schedule;
+      if (Array.isArray(rawSchedule) && rawSchedule.length > 0) {
+        this.card.stateManager.setData(rawSchedule);
+        if (this.card.chartManager?.isInitialized()) {
+          this.card.chartManager.updateData(rawSchedule);
+        }
+        this.card.hasUnsavedChanges = false;
+        Logger.log('LOAD', 'CronoStar initialized schedule from backend profile_data');
+      }
+
+      // Registration succeeded: mark initial load complete and backend ready to hide overlays
+      this.card.initialLoadComplete = true;
+      this.card.cronostarReady = true;
+      this.card.requestUpdate();
+
+      this.hasRegistered = true;
+    } catch (e) {
+      Logger.warn('LOAD', 'CronoStar register_card failed:', e);
     }
   }
 }

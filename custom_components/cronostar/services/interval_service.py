@@ -66,7 +66,7 @@ class IntervalConverter:
             preset_type=schedule.preset_type,
             interval_minutes=target_interval.value,
             points=new_points,
-            entity_prefix=schedule.entity_prefix,
+            global_prefix=getattr(schedule, 'global_prefix', None),
             saved_at=schedule.saved_at
         )
     
@@ -143,7 +143,7 @@ class IntervalService:
         """Converte schedule a nuovo intervallo."""
         profile_name = call.data.get("profile_name")
         preset_type = call.data.get("preset_type")
-        entity_prefix = call.data.get("entity_prefix", "cronostar_")
+        global_prefix = call.data.get("global_prefix", "cronostar_")
         target_minutes = int(call.data.get("target_interval", 60))
         save_as = call.data.get("save_as")
         
@@ -157,7 +157,7 @@ class IntervalService:
         schedule = await self.storage_manager.load_schedule(
             profile_name,
             preset_type,
-            entity_prefix
+            global_prefix
         )
         
         if not schedule:
@@ -186,12 +186,12 @@ class IntervalService:
         """Info su schedule."""
         profile_name = call.data.get("profile_name")
         preset_type = call.data.get("preset_type")
-        entity_prefix = call.data.get("entity_prefix", "cronostar_")
+        global_prefix = call.data.get("global_prefix", "cronostar_")
         
         schedule = await self.storage_manager.load_schedule(
             profile_name,
             preset_type,
-            entity_prefix
+            global_prefix
         )
         
         if not schedule:

@@ -1,19 +1,12 @@
 /** Configuration management for CronoStar Card with Interval Support */
-export const VERSION = '5.0.1';
+export const VERSION = '5.1.0';
 
 // Interval options (minutes)
-export const INTERVAL_OPTIONS = [
-  { value: 60, label: '1 hour (24 points)', points: 24 },
-  { value: 30, label: '30 minutes (48 points)', points: 48 },
-  { value: 15, label: '15 minutes (96 points)', points: 96 },
-  { value: 10, label: '10 minutes (144 points)', points: 144 },
-  { value: 1, label: '1 minute (1440 points)', points: 1440 }
-];
+// Sparse mode: remove interval options
 
 export const CARD_CONFIG_PRESETS = {
   thermostat: {
     title: "CronoStar Thermostat",
-    entity_prefix: "cronostar_temp_",
     y_axis_label: "Temperature",
     unit_of_measurement: '°C',
     min_value: 15,
@@ -24,11 +17,10 @@ export const CARD_CONFIG_PRESETS = {
     apply_entity: "climate.climatizzazione_appartamento",
     is_switch_preset: false,
     allow_max_value: false,
-    interval_minutes: 60  // Default: hourly
+    // sparse mode: no interval
   },
   ev_charging: {
     title: "CronoStar EV Charging",
-    entity_prefix: "cronostar_ev_",
     y_axis_label: "Power",
     unit_of_measurement: 'kW',
     min_value: 0,
@@ -39,11 +31,10 @@ export const CARD_CONFIG_PRESETS = {
     apply_entity: "number.your_ev_charger_power",
     is_switch_preset: false,
     allow_max_value: true,
-    interval_minutes: 60
+    // sparse mode: no interval
   },
   generic_kwh: {
     title: "CronoStar Generic kWh",
-    entity_prefix: "cronostar_kwh_",
     y_axis_label: "Energy",
     unit_of_measurement: 'kWh',
     min_value: 0,
@@ -54,11 +45,10 @@ export const CARD_CONFIG_PRESETS = {
     apply_entity: null,
     is_switch_preset: false,
     allow_max_value: false,
-    interval_minutes: 60
+    // sparse mode: no interval
   },
   generic_temperature: {
     title: "CronoStar Generic Temperature",
-    entity_prefix: "cronostar_gentemp_",
     y_axis_label: "Temperature",
     unit_of_measurement: '°C',
     min_value: 0,
@@ -69,11 +59,10 @@ export const CARD_CONFIG_PRESETS = {
     apply_entity: null,
     is_switch_preset: false,
     allow_max_value: false,
-    interval_minutes: 60
+    // sparse mode: no interval
   },
   generic_switch: {
     title: "CronoStar Generic Switch",
-    entity_prefix: "cronostar_switch_",
     y_axis_label: "State",
     unit_of_measurement: '',
     min_value: 0,
@@ -84,7 +73,7 @@ export const CARD_CONFIG_PRESETS = {
     apply_entity: "switch.your_generic_switch",
     is_switch_preset: true,
     allow_max_value: false,
-    interval_minutes: 60
+    // sparse mode: no interval
   }
 };
 
@@ -96,7 +85,6 @@ export const DEFAULT_CONFIG = {
   profiles_select_entity: null,
   apply_entity: null,
   allow_max_value: false,
-  interval_minutes: 60,  // Default interval
   missing_yaml_style: 'named'
 };
 
@@ -138,48 +126,52 @@ export const COLORS = {
 };
 
 /**
- * Calculate number of points based on interval
- * @param {number} intervalMinutes - Interval in minutes
- * @returns {number} Number of points in 24 hours
+ * Normalize alias keys used in Lovelace YAML (no-underscore) to the canonical
+ * underscore-based keys expected by the card/editor/backend.
  */
-export function getPointsCount(intervalMinutes) {
-  return Math.floor(1440 / intervalMinutes); // 1440 minutes in 24 hours
+export function normalizeConfigAliases(cfg = {}) {
+  const out = { ...cfg };
+  const pairs = [
+    ['global_prefix', 'globalprefix'],
+    ['apply_entity', 'applyentity'],
+    ['pause_entity', 'pauseentity'],
+    ['profiles_select_entity', 'profilesselectentity'],
+    ['min_value', 'minvalue'],
+    ['max_value', 'maxvalue'],
+    ['step_value', 'stepvalue'],
+    ['unit_of_measurement', 'unitofmeasurement'],
+    ['y_axis_label', 'yaxislabel'],
+    ['allow_max_value', 'allowmaxvalue'],
+    ['logging_enabled', 'loggingenabled'],
+    ['missing_yaml_style', 'missingyamlstyle']
+  ];
+  for (const [canonical, alias] of pairs) {
+    const a = out[alias];
+    const c = out[canonical];
+    if ((a !== undefined && a !== null && a !== '') && (c === undefined || c === null || c === '')) {
+      out[canonical] = a;
+    }
+  }
+  return out;
 }
 
-/**
- * Get interval configuration by value
- * @param {number} intervalMinutes - Interval value
- * @returns {Object} Interval configuration
- */
-export function getIntervalConfig(intervalMinutes) {
-  return INTERVAL_OPTIONS.find(opt => opt.value === intervalMinutes) || INTERVAL_OPTIONS[0];
-}
+// Sparse mode: getPointsCount removed
+
+// Sparse mode: getIntervalConfig removed
 
 /**
  * Validate configuration with interval support
- * @param {Object} config - Configuration to validate
- * @returns {Object} Validated configuration
+ * - merges defaults, preset defaults, and user config
+ * - ensures alias keys are normalized before merging
  */
 export function validateConfig(config) {
-  const presetName = config.preset || DEFAULT_CONFIG.preset;
+  const normalized = normalizeConfigAliases(config);
+  const presetName = normalized.preset || DEFAULT_CONFIG.preset;
   const presetConfig = CARD_CONFIG_PRESETS[presetName] || CARD_CONFIG_PRESETS.thermostat;
-
-  const mergedConfig = {
-    ...DEFAULT_CONFIG,
-    ...presetConfig,
-    ...config
-  };
-
-  if (!mergedConfig.entity_prefix) {
-    throw new Error("Configuration error: entity_prefix is required");
+  const mergedConfig = { ...DEFAULT_CONFIG, ...presetConfig, ...normalized };
+  if (!mergedConfig.global_prefix) {
+    throw new Error("Configuration error: global_prefix is required");
   }
-  
-  // Validate interval
-  const interval = mergedConfig.interval_minutes;
-  if (!INTERVAL_OPTIONS.some(opt => opt.value === interval)) {
-    mergedConfig.interval_minutes = 60; // Fallback to hourly
-  }
-  
   mergedConfig.hour_base = normalizeHourBase(mergedConfig.hour_base);
 
   return mergedConfig;
@@ -204,3 +196,4 @@ export function normalizeHourBase(hourBase) {
 export function getStubConfig() {
   return { ...DEFAULT_CONFIG };
 }
+

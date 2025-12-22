@@ -21,15 +21,9 @@ save_profile:
       required: true
       selector:
         object:
-    entity_prefix:
-      name: Entity Prefix
-      description: "The entity prefix used by the card (legacy parameter)."
-      required: false
-      selector:
-        text:
     global_prefix:
       name: Global Prefix
-      description: "The global identification prefix (takes priority over entity_prefix)."
+      description: "The global identification prefix."
       required: false
       selector:
         text:
@@ -50,15 +44,9 @@ load_profile:
       required: true
       selector:
         text:
-    entity_prefix:
-      name: Entity Prefix
-      description: "The entity prefix used by the card (legacy parameter)."
-      required: false
-      selector:
-        text:
     global_prefix:
       name: Global Prefix
-      description: "The global identification prefix (takes priority over entity_prefix)."
+      description: "The global identification prefix."
       required: false
       selector:
         text:
@@ -79,15 +67,9 @@ add_profile:
       required: true
       selector:
         text:
-    entity_prefix:
-      name: Entity Prefix
-      description: "The entity prefix used by the card (legacy parameter)."
-      required: false
-      selector:
-        text:
     global_prefix:
       name: Global Prefix
-      description: "The global identification prefix (takes priority over entity_prefix)."
+      description: "The global identification prefix."
       required: false
       selector:
         text:
@@ -108,15 +90,9 @@ delete_profile:
       required: true
       selector:
         text:
-    entity_prefix:
-      name: Entity Prefix
-      description: "The entity prefix used by the card (legacy parameter)."
-      required: false
-      selector:
-        text:
     global_prefix:
       name: Global Prefix
-      description: "The global identification prefix (takes priority over entity_prefix)."
+      description: "The global identification prefix."
       required: false
       selector:
         text:
@@ -128,14 +104,12 @@ apply_now:
     entity_id:
       name: Target entity_id
       description: Entity to control (climate, number, switch).
-      example: switch.washing_machine
       required: true
       selector:
         entity:
     preset_type:
       name: Preset type
       description: Preset used to decide how to apply values (e.g., thermostat, generic_switch).
-      example: generic_switch
       required: true
       selector:
         select:
@@ -147,38 +121,27 @@ apply_now:
             - generic_switch
     allow_max_value:
       name: Allow Max Value
-      description: 'Whether to enable the special ''Max'' value behavior (deferring action).'
       required: false
       selector:
         boolean:
-    entity_prefix:
-      name: Entity Prefix
-      description: "The entity prefix used by the card (legacy parameter)."
-      required: false
-      selector:
-        text:
     global_prefix:
       name: Global Prefix
-      description: "The global identification prefix (takes priority over entity_prefix)."
       required: false
       selector:
         text:
 
 check_setup:
   name: Check CronoStar setup
-  description: Inspect configuration.yaml and included files to verify input_number helpers and automation storage. Emits a persistent notification and the event 'cronostar_setup_report' for the card.
+  description: Inspect configuration.yaml and included files to verify input_number helpers and automation storage.
   fields:
     prefix:
       name: Helpers prefix
-      description: Prefix for input_number helpers (must end with underscore).
       example: cronostar_switch_presa_balcone_
       required: false
       selector:
         text:
     hour_base:
       name: Hour base
-      description: Hour numbering base (0 for 00..23, 1 for 01..24).
-      example: 0
       required: false
       selector:
         number:
@@ -188,15 +151,11 @@ check_setup:
           mode: slider
     alias:
       name: Expected automation alias
-      description: Alias to check presence (as shown in Automation UI).
-      example: "CronoStar - apply switch presa balcone"
       required: false
       selector:
         text:
     expected_count:
       name: Expected helpers count
-      description: Number of expected input_number helpers (default 24).
-      example: 24
       required: false
       selector:
         number:
@@ -211,81 +170,17 @@ create_yaml_file:
   fields:
     file_path:
       name: File Path
-      description: "The path to the file to create, relative to the /config directory."
+      description: "Path relative to /config."
       required: true
       selector:
         text:
     content:
       name: Content
-      description: "The content to write to the file."
       required: true
       selector:
         text:
     append:
       name: Append
-      description: "If true, append to existing file instead of overwriting."
       required: false
       selector:
         boolean:
-
-# NEW AUTO-SAVE SERVICES
-
-enable_auto_save:
-  name: Enable Auto-Save
-  description: Enable automatic profile saving when input_numbers change. Profiles are saved 3 seconds after the last change.
-  
-disable_auto_save:
-  name: Disable Auto-Save
-  description: Disable automatic profile saving. Changes will only be saved manually.
-
-force_save:
-  name: Force Save Profile
-  description: Immediately save the current profile, bypassing debounce and minimum interval.
-  fields:
-    preset_type:
-      name: Preset Type
-      description: "The preset type to save (thermostat, ev_charging, etc.)"
-      required: true
-      selector:
-        select:
-          options:
-            - thermostat
-            - ev_charging
-            - generic_kwh
-            - generic_temperature
-            - generic_switch
-
-register_card:
-  name: Register Card
-  description: Registers a Lovelace card instance with the backend for logging and version tracking.
-  fields:
-    card_id:
-      name: Card ID
-      description: Unique random ID generated by the card instance.
-      required: true
-      selector:
-        text:
-    version:
-      name: Card Version
-      description: Version of the frontend card.
-      required: true
-      selector:
-        text:
-    preset:
-      name: Preset
-      description: The preset currently configured in the card.
-      required: false
-      selector:
-        text:
-    entity_prefix:
-      name: Entity Prefix
-      description: "The entity prefix configured in the card."
-      required: false
-      selector:
-        text:
-    global_prefix:
-      name: Global Prefix
-      description: "The global prefix configured in the card."
-      required: false
-      selector:
-        text:

@@ -1,0 +1,23 @@
+input_number:
+  cronostar_termostato_appartamento_current:
+    name: "CronoStar Thermostat Current"
+    min: 15
+    max: 30
+    step: 0.5
+    unit_of_measurement: "°C"
+    mode: box
+    icon: mdi:chart-timeline
+
+input_boolean:
+  cronostar_termostato_appartamento_paused:
+    name: "CronoStar Thermostat Paused"
+    icon: mdi:pause-circle
+
+input_select:
+  cronostar_termostato_appartamento_profiles:
+    name: "CronoStar Thermostat Profiles"
+    options:
+      - "Default"
+      - "Custom"
+    initial: "Default"
+    icon: mdi:format-list-bulleted

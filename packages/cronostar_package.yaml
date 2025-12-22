@@ -1,0 +1,12 @@
+#
+# CronoStar Core Package
+#
+# This package ensures the CronoStar custom component is initialized
+# and has the necessary permissions to manage profile files.
+#
+
+cronostar:
+
+homeassistant:
+  allowlist_external_dirs:
+    - /config/cronostar

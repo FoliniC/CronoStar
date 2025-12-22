@@ -1,4 +1,21 @@
 # Changelog
+## v4.3.0 / v5.1.0
+
+### Added - Integration (Backend)
+- **Config Flow Support**: Initial support for Home Assistant Config Flow. You can now add CronoStar via the Integrations UI.
+- **Auto-Configuration**: The integration now analyzes `configuration.yaml` and can automatically enable `packages` support if missing.
+- **Automations Management**: Automatic creation of the `automations/` folder and configuration of the `!include_dir_merge_list` directive if needed.
+- **Core Setup Refactoring**: Unified setup logic for both YAML and UI-based installations.
+
+### Improved - Lovelace Card (Frontend)
+- **Wizard UI Redesign**: New centered 2-column layout for the first step of the setup wizard.
+- **Visual Feedback**: Enhanced preset cards with larger icons, dedicated descriptions, and high-visibility selection states.
+- **Minimal Setup Flow**: Streamlined the initial configuration step to allow one-click saving of required files (Package + JSON).
+
+### Bug Fixes
+- Fixed incorrect imports in the backend initialization.
+- Enforced strict CSS grid layout in the wizard to prevent block shifting.
+
 ## v4.3.3
 
 ### Bug Fixes

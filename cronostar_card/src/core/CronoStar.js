@@ -1,4 +1,4 @@
-// core/CronoStar.js
+// core/CronoStar.js - FIXED VERSION
 import { LitElement } from 'lit';
 import { cardStyles } from '../styles.js';
 import { VERSION } from '../config.js';
@@ -17,7 +17,6 @@ import { CardRenderer } from './CardRenderer.js';
 import { CardEventHandlers } from './CardEventHandlers.js';
 import { CardSync } from './CardSync.js';
 
-// Assicura che l’editor sia nel bundle
 import '../editor/CronoStarEditor.js';
 
 export class CronoStarCard extends LitElement {
@@ -40,7 +39,7 @@ export class CronoStarCard extends LitElement {
       awaitingAutomation: { type: Boolean },
       outOfSyncDetails: { type: String },
       isDragging: { type: Boolean },
-      selectedPoints: { type: Array }, // Explicitly track selected points here too
+      selectedPoints: { type: Array },
     };
   }
 
@@ -101,14 +100,12 @@ export class CronoStarCard extends LitElement {
     this.lastEditAt = 0;
     this.mismatchSince = 0;
     this._startupOverlayState = false;
-    this.selectedPoints = []; // Initialize array
+    this.selectedPoints = [];
 
     try {
-        // Initialize managers in dependency order
         this.localizationManager = new LocalizationManager(this);
         this.stateManager = new StateManager(this);
         this.profileManager = new ProfileManager(this);        
-        // Critical: SelectionManager must be ready before ChartManager
         this.selectionManager = new SelectionManager(this);        
         this.chartManager = new ChartManager(this);
         this.keyboardHandler = new KeyboardHandler(this);
@@ -124,7 +121,6 @@ export class CronoStarCard extends LitElement {
         Logger.log('INIT', `[CronoStar] Card constructor completed (v${VERSION})`);
     } catch (e) {
         Logger.error('INIT', '[CronoStar] Error initializing Managers:', e);
-        // Fallback to prevent complete crash if one manager fails
         if (!this.cardLifecycle) this.cardLifecycle = new CardLifecycle(this); 
     }
   }
@@ -155,14 +151,16 @@ export class CronoStarCard extends LitElement {
     }
   }
 
+  // â†" FIX: Setter now only delegates to CardLifecycle
   set hass(hass) {
     if (this.cardLifecycle) {
       this.cardLifecycle.setHass(hass);
     }
   }
 
+  // â†" FIX: Getter reads from CardLifecycle's internal storage
   get hass() {
-    return this.cardLifecycle?.hass;
+    return this.cardLifecycle?._hass;
   }
 
   connectedCallback() {
@@ -194,7 +192,7 @@ export class CronoStarCard extends LitElement {
     return this.cardLifecycle?.isEditorContext() ?? false;
   }
 
-  // --- NEW: wrappers to avoid "handleAddProfile is not a function" if menu calls on card ---
+  // Wrappers for menu handlers
   handleAddProfile() {
     try {
       return this.eventHandlers?.handleAddProfile?.();
@@ -206,4 +204,4 @@ export class CronoStarCard extends LitElement {
       return this.eventHandlers?.handleDeleteProfile?.();
     } catch {}
   }
-}  
+}

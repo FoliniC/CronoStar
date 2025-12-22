@@ -19,6 +19,7 @@ const TRANSLATIONS = {
       apply_now_error: "Apply Now error",
       apply_now_success: "Applied successfully for hour {hour}",
       time_label: "Time",
+      hours_label: "Hours",
       temperature_label: "Temperature"
     },
     menu: {
@@ -75,6 +76,7 @@ const TRANSLATIONS = {
       apply_now_error: "Errore in Applica Ora",
       apply_now_success: "Applicato correttamente per l'ora {hour}",
       time_label: "Orario",
+      hours_label: "Ore",
       temperature_label: "Temperatura"
     },
     menu: {

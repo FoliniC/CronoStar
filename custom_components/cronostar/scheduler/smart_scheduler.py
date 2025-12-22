@@ -29,6 +29,25 @@ class SmartScheduler:
         for preset_type in PRESETS_CONFIG:
             await self.update_preset(preset_type)
 
+        # Also initialize any presets that may not be in PRESETS_CONFIG but exist as stored profiles
+        try:
+            if hasattr(self.profile_service, "storage"):
+                files = await self.profile_service.storage.list_profiles()
+                extra_presets = set()
+                for fname in files:
+                    try:
+                        data = await self.profile_service.storage.load_profile_cached(fname)
+                        canonical = (data or {}).get("meta", {}).get("preset_type")
+                        if canonical and canonical not in PRESETS_CONFIG:
+                            extra_presets.add(canonical)
+                    except Exception:
+                        continue
+                for preset_type in sorted(extra_presets):
+                    _LOGGER.info("Initializing scheduler for stored preset '%s'", preset_type)
+                    await self.update_preset(preset_type)
+        except Exception as e:
+            _LOGGER.debug("async_initialize extra preset scan skipped: %s", e)
+
     def stop(self):
         """Stop all timers."""
         for timer_key, cancel_func in list(self._timers.items()):
@@ -54,19 +73,22 @@ class SmartScheduler:
             return 0
 
     @staticmethod
-    def _index_to_minutes(index: int, interval_minutes: int = 60) -> int:
-        """Convert index to minutes (for backward compatibility).
-        
-        Args:
-            index: Point index (0-23 for hourly)
-            interval_minutes: Interval between points
-            
-        Returns:
-            Minutes since midnight
-        """
-        return (index * interval_minutes) % 1440
+    def _deduce_interval_from_indices(indices: List[int]) -> int:
+        """Deduce interval in minutes from a list of index-based points.
+        Assumes indices are 0..N-1 evenly spaced. Falls back to 60 if unknown."""
+        try:
+            if not indices:
+                return 60
+            max_idx = max(indices)
+            total = max_idx + 1
+            if total <= 0:
+                return 60
+            interval = round(1440 / total)
+            return max(1, min(1440, interval))
+        except Exception:
+            return 60
 
-    def _normalize_schedule(self, schedule: List[Dict], interval_minutes: int = 60) -> List[Dict]:
+    def _normalize_schedule(self, schedule: List[Dict]) -> List[Dict]:
         """Normalize schedule to time-based format.
         
         Automatically converts from old format (index) to new (time) if necessary.
@@ -79,6 +101,7 @@ class SmartScheduler:
             Normalized schedule with "time" and "value" fields
         """
         normalized = []
+        indices: List[int] = []
         
         for point in schedule:
             if not isinstance(point, dict):
@@ -93,13 +116,28 @@ class SmartScheduler:
             
             # Old format (has "index")
             elif "index" in point and "value" in point:
-                minutes = self._index_to_minutes(point["index"], interval_minutes)
-                hours = minutes // 60
-                mins = minutes % 60
-                normalized.append({
-                    "time": f"{hours:02d}:{mins:02d}",
-                    "value": float(point["value"])
-                })
+                try:
+                    idx = int(point["index"])
+                    indices.append(idx)
+                except Exception:
+                    continue
+
+        # Convert index points after deducing interval
+        if indices:
+            interval_minutes = self._deduce_interval_from_indices(indices)
+            for point in schedule:
+                if isinstance(point, dict) and "index" in point and "value" in point:
+                    try:
+                        idx = int(point["index"])
+                        minutes = (idx * interval_minutes) % 1440
+                        hours = minutes // 60
+                        mins = minutes % 60
+                        normalized.append({
+                            "time": f"{hours:02d}:{mins:02d}",
+                            "value": float(point["value"])
+                        })
+                    except Exception:
+                        continue
         
         # Sort by time
         normalized.sort(key=lambda p: p["time"])
@@ -113,8 +151,7 @@ class SmartScheduler:
     def _get_value_at_time(
         self,
         schedule: List[Dict],
-        target_time: datetime,
-        interval_minutes: int = 60
+        target_time: datetime
     ) -> Optional[float]:
         """Get interpolated value for a specific time.
         
@@ -131,7 +168,7 @@ class SmartScheduler:
             return None
         
         # Normalize schedule (convert from index to time if needed)
-        normalized_schedule = self._normalize_schedule(schedule, interval_minutes)
+        normalized_schedule = self._normalize_schedule(schedule)
         
         if not normalized_schedule:
             _LOGGER.error("Cannot normalize schedule")
@@ -201,8 +238,7 @@ class SmartScheduler:
     def _find_next_change(
         self,
         schedule: List[Dict],
-        now: datetime,
-        interval_minutes: int = 60
+        now: datetime
     ) -> Optional[datetime]:
         """Find next value change in schedule.
         
@@ -218,7 +254,7 @@ class SmartScheduler:
             return None
         
         # Normalize schedule
-        normalized_schedule = self._normalize_schedule(schedule, interval_minutes)
+        normalized_schedule = self._normalize_schedule(schedule)
         
         if not normalized_schedule:
             return None
@@ -284,9 +320,8 @@ class SmartScheduler:
             # Cache profile
             self._profiles_cache[preset_type] = profile_data
 
-            # Get schedule and interval
+            # Get schedule
             schedule = profile_data.get("schedule", [])
-            interval_minutes = profile_data.get("interval_minutes", 60)
             
             if not schedule:
                 _LOGGER.warning("Empty schedule for %s", preset_type)
@@ -295,7 +330,7 @@ class SmartScheduler:
             
             # Calculate current value
             now = dt_util.now()
-            current_value = self._get_value_at_time(schedule, now, interval_minutes)
+            current_value = self._get_value_at_time(schedule, now)
             
             if current_value is None:
                 _LOGGER.warning("Cannot calculate value for %s", preset_type)
@@ -304,9 +339,15 @@ class SmartScheduler:
             
             # Update entity
             await self._update_current_value_entity(preset_type, current_value)
+
+            # Apply value to target entity immediately (scheduler is source of truth)
+            try:
+                await self._apply_target_entity(preset_type, profile_data, current_value)
+            except Exception as e:
+                _LOGGER.warning("Failed to apply target entity for %s: %s", preset_type, e)
             
             # Schedule next update
-            next_change = self._find_next_change(schedule, now, interval_minutes)
+            next_change = self._find_next_change(schedule, now)
             
             if next_change:
                 @callback
@@ -333,6 +374,83 @@ class SmartScheduler:
             # Schedule retry in case of error
             self._schedule_retry(preset_type)
 
+    async def _apply_target_entity(self, preset_type: str, profile_data: Dict, value: float) -> None:
+        """Apply the computed value to the configured target entity for this preset.
+
+        Resolution order:
+        1) dynamic target entity derived from the stored profile prefix when possible
+        2) fallback to PRESETS_CONFIG target_entity if present
+
+        Note: input_number update is handled separately; this is the actual actuator apply.
+        """
+        cfg = PRESETS_CONFIG.get(preset_type, {})
+        target_entity = None
+
+        # Prefer target from stored container meta (wizard/card config).
+        # NOTE: profile_data returned by _get_active_profile_data currently contains the *profile content*
+        # (schedule/updated_at/...) but NOT the container meta. So meta may be missing here.
+        try:
+            meta = profile_data.get("meta") if isinstance(profile_data, dict) else None
+            if isinstance(meta, dict):
+                target_entity = meta.get("target_entity")
+        except Exception:
+            target_entity = None
+
+        # Also allow top-level canonical key (if present)
+        if not target_entity and isinstance(profile_data, dict):
+            target_entity = profile_data.get("target_entity")
+
+        if not target_entity:
+            target_entity = cfg.get("target_entity")
+
+        # NOTE: legacy aliases removed; only `target_entity` is supported.
+
+        profile_prefix = profile_data.get("global_prefix")
+        if profile_prefix:
+            if not profile_prefix.endswith("_"):
+                profile_prefix += "_"
+            # Try a conventional dynamic target if provided via cfg map
+            # (If user stores target entity elsewhere, they should set cfg.target_entity.)
+            # No-op here.
+            pass
+
+        if not target_entity:
+            try:
+                _LOGGER.debug(
+                    "_apply_target_entity: no target_entity configured for preset '%s' (profile_keys=%s)",
+                    preset_type,
+                    sorted(list(profile_data.keys())) if isinstance(profile_data, dict) else type(profile_data),
+                )
+            except Exception:
+                _LOGGER.debug("_apply_target_entity: no target_entity configured for preset '%s'", preset_type)
+            return
+
+        domain = target_entity.split(".")[0]
+        if domain == "climate":
+            await self.hass.services.async_call(
+                "climate",
+                "set_temperature",
+                {"entity_id": target_entity, "temperature": float(value)},
+                blocking=False,
+            )
+        elif domain == "number":
+            await self.hass.services.async_call(
+                "number",
+                "set_value",
+                {"entity_id": target_entity, "value": float(value)},
+                blocking=False,
+            )
+        elif domain == "switch":
+            service = "turn_on" if int(value) == 1 else "turn_off"
+            await self.hass.services.async_call(
+                "switch",
+                service,
+                {"entity_id": target_entity},
+                blocking=False,
+            )
+        else:
+            _LOGGER.debug("_apply_target_entity: unsupported domain '%s'", domain)
+
     async def _update_current_value_entity(self, preset_type: str, current_value: float):
         """Update the input_number entity with the calculated value."""
         profile_data = self._profiles_cache.get(preset_type)
@@ -340,13 +458,10 @@ class SmartScheduler:
             _LOGGER.warning("No profile data found in cache for %s during update", preset_type)
             return
 
-        config = PRESETS_CONFIG.get(preset_type)
-        if not config:
-            _LOGGER.warning("No config found for %s", preset_type)
-            return
+        config = PRESETS_CONFIG.get(preset_type) or {}
 
         # Update entity
-        profile_prefix = profile_data.get("entity_prefix")
+        profile_prefix = profile_data.get("global_prefix")
         target_entity = None
         
         if profile_prefix:
@@ -405,24 +520,24 @@ class SmartScheduler:
         """Fetch JSON data for currently selected profile."""
         config = PRESETS_CONFIG.get(preset_type)
         if not config:
-            _LOGGER.error("No config found for preset type: %s", preset_type)
-            return None
+            _LOGGER.warning("No config found for preset type: %s. Falling back to latest stored profile.", preset_type)
+            return await self._get_latest_profile_data_for_preset(preset_type)
             
         selector_entity = config.get("profiles_select")
         
         if not selector_entity:
-            _LOGGER.error("No selector entity configured for preset type: %s", preset_type)
-            return None
+            _LOGGER.warning("No selector entity configured for preset type: %s. Falling back to latest stored profile.", preset_type)
+            return await self._get_latest_profile_data_for_preset(preset_type)
             
         state = self.hass.states.get(selector_entity)
         if not state:
-            _LOGGER.error("Selector entity not found: %s", selector_entity)
-            return None
+            _LOGGER.warning("Selector entity not found: %s. Falling back to latest stored profile.", selector_entity)
+            return await self._get_latest_profile_data_for_preset(preset_type)
             
         profile_name = state.state
         if not profile_name or profile_name in ("unknown", "unavailable"):
-            _LOGGER.warning("Invalid profile state for %s: %s", selector_entity, profile_name)
-            return None
+            _LOGGER.warning("Invalid profile state for %s: %s. Falling back to latest stored profile.", selector_entity, profile_name)
+            return await self._get_latest_profile_data_for_preset(preset_type)
 
         _LOGGER.debug(
             "Fetching profile data for preset %s, profile: %s", 
@@ -455,9 +570,13 @@ class SmartScheduler:
                                     continue
                                 
                                 # Add metadata
-                                profile_content["entity_prefix"] = data.get("meta", {}).get("entity_prefix")
+                                profile_content["global_prefix"] = data.get("meta", {}).get("global_prefix")
                                 profile_content["profile_name"] = profile_name
                                 profile_content["_container_updated_at"] = data.get("meta", {}).get("updated_at", 0)
+
+                                # Propagate container meta needed by the scheduler (e.g. apply_entity/target_entity)
+                                # so `_apply_target_entity` can work even when profile_content itself doesn't include it.
+                                profile_content["meta"] = data.get("meta", {})
                                 
                                 # Validate schedule
                                 if "schedule" in profile_content:
@@ -509,3 +628,67 @@ class SmartScheduler:
         
         _LOGGER.warning("Could not retrieve profile data for %s", preset_type)
         return None
+
+    async def _get_latest_profile_data_for_preset(self, preset_type: str) -> Optional[Dict]:
+        """Fallback: pick the newest stored profile container for the preset and then the newest profile inside it.
+
+        This improves reliability at startup when input_select entities are unavailable.
+        """
+        try:
+            if not hasattr(self.profile_service, "storage"):
+                return None
+
+            from ..utils.prefix_normalizer import normalize_preset_type
+            canonical = normalize_preset_type(preset_type)
+
+            files = await self.profile_service.storage.list_profiles()
+            best_container = None
+            best_container_key = ""
+
+            for fname in files:
+                try:
+                    data = await self.profile_service.storage.load_profile_cached(fname)
+                except Exception:
+                    continue
+                if not data or not isinstance(data, dict):
+                    continue
+                if (data.get("meta", {}) or {}).get("preset_type") != canonical:
+                    continue
+
+                key = str((data.get("meta", {}) or {}).get("updated_at") or "")
+                if not best_container or key > best_container_key:
+                    best_container = data
+                    best_container_key = key
+
+            if not best_container:
+                _LOGGER.warning("Fallback: no profile containers found for preset '%s'", canonical)
+                return None
+
+            profiles = best_container.get("profiles", {})
+            if not isinstance(profiles, dict) or not profiles:
+                return None
+
+            chosen_name = None
+            chosen = None
+            chosen_key = ""
+            for name, content in profiles.items():
+                if not isinstance(content, dict):
+                    continue
+                key = str(content.get("updated_at") or "")
+                if not chosen or key > chosen_key:
+                    chosen = content
+                    chosen_name = name
+                    chosen_key = key
+
+            if not chosen:
+                return None
+
+            chosen["global_prefix"] = (best_container.get("meta", {}) or {}).get("global_prefix")
+            chosen["profile_name"] = chosen_name or "Default"
+            chosen["_container_updated_at"] = (best_container.get("meta", {}) or {}).get("updated_at", 0)
+            # Propagate container meta so scheduler can read apply_entity/target_entity.
+            chosen["meta"] = best_container.get("meta", {})
+            return chosen
+        except Exception as e:
+            _LOGGER.debug("_get_latest_profile_data_for_preset failed: %s", e)
+            return None

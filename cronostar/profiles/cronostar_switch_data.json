@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "global_prefix": "cronostar_switch_",
+    "preset_type": "generic_switch",
+    "created_at": "2025-12-21T13:50:29.376587",
+    "updated_at": "2025-12-21T13:50:29.376606",
+    "preset": "generic_switch",
+    "hour_base": {
+      "value": 0,
+      "determined": false
+    },
+    "logging_enabled": true,
+    "pause_entity": "input_boolean.cronostar_switch_paused",
+    "profiles_select_entity": "input_select.cronostar_switch_profiles",
+    "apply_entity": "switch.your_generic_switch",
+    "allow_max_value": false,
+    "missing_yaml_style": "named",
+    "title": "CronoStar Generic Switch",
+    "y_axis_label": "State",
+    "unit_of_measurement": "",
+    "min_value": 0,
+    "max_value": 1,
+    "step_value": 1,
+    "is_switch_preset": true,
+    "type": "custom:cronostar-card"
+  },
+  "profiles": {
+    "Comfort": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 0
+        },
+        {
+          "time": "23:59",
+          "value": 0
+        }
+      ],
+      "updated_at": "2025-12-21T13:50:29.376620"
+    }
+  },
+  "saved_at": 1766321429.3771977,
+  "saved_at_iso": "2025-12-21T12:50:29.377198Z",
+  "version": 2
+}

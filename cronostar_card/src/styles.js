@@ -112,6 +112,7 @@ export const cardStyles = css`
     user-select: none;
     outline: none;
     border-radius: 4px;
+    overflow: hidden;
     transition: box-shadow 0.2s ease;
   }
 
@@ -128,62 +129,65 @@ export const cardStyles = css`
 
   /* Preset card grid and 3D outlined style for editor presets */
   .preset-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 12px;
-    margin-top: 8px;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+    margin-top: 16px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .preset-card {
     -webkit-appearance: none;
     appearance: none;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    text-align: left;
-    padding: 12px;
-    gap: 6px;
-    background: linear-gradient(180deg, var(--card-background-color, #fff), color-mix(in srgb, var(--card-background-color, #fff) 92%, black 8%));
-    border-radius: 10px;
-    border: 1px solid color-mix(in srgb, var(--divider-color, #e0e0e0) 80%, transparent 20%);
-    box-shadow: 0 6px 16px rgba(16,24,40,0.08), 0 2px 6px rgba(16,24,40,0.06);
-    transform: perspective(800px) translateZ(0);
-    transition: transform 220ms cubic-bezier(.2,.9,.2,1), box-shadow 220ms ease, border-color 180ms ease;
-    cursor: pointer;
-    color: var(--primary-text-color);
-    min-height: 88px;
-    overflow: hidden;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    padding: 12px !important;
+    gap: 4px !important;
+    background: #3c3c3c !important;
+    border-radius: 8px !important;
+    border: 1px solid #555 !important;
+    transition: all 0.2s ease !important;
+    cursor: pointer !important;
+    color: #ffffff !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    min-height: 100px !important;
+    margin: 0 !important;
   }
 
   .preset-card .preset-icon {
-    font-size: 1.6rem;
-    opacity: 0.95;
+    font-size: 1.8rem !important;
+    margin-bottom: 2px !important;
+    display: block !important;
   }
 
   .preset-card .preset-title {
-    font-weight: 600;
-    font-size: 0.98rem;
+    font-weight: 600 !important;
+    font-size: 0.95rem !important;
+    margin: 0 !important;
+    display: block !important;
   }
 
   .preset-card .preset-description {
-    font-size: 0.86rem;
-    color: color-mix(in srgb, var(--primary-text-color) 72%, black 28%);
+    font-size: 0.75rem !important;
+    color: #b0b0b0 !important;
+    line-height: 1.2 !important;
+    display: block !important;
   }
 
   .preset-card:hover {
-    transform: translateY(-6px) rotateX(3deg) scale(1.01);
-    box-shadow: 0 14px 34px rgba(16,24,40,0.14), 0 6px 12px rgba(16,24,40,0.08);
-    border-color: color-mix(in srgb, var(--primary-color, #03a9f4) 28%, var(--divider-color, #e0e0e0) 72%);
-  }
-
-  .preset-card:active {
-    transform: translateY(-2px) rotateX(1deg) scale(0.998);
+    background: #4a4a4a !important;
+    border-color: #777 !important;
   }
 
   .preset-card.selected {
-    box-shadow: 0 18px 44px rgba(3,169,244,0.12), 0 8px 18px rgba(3,169,244,0.06);
-    border-color: var(--primary-color, #03a9f4);
-    outline: 2px solid color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent 86%);
+    border: 2px solid #00b0ff !important;
+    background: #3c3c3c !important;
+    box-shadow: 0 0 10px rgba(0, 176, 255, 0.5) !important;
   }
 
   .preset-card:focus-visible {
@@ -270,6 +274,7 @@ export const cardStyles = css`
   }
 
   canvas {
+    display: block;
     cursor: ns-resize;
     touch-action: none;
   }
