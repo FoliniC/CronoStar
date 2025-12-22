@@ -15,7 +15,7 @@ export class Step1Preset {
       { id: 'ev_charging', icon: '🔌', title: 'EV Charging', desc: 'Schedule EV charging power' },
       { id: 'generic_kwh', icon: '⚡', title: 'Generic kWh', desc: 'Schedule hourly energy limits (0-7 kWh)' },
       { id: 'generic_temperature', icon: '🌡️', title: 'Generic Temperature', desc: 'Schedule generic temperatures (0-40°C)' },
-      { id: 'generic_switch', icon: '💡', title: 'Switch', desc: 'Schedule device on/off' },
+      { id: 'generic_switch', icon: '💡', title: 'Switch (VERIFIED)', desc: 'Schedule device on/off' },
     ];
 
     const currentPrefix = this.editor._config.global_prefix || getEffectivePrefix(this.editor._config);

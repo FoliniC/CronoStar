@@ -131,21 +131,120 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
         global_prefix = call.data.get("global_prefix")
         
         _LOGGER.info("Lovelace Card Connected: ID=%s, Preset=%s", card_id, preset)
+        _LOGGER.debug("[REGISTER] global_prefix=%s", global_prefix)
         
         response = {"success": True, "profile_data": None}
         
-        # Logica semplificata per il recupero del profilo attivo
+        # Logica semplificata per il recupero del profilo attivo con logging esteso
         state = None
         base = (global_prefix or "cronostar_").rstrip("_")
         dynamic_selector = f"input_select.{base}_profiles"
+        _LOGGER.debug("[REGISTER] computed base=%s, dynamic_selector=%s", base, dynamic_selector)
         
+        # Lettura dello stato dell'entity input_select
         state = hass.states.get(dynamic_selector)
+        if not state:
+            _LOGGER.warning("[REGISTER] profiles_select entity not found: %s", dynamic_selector)
+        else:
+            _LOGGER.debug("[REGISTER] profiles_select raw state: %s", state.state)
+        
         if state and state.state not in ("unknown", "unavailable"):
             profile_to_load = state.state
-            data = await profile_service.get_profile_data(profile_to_load, preset, global_prefix)
-            if "error" not in data:
-                response["profile_data"] = data
-                
+            _LOGGER.info("[REGISTER] Active profile detected: '%s' via %s", profile_to_load, dynamic_selector)
+            try:
+                data = await profile_service.get_profile_data(profile_to_load, preset, global_prefix)
+                if "error" not in data:
+                    sched = data.get("schedule", [])
+                    _LOGGER.info(
+                        "✅ Profile resolved during register: name=%s, points=%d, first=%s, last=%s",
+                        profile_to_load,
+                        len(sched),
+                        sched[0] if sched else None,
+                        sched[-1] if sched else None,
+                    )
+                    response["profile_data"] = data
+                else:
+                    _LOGGER.warning(
+                        "⚠️ get_profile_data returned error during register: %s",
+                        data.get("error")
+                    )
+                    # Fallback: requested profile not found, try well-known or first available from container
+                    try:
+                        canonical_preset = normalize_preset_type(preset)
+                        filename = build_profile_filename(profile_to_load, canonical_preset, global_prefix=global_prefix)
+                        container = await storage_manager.load_profile_cached(filename)
+                        if container and "profiles" in container:
+                            available = list(container.get("profiles", {}).keys())
+                            _LOGGER.debug("[REGISTER] Fallback (requested missing): container profiles=%s", available)
+                            candidates = [p for p in ("Default", "Comfort") if p in available] or available
+                            for candidate in candidates:
+                                _LOGGER.info("[REGISTER] Trying fallback candidate '%s'", candidate)
+                                alt = await profile_service.get_profile_data(candidate, preset, global_prefix)
+                                if "error" not in alt:
+                                    sched = alt.get("schedule", [])
+                                    _LOGGER.info(
+                                        "✅ Fallback profile loaded: name=%s, points=%d, first=%s, last=%s",
+                                        candidate,
+                                        len(sched),
+                                        sched[0] if sched else None,
+                                        sched[-1] if sched else None,
+                                    )
+                                    response["profile_data"] = alt
+                                    break
+                                else:
+                                    _LOGGER.warning("[REGISTER] Fallback candidate '%s' failed: %s", candidate, alt.get("error"))
+                        else:
+                            _LOGGER.info("[REGISTER] No container found while attempting fallback for file=%s", filename)
+                    except Exception as e:
+                        _LOGGER.error("[REGISTER] Fallback error after missing profile: %s", e)
+            except Exception as e:
+                _LOGGER.error("❌ Exception while loading profile during register: %s", e)
+        else:
+            _LOGGER.info(
+                "[REGISTER] No active profile: entity missing or state is unknown/unavailable (%s)",
+                dynamic_selector
+            )
+            # Fallback: attempt to locate a profile from storage by prefix/preset
+            try:
+                canonical_preset = normalize_preset_type(preset)
+                files = await storage_manager.list_profiles(preset_type=canonical_preset, prefix=base)
+                _LOGGER.debug("[REGISTER] Fallback search: found %d files for prefix=%s, preset=%s", len(files), base, canonical_preset)
+                for filename in files:
+                    container = await storage_manager.load_profile_cached(filename)
+                    if not container or "profiles" not in container:
+                        _LOGGER.debug("[REGISTER] Skipping container without profiles: %s", filename)
+                        continue
+                    available = list(container.get("profiles", {}).keys())
+                    _LOGGER.debug("[REGISTER] Container %s has profiles=%s", filename, available)
+                    # Prefer well-known defaults, else first available
+                    candidates = [p for p in ("Default", "Comfort") if p in available] or available
+                    for candidate in candidates:
+                        _LOGGER.info("[REGISTER] Fallback loading candidate profile '%s'", candidate)
+                        data = await profile_service.get_profile_data(candidate, preset, global_prefix)
+                        if "error" not in data:
+                            sched = data.get("schedule", [])
+                            _LOGGER.info(
+                                "✅ Fallback profile loaded: name=%s, points=%d, first=%s, last=%s",
+                                candidate,
+                                len(sched),
+                                sched[0] if sched else None,
+                                sched[-1] if sched else None,
+                            )
+                            response["profile_data"] = data
+                            break
+                        else:
+                            _LOGGER.warning("[REGISTER] Fallback candidate '%s' failed: %s", candidate, data.get("error"))
+                    if response.get("profile_data"):
+                        break
+                if not response.get("profile_data"):
+                    _LOGGER.info("[REGISTER] Fallback did not find a usable profile for prefix=%s", base)
+            except Exception as e:
+                _LOGGER.error("[REGISTER] Fallback search error: %s", e)
+        
+        _LOGGER.debug(
+            "[REGISTER] Response summary: success=%s, has_profile=%s",
+            response.get("success"), bool(response.get("profile_data"))
+        )
         return response
 
     if not hass.services.has_service(DOMAIN, "register_card"):

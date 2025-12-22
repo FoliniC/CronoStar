@@ -11,10 +11,14 @@ export class StateManager {
   }
 
   /**
-   * Initialize schedule for sparse mode: start empty.
+   * Initialize schedule for sparse mode: start with boundary points.
    */
   _initializeScheduleData() {
-    this.scheduleData = [];
+    const defaultVal = this.card.config?.min_value ?? 0;
+    this.scheduleData = [
+      { time: "00:00", value: defaultVal },
+      { time: "23:59", value: defaultVal }
+    ];
     Logger.state(`[StateManager] Initialized (sparse) with ${this.scheduleData.length} points`);
   }
 
@@ -58,6 +62,15 @@ export class StateManager {
         return { time: timeStr, value: val };
       })
       .filter((p) => p !== null);
+
+    // Ensure at least boundary points exist
+    if (this.scheduleData.length === 0) {
+      const defaultVal = this.card.config?.min_value ?? 0;
+      this.scheduleData = [
+        { time: "00:00", value: defaultVal },
+        { time: "23:59", value: defaultVal }
+      ];
+    }
 
     this.card.hasUnsavedChanges = true;
     Logger.state(`[StateManager] setData (sparse) accepted ${this.scheduleData.length} points`);

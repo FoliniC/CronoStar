@@ -64,6 +64,10 @@ export class CronoStarCard extends LitElement {
     };
   }
 
+  getCardSize() {
+    return 6;
+  }
+
   constructor() {
     super();
     this.config = null;

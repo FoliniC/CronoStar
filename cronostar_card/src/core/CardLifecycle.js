@@ -169,7 +169,7 @@ export class CardLifecycle {
         card.syncCheckTimer = setInterval(() => {
           if (!card._cardConnected) return;
           card.cardSync?.updateAutomationSync?.(hass);
-          
+
           // Redraw chart to update current time indicator
           if (card.chartManager?.isInitialized()) {
             card.chartManager.update('none');
@@ -384,6 +384,29 @@ export class CardLifecycle {
         }
         this.card.hasUnsavedChanges = false;
         Logger.log('LOAD', 'CronoStar initialized schedule from backend profile_data');
+      } else {
+        // Fallback for presets that don't return profile_data on registration (e.g., generic_switch)
+        try {
+          const isSwitch = !!(this.card.config?.is_switch_preset || this.card.selectedPreset?.includes('switch'));
+          const hasNoData = !Array.isArray(this.card.stateManager?.scheduleData) || this.card.stateManager.scheduleData.length === 0;
+          if (isSwitch && hasNoData && this.card.profileManager?.loadProfile) {
+            const candidates = [
+              this.card.selectedProfile,
+              this.card.profileManager?.lastLoadedProfile,
+              'Default',
+              'Comfort'
+            ].filter(Boolean);
+            const name = candidates[0];
+            if (name) {
+              Logger.log('LOAD', `[CronoStar] Fallback load_profile for switch: '${name}'`);
+              try {
+                await this.card.profileManager.loadProfile(name);
+              } catch (e) {
+                Logger.warn('LOAD', `Fallback load_profile failed for '${name}':`, e);
+              }
+            }
+          }
+        } catch { }
       }
 
       // Registration succeeded: mark initial load complete and backend ready to hide overlays

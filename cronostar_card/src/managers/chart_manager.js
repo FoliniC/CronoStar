@@ -13,19 +13,49 @@ export class ChartManager {
     this.chart = null;
     this._initialized = false;
     this.lastMousePosition = null;
-    // Remove custom resize handler to avoid redundant Chart.js resizes
-    // Chart.js responsive:true already handles window resize efficiently
-    // this._boundHandleResize = this._handleResize.bind(this);
     this._dragDisplayTimer = null;
     this._hoverHideTimer = null;
 
-    // Manual horizontal drag state (NO_CROSSING)
+    // Manual horizontal drag state
     this._hDragActive = false;
     this._hDragPointerId = null;
     this._hDragStartClient = null;
     this._hDragStartedAt = 0;
     this._boundOnWindowPointerMove = this._onWindowPointerMove.bind(this);
     this._boundOnWindowPointerUp = this._onWindowPointerUp.bind(this);
+  }
+
+  // Ensure switch preset loads a profile if schedule is empty
+  _ensureSwitchProfileLoaded(retries = 5) {
+    try {
+      const isSwitch = !!(this.card.config?.is_switch_preset || this.card.selectedPreset?.includes('switch'));
+      const hasNoData = !Array.isArray(this.card.stateManager?.scheduleData) || this.card.stateManager.scheduleData.length === 0;
+      if (!isSwitch || !hasNoData) return;
+      if (!this.card.hass || !this.card.profileManager?.loadProfile) {
+        if (retries > 0) setTimeout(() => this._ensureSwitchProfileLoaded(retries - 1), 250);
+        return;
+      }
+      const candidates = [
+        this.card.selectedProfile,
+        this.card.profileManager.lastLoadedProfile,
+        'Default',
+        'Comfort'
+      ].filter(Boolean);
+      if (!candidates.length) return;
+      const tryNext = (idx = 0) => {
+        const name = candidates[idx];
+        if (!name) return;
+        Logger.load(`[CronoStar] Auto-loading switch profile '${name}'`);
+        this.card.profileManager.loadProfile(name)
+          .then(() => Logger.load(`[CronoStar] Loaded profile '${name}' for switch`))
+          .catch((e) => {
+            Logger.warn('LOAD', `[CronoStar] load_profile failed for '${name}': ${e?.message || e}`);
+            if (idx + 1 < candidates.length) tryNext(idx + 1);
+            else if (retries > 0) setTimeout(() => this._ensureSwitchProfileLoaded(retries - 1), 500);
+          });
+      };
+      tryNext(0);
+    } catch { }
   }
 
   _onWindowPointerMove(e) {
@@ -38,18 +68,15 @@ export class ChartManager {
       const dsIndex = this.dragDatasetIndex;
       const activeIndex = this.dragActiveIndex;
       if (dsIndex === null || dsIndex === undefined) return;
-      if (activeIndex === null || activeIndex === undefined) return;
 
       const dataset = this.chart.data.datasets[dsIndex];
-      if (!dataset?.data?.length) return;
-
       const xScale = this.chart.scales?.x;
-      if (!xScale) return;
+      if (!dataset || !xScale) return;
 
-      // Check if we're dragging first or last point by time
       const allByTime = dataset.data
         .map((pt, idx) => ({ idx, x: Math.round(Number(pt?.x ?? 0)) }))
         .sort((a, b) => a.x - b.x);
+
       const firstIdx = allByTime[0]?.idx;
       const lastIdx = allByTime[allByTime.length - 1]?.idx;
 
@@ -59,1202 +86,373 @@ export class ChartManager {
       if (!Number.isFinite(minutes)) return;
 
       let snapMinutes = Number(this.card.config?.keyboard_time_step_minutes) || 5;
-      if (e.altKey) {
-        snapMinutes = 30;
-      } else if (e.ctrlKey || e.metaKey) {
-        snapMinutes = 1;
-      }
+      if (e.altKey) snapMinutes = 30;
+      else if (e.ctrlKey || e.metaKey) snapMinutes = 1;
 
       minutes = Math.round(minutes / snapMinutes) * snapMinutes;
 
-      // Apply NO_CROSSING constraints for active point
       const boundsActive = this.dragBounds?.[activeIndex] || { left: 0, right: 1440 };
       const clampedActive = Math.max(boundsActive.left, Math.min(boundsActive.right, minutes));
       const dxMinutes = clampedActive - Math.round(Number(this.initialSelectedX?.[activeIndex] ?? this.dragStartX ?? 0));
 
-      const pointsToMove = Array.isArray(this.dragSelectedPoints) && this.dragSelectedPoints.length
-        ? this.dragSelectedPoints
-        : [activeIndex];
+      const pointsToMove = Array.isArray(this.dragSelectedPoints) ? this.dragSelectedPoints : [activeIndex];
 
       pointsToMove.forEach((i) => {
         const p = dataset.data[i];
-        if (!p) return;
-
-        // Block horizontal movement for first and last points
-        if (i === firstIdx || i === lastIdx) {
-          return; // Don't move horizontally
-        }
+        if (!p || i === firstIdx || i === lastIdx) return;
 
         const origX = this.initialSelectedX?.[i];
         if (origX === undefined) return;
         const bounds = this.dragBounds?.[i] || { left: 0, right: 1440 };
-        let desiredX = Math.round(Number(origX) + dxMinutes);
-        let newX = Math.max(bounds.left, Math.min(bounds.right, desiredX));
-        newX = Math.max(0, Math.min(1440, newX));
-        p.x = newX;
+        let newX = Math.max(bounds.left, Math.min(bounds.right, Math.round(origX + dxMinutes)));
+        p.x = Math.max(0, Math.min(1440, newX));
       });
 
       this.chart.update('none');
-    } catch { }
+    } catch (err) { }
   }
 
   _onWindowPointerUp(e) {
     try {
       if (!this._hDragActive) return;
-      if (this._hDragPointerId !== null && e.pointerId !== this._hDragPointerId) return;
       this._hDragActive = false;
-      this._hDragPointerId = null;
-      this._hDragStartClient = null;
-      this._hDragStartedAt = 0;
       window.removeEventListener('pointermove', this._boundOnWindowPointerMove, true);
       window.removeEventListener('pointerup', this._boundOnWindowPointerUp, true);
 
-      // Commit to StateManager
-      try {
-        const dsIndex = this.dragDatasetIndex ?? 0;
-        const dataset = this.chart?.data?.datasets?.[dsIndex];
-        if (dataset?.data?.length) {
-          const newData = dataset.data.map((p) => {
-            const minutes = Math.max(0, Math.min(1440, Number(p.x)));
-            return { time: this.card.stateManager.minutesToTime(minutes), value: p.y };
-          });
-          this.card.stateManager.setData(newData);
-          this.card.hasUnsavedChanges = true;
-        }
-      } catch { }
-
-      // Reset drag flags
+      const dsIndex = this.dragDatasetIndex ?? 0;
+      const dataset = this.chart?.data?.datasets?.[dsIndex];
+      if (dataset?.data?.length) {
+        const newData = dataset.data.map((p) => ({
+          time: this.card.stateManager.minutesToTime(Math.max(0, Math.min(1440, Number(p.x)))),
+          value: p.y
+        }));
+        this.card.stateManager.setData(newData);
+        this.card.hasUnsavedChanges = true;
+      }
       this.card.isDragging = false;
-      this.dragDatasetIndex = null;
-      this.dragActiveIndex = null;
     } catch { }
   }
 
-  isInitialized() {
-    return this._initialized && !!this.chart;
-  }
+  isInitialized() { return this._initialized && !!this.chart; }
+  getChart() { return this.chart; }
+  _getXTitle() { return this.card.localizationManager?.localize(this.card.language, 'ui.hours_label') || 'Hours'; }
+  _getYTitle() { return this.card.config?.y_axis_label || this.card.localizationManager?.localize(this.card.language, 'ui.temperature_label') || 'Value'; }
 
-  getChart() {
-    return this.chart;
-  }
-
-  _getXTitle() {
-    return this.card.config?.x_axis_label ||
-      this.card.localizationManager?.localize(this.card.language, 'ui.hours_label') || 'Hours';
-  }
-
-  _getYTitle() {
-    return this.card.config?.y_axis_label ||
-      this.card.localizationManager?.localize(this.card.language, 'ui.temperature_label') || 'Temp';
-  }
-
-  // _handleResize() {
-  //   // Redundant with Chart.js responsive handling; left commented for future manual control
-  //   if (this.chart) {
-  //     this.chart.resize();
-  //   }
-  // }
-
-  // Safe wrapper used across handlers (keyboard/pointer)
   update(mode = 'none') {
     if (!this.chart) return;
-    try {
-      this.chart.update(mode);
-    } catch (e) {
-      try {
-        this.chart.update();
-      } catch { }
-    }
+    try { this.chart.update(mode); } catch { try { this.chart.update(); } catch { } }
   }
 
-  // Shows a small floating label with the current value near the last selected point
   showDragValueDisplay(indices, dataset) {
     try {
       const el = this.card.shadowRoot?.getElementById('drag-value-display');
       if (!el || !this.chart) return;
-
-      const idx = Array.isArray(indices) && indices.length ? indices[indices.length - 1] : null;
+      const idx = Array.isArray(indices) ? indices[indices.length - 1] : null;
       if (idx === null) return;
 
       const meta = this.chart.getDatasetMeta(0);
       const pointEl = meta?.data?.[idx];
       if (!pointEl) return;
 
-      const pos = typeof pointEl.tooltipPosition === 'function'
-        ? pointEl.tooltipPosition()
-        : { x: pointEl.x, y: pointEl.y };
-
+      const pos = typeof pointEl.tooltipPosition === 'function' ? pointEl.tooltipPosition() : { x: pointEl.x, y: pointEl.y };
       const container = this.card.shadowRoot?.querySelector('.chart-container');
-      if (!container) return;
-
       const canvasRect = this.chart.canvas.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
-      const offsetX = canvasRect.left - containerRect.left;
-      const offsetY = canvasRect.top - containerRect.top;
 
-      // Resolve value from dataset
-      let valRaw;
-      if (Array.isArray(dataset) && dataset[idx] !== undefined) {
-        const d = dataset[idx];
-        valRaw = (typeof d === 'object' && d !== null) ? d.y : Number(d);
-      } else {
-        const d = this.chart.data?.datasets?.[0]?.data?.[idx];
-        valRaw = (typeof d === 'object' && d !== null) ? d.y : Number(d);
-      }
-
-      const isSwitch = !!this.card.config?.is_switch_preset;
-      const uom = (this.card.config?.unit_of_measurement || '').trim();
+      const valRaw = (typeof dataset[idx] === 'object') ? dataset[idx].y : Number(dataset[idx]);
+      const isSwitch = !!(this.card.config?.is_switch_preset || this.card.selectedPreset?.includes('switch'));
 
       let text = '';
-      if (Number.isFinite(valRaw)) {
-        if (isSwitch) {
-          const key = (Number(valRaw) >= 0.5) ? 'ui.switch_on' : 'ui.switch_off';
-          text = this.card.localizationManager?.localize(this.card.language, key) ||
-            ((Number(valRaw) >= 0.5) ? 'On' : 'Off');
-        } else {
-          const step = Number(this.card.config?.step_value);
-          const decimals = Number.isFinite(step)
-            ? Math.max(0, Math.min(6, (String(step).split('.')[1] || '').length))
-            : 1;
-          text = Number(valRaw).toFixed(decimals);
-          if (uom) text += ` ${uom}`;
-        }
+      if (isSwitch) {
+        text = (valRaw >= 0.5) ? 'On' : 'Off';
+      } else {
+        const step = Number(this.card.config?.step_value) || 0.5;
+        const decimals = (String(step).split('.')[1] || '').length;
+        text = Number(valRaw).toFixed(Math.max(0, Math.min(2, decimals)));
       }
 
       el.textContent = text;
-      el.style.left = `${Math.round(pos.x + offsetX + 8)}px`;
-      el.style.top = `${Math.round(pos.y + offsetY - 28)}px`;
+      el.style.left = `${Math.round(pos.x + (canvasRect.left - containerRect.left) + 8)}px`;
+      el.style.top = `${Math.round(pos.y + (canvasRect.top - containerRect.top) - 28)}px`;
       el.style.display = 'block';
-    } catch (e) {
-      Logger.warn('CHART', 'showDragValueDisplay error:', e);
-    }
-  }
-
-  scheduleHideDragValueDisplay(ms = 2000) {
-    try {
-      if (this._dragDisplayTimer) clearTimeout(this._dragDisplayTimer);
-      this._dragDisplayTimer = setTimeout(() => {
-        const el = this.card.shadowRoot?.getElementById('drag-value-display');
-        if (el) el.style.display = 'none';
-        this._dragDisplayTimer = null;
-      }, ms);
     } catch { }
   }
 
-  /**
-   * Return indices of points inside a rectangle defined in CONTAINER coordinates.
-   * @param {number} minX left bound (container px)
-   * @param {number} minY top bound (container px)
-   * @param {number} maxX right bound (container px)
-   * @param {number} maxY bottom bound (container px)
-   * @returns {number[]} indices inside area
-   */
+  scheduleHideDragValueDisplay(ms = 2000) {
+    if (this._dragDisplayTimer) clearTimeout(this._dragDisplayTimer);
+    this._dragDisplayTimer = setTimeout(() => {
+      const el = this.card.shadowRoot?.getElementById('drag-value-display');
+      if (el) el.style.display = 'none';
+    }, ms);
+  }
+
   getIndicesInArea(minX, minY, maxX, maxY) {
-    try {
-      if (!this.chart) return [];
-      const meta = this.chart.getDatasetMeta(0);
-      const points = meta?.data || [];
-      if (!points.length) return [];
+    if (!this.chart) return [];
+    const meta = this.chart.getDatasetMeta(0);
+    const points = meta?.data || [];
+    const container = this.card.shadowRoot?.querySelector('.chart-container');
+    const canvasRect = this.chart.canvas.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const ox = canvasRect.left - containerRect.left;
+    const oy = canvasRect.top - containerRect.top;
 
-      const container = this.card.shadowRoot?.querySelector('.chart-container');
-      if (!container) return [];
-      const canvasRect = this.chart.canvas.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      const offsetX = canvasRect.left - containerRect.left;
-      const offsetY = canvasRect.top - containerRect.top;
-
-      const inside = [];
-      for (let i = 0; i < points.length; i++) {
-        const pt = points[i];
-        if (!pt) continue;
-        const pos = typeof pt.tooltipPosition === 'function' ? pt.tooltipPosition() : { x: pt.x, y: pt.y };
-        const x = pos.x + offsetX;
-        const y = pos.y + offsetY;
-        if (x >= Math.min(minX, maxX) && x <= Math.max(minX, maxX) &&
-          y >= Math.min(minY, maxY) && y <= Math.max(minY, maxY)) {
-          inside.push(i);
-        }
-      }
-      return inside;
-    } catch (e) {
-      Logger.warn('CHART', 'getIndicesInArea error:', e);
-      return [];
-    }
+    return points.map((pt, i) => {
+      const pos = typeof pt.tooltipPosition === 'function' ? pt.tooltipPosition() : { x: pt.x, y: pt.y };
+      const x = pos.x + ox; const y = pos.y + oy;
+      return (x >= Math.min(minX, maxX) && x <= Math.max(minX, maxX) && y >= Math.min(minY, maxY) && y <= Math.max(minY, maxY)) ? i : -1;
+    }).filter(i => i !== -1);
   }
 
-  // Safe fallback to get canvas relative position
   _getCanvasRelativePosition(evt) {
-    const chart = this.chart;
-    if (!chart) return { x: 0, y: 0 };
     const native = evt?.native || evt;
-    let clientX, clientY;
-
-    if (native?.touches && native.touches.length) {
-      clientX = native.touches[0].clientX;
-      clientY = native.touches[0].clientY;
-    } else if (native?.changedTouches && native.changedTouches.length) {
-      clientX = native.changedTouches[0].clientX;
-      clientY = native.changedTouches[0].clientY;
-    } else {
-      clientX = native?.clientX;
-      clientY = native?.clientY;
-    }
-
-    const rect = chart.canvas.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    return { x, y };
+    const clientX = native.touches?.[0]?.clientX ?? native.changedTouches?.[0]?.clientX ?? native.clientX;
+    const clientY = native.touches?.[0]?.clientY ?? native.changedTouches?.[0]?.clientY ?? native.clientY;
+    const rect = this.chart.canvas.getBoundingClientRect();
+    return { x: clientX - rect.left, y: clientY - rect.top };
   }
 
-  /**
-   * Interpolate Y value on the line for a given X (minutes)
-   */
   _interpolateValueAtMinutes(minutes) {
-    try {
-      const ds = this.chart?.data?.datasets?.[0]?.data || [];
-      if (!Array.isArray(ds) || ds.length === 0) return null;
-
-      // Ensure sorted by x
-      const data = [...ds].sort((a, b) => a.x - b.x);
-      if (minutes <= data[0].x) return Number(data[0].y);
-      if (minutes >= data[data.length - 1].x) return Number(data[data.length - 1].y);
-
-      // Find segment
-      for (let i = 0; i < data.length - 1; i++) {
-        const p1 = data[i];
-        const p2 = data[i + 1];
-        if (minutes >= p1.x && minutes <= p2.x) {
-          const dx = p2.x - p1.x;
-          if (!dx) return Number(p1.y);
-          const t = (minutes - p1.x) / dx;
-          return Number(p1.y) + (Number(p2.y) - Number(p1.y)) * t;
-        }
+    const ds = this.chart?.data?.datasets?.[0]?.data || [];
+    if (!ds.length) return null;
+    const data = [...ds].sort((a, b) => a.x - b.x);
+    if (minutes <= data[0].x) return data[0].y;
+    if (minutes >= data[data.length - 1].x) return data[data.length - 1].y;
+    for (let i = 0; i < data.length - 1; i++) {
+      if (minutes >= data[i].x && minutes <= data[i + 1].x) {
+        const t = (minutes - data[i].x) / (data[i + 1].x - data[i].x || 1);
+        return data[i].y + (data[i + 1].y - data[i].y) * t;
       }
-      return Number(data[data.length - 1].y);
-    } catch (e) {
-      return null;
     }
+    return data[data.length - 1].y;
   }
 
-  /**
-   * Show a floating label near the cursor with current time and interpolated value.
-   */
   _showHoverInfo(evt) {
     try {
-      if (!this.chart) return;
       const el = this.card.shadowRoot?.getElementById('hover-value-display');
-      const container = this.card.shadowRoot?.querySelector('.chart-container');
-      if (!el || !container) return;
-
+      if (!el || !this.chart) return;
       const pos = this._getCanvasRelativePosition(evt);
-      const xScale = this.chart.scales?.x;
-      const yScale = this.chart.scales?.y;
-      if (!xScale || !yScale) return;
-
-      // Only within plot area
-      const insideX = pos.x >= xScale.left && pos.x <= xScale.right;
-      const insideY = pos.y >= yScale.top && pos.y <= yScale.bottom;
-      if (!insideX || !insideY) {
-        this._hideHoverInfo();
-        return;
-      }
-
-      const minutes = xScale.getValueForPixel(pos.x);
-      if (!Number.isFinite(minutes)) {
-        this._hideHoverInfo();
-        return;
-      }
-
-      const value = this._interpolateValueAtMinutes(minutes);
-      if (value === null || !Number.isFinite(value)) {
-        this._hideHoverInfo();
-        return;
-      }
-
-      const timeStr = this.card.stateManager.minutesToTime(minutes);
-      const uom = (this.card.config?.unit_of_measurement || '').trim();
-      const valueText = Number(value).toFixed(1);
-      el.textContent = `${timeStr} • ${valueText}${uom ? ' ' + uom : ''}`;
-
-      const canvasRect = this.chart.canvas.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      const offsetX = canvasRect.left - containerRect.left;
-      const offsetY = canvasRect.top - containerRect.top;
-
-      el.style.left = `${Math.round(pos.x + offsetX + 10)}px`;
-      el.style.top = `${Math.round(pos.y + offsetY - 24)}px`;
+      const { x, y } = this.chart.scales;
+      if (pos.x < x.left || pos.x > x.right || pos.y < y.top || pos.y > y.bottom) { this._hideHoverInfo(); return; }
+      const minutes = x.getValueForPixel(pos.x);
+      const val = this._interpolateValueAtMinutes(minutes);
+      if (val === null) return;
+      el.textContent = `${this.card.stateManager.minutesToTime(minutes)} • ${val.toFixed(1)}`;
+      const cRect = this.chart.canvas.getBoundingClientRect();
+      const contRect = this.card.shadowRoot.querySelector('.chart-container').getBoundingClientRect();
+      el.style.left = `${Math.round(pos.x + (cRect.left - contRect.left) + 10)}px`;
+      el.style.top = `${Math.round(pos.y + (cRect.top - contRect.top) - 24)}px`;
       el.style.display = 'block';
-
-      // Auto-hide after inactivity
       if (this._hoverHideTimer) clearTimeout(this._hoverHideTimer);
       this._hoverHideTimer = setTimeout(() => this._hideHoverInfo(), 1500);
     } catch { }
   }
 
   _hideHoverInfo() {
-    try {
-      const el = this.card.shadowRoot?.getElementById('hover-value-display');
-      if (el) el.style.display = 'none';
-      if (this._hoverHideTimer) {
-        clearTimeout(this._hoverHideTimer);
-        this._hoverHideTimer = null;
-      }
-    } catch { }
+    const el = this.card.shadowRoot?.getElementById('hover-value-display');
+    if (el) el.style.display = 'none';
   }
 
   initChart(canvas) {
-    if (!canvas) {
-      Logger.error('CHART', '[ChartManager] initChart: canvas is null');
-      return false;
-    }
+    if (!canvas) return false;
+    if (!canvas.isConnected) { requestAnimationFrame(() => this.initChart(canvas)); return false; }
+    this.destroy();
 
-    // If canvas is not yet attached to DOM, defer initialization to next frame
-    try {
-      if (!canvas.isConnected || !canvas.ownerDocument) {
-        requestAnimationFrame(() => this.initChart(canvas));
-        return false;
-      }
-    } catch { }
-
-    this.destroy(); // Clean up existing
-
-    // Event listeners
-    canvas.addEventListener('mousemove', (e) => {
-      const rect = canvas.getBoundingClientRect();
-      this.lastMousePosition = {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      };
-      this._showHoverInfo(e);
-    });
-
-    canvas.addEventListener('mouseleave', () => {
-      this._hideHoverInfo();
-    });
-
+    canvas.addEventListener('mousemove', (e) => this._showHoverInfo(e));
+    canvas.addEventListener('mouseleave', () => this._hideHoverInfo());
     canvas.addEventListener('contextmenu', (e) => {
       e.preventDefault();
-      this._handleContextMenu(e);
+      const points = this.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
+      if (points.length) {
+        this.card.stateManager.removePoint(points[0].index);
+        this.updateData(this.card.stateManager.getData());
+        this.card.requestUpdate();
+      }
     });
 
-    // Manual horizontal dragging: start on pointerdown near a selected point
     canvas.addEventListener('pointerdown', (e) => {
-      try {
-        if (!this.chart || !this._initialized) return;
-        if (this.card.pointerSelecting) return;
-        if (this.card.isDragging) return;
-        if (e.button !== undefined && e.button !== 0) return;
-
-        const points = this.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
-        if (!points?.length) return;
-
-        const datasetIndex = points[0].datasetIndex ?? 0;
-        const index = points[0].index;
-
-        // Must be near the point
-        const meta = this.chart.getDatasetMeta(datasetIndex);
-        const pointEl = meta?.data?.[index];
-        if (!pointEl) return;
-
-        const pos = typeof pointEl.tooltipPosition === 'function'
-          ? pointEl.tooltipPosition()
-          : { x: pointEl.x, y: pointEl.y };
-        const canvasPos = this._getCanvasRelativePosition(e);
-        const dx = canvasPos.x - pos.x;
-        const dy = canvasPos.y - pos.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const tolerancePx = 12;
-        if (dist > tolerancePx) return;
-
-        // Start only if the point is selected (or select it first)
-        const selMgr = this.card.selectionManager;
-        if (selMgr && typeof selMgr.isSelected === 'function') {
-          if (!selMgr.isSelected(index)) {
-            selMgr.selectPoint(index);
-            this.updatePointStyling(selMgr.selectedPoint, selMgr.selectedPoints);
-            this.update('none');
-          }
-        }
-
-        // Freshly compute bounds and snapshot starting X for current selection
-        this.dragBounds = {};
-        this.initialSelectedX = {};
-        const allByTime = this.chart.data.datasets[datasetIndex].data
-          .map((pt, idx) => ({ idx, x: Math.round(Number(pt?.x ?? 0)) }))
-          .sort((a, b) => a.x - b.x);
-        const selected = (selMgr && typeof selMgr.getSelectedPoints === 'function')
-          ? selMgr.getSelectedPoints()
-          : [index];
-        const selectedSet = new Set(selected);
-        const firstIdxByTime = allByTime[0]?.idx;
-        const lastIdxByTime = allByTime[allByTime.length - 1]?.idx;
-
-        selected.forEach((selIdx) => {
-          const entryPos = allByTime.findIndex((e2) => e2.idx === selIdx);
-          let leftBound = 0;
-          let rightBound = 1440;
-          let leftNeighborX = null;
-          let rightNeighborX = null;
-
-          // Scan left
-          for (let k = entryPos - 1; k >= 0; k--) {
-            const e2 = allByTime[k];
-            if (!selectedSet.has(e2.idx)) {
-              leftBound = e2.x + 1;
-              leftNeighborX = e2.x;
-              break;
-            }
-          }
-
-          // Scan right
-          for (let k = entryPos + 1; k < allByTime.length; k++) {
-            const e2 = allByTime[k];
-            if (!selectedSet.has(e2.idx)) {
-              rightBound = e2.x - 1;
-              rightNeighborX = e2.x;
-              break;
-            }
-          }
-
-          const origX = Math.round(Number(this.chart.data.datasets[datasetIndex].data[selIdx]?.x ?? 0));
-          // Lock first/last points completely
-          const isEdge = selIdx === firstIdxByTime || selIdx === lastIdxByTime;
-          this.dragBounds[selIdx] = {
-            left: isEdge ? origX : Math.max(0, leftBound),
-            right: isEdge ? origX : Math.min(1440, rightBound),
-            leftNeighborX,
-            rightNeighborX,
-            origX,
-          };
-          const p2 = this.chart.data.datasets[datasetIndex].data[selIdx];
-          if (p2) this.initialSelectedX[selIdx] = p2.x;
-        });
-        this.dragSelectedPoints = [...selected].sort((a, b) => a - b);
-
-        this.dragDatasetIndex = datasetIndex;
-        this.dragActiveIndex = index;
-        this.dragStartX = this.chart.data.datasets[datasetIndex].data[index]?.x ?? 0;
-
-        // Start manual horizontal drag
-        this._hDragActive = true;
-        this._hDragPointerId = e.pointerId;
-        this._hDragStartClient = { x: e.clientX, y: e.clientY };
-        this._hDragStartedAt = Date.now();
-        this.card.isDragging = true;
-        window.addEventListener('pointermove', this._boundOnWindowPointerMove, { capture: true, passive: true });
-        window.addEventListener('pointerup', this._boundOnWindowPointerUp, { capture: true, passive: true });
-        try {
-          canvas.setPointerCapture(e.pointerId);
-        } catch { }
-      } catch { }
+      if (!this.chart || this.card.pointerSelecting || e.button !== 0) return;
+      const points = this.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
+      if (!points.length) return;
+      const idx = points[0].index;
+      const selMgr = this.card.selectionManager;
+      if (selMgr && !selMgr.isSelected(idx)) {
+        selMgr.selectPoint(idx);
+        this.updatePointStyling(selMgr.selectedPoint, selMgr.selectedPoints);
+        this.update('none');
+      }
+      this.dragBounds = {}; this.initialSelectedX = {};
+      const dataset = this.chart.data.datasets[0];
+      const allByTime = dataset.data.map((pt, i) => ({ i, x: Math.round(pt.x) })).sort((a, b) => a.x - b.x);
+      const selected = selMgr.getSelectedPoints();
+      const selectedSet = new Set(selected);
+      selected.forEach(sIdx => {
+        const pos = allByTime.findIndex(e => e.i === sIdx);
+        let l = 0, r = 1440;
+        for (let k = pos - 1; k >= 0; k--) { if (!selectedSet.has(allByTime[k].i)) { l = allByTime[k].x + 1; break; } }
+        for (let k = pos + 1; k < allByTime.length; k++) { if (!selectedSet.has(allByTime[k].i)) { r = allByTime[k].x - 1; break; } }
+        const isEdge = sIdx === allByTime[0].i || sIdx === allByTime[allByTime.length - 1].i;
+        const curX = Math.round(dataset.data[sIdx].x);
+        this.dragBounds[sIdx] = { left: isEdge ? curX : l, right: isEdge ? curX : r };
+        this.initialSelectedX[sIdx] = dataset.data[sIdx].x;
+      });
+      this.dragDatasetIndex = 0; this.dragActiveIndex = idx; this.dragStartX = dataset.data[idx].x;
+      this._hDragActive = true; this._hDragPointerId = e.pointerId;
+      this.card.isDragging = true;
+      window.addEventListener('pointermove', this._boundOnWindowPointerMove, { capture: true, passive: true });
+      window.addEventListener('pointerup', this._boundOnWindowPointerUp, { capture: true, passive: true });
     }, { passive: true, capture: true });
 
-    // Rely on Chart.js internal responsive resizing; no extra window resize listener
-    // window.addEventListener('resize', this._boundHandleResize);
+    const isSwitch = !!(this.card.config?.is_switch_preset || this.card.selectedPreset?.includes('switch'));
+    const step = isSwitch ? 1 : (Number(this.card.config?.step_value) || 0.5);
+    const minV = isSwitch ? 0 : Number(this.card.config?.min_value ?? 0);
+    const maxV = isSwitch ? 1 : Number(this.card.config?.max_value ?? 100);
 
+    // Stabilize initial layout for switch preset by enforcing a fixed container height at first paint
     try {
-      const ctx = canvas.getContext('2d');
-      const isSwitch = !!this.card.config?.is_switch_preset;
-      const step = isSwitch ? 1 : (Number(this.card.config?.step_value) || 1);
-      const minV = isSwitch ? 0 : (Number(this.card.config?.min_value) ?? 0);
-      const maxV = isSwitch ? 1 : (Number(this.card.config?.max_value) ?? 100);
-
-      // Stabilize initial layout for switch preset by enforcing a fixed container height at first paint
-      try {
-        const container = this.card.shadowRoot?.querySelector('.chart-container');
-        if (container && isSwitch) {
-          const fixedPx = Number(this.card.config?.initial_chart_height_px) || 320;
+      const container = this.card.shadowRoot?.querySelector('.chart-container');
+      if (container && isSwitch) {
+        const fixedPx = Number(this.card.config?.initial_chart_height_px) || 320;
+        if (!container.style.height) {
           container.style.height = `${fixedPx}px`;
           container.setAttribute('data-initial-fixed-height', String(fixedPx));
         }
-      } catch { }
+      }
+    } catch { }
 
-      // Custom plugin to draw current time indicator
-      const currentTimeIndicatorPlugin = {
-        id: 'currentTimeIndicator',
-        afterDatasetsDraw: (chart) => {
-          try {
-            const { ctx, chartArea, scales } = chart;
-            if (!ctx || !chartArea || !scales || !scales.x) return;
+    if (isSwitch) Logger.log('CHART', '[Switch] Initializing with stepped line and On/Off labels');
 
-            const { top, bottom, left, right } = chartArea;
-            const x = scales.x;
-            const now = new Date();
-            const minutes = now.getHours() * 60 + now.getMinutes();
-            const xPos = x.getPixelForValue(minutes);
+    const currentTimeIndicatorPlugin = {
+      id: 'currentTimeIndicator',
+      afterDatasetsDraw: (chart) => {
+        const { ctx, chartArea, scales } = chart;
+        if (!ctx || !chartArea || !scales?.x) return;
+        const xPos = scales.x.getPixelForValue(new Date().getHours() * 60 + new Date().getMinutes());
+        if (xPos < chartArea.left || xPos > chartArea.right) return;
+        ctx.save();
+        ctx.setLineDash([5, 5]); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255, 82, 82, 0.5)';
+        ctx.beginPath(); ctx.moveTo(xPos, chartArea.top); ctx.lineTo(xPos, chartArea.bottom); ctx.stroke();
+        ctx.setLineDash([]); ctx.fillStyle = '#ff5252';
+        ctx.beginPath(); ctx.moveTo(xPos, chartArea.top); ctx.lineTo(xPos - 6, chartArea.top - 10); ctx.lineTo(xPos + 6, chartArea.top - 10); ctx.fill();
+        ctx.restore();
+      }
+    };
 
-            if (typeof xPos === 'number' && !isNaN(xPos) && xPos >= left && xPos <= right) {
-              ctx.save();
-              // Dashed Vertical Line
-              ctx.setLineDash([5, 5]);
-              ctx.lineWidth = 1;
-              ctx.strokeStyle = 'rgba(255, 82, 82, 0.4)';
-              ctx.beginPath();
-              ctx.moveTo(xPos, top);
-              ctx.lineTo(xPos, bottom);
-              ctx.stroke();
+    // If switch preset and no data loaded yet, attempt to auto-load the current profile
+    // Defer profile load until after chart is initialized (ProfileManager updates chart)
 
-              // Inverted Triangle at top
-              ctx.setLineDash([]);
-              ctx.fillStyle = '#ff5252';
-              ctx.beginPath();
-              ctx.moveTo(xPos, top);
-              ctx.lineTo(xPos - 6, top - 10);
-              ctx.lineTo(xPos + 6, top - 10);
-              ctx.closePath();
-              ctx.fill();
-              ctx.restore();
+    this.chart = new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        datasets: [{
+          data: (Array.isArray(this.card.stateManager.scheduleData) && this.card.stateManager.scheduleData.length)
+            ? this.card.stateManager.scheduleData.map(p => ({ x: this.card.stateManager.timeToMinutes(p.time), y: Number(p.value) }))
+            : [{ x: 0, y: isSwitch ? 0 : minV }, { x: 1439, y: isSwitch ? 0 : minV }],
+          borderColor: COLORS.primary, backgroundColor: 'rgba(3, 169, 244, 0.1)',
+          pointRadius: 6, borderWidth: 2, tension: isSwitch ? 0 : 0.4,
+          stepped: isSwitch ? 'before' : false, fill: true, clip: false,
+          spanGaps: true
+        }]
+      },
+      plugins: [currentTimeIndicatorPlugin],
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        // Debounce internal resize to avoid jitter on initial render
+        resizeDelay: 200,
+        layout: { padding: { top: 15, right: 10, bottom: 25, left: 10 } },
+        onClick: (evt) => {
+          if (!this.chart || this.card.pointerSelecting || Date.now() < (this.card.suppressClickUntil || 0)) return;
+          const pos = this._getCanvasRelativePosition(evt);
+          const points = this.chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+          if (points.length) {
+            const idx = points[0].index;
+            if (isSwitch) {
+              const p = this.chart.data.datasets[0].data[idx];
+              p.y = (p.y >= 0.5) ? 0 : 1;
+              this.chart.update('none');
+              this.card.stateManager.setData(this.chart.data.datasets[0].data.map(pt => ({ time: this.card.stateManager.minutesToTime(pt.x), value: pt.y })));
+              this.card.hasUnsavedChanges = true; this.card.requestUpdate();
+              return;
             }
-          } catch (e) {
-            // Silently ignore to prevent chart crash
+            this._handleChartClick(evt, points); return;
           }
-        }
-      };
-
-      const localizeUi = (suffix) => {
-        const k = `ui.${suffix}`;
-        const fromEditor = this.card?.editor?.i18n?._t?.(k);
-        if (fromEditor && fromEditor !== k) return fromEditor;
-        const fromLoc = this.card.localizationManager?.localize?.(this.card.language, k);
-        if (fromLoc && fromLoc !== k) return fromLoc;
-        if (this.card.language === 'it') return (suffix === 'switch_on') ? 'Acceso' : 'Spento';
-        return (suffix === 'switch_on') ? 'On' : 'Off';
-      };
-
-      const rawData = this.card.stateManager?.scheduleData || [];
-      const dataArr = rawData.map(p => ({
-        x: this.card.stateManager.timeToMinutes(p.time),
-        y: Number(p.value)
-      }));
-
-      const clamp = (val) => {
-        if (isSwitch) {
-          return (Number(val) >= 0.5) ? 1 : 0;
-        }
-        const rounded = Math.round(val / step) * step;
-        return Math.max(minV, Math.min(maxV, rounded));
-      };
-
-      const chartConfig = {
-        type: 'line',
-        data: {
-          datasets: [{
-            label: this._getYTitle(),
-            data: dataArr,
-            borderColor: COLORS.primary,
-            backgroundColor: 'rgba(3, 169, 244, 0.08)', // Lighter fill for better visibility
-            pointRadius: 6,
-            pointHoverRadius: 9,
-            pointHitRadius: 15,
-            pointBackgroundColor: COLORS.primary,
-            pointBorderColor: COLORS.primary,
-            borderWidth: 2,
-            tension: 0,
-            spanGaps: true,
-            fill: true,
-            clip: false
-          }]
+          const { x, y } = this.chart.scales;
+          if (!x || !y) return;
+          if (pos.x < x.left || pos.x > x.right || pos.y < y.top || pos.y > y.bottom) return;
+          const valY = Math.max(minV, Math.min(maxV, Math.round(y.getValueForPixel(pos.y) / step) * step));
+          const idxNew = this.card.stateManager.insertPoint(this.card.stateManager.minutesToTime(x.getValueForPixel(pos.x)), isSwitch ? (valY >= 0.5 ? 1 : 0) : valY);
+          this.updateData(this.card.stateManager.getData());
+          this.card.selectionManager?.selectPoint(idxNew);
+          this.updatePointStyling(idxNew, [idxNew]); this.update('none'); this.card.requestUpdate();
         },
-        plugins: [currentTimeIndicatorPlugin],
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          // Disable animations to avoid initial layout jitter
-          animation: false,
-          // Debounce internal resize to avoid thrashing at startup
-          resizeDelay: 200,
-          // Ensure space for the triangle indicator at the top and labels at the bottom
-          layout: { 
-            padding: { 
-              top: 15, 
-              right: 10, 
-              bottom: 25, 
-              left: 10 
-            } 
-          },
-          interaction: {
-            mode: 'nearest',
-            axis: 'x',
-            intersect: false
-          },
-          onClick: (evt) => {
-            try {
-              const chart = this.chart;
-              if (!chart) return;
-              if (this.card.pointerSelecting) return;
-              if (Date.now() < (this.card.suppressClickUntil || 0)) return;
-
-              const canvasPosition = this._getCanvasRelativePosition(evt);
-              const points = chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
-
-              if (points.length > 0) {
-                const idx = points[0].index;
-                const meta = chart.getDatasetMeta(0);
-                const pointEl = meta?.data?.[idx];
-
-                if (pointEl) {
-                  const pos = typeof pointEl.tooltipPosition === 'function'
-                    ? pointEl.tooltipPosition()
-                    : { x: pointEl.x, y: pointEl.y };
-                  const dx = canvasPosition.x - pos.x;
-                  const dy = canvasPosition.y - pos.y;
-                  const dist = Math.sqrt(dx * dx + dy * dy);
-                  const tolerancePx = 18;
-
-                  if (dist <= tolerancePx) {
-                    if (isSwitch) {
-                      const dataset = chart.data.datasets[0];
-                      const p = dataset?.data?.[idx];
-                      if (p) {
-                        const before = Number(p.y) >= 0.5 ? 1 : 0;
-                        const after = before === 1 ? 0 : 1;
-                        p.y = after;
-                        chart.update('none');
-
-                        const newData = dataset.data.map((pt) => ({
-                          time: this.card.stateManager.minutesToTime(Math.max(0, Math.min(1440, Number(pt.x)))),
-                          value: Number(pt.y) >= 0.5 ? 1 : 0,
-                        }));
-                        this.card.stateManager.setData(newData);
-                        this.card.hasUnsavedChanges = true;
-                        this.card.requestUpdate();
-                        return;
-                      }
-                    }
-                    this._handleChartClick(evt, points);
-                    return;
-                  }
-                }
-              }
-
-              // Point insertion logic
-              const xScale = chart.scales?.x;
-              const yScale = chart.scales?.y;
-              if (!xScale || !yScale) return;
-
-              if (canvasPosition.x < xScale.left || canvasPosition.x > xScale.right ||
-                canvasPosition.y < yScale.top || canvasPosition.y > yScale.bottom) {
-                return;
-              }
-
-              const timeX = xScale.getValueForPixel(canvasPosition.x);
-              const valueY = yScale.getValueForPixel(canvasPosition.y);
-
-              if (!Number.isFinite(timeX) || timeX < 0 || timeX > 1440) return;
-
-              // Check if click is near the line
-              const ds = this.chart?.data?.datasets?.[0]?.data || [];
-              const hasData = Array.isArray(ds) && ds.length > 0;
-              let isNearLine = true;
-
-              if (hasData) {
-                const minutes = timeX;
-                const interpVal = this._interpolateValueAtMinutes(minutes);
-                if (Number.isFinite(interpVal)) {
-                  const lineYPx = yScale.getPixelForValue(interpVal);
-                  const tolerancePx = 12;
-                  isNearLine = Math.abs(canvasPosition.y - lineYPx) <= tolerancePx;
-                }
-              }
-
-              if (!isNearLine) return;
-
-              const exactMinutes = Math.round(timeX);
-              const timeStr = this.card.stateManager.minutesToTime(exactMinutes);
-              const roundedValue = clamp(valueY);
-
-              const insertedIndex = this.card.stateManager.insertPoint(timeStr, roundedValue);
-              this.updateData(this.card.stateManager.getData());
-
-              try {
-                this.card.selectionManager?.selectPoint?.(insertedIndex);
-                this.updatePointStyling(insertedIndex, [insertedIndex]);
-                this.chart.update('none');
-              } catch { }
-
-              this.card.requestUpdate();
-            } catch (err) {
-              Logger.warn('CHART', 'Error in onClick handler', err);
-            }
-          },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              enabled: true,
-              displayColors: false,
-              callbacks: {
-                title: (context) => {
-                  const minutes = context[0].parsed.x;
-                  return this.card.stateManager?.minutesToTime(minutes) || "??:??";
-                },
-                label: (context) => {
-                  const val = context.parsed.y;
-                  const uom = (this.card.config?.unit_of_measurement || '').trim();
-
-                  if (isSwitch) {
-                    return (Number(val) >= 0.5) ? localizeUi('switch_on') : localizeUi('switch_off');
-                  }
-
-                  const stepCfg = Number(this.card.config?.step_value);
-                  const decimals = Number.isFinite(stepCfg)
-                    ? Math.max(0, Math.min(6, (String(stepCfg).split('.')[1] || '').length))
-                    : 1;
-                  const valText = Number.isFinite(val) ? Number(val).toFixed(decimals) : String(val);
-                  return `${valText}${uom ? ' ' + uom : ''}`;
-                }
-              }
+        plugins: {
+          legend: { display: false },
+          dragData: {
+            round: step, showTooltip: true, dragX: false, dragY: !isSwitch,
+            onDragStart: (e, ds, i, v) => {
+              if (!this.chart || this.card.pointerSelecting || isSwitch) return false;
+              this.dragStartValue = v; this.initialSelectedValues = {};
+              this.dragSelectedPoints = this.card.selectionManager.getSelectedPoints();
+              this.dragSelectedPoints.forEach(idx => { this.initialSelectedValues[idx] = this.chart.data.datasets[0].data[idx].y; });
+              this.card.isDragging = true; return true;
             },
-            dragData: {
-              round: step,
-              showTooltip: true,
-              dragX: false,
-              dragY: !isSwitch,
-              onDragStart: (e, datasetIndex, index, value) => {
-                if (!this.chart || !this._initialized) return false;
-                if (this.card.pointerSelecting) return false;
-                if (e.shiftKey || this.card.keyboardHandler?.shiftDown) return false;
-
-                try {
-                  Logger.log('DRAG', `[DragStart] isSwitch=${isSwitch} ds=${datasetIndex} idx=${index} value=${value}`);
-                } catch { }
-
-                // Disable pan during drag to prevent the whole chart from moving
-                try {
-                  this._panPrev = this.chart?.options?.plugins?.zoom?.pan?.enabled;
-                  if (this.chart?.options?.plugins?.zoom?.pan) {
-                    this.chart.options.plugins.zoom.pan.enabled = false;
-                  }
-                } catch { }
-
-                if (isSwitch) {
-                  // Switch preset: toggle on drag start
-                  try {
-                    const dataset = this.chart.data.datasets[datasetIndex];
-                    const p = dataset?.data?.[index];
-
-                    if (p) {
-                      const before = Number(p.y);
-                      let next;
-
-                      // Determine toggle based on drag direction
-                      try {
-                        const chartArea = this.chart.chartArea;
-                        const canvasPos = this._getCanvasRelativePosition(e);
-                        if (chartArea && Number.isFinite(canvasPos?.y)) {
-                          const midY = (chartArea.top + chartArea.bottom) / 2;
-                          next = (canvasPos.y < midY) ? 1 : 0;
-                        }
-                      } catch { }
-
-                      // Fallback to simple toggle if position detection fails
-                      if (next !== 0 && next !== 1) {
-                        next = (before >= 0.5) ? 0 : 1;
-                      }
-
-                      p.y = next;
-                      Logger.log('DRAG', `[SwitchToggle] idx=${index} ${before} -> ${p.y}`);
-                      this.chart.update('none');
-
-                      const newData = dataset.data.map((pt) => ({
-                        time: this.card.stateManager.minutesToTime(Math.max(0, Math.min(1440, Number(pt.x)))),
-                        value: Number(pt.y) >= 0.5 ? 1 : 0
-                      }));
-                      this.card.stateManager.setData(newData);
-                      this.card.hasUnsavedChanges = true;
-                      this.card.requestUpdate();
-                    }
-                  } catch (err) {
-                    try {
-                      Logger.warn('DRAG', '[SwitchToggle] error', err);
-                    } catch { }
-                  }
-                  return false; // Prevent drag plugin from taking over
-                }
-
-                // Check if pointer is within tolerance of the point
-                try {
-                  const meta = this.chart.getDatasetMeta(datasetIndex);
-                  const pointEl = meta?.data?.[index];
-                  if (!pointEl) return false;
-
-                  const pos = typeof pointEl.tooltipPosition === 'function'
-                    ? pointEl.tooltipPosition()
-                    : { x: pointEl.x, y: pointEl.y };
-                  const canvasPos = this._getCanvasRelativePosition(e);
-                  const dx = canvasPos.x - pos.x;
-                  const dy = canvasPos.y - pos.y;
-                  const dist = Math.sqrt(dx * dx + dy * dy);
-                  const tolerancePx = 12;
-                  if (dist > tolerancePx) return false;
-                } catch { }
-
-                try {
-                  this.dragStartValue = value;
-                  this.dragStartIndex = index;
-                  this.dragStartX = this.chart.data.datasets[datasetIndex].data[index]?.x ?? 0;
-                  this.initialSelectedValues = {};
-                  this.initialSelectedX = {};
-                  this.dragBounds = {};
-                  this.dragDatasetIndex = datasetIndex;
-                  this.dragActiveIndex = index;
-
-                  const selMgr = this.card.selectionManager;
-                  const pointsToMove = (selMgr && typeof selMgr.isSelected === 'function' && selMgr.isSelected(index))
-                    ? selMgr.getSelectedPoints()
-                    : [index];
-                  this.dragSelectedPoints = Array.isArray(pointsToMove)
-                    ? [...pointsToMove].sort((a, b) => a - b)
-                    : [index];
-
-                  pointsToMove.forEach(i => {
-                    const pointObj = this.chart.data.datasets[datasetIndex].data[i];
-                    if (pointObj) {
-                      this.initialSelectedValues[i] = pointObj.y;
-                      this.initialSelectedX[i] = pointObj.x;
-                    }
-                  });
-
-                  // Precompute neighbor bounds
-                  const allByTime = this.chart.data.datasets[datasetIndex].data
-                    .map((pt, idx) => ({ idx, x: Math.round(Number(pt?.x ?? 0)) }))
-                    .sort((a, b) => a.x - b.x);
-                  const selectedSet = new Set(this.dragSelectedPoints);
-
-                  this.dragSelectedPoints.forEach((selIdx) => {
-                    const entryPos = allByTime.findIndex((e) => e.idx === selIdx);
-                    let leftBound = 0;
-                    let rightBound = 1440;
-                    let leftNeighborX = null;
-                    let rightNeighborX = null;
-                    let leftNeighborIdx = null;
-                    let rightNeighborIdx = null;
-
-                    // Scan left
-                    for (let k = entryPos - 1; k >= 0; k--) {
-                      const e2 = allByTime[k];
-                      if (!selectedSet.has(e2.idx)) {
-                        leftBound = e2.x + 1;
-                        leftNeighborX = e2.x;
-                        leftNeighborIdx = e2.idx;
-                        break;
-                      }
-                    }
-
-                    // Scan right
-                    for (let k = entryPos + 1; k < allByTime.length; k++) {
-                      const e2 = allByTime[k];
-                      if (!selectedSet.has(e2.idx)) {
-                        rightBound = e2.x - 1;
-                        rightNeighborX = e2.x;
-                        rightNeighborIdx = e2.idx;
-                        break;
-                      }
-                    }
-
-                    this.dragBounds[selIdx] = {
-                      left: Math.max(0, leftBound),
-                      right: Math.min(1440, rightBound),
-                      leftNeighborX,
-                      rightNeighborX,
-                      leftNeighborIdx,
-                      rightNeighborIdx,
-                      origX: Math.round(Number(this.initialSelectedX[selIdx] ?? 0))
-                    };
-
-                    try {
-                      const b = this.dragBounds[selIdx];
-                      Logger.log('DRAG', `[Bounds] idx=${selIdx} orig=${b.origX} leftNeighbor=${b.leftNeighborX ?? 'none'} rightNeighbor=${b.rightNeighborX ?? 'none'} bounds=[${b.left},${b.right}]`);
-                    } catch { }
-                  });
-
-                  this.card.isDragging = true;
-                  this.card.requestUpdate();
-                  return true;
-                } catch (err) {
-                  return false;
-                }
-              },
-              onDrag: (e, datasetIndex, index, value) => {
-                if (e.target) e.target.style.cursor = 'grabbing';
-                if (this.card.pointerSelecting) return;
-
-                try {
-                  if (isSwitch) {
-                    Logger.log('DRAG', `[Drag] isSwitch=true (should not happen) ds=${datasetIndex} idx=${index} value=${value}`);
-                    return;
-                  }
-
-                  const diff = value - this.dragStartValue;
-                  const dataset = this.chart.data.datasets[datasetIndex];
-                  const dxMinutes = 0;
-
-                  const selMgr = this.card.selectionManager;
-                  const hasExplicitMulti = Array.isArray(this.dragSelectedPoints) && this.dragSelectedPoints.length > 1;
-                  const pointsToMove = hasExplicitMulti ? this.dragSelectedPoints : [index];
-
-                  if (pointsToMove.length >= 1) {
-                    const isSelectedSet = new Set(pointsToMove);
-
-                    // Determine first and last points by time
-                    const allByTime = dataset.data
-                      .map((pt, idx) => ({ idx, x: Math.round(Number(pt?.x ?? 0)) }))
-                      .sort((a, b) => a.x - b.x);
-                    const firstIdx = allByTime[0]?.idx;
-                    const lastIdx = allByTime[allByTime.length - 1]?.idx;
-
-                    pointsToMove.forEach(i => {
-                      const origY = this.initialSelectedValues[i];
-                      const origX = this.initialSelectedX[i];
-                      const p = dataset.data[i];
-                      if (!p) return;
-
-                      // Vertical move
-                      if (origY !== undefined) {
-                        let newVal = origY + diff;
-                        if (isSwitch) {
-                          newVal = (Number(newVal) >= 0.5) ? 1 : 0;
-                        } else {
-                          newVal = Math.max(minV, Math.min(maxV, Math.round(newVal / step) * step));
-                        }
-                        p.y = newVal;
-                      }
-
-                      // Horizontal move (constrained) - but not for first/last points
-                      if (origX !== undefined && Number.isFinite(dxMinutes) && i !== firstIdx && i !== lastIdx) {
-                        let desiredX = Math.round(origX + dxMinutes);
-                        if (!Number.isFinite(desiredX)) desiredX = Math.round(origX);
-
-                        const bounds = this.dragBounds?.[i] || { left: 0, right: 1440 };
-                        let newX = Math.max(bounds.left, Math.min(bounds.right, desiredX));
-                        newX = Math.max(0, Math.min(1440, newX));
-                        p.x = newX;
-
-                        try {
-                          Logger.log('DRAG', `[Move] idx=${i} orig=${Math.round(origX)} desired=${desiredX} bounds=[${bounds.left},${bounds.right}] neighbors L=${bounds.leftNeighborX ?? 'none'} R=${bounds.rightNeighborX ?? 'none'} -> new=${newX}`);
-                        } catch { }
-                      }
-                    });
-                    this.chart.update('none');
-                  }
-                } catch (err) { }
-
-                try {
-                  const p = this.chart?.data?.datasets?.[datasetIndex]?.data?.[index];
-                  if (p && typeof p.y === 'number') return p.y;
-                } catch { }
-              },
-              onDragEnd: (e, datasetIndex, index, value) => {
-                if (e.target) e.target.style.cursor = 'default';
-                if (this.card.pointerSelecting) return;
-                this.card.isDragging = false;
-                this.dragDatasetIndex = null;
-                this.dragActiveIndex = null;
-
-                // Re-enable pan after drag ends
-                try {
-                  if (this.chart?.options?.plugins?.zoom?.pan) {
-                    const prev = (this._panPrev === undefined) ? true : !!this._panPrev;
-                    this.chart.options.plugins.zoom.pan.enabled = prev;
-                  }
-                } catch { }
-
-                try {
-                  const dataset = this.chart.data.datasets[datasetIndex];
-                  const newData = dataset.data.map((p) => {
-                    const minutes = Math.max(0, Math.min(1440, Number(p.x)));
-                    return { time: this.card.stateManager.minutesToTime(minutes), value: p.y };
-                  });
-
-                  this.card.stateManager.setData(newData);
-                  this.card.hasUnsavedChanges = true;
-                  this.card.requestUpdate();
-                } catch (err) { }
-              },
+            onDrag: (e, ds, i, v) => {
+              const diff = v - this.dragStartValue;
+              this.dragSelectedPoints.forEach(idx => {
+                let newVal = Math.max(minV, Math.min(maxV, Math.round((this.initialSelectedValues[idx] + diff) / step) * step));
+                this.chart.data.datasets[0].data[idx].y = newVal;
+              });
+              this.chart.update('none');
             },
-            zoom: {
-              zoom: {
-                wheel: { enabled: true },
-                pinch: { enabled: true },
-                mode: 'x',
-              },
-              pan: {
-                enabled: true,
-                mode: 'x',
-                // Require Ctrl key for panning to avoid interference with point drag
-                modifierKey: 'ctrl',
-              },
-              limits: {
-                x: { min: 0, max: 1440 },
-              }
-            }
-          },
-          scales: {
-            x: {
-              type: 'linear',
-              position: 'bottom',
-              min: -20,
-              max: 1460,
-              ticks: {
-                stepSize: 120,
-                maxRotation: 0,
-                autoSkip: true,
-                callback: (value) => {
-                  const h = Math.floor(value / 60);
-                  const m = Math.round(value % 60);
-                  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-                }
-              },
-              title: { display: true, text: this._getXTitle() }
-            },
-            y: isSwitch ? {
-              min: -0.05,
-              max: 1.05,
-              ticks: {
-                stepSize: 1,
-                callback: (value) => {
-                  if (value === 0) return localizeUi('switch_off');
-                  if (value === 1) return localizeUi('switch_on');
-                  return '';
-                },
-              },
-              title: { display: true, text: this._getYTitle() }
-            } : {
-              min: minV,
-              max: maxV,
-              ticks: {
-                callback: (value) => {
-                  const stepCfg = Number(this.card.config?.step_value);
-                  const decimals = Number.isFinite(stepCfg)
-                    ? Math.max(0, Math.min(6, (String(stepCfg).split('.')[1] || '').length))
-                    : 0;
-                  return Number.isFinite(Number(value)) ? Number(value).toFixed(decimals) : String(value);
-                },
-              },
-              title: { display: true, text: this._getYTitle() }
+            onDragEnd: () => {
+              this.card.isDragging = false;
+              this.card.stateManager.setData(this.chart.data.datasets[0].data.map(p => ({ time: this.card.stateManager.minutesToTime(p.x), value: p.y })));
+              this.card.hasUnsavedChanges = true; this.card.requestUpdate();
             }
           }
+        },
+        scales: {
+          x: { type: 'linear', min: -20, max: 1460, ticks: { stepSize: 120, callback: v => this.card.stateManager.minutesToTime(v) } },
+          y: { min: isSwitch ? -0.1 : minV, max: isSwitch ? 1.1 : maxV, ticks: { stepSize: isSwitch ? 1 : undefined, callback: v => isSwitch ? (v === 0 ? 'Off' : (v === 1 ? 'On' : '')) : v } }
         }
-      };
-
-      this.chart = new Chart(ctx, chartConfig);
-      this._initialized = true;
-      Logger.log('CHART', '[ChartManager] Chart initialized successfully');
-      return true;
-
-    } catch (e) {
-      Logger.error('CHART', '[ChartManager] Error initializing chart:', e);
-      return false;
-    }
+      }
+    });
+    this._initialized = true;
+    // Attempt to load switch profile if needed BEFORE returning
+    this._ensureSwitchProfileLoaded();
+    return true;
   }
 
   _handleChartClick(evt, points) {
-    if (!this.card.selectionManager) {
-      Logger.warn('CHART', '[ChartManager] SelectionManager is not initialized');
-      return;
-    }
-
-    if (points.length) {
-      const index = points[0].index;
-      try {
-        if (evt.ctrlKey || evt.metaKey) {
-          this.card.selectionManager.togglePoint(index);
-        } else if (evt.shiftKey) {
-          this.card.selectionManager.selectRange(index);
-        } else {
-          this.card.selectionManager.selectPoint(index);
-        }
-      } catch (e) {
-        Logger.error('CHART', 'Error handling click selection', e);
-      }
-    }
-  }
-
-  _handleContextMenu(e) {
-    if (!this.chart) return;
-    const points = this.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
-    if (points.length) {
-      const index = points[0].index;
-      this.card.stateManager.removePoint(index);
-      this.updateData(this.card.stateManager.getData());
-      this.card.requestUpdate();
-    }
+    const idx = points[0].index;
+    if (evt.ctrlKey || evt.metaKey) this.card.selectionManager.togglePoint(idx);
+    else if (evt.shiftKey) this.card.selectionManager.selectRange(idx);
+    else this.card.selectionManager.selectPoint(idx);
   }
 
   updateData(newData) {
-    if (!this.chart || !this.card.stateManager) return;
-
-    const dataArr = newData.map(p => ({
-      x: this.card.stateManager.timeToMinutes(p.time),
-      y: Number(p.value)
-    }));
-
-    if (this.chart.data?.datasets?.[0]) {
-      this.chart.data.datasets[0].data = dataArr;
-      this.chart.update('none');
-    }
+    if (!this.chart) return;
+    this.chart.data.datasets[0].data = newData.map(p => ({ x: this.card.stateManager.timeToMinutes(p.time), y: Number(p.value) }));
+    this.chart.update('none');
   }
 
   recreateChartOptions() {
     if (!this.chart) return;
-    if (this.chart.options?.scales?.y) {
-      const isSwitch = (this.card.selectedPreset === 'generic_switch');
-      if (isSwitch) {
-        this.chart.options.scales.y.min = -0.05;
-        this.chart.options.scales.y.max = 1.05;
-        this.chart.options.scales.y.suggestedMin = undefined;
-        this.chart.options.scales.y.suggestedMax = undefined;
-        this.chart.options.scales.y.grace = undefined;
-        this.chart.options.scales.y.ticks = {
-          stepSize: 1,
-          callback: (value) => {
-            if (value === 0) return 'Off';
-            if (value === 1) return 'On';
-            return '';
-          },
-        };
-      } else {
-        this.chart.options.scales.y.min = this.card.config.min_value ?? 0;
-        this.chart.options.scales.y.max = this.card.config.max_value ?? 100;
-      }
-    }
-    if (this.chart.options?.scales?.x) {
-      this.chart.options.scales.x.min = -20;
-      this.chart.options.scales.x.max = 1460;
-    }
-    if (this.chart.options?.scales?.x?.title) {
-      this.chart.options.scales.x.title.text = this._getXTitle();
-    }
+    const isSwitch = !!(this.card.config?.is_switch_preset || this.card.selectedPreset?.includes('switch'));
+    if (isSwitch) Logger.log('CHART', '[Switch] Re-applying stepped options');
+    const y = this.chart.options.scales.y;
+    y.min = isSwitch ? -0.05 : Number(this.card.config.min_value ?? 0);
+    y.max = isSwitch ? 1.05 : Number(this.card.config.max_value ?? 100);
+    this.chart.data.datasets[0].stepped = isSwitch ? 'before' : false;
+    this.chart.data.datasets[0].tension = isSwitch ? 0 : 0.4;
     this.chart.update('none');
   }
 
-  updateChartLabels() {
-    this.recreateChartOptions();
-  }
-
-  updatePointStyling(selectedIndex, selectedPoints) {
+  updatePointStyling(anchor, selected) {
     if (!this.chart) return;
-    const dataset = this.chart.data.datasets[0];
-    if (!dataset || !dataset.data) return;
-
-    const colors = dataset.data.map((_, i) => {
-      const isAnchor = (selectedIndex !== null && selectedIndex === i);
-      if (isAnchor) return COLORS.anchor;
-      if (Array.isArray(selectedPoints) && selectedPoints.includes(i)) return COLORS.selected;
-      return COLORS.primary;
-    });
-
-    dataset.pointBackgroundColor = colors;
-    dataset.pointBorderColor = colors;
+    const ds = this.chart.data.datasets[0];
+    ds.pointBackgroundColor = ds.data.map((_, i) => i === anchor ? COLORS.anchor : (selected.includes(i) ? COLORS.selected : COLORS.primary));
+    ds.pointBorderColor = ds.pointBackgroundColor;
   }
 
-  destroy() {
-    // window.removeEventListener('resize', this._boundHandleResize);
-    if (this.chart) {
-      try {
-        this.chart.destroy();
-      } catch (e) { }
-      this.chart = null;
-    }
-    this._initialized = false;
-  }
+  destroy() { if (this.chart) { try { this.chart.destroy(); } catch { } this.chart = null; } this._initialized = false; }
 }

@@ -277,6 +277,11 @@ export const cardStyles = css`
     display: block;
     cursor: ns-resize;
     touch-action: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
   }
 
   .drag-value-display {

@@ -62,7 +62,9 @@ export class KeyboardHandler {
 
   focusContainer() {
     try {
-      this.containerEl?.focus();
+      if (this.containerEl && !this.card.isEditorContext()) {
+        this.containerEl.focus();
+      }
     } catch (e) {
       Logger.warn('KEYBOARD', 'Error focusing container:', e);
     }

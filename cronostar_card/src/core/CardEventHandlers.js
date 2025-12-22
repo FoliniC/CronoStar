@@ -653,7 +653,7 @@ The system uses:
             this.card.keyboardHandler.enable();
 
             const chartContainer = this.card.shadowRoot?.querySelector(".chart-container");
-            if (chartContainer) {
+            if (chartContainer && !this.card.isEditorContext()) {
                 chartContainer.focus();
             }
 

@@ -277,35 +277,78 @@ class ProfileService:
         global_prefix: str | None = None
     ) -> dict:
         """Fetch profile data with BACKWARD COMPATIBILITY."""
+        # Input validation with logging
         if not all((profile_name, preset_type)):
+            _LOGGER.warning(
+                "[PROFILE] get_profile_data called with missing parameters: profile_name=%s, preset_type=%s",
+                profile_name,
+                preset_type,
+            )
             return {"error": "Missing parameters"}
         
         canonical = normalize_preset_type(preset_type)
+        _LOGGER.debug("[PROFILE] normalized preset_type: '%s' -> '%s'", preset_type, canonical)
         
         if not global_prefix:
+            _LOGGER.warning("[PROFILE] get_profile_data missing global_prefix for profile '%s'", profile_name)
             return {"error": "Missing global_prefix"}
 
         filenames_to_try = [build_profile_filename(profile_name, canonical, global_prefix=global_prefix)]
-        _LOGGER.info("[PROFILE] get_profile_data: filenames_to_try=%s", filenames_to_try)
+        _LOGGER.info(
+            "[PROFILE] get_profile_data: name=%s, preset=%s, global_prefix=%s, filenames_to_try=%s",
+            profile_name,
+            canonical,
+            global_prefix,
+            filenames_to_try,
+        )
         
         for filename in filenames_to_try:
+            _LOGGER.debug("[PROFILE] Attempting to load cached container: %s", filename)
             data = await self.storage.load_profile_cached(filename)
             
             if not data:
+                _LOGGER.debug("[PROFILE] No data found for: %s", filename)
                 continue
+            else:
+                meta = data.get("meta", {})
+                keys = list(data.keys())
+                _LOGGER.debug("[PROFILE] Container loaded: keys=%s, meta=%s", keys, meta)
             
             # NEW FORMAT: Container with meta + profiles
             if "profiles" in data:
+                available_profiles = list(data.get("profiles", {}).keys())
+                _LOGGER.debug("[PROFILE] Available profiles in container: %s", available_profiles)
                 if profile_name in data["profiles"]:
                     profile_content = data["profiles"][profile_name]
                     profile_content["global_prefix"] = data.get("meta", {}).get("global_prefix")
                     profile_content["profile_name"] = profile_name
-                    
-                    _LOGGER.debug("Profile '%s' extracted from NEW format: %s", profile_name, filename)
+                    sched = profile_content.get("schedule", [])
+                    _LOGGER.info(
+                        "[PROFILE] Profile '%s' extracted: points=%d, first=%s, last=%s (file=%s)",
+                        profile_name,
+                        len(sched),
+                        sched[0] if sched else None,
+                        sched[-1] if sched else None,
+                        filename,
+                    )
                     return profile_content
+                else:
+                    _LOGGER.warning(
+                        "[PROFILE] Requested profile '%s' not present in container (available=%s)",
+                        profile_name,
+                        available_profiles,
+                    )
+            else:
+                _LOGGER.warning("[PROFILE] Unsupported container format (missing 'profiles') for %s", filename)
             
             # OLD FORMAT is not supported anymore
         
+        _LOGGER.warning(
+            "[PROFILE] Profile not found: name=%s, preset=%s, global_prefix=%s",
+            profile_name,
+            canonical,
+            global_prefix,
+        )
         return {"error": "Profile not found"}
 
     async def load_profile(self, call: ServiceCall) -> ServiceResponse:
