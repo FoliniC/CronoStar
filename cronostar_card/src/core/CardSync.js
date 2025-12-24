@@ -53,7 +53,7 @@ export class CardSync {
 
     getTargetEntityAppliedValue(hass) {
         try {
-            const entityId = this.card.config?.apply_entity;
+            const entityId = this.card.config?.target_entity;
             if (!entityId) return null;
             const st = hass.states[entityId];
             if (!st) return null;
@@ -91,7 +91,7 @@ export class CardSync {
             this.card.outOfSyncDetails = "";
             return;
         }
-        if (!hass || !this.card.config?.apply_entity) {
+        if (!hass || !this.card.config?.target_entity) {
             this.card.awaitingAutomation = false;
             this.card.outOfSyncDetails = "";
             return;
@@ -158,8 +158,8 @@ export class CardSync {
                     const hourIdx = this.card.stateManager?.getCurrentIndex() || 0;
                     const hourLabel = this.card.stateManager?.getPointLabel(hourIdx) || 'Now';
                     const details = this.card.language === 'it'
-                        ? `Programma ${hourLabel}: ${scheduled} ≠ Entità (${this.card.config.apply_entity}) ${applied}`
-                        : `Schedule ${hourLabel}: ${scheduled} ≠ Entity (${this.card.config.apply_entity}) ${applied}`;
+                        ? `Programma ${hourLabel}: ${scheduled} ≠ Entità (${this.card.config.target_entity}) ${applied}`
+                        : `Schedule ${hourLabel}: ${scheduled} ≠ Entity (${this.card.config.target_entity}) ${applied}`;
                     
                     this.card.outOfSyncDetails = details;
 

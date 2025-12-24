@@ -56,7 +56,7 @@ export class CardLifecycle {
   updated(changed) {
     if (changed.has('config')) {
       try {
-        if (this.card.chartManager?.isInitialized) {
+        if (this.card.chartManager?.isInitialized()) {
           this.card.chartManager.recreateChartOptions();
 
           const chart = this.card.chartManager.getChart?.();
@@ -359,6 +359,7 @@ export class CardLifecycle {
         version: VERSION,
         preset: cfg.preset || 'thermostat',
         global_prefix: cfg.global_prefix,
+        selected_profile: this.card.selectedProfile
       };
 
       const result = await hass.callWS({
@@ -412,6 +413,12 @@ export class CardLifecycle {
       // Registration succeeded: mark initial load complete and backend ready to hide overlays
       this.card.initialLoadComplete = true;
       this.card.cronostarReady = true;
+      
+      // Store entity states for help menu
+      if (response?.entity_states) {
+        this.card.entityStates = response.entity_states;
+      }
+      
       this.card.requestUpdate();
 
       this.hasRegistered = true;

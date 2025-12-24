@@ -238,7 +238,7 @@ class ProfileService:
             pass
 
         # Persist wizard/card configuration in meta (best-effort).
-        # This allows SmartScheduler to discover target_entity/apply_entity and other settings from JSON.
+        # This allows SmartScheduler to discover target_entity and other settings from JSON.
         wizard_meta = payload.get("meta")
         if isinstance(wizard_meta, dict) and wizard_meta:
             try:

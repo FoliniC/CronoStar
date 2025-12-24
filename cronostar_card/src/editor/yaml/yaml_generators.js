@@ -8,7 +8,7 @@ import { normalizePrefix, getAliasWithPrefix } from '../../utils/prefix_utils.js
  * Builds the automation YAML with new HA syntax (2025+)
  */
 export function buildAutomationYaml(config, style = 'list') {
-  const applyEntity = config.apply_entity;
+  const applyEntity = config.target_entity;
   const pauseEntity = config.pause_entity;
   const profilesSelect = config.profiles_select_entity || '';
   const interval = config.interval_minutes || 60;
@@ -139,7 +139,7 @@ export function buildInputNumbersYaml(config, isInline = false) {
 
   const pauseEntity = config.pause_entity;
   const profilesEntity = config.profiles_select_entity;
-  const applyEntity = config.apply_entity;
+  const applyEntity = config.target_entity;
 
   const lines = [];
   const isList = false; // Package format usually uses dictionary keys

@@ -131,6 +131,15 @@ export class CronoStarCard extends LitElement {
 
   setConfig(config) {
     try {
+      // Semantic check to avoid redundant updates
+      if (this.config) {
+        const cleanOld = { ...this.config };
+        const cleanNew = { ...config };
+        if (JSON.stringify(cleanOld) === JSON.stringify(cleanNew)) {
+          return;
+        }
+      }
+
       if (!this.cardLifecycle) {
         Logger.error('CONFIG', '[CronoStar] setConfig called but cardLifecycle is not initialized!');
         return;

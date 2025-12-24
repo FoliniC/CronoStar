@@ -9,19 +9,11 @@ export class Step5Summary {
   }
 
   async handleDeepChecks() {
-    this.editor._deepCheckInProgress = true;
     try {
-      const result = await runDeepChecks(this.editor.hass, this.editor._config, this.editor._lang);
-      this.editor._deepReport = await this.editor.hass.callService('cronostar', 'check_setup', {
-        prefix: getEffectivePrefix(this.editor._config),
-        // params...
-      });
-      this.editor.showToast('Deep check complete');
+      await this.editor._runDeepChecks();
+      this.editor.showToast(this.editor.i18n._t('ui.checks_triggered') || 'Deep check triggered');
     } catch (e) {
       this.editor.showToast(e.message);
-    } finally {
-      this.editor._deepCheckInProgress = false;
-      this.editor.requestUpdate();
     }
   }
 
@@ -35,7 +27,6 @@ export class Step5Summary {
   }
 
   render() {
-    const qc = this.editor._quickCheck;
     const hasDeep = !!this.editor.hass?.services?.cronostar?.check_setup;
     const inum = this.editor._deepReport?.input_number;
     const autoInfo = this.editor._deepReport?.automation;
@@ -46,7 +37,7 @@ export class Step5Summary {
 
     // Verifica configurazione lovelace
     const requiredFields = [
-      'preset', 'apply_entity', 'global_prefix',
+      'preset', 'target_entity', 'global_prefix',
       'min_value', 'max_value', 'step_value'
     ];
 
@@ -60,7 +51,7 @@ export class Step5Summary {
       type: 'custom:cronostar-card',
       preset: this.editor._config.preset,
       global_prefix: effectivePrefix,
-      apply_entity: this.editor._config.apply_entity,
+      target_entity: this.editor._config.target_entity,
       pause_entity: this.editor._config.pause_entity,
       profiles_select_entity: this.editor._config.profiles_select_entity,
       min_value: this.editor._config.min_value,
@@ -76,46 +67,89 @@ export class Step5Summary {
         <div class="step-header">${this.editor.i18n._t('headers.step5')}</div>
         <div class="step-description">${this.editor.i18n._t('descriptions.step5')}</div>
 
-        <!-- Card Configuration Status -->
-        ${configComplete ? html`
-          <div class="success-box" style="margin: 16px 0;">
-            <strong>✅ ${this.editor.i18n._t('ui.card_config_complete')}</strong>
-            <p>${this.editor.i18n._t('ui.card_config_ready')}</p>
+        <!-- 1. CARD CONFIGURATION SECTION -->
+        <div class="field-group" style="border-left: 4px solid #0ea5e9;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <strong style="font-size: 1.1em; color: #fff;">1. Lovelace Card Setup</strong>
+            ${configComplete 
+              ? html`<span style="background: #22c55e; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold;">READY</span>`
+              : html`<span style="background: #ef4444; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold;">INCOMPLETE</span>`
+            }
           </div>
-        ` : html`
-          <div class="warning-box" style="margin: 16px 0;">
-            <strong>⚠️ ${this.editor.i18n._t('ui.card_config_incomplete')}</strong>
-            <p>${this.editor.i18n._t('ui.missing_fields')}: ${missingFields.join(', ')}</p>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9em; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+            <div style="color: #a0a8c0;">Prefix:</div>
+            <div style="font-family: monospace; color: #fff;">${proposedConfig.global_prefix}</div>
+            
+            <div style="color: #a0a8c0;">Target Entity:</div>
+            <div style="font-family: monospace; color: #fff;">${this.editor._config.target_entity || 'Not set'}</div>
+            
+            <div style="color: #a0a8c0;">Preset:</div>
+            <div style="font-family: monospace; color: #fff;">${proposedConfig.preset}</div>
           </div>
-        `}
-
-        <div class="warning-box">
-          <strong>${this.editor.i18n._t('finalmodtitle')}</strong>
-          <p>${this.editor.i18n._t('finalmodtext')}</p>
-          <ul>
-            <li>global_prefix: <code>${proposedConfig.global_prefix}</code></li>
-            <li>apply_entity: <code>${this.editor._config.apply_entity}</code></li>
-            <li>package: <code>${effectivePrefix}package.yaml</code></li>
-          </ul>
+          
+          ${!configComplete ? html`
+            <div style="margin-top: 8px; color: #fb923c; font-size: 0.85em;">
+              <strong>Missing:</strong> ${missingFields.join(', ')}
+            </div>
+          ` : ''}
         </div>
 
-        ${hasDeep ? html`
-          <div class="field-group">
-            <div class="action-buttons">
-              <mwc-button raised @click=${() => this.handleDeepChecks()}>${this.editor.i18n._t('actions.run_deep_checks')}</mwc-button>
-            </div>
-            ${inum ? html`<div>Helpers: ${inum.found}/${inum.expected}</div>` : ''}
-            ${autoInfo ? html`<div>Automation: ${autoInfo.found ? expectedId : 'Missing'}</div>` : ''}
+        <!-- 2. INFRASTRUCTURE SECTION -->
+        <div class="field-group" style="border-left: 4px solid ${inum && inum.found >= inum.expected ? '#22c55e' : '#fb923c'};">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <strong style="font-size: 1.1em; color: #fff;">2. Backend Infrastructure</strong>
+            <mwc-button dense .disabled=${this.editor._deepCheckInProgress} @click=${() => this.handleDeepChecks()} style="--mdc-theme-primary: #a0a8c0;">
+              ${this.editor._deepCheckInProgress ? html`<ha-circular-progress active size="small"></ha-circular-progress>` : html`<ha-icon icon="mdi:refresh" style="--mdc-icon-size: 18px;"></ha-icon>`}
+            </mwc-button>
           </div>
-        ` : html`
-          <div class="info-box">Deep checks service unavailable.</div>
-        `}
 
-        <div class="info-box">
-          <strong>Expected:</strong><br>
-          Alias: <code>${expectedAlias}</code><br>
-          Auto ID: <code>${expectedId}</code><br>
-          Auto file: <code>${autoFilename}</code>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: flex-start; gap: 10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px;">
+              <ha-icon icon="mdi:package-variant-closed" style="color: #0ea5e9;"></ha-icon>
+              <div style="flex: 1;">
+                <div style="font-size: 0.9em; color: #fff;">YAML Package File</div>
+                <div style="font-size: 0.8em; color: #a0a8c0; font-family: monospace;">config/packages/${effectivePrefix}package.yaml</div>
+              </div>
+              <div style="color: ${inum && inum.found >= inum.expected ? '#22c55e' : '#8891a8'};">
+                <ha-icon icon=${inum && inum.found >= inum.expected ? 'mdi:check-circle' : 'mdi:circle-outline'}></ha-icon>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: flex-start; gap: 10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px;">
+              <ha-icon icon="mdi:database" style="color: #0ea5e9;"></ha-icon>
+              <div style="flex: 1;">
+                <div style="font-size: 0.9em; color: #fff;">Profile Data Storage</div>
+                <div style="font-size: 0.8em; color: #a0a8c0; font-family: monospace;">config/cronostar/profiles/${effectivePrefix.replace(/_+$/, '')}_data.json</div>
+              </div>
+              <div style="color: #22c55e;">
+                <ha-icon icon="mdi:check-circle"></ha-icon>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. AUTOMATION SECTION -->
+        <div class="field-group" style="border-left: 4px solid ${autoInfo && autoInfo.found ? '#22c55e' : '#fb923c'};">
+          <strong style="display: block; font-size: 1.1em; color: #fff; margin-bottom: 12px;">3. Automation Logic</strong>
+          
+          <div style="display: flex; align-items: flex-start; gap: 10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px;">
+            <ha-icon icon="mdi:robot" style="color: #0ea5e9;"></ha-icon>
+            <div style="flex: 1;">
+              <div style="font-size: 0.9em; color: #fff;">Hourly Scheduler</div>
+              <div style="font-size: 0.85em; color: #a0a8c0;">Alias: <strong>${expectedAlias}</strong></div>
+              <div style="font-size: 0.8em; color: #a0a8c0; font-family: monospace; margin-top: 4px;">ID: ${expectedId}</div>
+            </div>
+            <div style="color: ${autoInfo && autoInfo.found ? '#22c55e' : '#8891a8'};">
+              <ha-icon icon=${autoInfo && autoInfo.found ? 'mdi:check-circle' : 'mdi:alert-circle-outline'}></ha-icon>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUMMARY ACTION -->
+        <div class="info-box" style="border: 1px solid rgba(14, 165, 233, 0.3); background: rgba(14, 165, 233, 0.05);">
+          <strong style="color: #fff;">${this.editor.i18n._t('finalmodtitle')}</strong>
+          <p style="font-size: 0.9em; margin: 8px 0;">${this.editor.i18n._t('finalmodtext')}</p>
         </div>
       </div>
     `;

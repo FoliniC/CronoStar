@@ -47,8 +47,8 @@ export const I18N = {
       allowmaxlabel: 'Allow "Max" Value',
       intervallabel: 'Time Interval',
       logginglabel: 'Enable Debug Logging',
-      apply_entity_label: 'Target Entity',
-      apply_entity_desc: 'The entity where scheduled values will be applied (climate, number, or switch).',
+      target_entity_label: 'Target Entity',
+      target_entity_desc: 'The entity where scheduled values will be applied (climate, number, or switch).',
       package_label: 'Configuration Package',
       package_desc: 'Copy this “Configuration Package” into {path}. If you continue in the wizard, CronoStar will try to create/update the file automatically (when supported by the backend).',
       enable_pause_label: 'Enable Pause (input_boolean)',
@@ -110,8 +110,8 @@ export const I18N = {
       prefix_description: 'Used to identify all CronoStar entities.',
       prefix_description_simple: 'Used to identify all CronoStar entities.',
       prefix_hint: 'Must be lowercase letters/numbers/underscores and end with underscore (_).',
-      final_mod_title: 'Recommended final configuration changes',
-      final_mod_text: 'We recommend setting the following values to keep naming consistent with your installation.',
+      final_mod_title: 'Final Configuration Review',
+      final_mod_text: 'The wizard has prepared the parameters below. When you click "Save", they will be applied to your Lovelace card and the integration will attempt to automatically create the required YAML package and automation files.',
       fix_step_to_proceed: 'Please fix fields to proceed.',
       service_check_setup_not_available: 'Deep checks service is not available',
       automatic_entities_title: 'Automatic Entities',
@@ -127,8 +127,8 @@ export const I18N = {
     }
     ,
     // Root-level fallbacks for legacy keys
-    finalmodtitle: 'Recommended final configuration changes',
-    finalmodtext: 'We recommend setting the following values to keep naming consistent with your installation.'
+    finalmodtitle: 'Final Configuration Review',
+    finalmodtext: 'The wizard has prepared the parameters below. When you click "Save", they will be applied to your Lovelace card and the integration will attempt to automatically create the required YAML package and automation files.'
   },
 
   it: {
@@ -174,8 +174,8 @@ export const I18N = {
       allowmaxlabel: 'Consenti Valore "Max"',
       intervallabel: 'Intervallo Temporale',
       logginglabel: 'Abilita Logging Debug',
-      apply_entity_label: 'Entità di Destinazione',
-      apply_entity_desc: 'L\'entità su cui verranno applicati i valori programmati (climate, number o switch).',
+      target_entity_label: 'Entità di Destinazione',
+      target_entity_desc: 'L\'entità su cui verranno applicati i valori programmati (climate, number o switch).',
       package_label: 'Package di Configurazione',
       package_desc: 'Copia questo “Configuration Package” in {path}. Se prosegui nel wizard, CronoStar proverà a creare/aggiornare automaticamente il file (quando il backend lo supporta).',
       enable_pause_label: 'Abilita Pausa (input_boolean)',
@@ -234,8 +234,8 @@ export const I18N = {
       prefix_description: 'Usato per identificare tutte le entità CronoStar.',
       prefix_description_simple: 'Usato per identificare tutte le entità CronoStar.',
       prefix_hint: 'Deve terminare con underscore (_).',
-      final_mod_title: 'Modifiche consigliate alla configurazione',
-      final_mod_text: 'Consigliamo di impostare i seguenti valori per mantenere coerenza con il tuo impianto.',
+      final_mod_title: 'Riepilogo finale configurazione',
+      final_mod_text: 'Il wizard ha preparato i parametri seguenti. Cliccando su "Salva", verranno applicati alla card Lovelace e l\'integrazione tenterà di creare automaticamente il file package YAML e l\'automazione necessaria.',
       fix_step_to_proceed: 'Correggi i campi per proseguire.',
       service_check_setup_not_available: 'Servizio di verifiche approfondite non disponibile',
       automatic_entities_title: 'Entità automatiche',
@@ -251,8 +251,8 @@ export const I18N = {
     }
     ,
     // Chiavi legacy a livello radice
-    finalmodtitle: 'Modifiche consigliate alla configurazione',
-    finalmodtext: 'Consigliamo di impostare i seguenti valori per mantenere coerenza con il tuo impianto.'
+    finalmodtitle: 'Riepilogo finale configurazione',
+    finalmodtext: 'Il wizard ha preparato i parametri seguenti. Cliccando su "Salva", verranno applicati alla card Lovelace e l\'integrazione tenterà di creare automaticamente il file package YAML e l\'automazione necessaria.'
   }
 };
 

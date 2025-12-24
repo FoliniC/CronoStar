@@ -1,5 +1,5 @@
 /** Configuration management for CronoStar Card with Interval Support */
-export const VERSION = '5.1.0';
+export const VERSION = '5.1.1';
 
 // Interval options (minutes)
 // Sparse mode: remove interval options
@@ -14,7 +14,7 @@ export const CARD_CONFIG_PRESETS = {
     step_value: 0.5,
     pause_entity: "input_boolean.cronostar_temp_paused",
     profiles_select_entity: "input_select.cronostar_temp_profiles",
-    apply_entity: "climate.climatizzazione_appartamento",
+    target_entity: "climate.climatizzazione_appartamento",
     is_switch_preset: false,
     allow_max_value: false,
     // sparse mode: no interval
@@ -28,7 +28,7 @@ export const CARD_CONFIG_PRESETS = {
     step_value: 0.5,
     pause_entity: "input_boolean.cronostar_ev_paused",
     profiles_select_entity: "input_select.cronostar_ev_profiles",
-    apply_entity: "number.your_ev_charger_power",
+    target_entity: "number.your_ev_charger_power",
     is_switch_preset: false,
     allow_max_value: true,
     // sparse mode: no interval
@@ -42,7 +42,7 @@ export const CARD_CONFIG_PRESETS = {
     step_value: 0.5,
     pause_entity: "input_boolean.cronostar_kwh_paused",
     profiles_select_entity: "input_select.cronostar_kwh_profiles",
-    apply_entity: null,
+    target_entity: null,
     is_switch_preset: false,
     allow_max_value: false,
     // sparse mode: no interval
@@ -56,7 +56,7 @@ export const CARD_CONFIG_PRESETS = {
     step_value: 0.5,
     pause_entity: "input_boolean.cronostar_gentemp_paused",
     profiles_select_entity: "input_select.cronostar_gentemp_profiles",
-    apply_entity: null,
+    target_entity: null,
     is_switch_preset: false,
     allow_max_value: false,
     // sparse mode: no interval
@@ -70,7 +70,7 @@ export const CARD_CONFIG_PRESETS = {
     step_value: 1,
     pause_entity: "input_boolean.cronostar_switch_paused",
     profiles_select_entity: "input_select.cronostar_switch_profiles",
-    apply_entity: "switch.your_generic_switch",
+    target_entity: "switch.your_generic_switch",
     is_switch_preset: true,
     allow_max_value: false,
     // sparse mode: no interval
@@ -78,12 +78,13 @@ export const CARD_CONFIG_PRESETS = {
 };
 
 export const DEFAULT_CONFIG = {
+  type: 'custom:cronostar-card',
   preset: 'thermostat',
   hour_base: "auto",
   logging_enabled: true,
   pause_entity: null,
   profiles_select_entity: null,
-  apply_entity: null,
+  target_entity: null,
   allow_max_value: false,
   missing_yaml_style: 'named'
 };
@@ -99,7 +100,7 @@ export const CHART_DEFAULTS = {
   pointHitRadius: 10,
   pointMaxRadius: 8,
   borderWidth: 2,
-  tension: 0.4
+  tension: 0
 };
 
 export const TIMEOUTS = {
@@ -133,7 +134,9 @@ export function normalizeConfigAliases(cfg = {}) {
   const out = { ...cfg };
   const pairs = [
     ['global_prefix', 'globalprefix'],
-    ['apply_entity', 'applyentity'],
+    ['target_entity', 'targetentity'],
+    ['target_entity', 'apply_entity'],
+    ['target_entity', 'applyentity'],
     ['pause_entity', 'pauseentity'],
     ['profiles_select_entity', 'profilesselectentity'],
     ['min_value', 'minvalue'],
@@ -166,9 +169,25 @@ export function normalizeConfigAliases(cfg = {}) {
  */
 export function validateConfig(config) {
   const normalized = normalizeConfigAliases(config);
+  
+  // Explicitly remove legacy aliases from the final object to avoid confusion in logs/ui
+  const aliasesToRemove = [
+    'globalprefix', 'targetentity', 'apply_entity', 'applyentity',
+    'pauseentity', 'profilesselectentity', 'minvalue', 'maxvalue',
+    'stepvalue', 'unitofmeasurement', 'yaxislabel', 'allowmaxvalue',
+    'loggingenabled', 'missingyamlstyle'
+  ];
+  for (const alias of aliasesToRemove) {
+    delete normalized[alias];
+  }
+
   const presetName = normalized.preset || DEFAULT_CONFIG.preset;
   const presetConfig = CARD_CONFIG_PRESETS[presetName] || CARD_CONFIG_PRESETS.thermostat;
   const mergedConfig = { ...DEFAULT_CONFIG, ...presetConfig, ...normalized };
+  
+  // CRITICAL: Ensure card type is always correct and stable
+  mergedConfig.type = config.type || DEFAULT_CONFIG.type;
+  
   if (!mergedConfig.global_prefix) {
     throw new Error("Configuration error: global_prefix is required");
   }

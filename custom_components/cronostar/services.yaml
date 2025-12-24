@@ -101,7 +101,7 @@ apply_now:
   name: Apply current hour value
   description: Apply the scheduled value for the current hour to the target entity (CronoStar).
   fields:
-    entity_id:
+    target_entity:
       name: Target entity_id
       description: Entity to control (climate, number, switch).
       required: true

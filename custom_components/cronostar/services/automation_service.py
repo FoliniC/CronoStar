@@ -13,7 +13,7 @@ class AutomationService:
 
     async def apply_now(self, call: ServiceCall):
         """Apply current hour's scheduled value immediately."""
-        target_entity = call.data.get("entity_id")
+        target_entity = call.data.get("target_entity")
         preset_type = call.data.get("preset_type")
         allow_max = call.data.get("allow_max_value", False)
         global_prefix = call.data.get("global_prefix")

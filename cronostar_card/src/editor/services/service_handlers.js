@@ -6,6 +6,7 @@ import { buildHelpersFilename, buildAutomationFilename } from '../../utils/filen
 import { escapeHtml } from '../../utils/editor_utils.js';
 import { buildAutomationYaml, buildInputNumbersYaml } from '../yaml/yaml_generators.js';
 import { I18N } from '../EditorI18n.js';
+import { Logger } from '../../utils.js';
 
 function localize(lang, key, search, replace) {
   const parts = key.split('.');
@@ -123,31 +124,90 @@ export async function runDeepChecks(hass, config, language) {
 }
 
 /**
- * Initializes the data JSON file with a default profile
+ * Initializes/Sanitizes the data JSON file with a default profile
+ * Analyzes existing data and ensures validity (boundary points)
  */
 export async function handleInitializeData(hass, config, language) {
   const prefix = getEffectivePrefix(config);
-  const minVal = config.min_value ?? 0;
-  // Sparse mode: initialize with a single point at 00:00
-  const defaultSchedule = [{ time: '00:00', value: minVal }];
   const preset = config.preset || 'thermostat';
   const profileName = 'Comfort';
+  const minVal = config.min_value ?? 0;
+
   if (!hass) throw new Error('Home Assistant not connected');
-  // Persist wizard config into the profile container meta (single source of truth)
+
+  let schedule = [];
+  let isNew = false;
+
+  // 1. Try to load existing profile
+  try {
+    const result = await hass.callWS({
+      type: 'call_service',
+      domain: 'cronostar',
+      service: 'load_profile',
+      service_data: {
+        profile_name: profileName,
+        preset_type: preset,
+        global_prefix: prefix
+      },
+      return_response: true,
+    });
+    
+    const resp = result?.response ?? result;
+    if (resp?.schedule && Array.isArray(resp.schedule)) {
+      schedule = resp.schedule;
+      Logger.log('INIT', `Loaded existing profile '${profileName}' for analysis/correction`);
+    } else {
+      isNew = true;
+    }
+  } catch (e) {
+    isNew = true;
+    Logger.log('INIT', `Profile '${profileName}' not found, initializing fresh default`);
+  }
+
+  // 2. If new or failed to load, start with default point
+  if (isNew || schedule.length === 0) {
+    schedule = [{ time: '00:00', value: minVal }];
+  }
+
+  // 3. Analyze and Correct (ensure boundary points for sparse mode)
+  // Ensure we have a point at 00:00
+  if (!schedule.some(p => p.time === '00:00')) {
+    const firstVal = schedule.length > 0 ? schedule[0].value : minVal;
+    schedule.unshift({ time: '00:00', value: firstVal });
+  }
+  // Ensure we have a point at 23:59
+  if (!schedule.some(p => p.time === '23:59')) {
+    const lastVal = schedule[schedule.length - 1].value;
+    schedule.push({ time: '23:59', value: lastVal });
+  }
+  
+  // Sort by time to ensure integrity
+  schedule.sort((a, b) => {
+    const ta = String(a.time).split(':').map(Number);
+    const tb = String(b.time).split(':').map(Number);
+    return (ta[0] * 60 + ta[1]) - (tb[0] * 60 + tb[1]);
+  });
+
+  // 4. Save back with updated meta
   const safeMeta = (() => {
     const src = (config && typeof config === 'object') ? config : {};
     const { entity_prefix, ...rest } = src;
     if (!rest.global_prefix && prefix) rest.global_prefix = prefix;
     return rest;
   })();
+
   await hass.callService('cronostar', 'save_profile', {
     profile_name: profileName,
     preset_type: preset,
-    schedule: defaultSchedule,
+    schedule: schedule,
     global_prefix: prefix,
     meta: safeMeta,
   });
-  return { success: true, message: '✓ Data Init OK' };
+
+  return { 
+    success: true, 
+    message: isNew ? '✓ Default profile initialized' : '✓ Existing profile analyzed and corrected' 
+  };
 }
 
 /**
@@ -166,17 +226,12 @@ export async function handleSaveAll(hass, config, deepReport, language) {
   const packageFilename = buildHelpersFilename(effectivePrefix);
   const automationFilename = buildAutomationFilename(effectivePrefix);
 
-  // IMPORTANT: Do not overwrite existing schedule during Save All.
-  // Data initialization is now opt-in via config.init_on_save === true.
+  // Analyze and correct data instead of skipping
   try {
-    if (config && config.init_on_save === true) {
-      const init = await handleInitializeData(hass, config, language);
-      messages.push(init.message);
-    } else {
-      messages.push('• Skipped data initialization to preserve existing schedule');
-    }
+    const init = await handleInitializeData(hass, config, language);
+    messages.push(init.message);
   } catch (e) {
-    messages.push(`✗ Data Init: ${e.message}`);
+    messages.push(`✗ Data Analysis: ${e.message}`);
   }
 
   try {

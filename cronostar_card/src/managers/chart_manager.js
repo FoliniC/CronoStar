@@ -86,8 +86,13 @@ export class ChartManager {
       if (!Number.isFinite(minutes)) return;
 
       let snapMinutes = Number(this.card.config?.keyboard_time_step_minutes) || 5;
-      if (e.altKey) snapMinutes = 30;
-      else if (e.ctrlKey || e.metaKey) snapMinutes = 1;
+      
+      if (e.shiftKey) snapMinutes = 30; // Snap to grid
+      else if (e.ctrlKey || e.metaKey) snapMinutes = 1; // Minimum movement
+      else if (e.altKey) snapMinutes = 30; // Legacy alt behavior, but shift is now grid. Keep for consistency or override? User didn't specify Alt for drag snap, but Alt for Alignment. Let's keep 30 or standard. 
+      // Actually user said: "Se viene premuto il tasto shift fai un 'snap to grid'".
+      // And "Se viene premuto il tasto CTRL riduci il movimento".
+      // I will prioritize Shift > Ctrl > Default.
 
       minutes = Math.round(minutes / snapMinutes) * snapMinutes;
 
@@ -109,6 +114,10 @@ export class ChartManager {
       });
 
       this.chart.update('none');
+      
+      const activeX = dataset.data[activeIndex]?.x;
+      const activeY = dataset.data[activeIndex]?.y;
+      this.showDragValueDisplay(activeY, activeX);
     } catch (err) { }
   }
 
@@ -122,7 +131,10 @@ export class ChartManager {
       const dsIndex = this.dragDatasetIndex ?? 0;
       const dataset = this.chart?.data?.datasets?.[dsIndex];
       if (dataset?.data?.length) {
-        const newData = dataset.data.map((p) => ({
+        // Sort by time to ensure data consistency
+        const sortedData = [...dataset.data].sort((a, b) => a.x - b.x);
+        
+        const newData = sortedData.map((p) => ({
           time: this.card.stateManager.minutesToTime(Math.max(0, Math.min(1440, Number(p.x)))),
           value: p.y
         }));
@@ -130,6 +142,7 @@ export class ChartManager {
         this.card.hasUnsavedChanges = true;
       }
       this.card.isDragging = false;
+      this.scheduleHideDragValueDisplay(500);
     } catch { }
   }
 
@@ -143,39 +156,48 @@ export class ChartManager {
     try { this.chart.update(mode); } catch { try { this.chart.update(); } catch { } }
   }
 
-  showDragValueDisplay(indices, dataset) {
+  showDragValueDisplay(value, minutes) {
     try {
       const el = this.card.shadowRoot?.getElementById('drag-value-display');
-      if (!el || !this.chart) return;
-      const idx = Array.isArray(indices) ? indices[indices.length - 1] : null;
-      if (idx === null) return;
+      if (!el || !this.chart || !this.chart.canvas?.isConnected) return;
+      
+      const valRaw = Number.isFinite(Number(value)) ? Number(value) : 0;
+      const xRaw = Number.isFinite(Number(minutes)) ? Number(minutes) : 0;
 
-      const meta = this.chart.getDatasetMeta(0);
-      const pointEl = meta?.data?.[idx];
-      if (!pointEl) return;
+      // Use chart scales for precise, real-time positioning
+      const xScale = this.chart.scales?.x;
+      const yScale = this.chart.scales?.y;
+      if (!xScale || !yScale) return;
 
-      const pos = typeof pointEl.tooltipPosition === 'function' ? pointEl.tooltipPosition() : { x: pointEl.x, y: pointEl.y };
+      const pixelX = xScale.getPixelForValue(xRaw);
+      const pixelY = yScale.getPixelForValue(valRaw);
+
       const container = this.card.shadowRoot?.querySelector('.chart-container');
+      if (!container) return;
+
       const canvasRect = this.chart.canvas.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
 
-      const valRaw = (typeof dataset[idx] === 'object') ? dataset[idx].y : Number(dataset[idx]);
       const isSwitch = !!(this.card.config?.is_switch_preset || this.card.selectedPreset?.includes('switch'));
 
       let text = '';
       if (isSwitch) {
         text = (valRaw >= 0.5) ? 'On' : 'Off';
       } else {
-        const step = Number(this.card.config?.step_value) || 0.5;
-        const decimals = (String(step).split('.')[1] || '').length;
-        text = Number(valRaw).toFixed(Math.max(0, Math.min(2, decimals)));
+        text = valRaw.toFixed(1);
       }
 
+      text = `${this.card.stateManager.minutesToTime(xRaw)} • ${text}`;
+
       el.textContent = text;
-      el.style.left = `${Math.round(pos.x + (canvasRect.left - containerRect.left) + 8)}px`;
-      el.style.top = `${Math.round(pos.y + (canvasRect.top - containerRect.top) - 28)}px`;
+      // Calculate position relative to container
+      const leftPos = pixelX + (canvasRect.left - containerRect.left);
+      const topPos = pixelY + (canvasRect.top - containerRect.top);
+
+      el.style.left = `${Math.round(leftPos + 8)}px`;
+      el.style.top = `${Math.round(topPos - 28)}px`;
       el.style.display = 'block';
-    } catch { }
+    } catch (e) { }
   }
 
   scheduleHideDragValueDisplay(ms = 2000) {
@@ -228,17 +250,21 @@ export class ChartManager {
 
   _showHoverInfo(evt) {
     try {
+      if (this.card.isDragging || this.card.pointerSelecting) { this._hideHoverInfo(); return; }
       const el = this.card.shadowRoot?.getElementById('hover-value-display');
-      if (!el || !this.chart) return;
+      if (!el || !this.chart || !this.chart.canvas?.isConnected) return;
       const pos = this._getCanvasRelativePosition(evt);
       const { x, y } = this.chart.scales;
+      if (!x || !y) return;
       if (pos.x < x.left || pos.x > x.right || pos.y < y.top || pos.y > y.bottom) { this._hideHoverInfo(); return; }
       const minutes = x.getValueForPixel(pos.x);
       const val = this._interpolateValueAtMinutes(minutes);
       if (val === null) return;
       el.textContent = `${this.card.stateManager.minutesToTime(minutes)} • ${val.toFixed(1)}`;
       const cRect = this.chart.canvas.getBoundingClientRect();
-      const contRect = this.card.shadowRoot.querySelector('.chart-container').getBoundingClientRect();
+      const container = this.card.shadowRoot.querySelector('.chart-container');
+      if (!container) return;
+      const contRect = container.getBoundingClientRect();
       el.style.left = `${Math.round(pos.x + (cRect.left - contRect.left) + 10)}px`;
       el.style.top = `${Math.round(pos.y + (cRect.top - contRect.top) - 24)}px`;
       el.style.display = 'block';
@@ -257,10 +283,30 @@ export class ChartManager {
     if (!canvas.isConnected) { requestAnimationFrame(() => this.initChart(canvas)); return false; }
     this.destroy();
 
-    canvas.addEventListener('mousemove', (e) => this._showHoverInfo(e));
-    canvas.addEventListener('mouseleave', () => this._hideHoverInfo());
     canvas.addEventListener('contextmenu', (e) => {
       e.preventDefault();
+      
+      // Alt + Right Click: Align to Right
+      if (e.altKey) {
+        const selMgr = this.card.selectionManager;
+        const indices = selMgr.getActiveIndices();
+        if (indices.length > 1) {
+             const data = this.chart.data.datasets[0].data;
+             const selectedX = indices.map(i => data[i]?.x).filter(x => x !== undefined);
+             const maxX = Math.max(...selectedX);
+             indices.forEach(i => {
+                 if (i === 0 || i === data.length - 1) return; // Skip anchors
+                 data[i].x = maxX;
+             });
+             // Sort
+             this.chart.data.datasets[0].data.sort((a, b) => a.x - b.x);
+             
+             this.chart.update('none');
+             this.card.stateManager.setData(this.chart.data.datasets[0].data.map(p => ({ time: this.card.stateManager.minutesToTime(p.x), value: p.y })));
+             return; // Skip point deletion
+        }
+      }
+
       const points = this.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
       if (points.length) {
         this.card.stateManager.removePoint(points[0].index);
@@ -301,6 +347,13 @@ export class ChartManager {
       window.addEventListener('pointermove', this._boundOnWindowPointerMove, { capture: true, passive: true });
       window.addEventListener('pointerup', this._boundOnWindowPointerUp, { capture: true, passive: true });
     }, { passive: true, capture: true });
+    
+    // Add hover listeners
+    this._hoverHandler = (e) => this._showHoverInfo(e);
+    this._hoverOutHandler = () => this._hideHoverInfo();
+    canvas.addEventListener('pointermove', this._hoverHandler, { passive: true });
+    canvas.addEventListener('pointerout', this._hoverOutHandler, { passive: true });
+    canvas.addEventListener('pointerleave', this._hoverOutHandler, { passive: true });
 
     const isSwitch = !!(this.card.config?.is_switch_preset || this.card.selectedPreset?.includes('switch'));
     const step = isSwitch ? 1 : (Number(this.card.config?.step_value) || 0.5);
@@ -348,7 +401,7 @@ export class ChartManager {
             ? this.card.stateManager.scheduleData.map(p => ({ x: this.card.stateManager.timeToMinutes(p.time), y: Number(p.value) }))
             : [{ x: 0, y: isSwitch ? 0 : minV }, { x: 1439, y: isSwitch ? 0 : minV }],
           borderColor: COLORS.primary, backgroundColor: 'rgba(3, 169, 244, 0.1)',
-          pointRadius: 6, borderWidth: 2, tension: isSwitch ? 0 : 0.4,
+          pointRadius: 6, borderWidth: 2, tension: 0,
           stepped: isSwitch ? 'before' : false, fill: true, clip: false,
           spanGaps: true
         }]
@@ -361,6 +414,28 @@ export class ChartManager {
         layout: { padding: { top: 15, right: 10, bottom: 25, left: 10 } },
         onClick: (evt) => {
           if (!this.chart || this.card.pointerSelecting || Date.now() < (this.card.suppressClickUntil || 0)) return;
+          
+          // Alt + Left Click: Align to Left
+          if (evt.altKey) {
+             const selMgr = this.card.selectionManager;
+             const indices = selMgr.getActiveIndices();
+             if (indices.length > 1) {
+                 const data = this.chart.data.datasets[0].data;
+                 const selectedX = indices.map(i => data[i]?.x).filter(x => x !== undefined);
+                 const minX = Math.min(...selectedX);
+                 indices.forEach(i => {
+                     if (i === 0 || i === data.length - 1) return; // Skip anchors
+                     data[i].x = minX;
+                 });
+                 // Sort
+                 this.chart.data.datasets[0].data.sort((a, b) => a.x - b.x);
+                 
+                 this.chart.update('none');
+                 this.card.stateManager.setData(this.chart.data.datasets[0].data.map(p => ({ time: this.card.stateManager.minutesToTime(p.x), value: p.y })));
+                 return;
+             }
+          }
+
           const pos = this._getCanvasRelativePosition(evt);
           const points = this.chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
           if (points.length) {
@@ -386,32 +461,65 @@ export class ChartManager {
         },
         plugins: {
           legend: { display: false },
+          tooltip: { enabled: false },
           dragData: {
-            round: step, showTooltip: true, dragX: false, dragY: !isSwitch,
+            round: step, showTooltip: false, dragX: false, dragY: !isSwitch,
             onDragStart: (e, ds, i, v) => {
               if (!this.chart || this.card.pointerSelecting || isSwitch) return false;
-              this.dragStartValue = v; this.initialSelectedValues = {};
+              // Handle case where v is the data object
+              const val = (typeof v === 'object' && v !== null && v.y !== undefined) ? v.y : v;
+              this.dragStartValue = Number(val); 
+              this.initialSelectedValues = {};
               this.dragSelectedPoints = this.card.selectionManager.getSelectedPoints();
               this.dragSelectedPoints.forEach(idx => { this.initialSelectedValues[idx] = this.chart.data.datasets[0].data[idx].y; });
               this.card.isDragging = true; return true;
             },
             onDrag: (e, ds, i, v) => {
-              const diff = v - this.dragStartValue;
+              const val = (typeof v === 'object' && v !== null && v.y !== undefined) ? v.y : v;
+              // Check for NaN and fallback
+              let safeVal = Number(val);
+              if (!Number.isFinite(safeVal)) {
+                  // If input value is invalid, ignore this drag event to prevent data corruption
+                  return;
+              }
+
+              const diff = safeVal - this.dragStartValue;
+              
               this.dragSelectedPoints.forEach(idx => {
+                if (this.initialSelectedValues[idx] === undefined) return;
                 let newVal = Math.max(minV, Math.min(maxV, Math.round((this.initialSelectedValues[idx] + diff) / step) * step));
                 this.chart.data.datasets[0].data[idx].y = newVal;
               });
               this.chart.update('none');
+              
+              const p = this.chart.data.datasets[0].data[i];
+              if (p) {
+                  this.showDragValueDisplay(p.y, p.x);
+              }
             },
             onDragEnd: () => {
               this.card.isDragging = false;
+              this.scheduleHideDragValueDisplay(500);
               this.card.stateManager.setData(this.chart.data.datasets[0].data.map(p => ({ time: this.card.stateManager.minutesToTime(p.x), value: p.y })));
               this.card.hasUnsavedChanges = true; this.card.requestUpdate();
             }
           }
         },
         scales: {
-          x: { type: 'linear', min: -20, max: 1460, ticks: { stepSize: 120, callback: v => this.card.stateManager.minutesToTime(v) } },
+          x: { 
+            type: 'linear', min: 0, max: 1440, 
+            ticks: { 
+              stepSize: 120, 
+              maxRotation: 0, 
+              autoSkip: false,
+              includeBounds: true, // Ensure 00:00 and 23:59 are shown
+              callback: (v, index, ticks) => {
+                 // Force 23:59 display if needed or stick to standard
+                 if (v === 1439 || v === 1440) return '23:59';
+                 return this.card.stateManager.minutesToTime(v); 
+              }
+            } 
+          },
           y: { min: isSwitch ? -0.1 : minV, max: isSwitch ? 1.1 : maxV, ticks: { stepSize: isSwitch ? 1 : undefined, callback: v => isSwitch ? (v === 0 ? 'Off' : (v === 1 ? 'On' : '')) : v } }
         }
       }
@@ -443,7 +551,7 @@ export class ChartManager {
     y.min = isSwitch ? -0.05 : Number(this.card.config.min_value ?? 0);
     y.max = isSwitch ? 1.05 : Number(this.card.config.max_value ?? 100);
     this.chart.data.datasets[0].stepped = isSwitch ? 'before' : false;
-    this.chart.data.datasets[0].tension = isSwitch ? 0 : 0.4;
+    this.chart.data.datasets[0].tension = 0;
     this.chart.update('none');
   }
 
@@ -454,5 +562,19 @@ export class ChartManager {
     ds.pointBorderColor = ds.pointBackgroundColor;
   }
 
-  destroy() { if (this.chart) { try { this.chart.destroy(); } catch { } this.chart = null; } this._initialized = false; }
+  destroy() {
+    if (this.chart) {
+      const canvas = this.chart.canvas;
+      if (canvas && this._hoverHandler && this._hoverOutHandler) {
+        canvas.removeEventListener('pointermove', this._hoverHandler);
+        canvas.removeEventListener('pointerout', this._hoverOutHandler);
+        canvas.removeEventListener('pointerleave', this._hoverOutHandler);
+      }
+      this._hoverHandler = null;
+      this._hoverOutHandler = null;
+      try { this.chart.destroy(); } catch { }
+      this.chart = null;
+    }
+    this._initialized = false;
+  }
 }

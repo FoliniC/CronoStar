@@ -249,7 +249,11 @@ class StorageManager:
                 filtered = []
                 for filename in files:
                     data = await self.load_profile_cached(filename)
-                    if data and data.get("preset_type") == preset_type:
+                    if not data:
+                        continue
+                    # Check both new format (meta) and legacy format (root)
+                    file_preset = data.get("meta", {}).get("preset_type") or data.get("preset_type")
+                    if file_preset == preset_type:
                         filtered.append(filename)
                 files = filtered
             

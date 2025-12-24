@@ -99,7 +99,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not ha_section_found:
             new_lines.append("\nhomeassistant:\n")
             new_lines.append("  packages: !include_dir_named packages\n")
-elif not packages_added:
+        elif not packages_added:
             # Se homeassistant: esiste ma non abbiamo trovato il punto giusto, lo aggiungiamo in fondo
             new_lines.append("  packages: !include_dir_named packages\n")
 
@@ -139,7 +139,7 @@ elif not packages_added:
             os.makedirs(auto_dir, exist_ok=True)
             with open(self._config_path, 'a', encoding='utf-8') as f:
                 f.write("\nautomation: !include_dir_merge_list automations\n")
-elif self._automations_setup == "other":
+        elif self._automations_setup == "other":
             # Caso in cui esiste già un'altra direttiva (es. !include automations.yaml)
             # Creiamo comunque la cartella per i file di CronoStar se non esiste
             os.makedirs(auto_dir, exist_ok=True)

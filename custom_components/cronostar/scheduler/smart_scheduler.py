@@ -574,7 +574,7 @@ class SmartScheduler:
                                 profile_content["profile_name"] = profile_name
                                 profile_content["_container_updated_at"] = data.get("meta", {}).get("updated_at", 0)
 
-                                # Propagate container meta needed by the scheduler (e.g. apply_entity/target_entity)
+                                # Propagate container meta needed by the scheduler (e.g. target_entity)
                                 # so `_apply_target_entity` can work even when profile_content itself doesn't include it.
                                 profile_content["meta"] = data.get("meta", {})
                                 
@@ -686,7 +686,7 @@ class SmartScheduler:
             chosen["global_prefix"] = (best_container.get("meta", {}) or {}).get("global_prefix")
             chosen["profile_name"] = chosen_name or "Default"
             chosen["_container_updated_at"] = (best_container.get("meta", {}) or {}).get("updated_at", 0)
-            # Propagate container meta so scheduler can read apply_entity/target_entity.
+            # Propagate container meta so scheduler can read target_entity.
             chosen["meta"] = best_container.get("meta", {})
             return chosen
         except Exception as e:

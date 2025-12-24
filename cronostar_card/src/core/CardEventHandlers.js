@@ -214,7 +214,7 @@ export class CardEventHandlers {
                 const last = scheduleData?.[scheduleData.length - 1];
                 Logger.log(
                     'APPLY',
-                    `[CronoStar] apply_now payload: profile_name='${profileName}' preset_type='${this.card.selectedPreset}' global_prefix='${effectivePrefix}' schedule_len=${scheduleData?.length || 0} first=${first ? JSON.stringify(first) : 'null'} last=${last ? JSON.stringify(last) : 'null'} apply_entity='${targetEntity}'`
+                    `[CronoStar] apply_now payload: profile_name='${profileName}' preset_type='${this.card.selectedPreset}' global_prefix='${effectivePrefix}' schedule_len=${scheduleData?.length || 0} first=${first ? JSON.stringify(first) : 'null'} last=${last ? JSON.stringify(last) : 'null'} target_entity='${targetEntity}'`
                 );
             } catch (e) {
                 Logger.warn('APPLY', '[CronoStar] Failed to log apply_now payload:', e);
@@ -420,10 +420,18 @@ export class CardEventHandlers {
         const cardId = this.card.cardId || 'Not registered';
         const preset = this.card.config?.preset || 'thermostat';
         const prefix = getEffectivePrefix(this.card.config);
-        const targetEntity = this.card.config?.apply_entity || 'Not configured';
+        const targetEntity = this.card.config?.target_entity || 'Not configured';
         const profileEntity = this.card.config?.profiles_select_entity || 'Not configured';
         const pauseEntity = this.card.config?.pause_entity || 'Not configured';
         const currentProfile = this.card.selectedProfile || 'No profile selected';
+        
+        // Entity States (from registration)
+        const states = this.card.entityStates || {};
+        const stTarget = states.target ? ` (${states.target})` : '';
+        const stHelper = states.current_helper ? ` (${states.current_helper})` : '';
+        const stSelector = states.selector ? ` (${states.selector})` : '';
+        const stPause = states.pause ? ` (${states.pause})` : '';
+
         // Expected entities
         const prefixBase = prefix.replace(/_+$/, '');
         const currentEntity = `input_number.${prefix}current`;
@@ -441,10 +449,10 @@ Profilo Attivo: ${currentProfile}
 Prefisso: ${prefix}
 
 === Entità ===
-Entità Destinazione: ${targetEntity}
-Entità Valore Corrente: ${currentEntity}
-Selettore Profili: ${profileEntity}
-Entità Pausa: ${pauseEntity}
+Entità Destinazione: ${targetEntity}${stTarget}
+Entità Valore Corrente: ${currentEntity}${stHelper}
+Selettore Profili: ${profileEntity}${stSelector}
+Entità Pausa: ${pauseEntity}${stPause}
 
 === Configurazione ===
 File Package: /config/packages/${packageFile}
@@ -474,10 +482,10 @@ Active Profile: ${currentProfile}
 Prefix: ${prefix}
 
 === Entities ===
-Target Entity: ${targetEntity}
-Current Value Entity: ${currentEntity}
-Profiles Selector: ${profileEntity}
-Pause Entity: ${pauseEntity}
+Target Entity: ${targetEntity}${stTarget}
+Current Value Entity: ${currentEntity}${stHelper}
+Profiles Selector: ${profileEntity}${stSelector}
+Pause Entity: ${pauseEntity}${stPause}
 
 === Configuration ===
 Package File: /config/packages/${packageFile}

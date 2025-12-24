@@ -1,76 +1,76 @@
 {
-  "meta": {
-    "entity_prefix": "cronostar_termostato_appartamento_",
-    "preset_type": "thermostat",
-    "created_at": "2025-12-18T18:55:31.303213",
-    "updated_at": "2025-12-21T19:44:06.737746",
-    "preset": "thermostat",
-    "hour_base": {
-      "value": 0,
-      "determined": false
-    },
-    "logging_enabled": true,
-    "pause_entity": "input_boolean.cronostar_termostato_appartamento_paused",
-    "profiles_select_entity": "input_select.cronostar_termostato_appartamento_profiles",
+    "meta":  {
+                 "entity_prefix":  "cronostar_termostato_appartamento_",
+                 "preset_type":  "thermostat",
+                 "created_at":  "2025-12-18T18:55:31.303213",
+    "updated_at": "2025-12-24T19:06:25.961282",
+                 "preset":  "thermostat",
+                 "hour_base":  {
+                                   "value":  0,
+                                   "determined":  false
+                               },
+                 "logging_enabled":  true,
+                 "pause_entity":  "input_boolean.cronostar_termostato_appartamento_paused",
+                 "profiles_select_entity":  "input_select.cronostar_termostato_appartamento_profiles",
     "apply_entity": "climate.climatizzazione_appartamento",
-    "allow_max_value": false,
-    "missing_yaml_style": "named",
-    "title": "CronoStar Thermostat",
-    "y_axis_label": "Temperature",
-    "unit_of_measurement": "°C",
-    "min_value": 15,
-    "max_value": 30,
-    "step_value": 0.5,
-    "is_switch_preset": false,
-    "type": "custom:cronostar-card",
+                 "allow_max_value":  false,
+                 "missing_yaml_style":  "named",
+                 "title":  "CronoStar Thermostat",
+                 "y_axis_label":  "Temperature",
+                 "unit_of_measurement":  "°C",
+                 "min_value":  15,
+                 "max_value":  30,
+                 "step_value":  0.5,
+                 "is_switch_preset":  false,
+                 "type":  "custom:cronostar-card",
     "global_prefix": "cronostar_termostato_appartamento_",
     "target_entity": "climate.climatizzazione_appartamento"
-  },
-  "profiles": {
-    "Comfort": {
-      "schedule": [
-        {
-          "time": "00:00",
-          "value": 15
-        },
-        {
-          "time": "23:59",
-          "value": 15
-        }
-      ],
-      "updated_at": "2025-12-21T00:20:38.054346"
-    },
-    "Default": {
-      "schedule": [
-        {
-          "time": "00:00",
+             },
+    "profiles":  {
+                     "Comfort":  {
+                                     "schedule":  [
+                                                      {
+                                                          "time":  "00:00",
+                                                          "value":  15
+                                                      },
+                                                      {
+                                                          "time":  "23:59",
+                                                          "value":  15
+                                                      }
+                                                  ],
+      "updated_at": "2025-12-22T19:24:53.923370"
+                                 },
+                     "Default":  {
+                                     "schedule":  [
+                                                      {
+                                                          "time":  "00:00",
+                                                          "value":  27
+                                                      },
+                                                      {
+                                                          "time":  "02:50",
           "value": 27
-        },
-        {
-          "time": "02:50",
-          "value": 26.87936011143122
-        },
-        {
-          "time": "03:16",
-          "value": 15.495160534825057
-        },
-        {
-          "time": "10:11",
+                                                      },
+                                                      {
+          "time": "02:51",
           "value": 15
-        },
-        {
-          "time": "10:12",
-          "value": 24
-        },
-        {
-          "time": "23:59",
-          "value": 24.2
-        }
-      ],
-      "updated_at": "2025-12-21T19:44:06.737776"
-    }
-  },
-  "saved_at": 1766342646.737816,
-  "saved_at_iso": "2025-12-21T18:44:06.737816Z",
-  "version": 2
+                                                      },
+                                                      {
+          "time": "08:51",
+                                                          "value":  15
+                                                      },
+                                                      {
+          "time": "08:52",
+          "value": 25
+                                                      },
+                                                      {
+                                                          "time":  "23:59",
+          "value": 25
+                                                      }
+                                                  ],
+      "updated_at": "2025-12-24T19:06:25.961318"
+                                 }
+                 },
+  "saved_at": 1766599585.961359,
+  "saved_at_iso": "2025-12-24T18:06:25.961359Z",
+    "version":  2
 }

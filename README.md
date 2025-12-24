@@ -132,7 +132,7 @@ Add the card to your dashboard:
 type: custom:cronostar-card
 preset: thermostat
 entity_prefix: cronostar_temp_
-apply_entity: climate.living_room
+target_entity: climate.living_room
 profiles_select_entity: input_select.cronostar_temp_profiles
 pause_entity: input_boolean.cronostar_temp_paused
 ```
@@ -163,7 +163,7 @@ automation:
 type: custom:cronostar-card
 preset: thermostat                                    # Required: preset type
 entity_prefix: cronostar_temp_                       # Required: helper entities prefix
-apply_entity: climate.living_room                    # Target entity
+target_entity: climate.living_room                    # Target entity
 profiles_select_entity: input_select.cronostar_temp_profiles  # Profile selector
 pause_entity: input_boolean.cronostar_temp_paused    # Pause control
 ```

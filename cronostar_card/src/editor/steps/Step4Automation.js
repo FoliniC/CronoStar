@@ -6,7 +6,7 @@ export class Step4Automation {
   }
 
   render() {
-    if (!this.editor._config.apply_entity) {
+    if (!this.editor._config.target_entity) {
       return html`
         <div class="step-content">
           <div class="step-header">${this.editor.i18n._t('headers.step4')}</div>
@@ -22,7 +22,7 @@ export class Step4Automation {
         <div class="step-header">${this.editor.i18n._t('headers.step4')}</div>
         <div class="step-description">${this.editor.i18n._t('descriptions.step4')}</div>
         <div class="field-group">
-          <label class="field-label">Applies to: ${this.editor._config.apply_entity}</label>
+          <label class="field-label">Applies to: ${this.editor._config.target_entity}</label>
         </div>
         <pre style="background: var(--secondary-background-color); padding: 12px; border-radius: 4px; overflow: auto; white-space: pre-wrap;">${this.editor._automationYaml}</pre>
         <div class="action-buttons">

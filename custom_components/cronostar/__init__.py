@@ -129,28 +129,42 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
         card_id = call.data.get("card_id")
         preset = call.data.get("preset", "thermostat")
         global_prefix = call.data.get("global_prefix")
+        requested_profile = call.data.get("selected_profile")
         
-        _LOGGER.info("Lovelace Card Connected: ID=%s, Preset=%s", card_id, preset)
+        _LOGGER.info("Lovelace Card Connected: ID=%s, Preset=%s, RequestedProfile=%s", card_id, preset, requested_profile)
         _LOGGER.debug("[REGISTER] global_prefix=%s", global_prefix)
         
         response = {"success": True, "profile_data": None}
         
         # Logica semplificata per il recupero del profilo attivo con logging esteso
         state = None
-        base = (global_prefix or "cronostar_").rstrip("_")
+        # Prefix MUST end with underscore for StorageManager filtering
+        prefix_with_underscore = (global_prefix or "cronostar_")
+        if not prefix_with_underscore.endswith("_"):
+            prefix_with_underscore += "_"
+            
+        base = prefix_with_underscore.rstrip("_")
         dynamic_selector = f"input_select.{base}_profiles"
         _LOGGER.debug("[REGISTER] computed base=%s, dynamic_selector=%s", base, dynamic_selector)
         
         # Lettura dello stato dell'entity input_select
         state = hass.states.get(dynamic_selector)
-        if not state:
-            _LOGGER.warning("[REGISTER] profiles_select entity not found: %s", dynamic_selector)
-        else:
-            _LOGGER.debug("[REGISTER] profiles_select raw state: %s", state.state)
         
+        profile_to_load = None
         if state and state.state not in ("unknown", "unavailable"):
             profile_to_load = state.state
             _LOGGER.info("[REGISTER] Active profile detected: '%s' via %s", profile_to_load, dynamic_selector)
+        elif requested_profile:
+            # Se l'entity manca o non ha uno stato valido, usiamo quello richiesto dalla card (presentation)
+            profile_to_load = requested_profile
+            _LOGGER.info("[REGISTER] Fallback to requested profile: '%s' (entity %s missing/unknown)", profile_to_load, dynamic_selector)
+        else:
+            _LOGGER.info(
+                "[REGISTER] No active profile via entity: entity missing (%s) and no requested profile",
+                dynamic_selector
+            )
+
+        if profile_to_load:
             try:
                 data = await profile_service.get_profile_data(profile_to_load, preset, global_prefix)
                 if "error" not in data:
@@ -165,50 +179,25 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
                     response["profile_data"] = data
                 else:
                     _LOGGER.warning(
-                        "⚠️ get_profile_data returned error during register: %s",
-                        data.get("error")
+                        "⚠️ get_profile_data returned error during register for '%s': %s",
+                        profile_to_load, data.get("error")
                     )
-                    # Fallback: requested profile not found, try well-known or first available from container
-                    try:
-                        canonical_preset = normalize_preset_type(preset)
-                        filename = build_profile_filename(profile_to_load, canonical_preset, global_prefix=global_prefix)
-                        container = await storage_manager.load_profile_cached(filename)
-                        if container and "profiles" in container:
-                            available = list(container.get("profiles", {}).keys())
-                            _LOGGER.debug("[REGISTER] Fallback (requested missing): container profiles=%s", available)
-                            candidates = [p for p in ("Default", "Comfort") if p in available] or available
-                            for candidate in candidates:
-                                _LOGGER.info("[REGISTER] Trying fallback candidate '%s'", candidate)
-                                alt = await profile_service.get_profile_data(candidate, preset, global_prefix)
-                                if "error" not in alt:
-                                    sched = alt.get("schedule", [])
-                                    _LOGGER.info(
-                                        "✅ Fallback profile loaded: name=%s, points=%d, first=%s, last=%s",
-                                        candidate,
-                                        len(sched),
-                                        sched[0] if sched else None,
-                                        sched[-1] if sched else None,
-                                    )
-                                    response["profile_data"] = alt
-                                    break
-                                else:
-                                    _LOGGER.warning("[REGISTER] Fallback candidate '%s' failed: %s", candidate, alt.get("error"))
-                        else:
-                            _LOGGER.info("[REGISTER] No container found while attempting fallback for file=%s", filename)
-                    except Exception as e:
-                        _LOGGER.error("[REGISTER] Fallback error after missing profile: %s", e)
             except Exception as e:
-                _LOGGER.error("❌ Exception while loading profile during register: %s", e)
-        else:
-            _LOGGER.info(
-                "[REGISTER] No active profile: entity missing or state is unknown/unavailable (%s)",
-                dynamic_selector
-            )
-            # Fallback: attempt to locate a profile from storage by prefix/preset
+                _LOGGER.error("❌ Exception while loading profile '%s' during register: %s", profile_to_load, e)
+
+        if not response.get("profile_data"):
+            # Fallback: attempt to locate ANY profile from storage by prefix/preset
             try:
                 canonical_preset = normalize_preset_type(preset)
-                files = await storage_manager.list_profiles(preset_type=canonical_preset, prefix=base)
-                _LOGGER.debug("[REGISTER] Fallback search: found %d files for prefix=%s, preset=%s", len(files), base, canonical_preset)
+                # Use full prefix with underscore to match StorageManager startswith
+                files = await storage_manager.list_profiles(preset_type=canonical_preset, prefix=prefix_with_underscore)
+                _LOGGER.debug("[REGISTER] Fallback search: found %d files for prefix=%s, preset=%s", len(files), prefix_with_underscore, canonical_preset)
+                
+                # If no files found with underscore, try stripping it (for loose files)
+                if not files:
+                    files = await storage_manager.list_profiles(preset_type=canonical_preset, prefix=base)
+                    _LOGGER.debug("[REGISTER] Fallback search (retry): found %d files for prefix=%s", len(files), base)
+
                 for filename in files:
                     container = await storage_manager.load_profile_cached(filename)
                     if not container or "profiles" not in container:
@@ -236,14 +225,47 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
                             _LOGGER.warning("[REGISTER] Fallback candidate '%s' failed: %s", candidate, data.get("error"))
                     if response.get("profile_data"):
                         break
+                
                 if not response.get("profile_data"):
-                    _LOGGER.info("[REGISTER] Fallback did not find a usable profile for prefix=%s", base)
+                    _LOGGER.info("[REGISTER] Fallback did not find a usable profile for prefix=%s", prefix_with_underscore)
             except Exception as e:
                 _LOGGER.error("[REGISTER] Fallback search error: %s", e)
+
+        # Recupero stati correnti per l'help
+        entity_states = {}
+        
+        def get_formatted_state(entity_id):
+            if not entity_id:
+                return "Not configured"
+            st = hass.states.get(entity_id)
+            if not st:
+                return "Not found"
+            val = st.state
+            if entity_id.startswith("switch.") or entity_id.startswith("input_boolean."):
+                return "On" if val == "on" else "Off"
+            # Add unit if available
+            unit = st.attributes.get("unit_of_measurement")
+            if unit:
+                return f"{val} {unit}"
+            return val
+
+        # Identifichiamo le entità per il report
+        target_ent_for_states = None
+        if state and state.attributes.get("target_entity"):
+            target_ent_for_states = state.attributes.get("target_entity")
+        if not target_ent_for_states and response.get("profile_data") and "meta" in response["profile_data"]:
+            target_ent_for_states = response["profile_data"]["meta"].get("target_entity")
+        
+        entity_states["target"] = get_formatted_state(target_ent_for_states)
+        entity_states["current_helper"] = get_formatted_state(f"input_number.{prefix_with_underscore}current")
+        entity_states["selector"] = get_formatted_state(dynamic_selector)
+        entity_states["pause"] = get_formatted_state(f"input_boolean.{prefix_with_underscore}paused")
+        
+        response["entity_states"] = entity_states
         
         _LOGGER.debug(
-            "[REGISTER] Response summary: success=%s, has_profile=%s",
-            response.get("success"), bool(response.get("profile_data"))
+            "[REGISTER] Response summary: success=%s, has_profile=%s, states=%s",
+            response.get("success"), bool(response.get("profile_data")), entity_states
         )
         return response
 

@@ -37,6 +37,7 @@ export class CronoStarEditor extends LitElement {
       _quickCheck: { type: Object },
       _deepReport: { type: Object },
       _deepCheckRanForStep1: { type: Boolean },
+      _deepCheckRanForStep5: { type: Boolean },
       _deepCheckSubscribed: { type: Boolean },
       _calculatedHelpersFilename: { type: String },
       _calculatedAutomationFilename: { type: String },
@@ -483,6 +484,11 @@ export class CronoStarEditor extends LitElement {
     this.i18n = new EditorI18n('en');
     this.wizard = new EditorWizard(this);
 
+    // Debounce config-changed to avoid constant card recreations while typing
+    this._debouncedDispatch = this._debounce(() => {
+      this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config } }));
+    }, 500);
+
     // Bind methods
     this._renderTextInput = this._renderTextInput.bind(this);
     this._renderButton = this._renderButton.bind(this);
@@ -503,6 +509,7 @@ export class CronoStarEditor extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this._deepCheckRanForStep1 = false;
+    this._deepCheckRanForStep5 = false;
     this._deepCheckSubscribed = false;
   }
 
@@ -540,10 +547,22 @@ export class CronoStarEditor extends LitElement {
         this._deepCheckRanForStep1 = true;
         this._runDeepChecks();
       }
+      if (this.hass && this._step === 5 && !this._deepCheckRanForStep5) {
+        this._deepCheckRanForStep5 = true;
+        this._runDeepChecks();
+      }
     }
-    if (changedProps.has('_step') && this._step === 1 && this.hass && !this._deepCheckRanForStep1) {
-      this._deepCheckRanForStep1 = true;
-      this._runDeepChecks();
+    if (changedProps.has('_step')) {
+      if (this._step === 1 && this.hass && !this._deepCheckRanForStep1) {
+        this._deepCheckRanForStep1 = true;
+        this._runDeepChecks();
+      }
+      if (this._step === 5 && this.hass && !this._deepCheckRanForStep5) {
+        this._deepCheckRanForStep5 = true;
+        this._runDeepChecks();
+      }
+      if (this._step !== 1) this._deepCheckRanForStep1 = false;
+      if (this._step !== 5) this._deepCheckRanForStep5 = false;
     }
   }
 
@@ -585,8 +604,20 @@ export class CronoStarEditor extends LitElement {
     this._helpersYaml = buildInputNumbersYaml(this._config, false);
   }
 
-  _dispatchConfigChanged() {
-    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config } }));
+  _dispatchConfigChanged(immediate = false) {
+    if (immediate) {
+      if (this._debounceTimer) clearTimeout(this._debounceTimer);
+      this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config } }));
+    } else {
+      this._debouncedDispatch();
+    }
+  }
+
+  _debounce(func, wait) {
+    return (...args) => {
+      clearTimeout(this._debounceTimer);
+      this._debounceTimer = setTimeout(() => func.apply(this, args), wait);
+    };
   }
 
   _persistCardConfigNow() {
@@ -594,7 +625,7 @@ export class CronoStarEditor extends LitElement {
     return Promise.resolve();
   }
 
-  _showToast(message) {
+  showToast(message) {
     const event = new CustomEvent('hass-notification', {
       detail: { message, duration: 3000 },
       bubbles: true,
@@ -645,12 +676,25 @@ export class CronoStarEditor extends LitElement {
     }
   }
 
+  _handleLocalUpdate(key, value) {
+    const newConfig = { ...this._config, [key]: value };
+    newConfig.type = this._config.type || DEFAULT_CONFIG.type;
+    if ('entity_prefix' in newConfig) delete newConfig.entity_prefix;
+    this._config = newConfig;
+    
+    this._syncConfigAliases();
+    this._updateAutomationYaml();
+    this._updateHelpersYaml();
+    this.requestUpdate();
+  }
+
   _renderTextInput(key, value, placeholder = '') {
     return html`
       <ha-textfield
         .label=${placeholder}
         .value=${value || ''}
-        @input=${(e) => this._updateConfig(key, e.target.value)}
+        @input=${(e) => this._handleLocalUpdate(key, e.target.value)}
+        @change=${() => this._dispatchConfigChanged(true)}
         style="width: 100%;"
       ></ha-textfield>
     `;
@@ -675,20 +719,22 @@ export class CronoStarEditor extends LitElement {
 
   _updateConfig(key, value) {
     const newConfig = { ...this._config, [key]: value };
-    // Hard-remove deprecated keys (breaking change)
-    if ('entity_prefix' in newConfig) delete newConfig.entity_prefix;
-    this._config = newConfig;
+    
+    // Explicitly enforce stable type to avoid reconstruction
+    newConfig.type = this._config.type || DEFAULT_CONFIG.type;
 
+    // Hard-remove deprecated keys
+    if ('entity_prefix' in newConfig) delete newConfig.entity_prefix;
+    
     if (key === 'preset') {
       const presetConfig = CARD_CONFIG_PRESETS[value];
       if (presetConfig) {
-        const merged = { ...this._config, ...presetConfig };
-        if ('entity_prefix' in merged) delete merged.entity_prefix;
-        this._config = merged;
+        Object.assign(newConfig, presetConfig);
         this._selectedPreset = value;
       }
     }
 
+    this._config = newConfig;
     this._syncConfigAliases();
     this._updateAutomationYaml();
     this._updateHelpersYaml();
@@ -698,6 +744,7 @@ export class CronoStarEditor extends LitElement {
   _handleNextClick() {
     if (this._canGoNext()) {
       this._showStepError = false;
+      this._dispatchConfigChanged(true);
       this.wizard._nextStep();
     } else {
       this._showStepError = true;
@@ -711,7 +758,7 @@ export class CronoStarEditor extends LitElement {
     if ((this._step === 5 || force) && this.hass) {
       try {
         const result = await handleSaveAll(this.hass, this._config, this._deepReport, this._language);
-        this._showToast(result.message);
+        this.showToast(result.message);
 
         if (force) {
           const closeEvent = new CustomEvent('closed', { bubbles: true, composed: true });
@@ -719,7 +766,7 @@ export class CronoStarEditor extends LitElement {
         }
 
       } catch (e) {
-        this._showToast(`✗ ${e.message}`);
+        this.showToast(`✗ ${e.message}`);
       }
     }
 
@@ -753,7 +800,7 @@ export class CronoStarEditor extends LitElement {
     return html`
       <div class="wizard-actions">
         <div>
-          ${this._step > 1 ? html`<mwc-button outlined @click=${() => this.wizard._prevStep()}>${this.i18n._t('actions.back')}</mwc-button>` : html``}
+          ${this._step > 1 ? html`<mwc-button outlined @click=${() => { this._dispatchConfigChanged(true); this.wizard._prevStep(); }}>${this.i18n._t('actions.back')}</mwc-button>` : html``}
         </div>
         <div>
           ${this._step === 5
