@@ -11,7 +11,8 @@ Easily add time-based schedules to any entity. The integration can automatically
 
 ## 🎯 What's New in v5.0
 
-### 🔧 Dynamic Point Management
+### 🔧 Dynamic Point Management & History
+- **Undo/Redo Support**: Easily revert or re-apply changes (Ctrl+Z / Ctrl+Y)
 - **Click on line**: Add new point
 - **Right-click on point**: Remove point
 - **Alt+Q**: Insert point (keyboard)
@@ -40,36 +41,38 @@ Easily add time-based schedules to any entity. The integration can automatically
 
 ### 🎨 Lovelace Card (Frontend)
 - **Visual Editor**: Interactive drag-and-drop schedule editor
+- **History Management**: Full Undo/Redo support for all changes
 - **Multi-Point Selection**: Select multiple hours (Shift+click or long-press on mobile)
 - **Keyboard Controls**: Arrow keys, Ctrl+A, precise adjustments
 - **Real-Time Sync**: Instant synchronization with the integration
 - **Multi-Language**: English and Italian support
 - **Responsive Design**: Works on desktop, tablet, and mobile
 
-Utilizzo del Mouse
-   * Aggiunta Punti: Clicca col tasto sinistro su uno spazio vuoto per inserire un nuovo punto in quell'orario.
-   * Selezione: Clicca su un punto per selezionarlo.
-   * Selezione Multipla: 
-       * Ctrl / Cmd + Click: Aggiunge/rimuove singoli punti alla selezione.
-       * Shift + Click: Seleziona tutti i punti compresi tra l'ultimo selezionato e quello cliccato.
-       * Area di selezione: Trascina il mouse su un'area vuota per disegnare un rettangolo; tutti i punti all'interno verranno selezionati.
-   * Modifica Valori: Trascina un punto verso l'alto o verso il basso per cambiarne il valore. Se sono selezionati più punti, verranno spostati tutti insieme mantenendo
-     le distanze relative.
-   * Eliminazione: Clicca col tasto destro su un punto per rimuoverlo.
-   * Allineamento: Alt + Click sinistro allinea i punti selezionati al valore del punto più a sinistra; Alt + Click destro li allinea a quello più a destra.
+### 🖱️ Mouse Usage
+- **Add Points**: Left-click on empty space to insert a new point.
+- **Selection**: Click on a point to select it.
+- **Multiple Selection**:
+  - **Ctrl / Cmd + Click**: Add/remove individual points.
+  - **Shift + Click**: Select all points between the last selected and the clicked one.
+  - **Selection Box**: Drag on an empty area to draw a rectangle; all points inside will be selected.
+- **Adjust Values**: Drag a point up or down. If multiple points are selected, they move together preserving relative distances.
+- **Delete**: Right-click on a point to remove it.
+- **Alignment**: **Alt + Left Click** aligns selected points to the leftmost selected point's value; **Alt + Right Click** aligns them to the rightmost.
 
-  Utilizzo della Tastiera
-   * Frecce SU / GIÙ: Aumenta o diminuisce il valore dei punti selezionati.
-   * Frecce SINISTRA / DESTRA: Allinea i punti selezionati rispettivamente all'estremo sinistro o destro della selezione attuale.
-   * Modificatori:
-       * Ctrl / Cmd: Riduce l'incremento per una regolazione fine.
-       * Shift: Forza lo "snap" a valori interi (asse Y) o alla griglia di 30 minuti (asse X).
-   * Scorciatoie:
-       * Ctrl + A: Seleziona tutti i punti del grafico.
-       * Alt + Q: Inserisce un nuovo punto esattamente a metà tra il punto selezionato e il successivo.
-       * Alt + W: Elimina il punto attualmente selezionato.
-       * Esc: Deseleziona tutti i punti.
-       * Invio: (Se configurato) Applica immediatamente i cambiamenti.
+### ⌨️ Keyboard Usage
+- **UP / DOWN Arrows**: Increase or decrease the value of selected points.
+- **LEFT / RIGHT Arrows**: Align selected points to the left or right edge of the current selection.
+- **Modifiers**:
+  - **Ctrl / Cmd**: Fine adjustment (smaller increments).
+  - **Shift**: Snap to integer values (Y-axis) or 30-minute intervals (X-axis).
+- **Shortcuts**:
+  - **Ctrl + Z**: Undo last action.
+  - **Ctrl + Y / Ctrl + Shift + Z**: Redo action.
+  - **Ctrl + A**: Select all points.
+  - **Alt + Q**: Insert new point halfway between selection and the next point.
+  - **Alt + W**: Delete currently selected point(s).
+  - **Esc**: Deselect all.
+  - **Enter**: (If configured) Apply changes immediately.
 ## 🚀 Installation
 
 ### Via HACS (Recommended)
