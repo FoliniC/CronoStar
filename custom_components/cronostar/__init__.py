@@ -76,7 +76,7 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
     
     await _set_debug_logging(hass)
     
-    component_version = "4.3.0"
+    component_version = "5.2.0"
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = { "version": component_version }
 
