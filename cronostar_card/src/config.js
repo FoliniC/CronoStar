@@ -1,5 +1,5 @@
 /** Configuration management for CronoStar Card with Interval Support */
-export const VERSION = '5.1.1';
+export const VERSION = '5.2.0';
 
 // Interval options (minutes)
 // Sparse mode: remove interval options

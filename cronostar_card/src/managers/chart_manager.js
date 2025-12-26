@@ -81,10 +81,10 @@ export class ChartManager {
       if (!Number.isFinite(minutes)) return;
 
       let snapMinutes = Number(this.card.config?.keyboard_time_step_minutes) || 5;
-      
-      if (e.shiftKey) snapMinutes = 30; 
-      else if (e.ctrlKey || e.metaKey) snapMinutes = 1; 
-      else if (e.altKey) snapMinutes = 30; 
+
+      if (e.shiftKey) snapMinutes = 30;
+      else if (e.ctrlKey || e.metaKey) snapMinutes = 1;
+      else if (e.altKey) snapMinutes = 30;
 
       minutes = Math.round(minutes / snapMinutes) * snapMinutes;
 
@@ -106,7 +106,7 @@ export class ChartManager {
       });
 
       this.chart.update('none');
-      
+
       const activeX = dataset.data[activeIndex]?.x;
       const activeY = dataset.data[activeIndex]?.y;
       this.showDragValueDisplay(activeY, activeX);
@@ -150,7 +150,7 @@ export class ChartManager {
     try {
       const el = this.card.shadowRoot?.getElementById('drag-value-display');
       if (!el || !this.chart || !this.chart.canvas?.isConnected) return;
-      
+
       const valRaw = Number.isFinite(Number(value)) ? Number(value) : 0;
       const xRaw = Number.isFinite(Number(minutes)) ? Number(minutes) : 0;
 
@@ -286,7 +286,7 @@ export class ChartManager {
       requestAnimationFrame(() => this.initChart(canvas));
       return false;
     }
-    
+
     Logger.log('CHART', '[CronoStar] initChart starting...', {
       config: this.card.config,
       schedulePoints: this.card.stateManager?.scheduleData?.length
@@ -302,7 +302,7 @@ export class ChartManager {
         if (indices.length > 1) {
              this.card.stateManager.alignSelectedPoints('right');
              e.stopImmediatePropagation();
-             return; 
+             return;
         }
       }
       const points = this.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
@@ -311,7 +311,7 @@ export class ChartManager {
         this.updateData(this.card.stateManager.getData());
         this.card.requestUpdate();
       }
-    });
+    }, { passive: false });
 
     canvas.addEventListener('pointerdown', (e) => {
       if (!this.chart || this.card.pointerSelecting || e.button !== 0) return;
@@ -354,8 +354,8 @@ export class ChartManager {
       this.card.isDragging = true;
       window.addEventListener('pointermove', this._boundOnWindowPointerMove, { capture: true, passive: true });
       window.addEventListener('pointerup', this._boundOnWindowPointerUp, { capture: true, passive: true });
-    }, { capture: true });
-    
+    }, { capture: true, passive: true });
+
     this._hoverHandler = (e) => this._showHoverInfo(e);
     this._hoverOutHandler = () => this._hideHoverInfo();
     canvas.addEventListener('pointermove', this._hoverHandler, { passive: true });
@@ -455,7 +455,7 @@ export class ChartManager {
             ticks: {
               stepSize: 120, maxRotation: 90, minRotation: 0, autoSkip: true, includeBounds: true,
               callback: (v) => (v === 1439 || v === 1440) ? '23:59' : this.card.stateManager.minutesToTime(v)
-            } 
+            }
           },
           y: { min: isSwitch ? -0.1 : minV, max: isSwitch ? 1.1 : maxV, ticks: { stepSize: isSwitch ? 1 : undefined, callback: v => isSwitch ? (v === 0 ? 'Off' : (v === 1 ? 'On' : '')) : v } }
         }

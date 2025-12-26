@@ -6,7 +6,7 @@
 #
 
 cronostar:
-
+  enable_backups: false
 homeassistant:
   allowlist_external_dirs:
     - /config/cronostar

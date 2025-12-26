@@ -4,38 +4,39 @@ output_dir: "."
 base_dir: "."
 output_filename_prefix: "cronostar_card_lovelace_only"
 files:
-  - path: cronostar_card/src/core/CardEventHandlers.js
-  - path: cronostar_card/src/core/CardLifecycle.js
-  - path: cronostar_card/src/core/CardRenderer.js
-  - path: cronostar_card/src/core/CardSync.js
-  - path: cronostar_card/src/core/cronostar_define_guard.js
-  - path: cronostar_card/src/core/CronoStar.js
-  - path: cronostar_card/src/editor/services/service_handlers.js
-  - path: cronostar_card/src/editor/steps/Step1Preset.js
-  - path: cronostar_card/src/editor/steps/Step2Entities.js
-  - path: cronostar_card/src/editor/steps/Step3Options.js
-  - path: cronostar_card/src/editor/steps/Step4Automation.js
-  - path: cronostar_card/src/editor/steps/Step5Summary.js
-  - path: cronostar_card/src/editor/yaml/yaml_generators.js
-  - path: cronostar_card/src/editor/CronoStarEditor.js
-  - path: cronostar_card/src/editor/EditorI18n.js
-  - path: cronostar_card/src/editor/EditorWizard.js
-  - path: cronostar_card/src/handlers/keyboard_handler.js
-  - path: cronostar_card/src/handlers/pointer_handler.js
-  - path: cronostar_card/src/managers/chart_manager.js
-  - path: cronostar_card/src/managers/localization_manager.js
-  - path: cronostar_card/src/managers/profile_manager.js
-  - path: cronostar_card/src/managers/selection_manager.js
-  - path: cronostar_card/src/managers/shared_data_manager.js
-  - path: cronostar_card/src/managers/state_manager.js
-  - path: cronostar_card/src/utils/editor_utils.js
-  - path: cronostar_card/src/utils/filename_utils.js
-  - path: cronostar_card/src/utils/prefix_utils.js
-  - path: cronostar_card/src/config.js
-  - path: cronostar_card/src/main.js
-  - path: cronostar_card/src/styles.js
-  - path: cronostar_card/src/utils.js
-  - path: cronostar_card/eslint.config.js
-  - path: cronostar_card/package.json
-  - path: cronostar_card/rollup.config.js
-  
+- path: cronostar_card/eslint.config.js
+- path: cronostar_card/package.json
+- path: cronostar_card/rollup.config.js
+- path: cronostar_card/src/config.js
+- path: cronostar_card/src/core/CardEventHandlers.js
+- path: cronostar_card/src/core/CardLifecycle.js
+- path: cronostar_card/src/core/CardRenderer.js
+- path: cronostar_card/src/core/CardSync.js
+- path: cronostar_card/src/core/CronoStar.js
+- path: cronostar_card/src/core/cronostar_define_guard.js
+- path: cronostar_card/src/editor/CronoStarEditor.js
+- path: cronostar_card/src/editor/EditorI18n.js
+- path: cronostar_card/src/editor/EditorWizard.js
+- path: cronostar_card/src/editor/services/service_handlers.js
+- path: cronostar_card/src/editor/steps/Step0Dashboard.js
+- path: cronostar_card/src/editor/steps/Step1Preset.js
+- path: cronostar_card/src/editor/steps/Step2Entities.js
+- path: cronostar_card/src/editor/steps/Step3Options.js
+- path: cronostar_card/src/editor/steps/Step4Automation.js
+- path: cronostar_card/src/editor/steps/Step5Summary.js
+- path: cronostar_card/src/editor/yaml/yaml_generators.js
+- path: cronostar_card/src/handlers/keyboard_handler.js
+- path: cronostar_card/src/handlers/pointer_handler.js
+- path: cronostar_card/src/main.js
+- path: cronostar_card/src/managers/chart_manager.js
+- path: cronostar_card/src/managers/localization_manager.js
+- path: cronostar_card/src/managers/profile_manager.js
+- path: cronostar_card/src/managers/selection_manager.js
+- path: cronostar_card/src/managers/shared_data_manager.js
+- path: cronostar_card/src/managers/state_manager.js
+- path: cronostar_card/src/styles.js
+- path: cronostar_card/src/utils.js
+- path: cronostar_card/src/utils/editor_utils.js
+- path: cronostar_card/src/utils/filename_utils.js
+- path: cronostar_card/src/utils/prefix_utils.js
+

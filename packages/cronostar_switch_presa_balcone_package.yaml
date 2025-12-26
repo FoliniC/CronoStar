@@ -7,6 +7,19 @@ input_number:
     mode: box
     icon: mdi:chart-timeline
 
+input_boolean:
+  cronostar_switch_presa_balcone_paused:
+    name: "CronoStar Generic Switch Paused"
+    icon: mdi:pause-circle
+
+input_select:
+  cronostar_switch_presa_balcone_profiles:
+    name: "CronoStar Generic Switch Profiles"
+    options:
+      - "Default"
+    initial: "Default"
+    icon: mdi:format-list-bulleted
+
 input_text:
   cronostar_switch_presa_balcone_target_entity:
     name: "CronoStar Generic Switch Target Entity"

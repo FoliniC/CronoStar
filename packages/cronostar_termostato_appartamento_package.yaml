@@ -1,4 +1,4 @@
-input_number: 
+input_number:
   cronostar_termostato_appartamento_current:
     name: "CronoStar Thermostat Current"
     min: 15
