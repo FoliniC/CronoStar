@@ -181,7 +181,6 @@ export function buildInputNumbersYaml(config, isInline = false) {
     lines.push(`${indent}  name: "CronoStar ${presetName} Profiles"`);
     lines.push(`${indent}  options:`);
     lines.push(`${indent}    - "Default"`);
-    lines.push(`${indent}    - "Custom"`);
     lines.push(`${indent}  initial: "Default"`);
     lines.push(`${indent}  icon: mdi:format-list-bulleted`);
   }

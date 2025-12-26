@@ -6,12 +6,19 @@ const TRANSLATIONS = {
     ui: {
       title: "CronoStar",
       loading: "Loading…",
+      loading_data: "Loading schedule data…",
+      starting_backend: "Starting backend services…",
       waiting_ha_start: "Waiting for Home Assistant startup…",
       waiting_profile_restore: "Restoring profiles…",
       startup_watermark: "Waiting for backend",
       anomalous_operation_warning: "Warning: some entities are missing or unavailable.",
       anomalous_operation_watermark: "Entities missing",
       create_missing_entities_message: "Missing entities for this preset. Please create the following input_number entities:",
+      missing_entities: "Missing entities",
+      check_configuration: "Check configuration",
+      retry: "Retry",
+      automation_enabled: "Automation enabled",
+      select_profile: "Select profile",
       pause: "Pause",
       profile: "Profile",
       unsaved_changes: "Unsaved changes",
@@ -56,63 +63,6 @@ const TRANSLATIONS = {
       text: "Use mouse/touch to drag points. Keyboard: Ctrl+A select all, arrows change values, Esc clears selection."
     },
     error: {
-      chart_init_failed: "Chart initialization failed. See console logs."
-    }
-  },
-  it: {
-    ui: {
-      title: "CronoStar",
-      loading: "Caricamento…",
-      waiting_ha_start: "In attesa dell'avvio di Home Assistant…",
-      waiting_profile_restore: "Ripristino dei profili in corso…",
-      startup_watermark: "Attesa backend",
-      anomalous_operation_warning: "Attenzione: alcune entità sono mancanti o non disponibili.",
-      anomalous_operation_watermark: "Entità mancanti",
-      create_missing_entities_message: "Entità mancanti per questo preset. Si prega di creare le seguenti entità input_number:",
-      pause: "Pausa",
-      profile: "Profilo",
-      unsaved_changes: "Modifiche non salvate",
-      reset: "Ripristina",
-      apply_now_error: "Errore in Applica Ora",
-      apply_now_success: "Applicato correttamente per l'ora {hour}",
-      time_label: "Orario",
-      hours_label: "Ore",
-      temperature_label: "Temperatura"
-    },
-    menu: {
-      language: "Lingua",
-      select_all: "Seleziona tutto",
-      align_left: "Allinea a Sinistra",
-      align_right: "Allinea a Destra",
-      apply_now: "Applica ora",
-      add_profile: "Aggiungi profilo",
-      delete_profile: "Elimina profilo",
-      help: "Aiuto",
-      enable_logging: "Abilita log",
-      select_preset: "Seleziona preset"
-    },
-    preset: {
-      thermostat: "Termostato",
-      ev_charging: "Ricarica EV",
-      generic_kwh: "kWh generico",
-      generic_temperature: "Temperatura generica",
-      generic_switch: "Interruttore generico"
-    },
-    prompt: {
-      add_profile_name: "Inserisci il nome del nuovo profilo",
-      delete_profile_confirm: "Eliminare il profilo '{profile}'?"
-    },
-    notify: {
-      add_profile_success: "Profilo '{profile}' creato",
-      add_profile_error: "Errore nella creazione del profilo '{profile}': {error}",
-      delete_profile_success: "Profilo '{profile}' eliminato",
-      delete_profile_error: "Errore nell'eliminazione del profilo '{profile}': {error}"
-    },
-    help: {
-      title: "Aiuto CronoStar",
-      text: "Usa mouse/touch per trascinare i punti. Tastiera: Ctrl+A seleziona tutto, frecce cambiano i valori, Esc cancella la selezione."
-    },
-    error: {
       chart_init_failed: "Chart initialization failed. See console logs.",
       config_error: "Configuration error",
       initialization_failed: "Card initialization failed",
@@ -125,12 +75,19 @@ const TRANSLATIONS = {
     ui: {
       title: "CronoStar",
       loading: "Caricamento…",
+      loading_data: "Caricamento dati programma…",
+      starting_backend: "Avvio servizi backend…",
       waiting_ha_start: "In attesa dell'avvio di Home Assistant…",
       waiting_profile_restore: "Ripristino dei profili in corso…",
       startup_watermark: "Attesa backend",
       anomalous_operation_warning: "Attenzione: alcune entità sono mancanti o non disponibili.",
       anomalous_operation_watermark: "Entità mancanti",
       create_missing_entities_message: "Entità mancanti per questo preset. Si prega di creare le seguenti entità input_number:",
+      missing_entities: "Entità mancanti",
+      check_configuration: "Verifica configurazione",
+      retry: "Riprova",
+      automation_enabled: "Automazione abilitata",
+      select_profile: "Seleziona profilo",
       pause: "Pausa",
       profile: "Profilo",
       unsaved_changes: "Modifiche non salvate",
@@ -138,6 +95,7 @@ const TRANSLATIONS = {
       apply_now_error: "Errore in Applica Ora",
       apply_now_success: "Applicato correttamente per l'ora {hour}",
       time_label: "Orario",
+      hours_label: "Ore",
       temperature_label: "Temperatura"
     },
     menu: {
@@ -209,4 +167,4 @@ export class LocalizationManager {
       return key;
     }
   }
-}  
+}

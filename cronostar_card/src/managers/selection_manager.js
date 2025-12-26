@@ -280,4 +280,34 @@ export class SelectionManager {
   getSelectedPoints() {
     return [...this.selectedPoints];
   }
+
+  /**
+   * Handle pointer down event (delegated from CardRenderer)
+   * @param {PointerEvent} e
+   */
+  handlePointerDown(e) {
+    if (this.card.pointerHandler) {
+      this.card.pointerHandler.onPointerDown(e);
+    }
+  }
+
+  /**
+   * Handle pointer move event (delegated from CardRenderer)
+   * @param {PointerEvent} e
+   */
+  handlePointerMove(e) {
+    if (this.card.pointerHandler) {
+      this.card.pointerHandler.onPointerMove(e);
+    }
+  }
+
+  /**
+   * Handle pointer up event (delegated from CardRenderer)
+   * @param {PointerEvent} e
+   */
+  handlePointerUp(e) {
+    if (this.card.pointerHandler) {
+      this.card.pointerHandler.onPointerUp(e);
+    }
+  }
 }

@@ -7,6 +7,11 @@ export class StateManager {
     this.scheduleData = [];
     this.isLoadingProfile = false;
 
+    // History for Undo/Redo
+    this.undoStack = [];
+    this.redoStack = [];
+    this.maxHistory = 50;
+
     this._initializeScheduleData();
   }
 
@@ -19,7 +24,67 @@ export class StateManager {
       { time: "00:00", value: defaultVal },
       { time: "23:59", value: defaultVal }
     ];
+    this.undoStack = [];
+    this.redoStack = [];
     Logger.state(`[StateManager] Initialized (sparse) with ${this.scheduleData.length} points`);
+  }
+
+  /**
+   * Push current state to undo stack
+   */
+  _pushHistory() {
+    if (this.isLoadingProfile) return;
+    
+    // Save a deep copy of current data
+    const snapshot = JSON.stringify(this.scheduleData);
+    
+    // Don't push if it's the same as the last one
+    if (this.undoStack.length > 0 && this.undoStack[this.undoStack.length - 1] === snapshot) {
+      return;
+    }
+
+    this.undoStack.push(snapshot);
+    if (this.undoStack.length > this.maxHistory) {
+      this.undoStack.shift();
+    }
+    // Clear redo stack on new action
+    this.redoStack = [];
+  }
+
+  undo() {
+    if (this.undoStack.length === 0) return false;
+
+    // Save current state to redo stack
+    this.redoStack.push(JSON.stringify(this.scheduleData));
+    
+    // Restore previous state
+    const snapshot = this.undoStack.pop();
+    this.scheduleData = JSON.parse(snapshot);
+    
+    this._syncState();
+    return true;
+  }
+
+  redo() {
+    if (this.redoStack.length === 0) return false;
+
+    // Save current state to undo stack
+    this.undoStack.push(JSON.stringify(this.scheduleData));
+    
+    // Restore next state
+    const snapshot = this.redoStack.pop();
+    this.scheduleData = JSON.parse(snapshot);
+    
+    this._syncState();
+    return true;
+  }
+
+  _syncState() {
+    if (this.card.chartManager?.isInitialized()) {
+      this.card.chartManager.updateData(this.scheduleData);
+    }
+    this.card.hasUnsavedChanges = true;
+    this.card.requestUpdate();
   }
 
   /**
@@ -29,16 +94,16 @@ export class StateManager {
     return this.scheduleData.length;
   }
 
-  // Sparse mode: no interval-based resizing
-
   /**
    * Robustly set data, normalizing missing time/value fields
    */
-  setData(newData) {
+  setData(newData, skipHistory = false) {
     if (!Array.isArray(newData)) {
       Logger.warn('STATE', '[StateManager] setData received non-array data');
       return;
     }
+
+    if (!skipHistory) this._pushHistory();
 
     // Sparse mode: accept only object items with {time,value} or {x,y}
     this.scheduleData = newData
@@ -73,6 +138,11 @@ export class StateManager {
     }
 
     this.card.hasUnsavedChanges = true;
+    this.card.dispatchEvent(new CustomEvent('cronostar-state-changed', { 
+      detail: { hasUnsavedChanges: true },
+      bubbles: true, 
+      composed: true 
+    }));
     Logger.state(`[StateManager] setData (sparse) accepted ${this.scheduleData.length} points`);
   }
 
@@ -87,6 +157,7 @@ export class StateManager {
    * Insert point (used by pointer/keyboard handlers)
    */
   insertPoint(timeStr, value) {
+    this._pushHistory();
     const newMinutes = this.timeToMinutes(timeStr);
 
     // Try to update existing point within small tolerance
@@ -114,6 +185,7 @@ export class StateManager {
    */
   removePoint(index) {
     if (index >= 0 && index < this.scheduleData.length) {
+      this._pushHistory();
       this.scheduleData.splice(index, 1);
       this.card.hasUnsavedChanges = true;
       Logger.state(`[StateManager] Removed point at index ${index}`);
@@ -127,6 +199,7 @@ export class StateManager {
    */
   updatePoint(index, value) {
     if (index < 0 || index >= this.scheduleData.length) return;
+    // Note: for points dragging, history is pushed on drag start in chart_manager
     this.scheduleData[index].value = value;
     this.card.hasUnsavedChanges = true;
     this.card.lastEditAt = Date.now();
@@ -146,7 +219,9 @@ export class StateManager {
         .map((i) => Number(i))
         .filter((i) => Number.isInteger(i) && i >= 0 && i < this.scheduleData.length);
 
-      if (!indices.length) return;
+      if (indices.length < 2) return;
+
+      this._pushHistory();
 
       const sorted = [...indices].sort((a, b) => a - b);
       const anchorIdx = direction === 'right' ? sorted[sorted.length - 1] : sorted[0];

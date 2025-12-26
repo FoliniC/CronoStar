@@ -5,6 +5,7 @@ import { normalizePrefix, getEffectivePrefix, isValidPrefix } from '../utils/pre
 import { buildHelpersFilename, buildAutomationFilename } from '../utils/filename_utils.js';
 import { EditorI18n } from './EditorI18n.js';
 import { EditorWizard } from './EditorWizard.js';
+import { Step0Dashboard } from './steps/Step0Dashboard.js';
 import { Step1Preset } from './steps/Step1Preset.js';
 import { Step2Entities } from './steps/Step2Entities.js';
 import { Step3Options } from './steps/Step3Options.js';
@@ -43,7 +44,17 @@ export class CronoStarEditor extends LitElement {
       _calculatedAutomationFilename: { type: String },
       _creatingAutomation: { type: Boolean },
       _deepCheckInProgress: { type: Boolean },
-      _showStepError: { type: Boolean }
+      _showStepError: { type: Boolean },
+      // NUOVO: Proprietà reattive per Step 0 Dashboard
+      _dashboardProfilesData: { type: Object },
+      _dashboardLoading: { type: Boolean },
+      _dashboardSelectedPreset: { type: String },
+      _dashboardSelectedProfile: { type: String },
+      _dashboardShowDetailModal: { type: Boolean },
+      _dashboardDetailData: { type: Object },
+      _dashboardIsEditingName: { type: Boolean },
+      _dashboardEditName: { type: String },
+      _isEditing: { type: Boolean }
     };
   }
 
@@ -476,13 +487,25 @@ export class CronoStarEditor extends LitElement {
       .preset-description { font-size: 0.8rem !important; color: #b0b0b0 !important; }
     `;
   }
+
   constructor() {
     super();
-    this._step = 1;
+    this._step = 0;
     this._config = { ...DEFAULT_CONFIG };
     this._language = 'en';
     this.i18n = new EditorI18n('en');
     this.wizard = new EditorWizard(this);
+
+    // NUOVO: Inizializza proprietà dashboard
+    this._dashboardProfilesData = null;
+    this._dashboardLoading = false;
+    this._dashboardSelectedPreset = null;
+    this._dashboardSelectedProfile = null;
+    this._dashboardShowDetailModal = false;
+    this._dashboardDetailData = null;
+    this._dashboardIsEditingName = false;
+    this._dashboardEditName = "";
+    this._isEditing = false;
 
     // Debounce config-changed to avoid constant card recreations while typing
     this._debouncedDispatch = this._debounce(() => {
@@ -652,13 +675,23 @@ export class CronoStarEditor extends LitElement {
   }
 
   _renderWizardSteps() {
-    const steps = [1, 2, 3, 4, 5];
+    const steps = [0, 1, 2, 3, 4, 5];
+    const canJump = this._canGoNext();
+
     return html`
       <div class="wizard-steps">
         ${steps.map(s => html`
-          <div class="step-badge ${this._step === s ? 'active' : ''}" 
-               @click=${() => { if (s < this._step) this._step = s; }}>
-            ${s}
+          <div 
+            class="step-badge ${this._step === s ? 'active' : ''}" 
+            @click=${() => { 
+              // Permetti di tornare indietro sempre, o andare avanti solo se la config minima è ok
+              if (s === 0 || (s <= this._step) || (canJump && this._step !== 0)) {
+                this._step = s; 
+                this.requestUpdate();
+              }
+            }}
+          >
+            ${s === 0 ? '🏠' : s}
           </div>
         `)}
       </div>
@@ -667,6 +700,7 @@ export class CronoStarEditor extends LitElement {
 
   _renderStepContent() {
     switch (this._step) {
+      case 0: return new Step0Dashboard(this).render();
       case 1: return new Step1Preset(this).render();
       case 2: return new Step2Entities(this).render();
       case 3: return new Step3Options(this).render();
@@ -715,7 +749,6 @@ export class CronoStarEditor extends LitElement {
     }
     return html`<mwc-button raised ?disabled=${disabled} @click=${click}>${label}</mwc-button>`;
   }
-
 
   _updateConfig(key, value) {
     const newConfig = { ...this._config, [key]: value };
@@ -775,6 +808,7 @@ export class CronoStarEditor extends LitElement {
   }
 
   _canGoNext() {
+    if (this._step === 0) return true;
     if (this._step === 1) {
       const p = normalizePrefix(this._config.global_prefix);
       return isValidPrefix(p) && !!this._config.target_entity;
@@ -783,18 +817,31 @@ export class CronoStarEditor extends LitElement {
   }
 
   _renderWizardActions() {
+    if (this._step === 0) {
+      return html``;
+    }
+
     if (this._step === 1) {
       const valid = this._canGoNext();
       if (!valid) {
         return html`
                <div class="wizard-actions">
+                  <mwc-button outlined @click=${() => { this._step = 0; this.requestUpdate(); }}>
+                    ${this.i18n._t('actions.back')}
+                  </mwc-button>
                   <div style="flex:1"></div>
                   <div class="hint" style="color: var(--error-color);">
                     ${this.i18n._t('ui.minimal_config_needed')}
                   </div>
                </div>`;
       }
-      return html``;
+      return html`
+        <div class="wizard-actions">
+          <mwc-button outlined @click=${() => { this._step = 0; this.requestUpdate(); }}>
+            ${this.i18n._t('actions.back')}
+          </mwc-button>
+        </div>
+      `;
     }
 
     return html`

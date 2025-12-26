@@ -4,7 +4,7 @@
  */
 
 import { Logger, safeParseFloat } from '../utils.js';
-import { TIMEOUTS } from '../config.js';
+import { TIMEOUTS, extractCardConfig } from '../config.js';
 import { getEffectivePrefix } from '../utils/prefix_utils.js';
 
 export class ProfileManager {
@@ -17,7 +17,8 @@ export class ProfileManager {
     const src = (config && typeof config === 'object') ? config : {};
     // Persist only safe wizard/card config keys (single source of truth).
     // IMPORTANT: do not leak deprecated keys like entity_prefix into saved JSON.
-    const { entity_prefix, ...rest } = src;
+    const cleanConfig = extractCardConfig(src);
+    const { entity_prefix, ...rest } = cleanConfig;
     // Ensure meta carries global_prefix consistently.
     if (!rest.global_prefix) {
       const effectivePrefix = getEffectivePrefix(src);
@@ -111,10 +112,17 @@ export class ProfileManager {
       Logger.load(`[CronoStar] 📥 Response received:`, responseData);
 
       const rawSchedule = responseData?.schedule;
-      let scheduleValues = null;
+      const meta = responseData?.meta;
+      let scheduleValues = [];
 
       if (responseData && !responseData.error && rawSchedule && Array.isArray(rawSchedule)) {
         // Success case: Profile loaded from backend
+        // Update local config if meta is present in response
+        if (meta) {
+          const cleanMeta = extractCardConfig(meta);
+          this.card.config = { ...this.card.config, ...cleanMeta };
+        }
+
         // Sparse mode: expect {time,value} or {x,y} objects and pass through
         scheduleValues = rawSchedule;
 
@@ -173,12 +181,10 @@ export class ProfileManager {
     const previousProfile = this.lastLoadedProfile || this.card.selectedProfile;
 
     if (this.card.hasUnsavedChanges && previousProfile) {
-      try {
-        Logger.save(`[CronoStar] Auto-saving previous profile '${previousProfile}'`);
-        await this.saveProfile(previousProfile);
-      } catch (err) {
-        Logger.error('SAVE', "[CronoStar] Error during auto-save:", err);
-      }
+      this.card.pendingProfileChange = newProfile;
+      this.card.showUnsavedChangesDialog = true;
+      this.card.requestUpdate();
+      return;
     }
 
     this.card.selectedProfile = newProfile;

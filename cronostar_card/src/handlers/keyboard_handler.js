@@ -84,6 +84,26 @@ export class KeyboardHandler {
     const isCtrlOrMeta = this.ctrlDown || this.metaDown || e.ctrlKey || e.metaKey;
     const isAlt = this.altDown || e.altKey;
 
+    // Undo / Redo
+    if (isCtrlOrMeta && !isAlt) {
+      if (e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.card.stateManager?.undo()) {
+          Logger.log('KEYBOARD', '[CronoStar] Undo performed');
+        }
+        return;
+      }
+      if (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z')) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.card.stateManager?.redo()) {
+          Logger.log('KEYBOARD', '[CronoStar] Redo performed');
+        }
+        return;
+      }
+    }
+
     // Alt+Q: Insert point
     if (isAlt && e.key.toLowerCase() === 'q') {
       e.preventDefault();

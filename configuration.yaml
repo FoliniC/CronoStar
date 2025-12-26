@@ -14,4 +14,4 @@ lovelace:
      # type: module
 
 # Enable the CronoStar backend
-cronostar:
+#cronostar:

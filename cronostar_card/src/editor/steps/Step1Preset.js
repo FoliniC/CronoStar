@@ -24,8 +24,13 @@ export class Step1Preset {
     const applyExists = !!(applyEntity && this.editor.hass?.states?.[applyEntity]);
     const minimalConfigComplete = prefixValid && !!applyEntity;
 
+    const headerKey = this.editor._isEditing ? 'headers.step1_edit' : 'headers.step1';
+
     return html`
       <div class="step-content">
+        <div class="step-header">${this.editor.i18n._t(headerKey)}</div>
+        <div class="step-description">${this.editor.i18n._t('descriptions.step1')}</div>
+
         <div class="field-group" style="margin-bottom: 24px;">
           <label class="field-label">1. ${this.editor.i18n._t('fields.target_entity_label')}</label>
           <div class="field-description">${this.editor.i18n._t('fields.target_entity_desc')}</div>

@@ -16,13 +16,16 @@ export const I18N = {
       fine: 'Finish'
     },
     headers: {
+      step0: 'Dashboard',  // NUOVO
       step1: 'Basic Configuration',
+      step1_edit: 'Edit Configuration',
       step2: 'Advanced Configuration',
       step3: 'Display Options',
       step4: 'Automation Setup',
       step5: 'Summary & Verification'
     },
     descriptions: {
+      step0: 'Choose an action: configure a new preset or analyze existing profiles.',  // NUOVO
       step1: 'Configure the essential elements: target entity and identification prefix.',
       step2: 'Optional: configure additional entities (pause, profiles) and generate the configuration package.',
       step3: 'Customize the card appearance and value ranges.',
@@ -143,6 +146,7 @@ export const I18N = {
       fine: 'Fine'
     },
     headers: {
+      step0: 'Dashboard',  // NUOVO
       step1: 'Configurazione Base',
       step2: 'Configurazione Avanzata',
       step3: 'Opzioni Visualizzazione',
@@ -150,6 +154,7 @@ export const I18N = {
       step5: 'Riepilogo e Verifica'
     },
     descriptions: {
+      step0: 'Scegli un\'azione: configurare un nuovo preset o analizzare i profili esistenti.',  // NUOVO
       step1: 'Configura gli elementi essenziali: entità di destinazione e prefisso identificativo.',
       step2: 'Opzionale: configura entità aggiuntive (pausa, profili) e genera il package di configurazione.',
       step3: 'Personalizza l\'aspetto della card e gli intervalli di valori.',

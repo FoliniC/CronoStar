@@ -216,3 +216,32 @@ export function getStubConfig() {
   return { ...DEFAULT_CONFIG };
 }
 
+/**
+ * Filter an object to keep only keys that are valid for the card configuration.
+ * Prevents metadata pollution from backend responses.
+ */
+export function extractCardConfig(src = {}) {
+  const validKeys = [
+    'type', 'preset', 'global_prefix', 'target_entity', 'pause_entity',
+    'profiles_select_entity', 'min_value', 'max_value', 'step_value',
+    'unit_of_measurement', 'y_axis_label', 'allow_max_value',
+    'logging_enabled', 'hour_base', 'title', 'missing_yaml_style',
+    'interval_minutes'
+  ];
+  const out = {};
+  for (const key of validKeys) {
+    if (src[key] !== undefined && src[key] !== null) {
+      out[key] = src[key];
+    }
+  }
+  // Map preset_type (backend) to preset (frontend)
+  if (src.preset_type && !out.preset) {
+    out.preset = src.preset_type;
+  }
+  // Ensure type is preserved if explicitly passed as preset type or missing
+  if (src.type === undefined && out.type === undefined) {
+      out.type = 'custom:cronostar-card';
+  }
+  return out;
+}
+

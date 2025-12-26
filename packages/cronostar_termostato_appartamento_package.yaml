@@ -1,4 +1,4 @@
-input_number:
+input_number: 
   cronostar_termostato_appartamento_current:
     name: "CronoStar Thermostat Current"
     min: 15
@@ -18,6 +18,11 @@ input_select:
     name: "CronoStar Thermostat Profiles"
     options:
       - "Default"
-      - "Custom"
     initial: "Default"
     icon: mdi:format-list-bulleted
+
+input_text:
+  cronostar_termostato_appartamento_target_entity:
+    name: "CronoStar Thermostat Target Entity"
+    initial: "climate.climatizzazione_appartamento"
+    icon: mdi:target

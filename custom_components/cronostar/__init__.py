@@ -1,8 +1,9 @@
-""" CronoStar custom component - Enhanced with auto-save."""
+"""CronoStar custom component - Enhanced with auto-save and dashboard support."""
 import logging
 import os
 import json
 from pathlib import Path
+import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
 from homeassistant import config_entries
@@ -23,7 +24,16 @@ from .utils.filename_builder import build_profile_filename
 
 _LOGGER = logging.getLogger(__name__)
 
-CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
+CONFIG_SCHEMA = vol.Schema(
+    {
+        DOMAIN: vol.Schema(
+            {
+                vol.Optional("enable_backups", default=False): cv.boolean,
+            }
+        )
+    },
+    extra=vol.ALLOW_EXTRA,
+)
 
 async def _set_debug_logging(hass: HomeAssistant) -> None:
     """Force DEBUG logging on Home Assistant and this component at startup."""
@@ -47,6 +57,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the CronoStar component from YAML."""
     if DOMAIN not in config:
         return True
+    
+    conf = config[DOMAIN]
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
+    
+    hass.data[DOMAIN]["enable_backups"] = conf.get("enable_backups", False)
     
     return await _async_setup_core(hass)
 
@@ -74,7 +90,11 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
         _LOGGER.info("Frontend JS URL registered")
 
     file_service = FileService(hass)
-    storage_manager = StorageManager(hass, profiles_dir)
+    
+    # NUOVO: Leggi configurazione backups (default: False)
+    enable_backups = hass.data.get(DOMAIN, {}).get("enable_backups", False)
+    storage_manager = StorageManager(hass, profiles_dir, enable_backups=enable_backups)
+    
     profile_service = ProfileService(hass, file_service, storage_manager)
     scheduler = SmartScheduler(hass, profile_service)
     automation_service = AutomationService(hass)
@@ -89,7 +109,9 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
     except Exception as e:
         _LOGGER.warning("deep_checks module not available: %s", e)
 
-    # Registration of services
+    # ========================================
+    # SERVICE: save_profile
+    # ========================================
     async def save_profile_wrapper(call: ServiceCall):
         await profile_service.save_profile(call)
         preset = call.data.get("preset_type")
@@ -99,18 +121,30 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
     if not hass.services.has_service(DOMAIN, "save_profile"):
         hass.services.async_register(DOMAIN, "save_profile", save_profile_wrapper)
 
+    # ========================================
+    # SERVICE: load_profile
+    # ========================================
     async def load_profile_service(call: ServiceCall) -> ServiceResponse:
         return await profile_service.load_profile(call)
     
     if not hass.services.has_service(DOMAIN, "load_profile"):
         hass.services.async_register(DOMAIN, "load_profile", load_profile_service, supports_response=True)
 
+    # ========================================
+    # SERVICE: add_profile
+    # ========================================
     if not hass.services.has_service(DOMAIN, "add_profile"):
         hass.services.async_register(DOMAIN, "add_profile", profile_service.add_profile)
 
+    # ========================================
+    # SERVICE: delete_profile
+    # ========================================
     if not hass.services.has_service(DOMAIN, "delete_profile"):
         hass.services.async_register(DOMAIN, "delete_profile", profile_service.delete_profile)
 
+    # ========================================
+    # SERVICE: apply_now
+    # ========================================
     async def apply_now_service(call: ServiceCall):
         """Apply current scheduled value and trigger scheduler update."""
         payload = getattr(call, "service_data", None) or getattr(call, "data", None) or {}
@@ -121,9 +155,15 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
     if not hass.services.has_service(DOMAIN, "apply_now"):
         hass.services.async_register(DOMAIN, "apply_now", apply_now_service)
 
+    # ========================================
+    # SERVICE: create_yaml_file
+    # ========================================
     if not hass.services.has_service(DOMAIN, "create_yaml_file"):
         hass.services.async_register(DOMAIN, "create_yaml_file", file_service.create_yaml_file)
 
+    # ========================================
+    # SERVICE: register_card
+    # ========================================
     async def register_card(call: ServiceCall) -> ServiceResponse:
         """Register a frontend card and return active profile."""
         card_id = call.data.get("card_id")
@@ -272,6 +312,84 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
     if not hass.services.has_service(DOMAIN, "register_card"):
         hass.services.async_register(DOMAIN, "register_card", register_card, supports_response=True)
 
+    # ========================================
+    # SERVICE: list_all_profiles (NUOVO)
+    # ========================================
+    async def list_all_profiles_service(call: ServiceCall) -> ServiceResponse:
+        """List all profiles grouped by preset type for dashboard."""
+        try:
+            if not hasattr(profile_service, "storage"):
+                return {"error": "Storage not available"}
+
+            force_reload = call.data.get("force_reload", False)
+            files = await profile_service.storage.list_profiles()
+            profiles_by_preset = {}
+
+            for filename in files:
+                try:
+                    data = await profile_service.storage.load_profile_cached(filename, force_reload=force_reload)
+                    if not data:
+                        continue
+
+                    # Container format
+                    if "meta" in data and "profiles" in data:
+                        preset_type = data["meta"].get("preset_type", "unknown")
+                        global_prefix = data["meta"].get("global_prefix", "")
+
+                        if preset_type not in profiles_by_preset:
+                            profiles_by_preset[preset_type] = {
+                                "global_prefix": global_prefix,
+                                "profiles": []
+                            }
+
+                        for profile_name, profile_content in data["profiles"].items():
+                            schedule = profile_content.get("schedule", [])
+                            profiles_by_preset[preset_type]["profiles"].append({
+                                "name": profile_name,
+                                "points": len(schedule),
+                                "updated_at": profile_content.get("updated_at", "unknown")
+                            })
+
+                    # Legacy format
+                    elif "profile_name" in data:
+                        preset_type = data.get("preset_type", "unknown")
+                        global_prefix = data.get("global_prefix", "")
+
+                        if preset_type not in profiles_by_preset:
+                            profiles_by_preset[preset_type] = {
+                                "global_prefix": global_prefix,
+                                "profiles": []
+                            }
+
+                        schedule = data.get("schedule", [])
+                        profiles_by_preset[preset_type]["profiles"].append({
+                            "name": data.get("profile_name", "Unknown"),
+                            "points": len(schedule),
+                            "updated_at": data.get("updated_at", "unknown")
+                        })
+
+                except Exception as e:
+                    _LOGGER.warning("Error reading profile file %s: %s", filename, e)
+                    continue
+
+            _LOGGER.info("[LIST_ALL_PROFILES] Found %d presets with profiles", len(profiles_by_preset))
+            return profiles_by_preset
+
+        except Exception as e:
+            _LOGGER.error("Error listing profiles: %s", e)
+            return {"error": str(e)}
+
+    if not hass.services.has_service(DOMAIN, "list_all_profiles"):
+        hass.services.async_register(
+            DOMAIN,
+            "list_all_profiles",
+            list_all_profiles_service,
+            supports_response=True
+        )
+
+    # ========================================
+    # EVENT HANDLERS
+    # ========================================
     async def on_hass_start(event):
         _LOGGER.info("CronoStar: Home Assistant has started.")
         await profile_service.async_update_profile_selectors()

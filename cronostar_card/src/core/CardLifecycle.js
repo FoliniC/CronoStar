@@ -1,5 +1,5 @@
 import { Logger } from '../utils.js';
-import { validateConfig, VERSION } from '../config.js';
+import { validateConfig, VERSION, extractCardConfig } from '../config.js';
 
 export class CardLifecycle {
   constructor(card) {
@@ -22,6 +22,9 @@ export class CardLifecycle {
 
   setConfig(config) {
     Logger.log('CONFIG', 'CronoStar setConfig config received:', config);
+
+    // Close menu when configuration changes (typically when entering editor)
+    this.card.isMenuOpen = false;
 
     try {
       this.card.config = validateConfig(config);
@@ -82,9 +85,19 @@ export class CardLifecycle {
     try {
       // Store hass safely for getters and internal usage
       this._hass = hass;
+      const card = this.card;
+
+      if (card.isPreview) {
+        if (!card.languageInitialized && hass.language) {
+          card.language = hass.language;
+          card.languageInitialized = true;
+          Logger.log('LANG', 'CronoStar (Preview) Language initialized to:', card.language);
+        }
+        return;
+      }
+
       // IMPORTANT: do NOT assign this.card.hass = hass here, to avoid recursion with CronoStarCard.set hass.
       // Use the passed-in hass for all reads/writes instead.
-      const card = this.card;
 
       if (!card.languageInitialized && hass.language) {
         card.language = hass.language;
@@ -269,15 +282,22 @@ export class CardLifecycle {
 
   isEditorContext() {
     try {
-      const host = this.card;
-      return !!(
-        host.closest('hui-card-preview') ||
-        host.closest('hui-card-editor') ||
-        host.closest('hui-dialog-edit-card') ||
-        host.closest('ha-dialog') ||
-        host.closest('hui-edit-view') ||
-        host.closest('hui-edit-card')
-      );
+      let el = this.card;
+      while (el) {
+        if (el.tagName) {
+          const tag = el.tagName.toLowerCase();
+          if (tag === 'hui-card-preview' || 
+              tag === 'hui-card-editor' || 
+              tag === 'hui-dialog-edit-card' || 
+              tag === 'ha-dialog' || 
+              tag === 'hui-edit-view' || 
+              tag === 'hui-edit-card') {
+            return true;
+          }
+        }
+        el = el.parentElement || el.parentNode || el.host;
+      }
+      return false;
     } catch (e) {
       Logger.error('LIFECYCLE', 'CronoStar Error in isEditorContext:', e);
       return false;
@@ -352,6 +372,7 @@ export class CardLifecycle {
    * Register the card with the backend and apply any initialization data returned.
    */
   async registerCard(hass) {
+    if (this.card.isPreview || !this.card.config?.global_prefix) return;
     try {
       const cfg = this.card.config || {};
       const serviceData = {
@@ -377,6 +398,14 @@ export class CardLifecycle {
 
       // Initialize schedule from profile data, if provided
       const profileData = response?.profile_data;
+      
+      // Update local card config from profile metadata if available
+      if (profileData?.meta) {
+        const cleanMeta = extractCardConfig(profileData.meta);
+        this.card.config = { ...this.card.config, ...cleanMeta };
+        Logger.log('LOAD', 'CronoStar updated card config from register_card metadata');
+      }
+
       const rawSchedule = profileData?.schedule;
       if (Array.isArray(rawSchedule) && rawSchedule.length > 0) {
         this.card.stateManager.setData(rawSchedule);

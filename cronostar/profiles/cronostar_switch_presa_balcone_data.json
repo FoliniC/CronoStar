@@ -1,77 +1,40 @@
 {
-    "meta":  {
-                 "global_prefix":  "cronostar_switch_presa_balcone_",
-                 "preset_type":  "generic_switch",
-                 "created_at":  "2025-12-21T01:35:46.499569",
-    "updated_at": "2025-12-22T18:38:12.227630",
-                 "preset":  "generic_switch",
-                 "hour_base":  {
-                                   "value":  0,
-                                   "determined":  false
-                               },
-                 "logging_enabled":  true,
-                 "pause_entity":  null,
-                 "profiles_select_entity":  null,
-                 "allow_max_value":  false,
-                 "missing_yaml_style":  "named",
-                 "title":  "Presa balcone",
-                 "y_axis_label":  "State",
-                 "unit_of_measurement":  "",
-                 "min_value":  "0",
-                 "max_value":  1,
-                 "step_value":  1,
-                 "is_switch_preset":  true,
-                 "type":  "custom:cronostar-card",
+  "meta": {
+    "global_prefix": "cronostar_switch_presa_balcone_",
+    "preset_type": "generic_switch",
+    "created_at": "2025-12-21T01:35:46.499569",
+    "updated_at": "2025-12-25T00:08:01.254700",
+    "preset": "generic_switch",
+    "hour_base": {
+      "value": 0,
+      "determined": false
+    },
+    "logging_enabled": true,
+    "pause_entity": null,
+    "profiles_select_entity": null,
+    "allow_max_value": false,
+    "missing_yaml_style": "named",
+    "title": "Presa balcone",
+    "y_axis_label": "State",
+    "unit_of_measurement": "",
+    "min_value": "0",
+    "max_value": 1,
+    "step_value": 1,
+    "is_switch_preset": true,
+    "type": "custom:cronostar-card",
     "target_entity": "switch.wifi_breaker_switch_luci_natale",
     "apply_entity": "switch.wifi_breaker_switch_luci_natale"
-             },
-    "profiles":  {
-                     "Comfort":  {
-                                     "schedule":  [
-                                                      {
-                                                          "time":  "00:00",
-                                                          "value":  0
-                                                      },
-                                                      {
-                                                          "time":  "06:45",
-                                                          "value":  0
-                                                      },
-                                                      {
-                                                          "time":  "06:46",
-                                                          "value":  1
-                                                      },
-                                                      {
-                                                          "time":  "08:05",
-                                                          "value":  1
-                                                      },
-                                                      {
-                                                          "time":  "08:06",
-                                                          "value":  0
-                                                      },
-                                                      {
-                                                          "time":  "16:42",
-                                                          "value":  0
-                                                      },
-                                                      {
-                                                          "time":  "16:43",
-                                                          "value":  1
-                                                      },
-                                                      {
-          "time": "23:59",
-                                                          "value":  1
-        }
-      ],
-      "updated_at": "2025-12-22T18:38:12.227659"
-                                                      },
-    "Default": {
+  },
+  "profiles": {
+    "Comfort": {
       "schedule": [
-                                                      {
+        {
           "time": "00:00",
-                                                          "value":  0
-                                                      },
-                                                      {
+          "value": 0
+        },
+        {
           "time": "06:45",
-                                                          "value":  0
+          "value": 0
         },
         {
           "time": "06:46",
@@ -96,12 +59,51 @@
         {
           "time": "23:59",
           "value": 1
-                                                      }
-                                                  ],
-      "updated_at": "2025-12-21T21:12:17.516343"
-                                 }
-                 },
-  "saved_at": 1766425092.2276945,
-  "saved_at_iso": "2025-12-22T17:38:12.227695Z",
-    "version":  2
+        }
+      ],
+      "updated_at": "2025-12-25T00:08:01.255119"
+    },
+    "Default": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 0
+        },
+        {
+          "time": "06:45",
+          "value": 0
+        },
+        {
+          "time": "06:46",
+          "value": 1
+        },
+        {
+          "time": "08:05",
+          "value": 1
+        },
+        {
+          "time": "08:06",
+          "value": 0
+        },
+        {
+          "time": "16:42",
+          "value": 0
+        },
+        {
+          "time": "16:43",
+          "value": 1
+        },
+        {
+          "time": "23:59",
+          "value": 1
+        }
+      ],
+      "updated_at": "2025-12-21T21:12:17.516343",
+      "global_prefix": "cronostar_switch_presa_balcone_",
+      "profile_name": "Default"
+    }
+  },
+  "saved_at": 1766617681.2551618,
+  "saved_at_iso": "2025-12-24T23:08:01.255162Z",
+  "version": 2
 }

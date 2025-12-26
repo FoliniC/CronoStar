@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "global_prefix": "cronostar_ev_",
+    "preset_type": "ev_charging",
+    "created_at": "2025-12-23T14:52:48.855745",
+    "updated_at": "2025-12-23T20:49:38.427313",
+    "type": "custom:cronostar-card",
+    "preset": "ev_charging",
+    "hour_base": {
+      "value": 0,
+      "determined": false
+    },
+    "logging_enabled": true,
+    "pause_entity": "input_boolean.cronostar_ev_paused",
+    "profiles_select_entity": "input_select.cronostar_ev_profiles",
+    "target_entity": "input_number.ev_charge_2025_cronostar_power_target",
+    "allow_max_value": true,
+    "missing_yaml_style": "named",
+    "title": "CronoStar EV Charging",
+    "y_axis_label": "Power",
+    "unit_of_measurement": "kW",
+    "min_value": 0,
+    "max_value": 8,
+    "step_value": 0.5,
+    "is_switch_preset": false,
+    "height": "300px"
+  },
+  "profiles": {
+    "F3": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 0
+        },
+        {
+          "time": "23:59",
+          "value": 0
+        }
+      ],
+      "updated_at": "2025-12-23T14:52:48.855819",
+      "global_prefix": "cronostar_ev_",
+      "profile_name": "F3"
+    },
+    "unavailable": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 0
+        },
+        {
+          "time": "09:44",
+          "value": 0
+        },
+        {
+          "time": "09:48",
+          "value": 4
+        },
+        {
+          "time": "11:16",
+          "value": 0
+        },
+        {
+          "time": "23:59",
+          "value": 0
+        }
+      ],
+      "updated_at": "2025-12-23T20:49:38.427346"
+    }
+  },
+  "saved_at": 1766519378.4381776,
+  "saved_at_iso": "2025-12-23T19:49:38.438178Z",
+  "version": 2
+}

@@ -18,6 +18,16 @@ export class CardEventHandlers {
 
         if (this.card.isMenuOpen) {
             this.card.keyboardHandler.disable();
+            // Close menu on next global click
+            const closeMenu = (event) => {
+                if (!event.composedPath().includes(this.card)) {
+                    this.card.isMenuOpen = false;
+                    this.card.keyboardHandler.enable();
+                    this.card.requestUpdate();
+                    document.removeEventListener('click', closeMenu);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', closeMenu), 10);
         } else {
             this.card.keyboardHandler.enable();
             const chartContainer = this.card.shadowRoot?.querySelector(".chart-container");

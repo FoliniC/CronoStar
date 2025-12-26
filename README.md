@@ -46,6 +46,30 @@ Easily add time-based schedules to any entity. The integration can automatically
 - **Multi-Language**: English and Italian support
 - **Responsive Design**: Works on desktop, tablet, and mobile
 
+Utilizzo del Mouse
+   * Aggiunta Punti: Clicca col tasto sinistro su uno spazio vuoto per inserire un nuovo punto in quell'orario.
+   * Selezione: Clicca su un punto per selezionarlo.
+   * Selezione Multipla: 
+       * Ctrl / Cmd + Click: Aggiunge/rimuove singoli punti alla selezione.
+       * Shift + Click: Seleziona tutti i punti compresi tra l'ultimo selezionato e quello cliccato.
+       * Area di selezione: Trascina il mouse su un'area vuota per disegnare un rettangolo; tutti i punti all'interno verranno selezionati.
+   * Modifica Valori: Trascina un punto verso l'alto o verso il basso per cambiarne il valore. Se sono selezionati più punti, verranno spostati tutti insieme mantenendo
+     le distanze relative.
+   * Eliminazione: Clicca col tasto destro su un punto per rimuoverlo.
+   * Allineamento: Alt + Click sinistro allinea i punti selezionati al valore del punto più a sinistra; Alt + Click destro li allinea a quello più a destra.
+
+  Utilizzo della Tastiera
+   * Frecce SU / GIÙ: Aumenta o diminuisce il valore dei punti selezionati.
+   * Frecce SINISTRA / DESTRA: Allinea i punti selezionati rispettivamente all'estremo sinistro o destro della selezione attuale.
+   * Modificatori:
+       * Ctrl / Cmd: Riduce l'incremento per una regolazione fine.
+       * Shift: Forza lo "snap" a valori interi (asse Y) o alla griglia di 30 minuti (asse X).
+   * Scorciatoie:
+       * Ctrl + A: Seleziona tutti i punti del grafico.
+       * Alt + Q: Inserisce un nuovo punto esattamente a metà tra il punto selezionato e il successivo.
+       * Alt + W: Elimina il punto attualmente selezionato.
+       * Esc: Deseleziona tutti i punti.
+       * Invio: (Se configurato) Applica immediatamente i cambiamenti.
 ## 🚀 Installation
 
 ### Via HACS (Recommended)

@@ -232,7 +232,7 @@ export class PointerHandler {
    * @param {HTMLCanvasElement} canvas - Canvas element
    */
   attachListeners(canvas) {
-    canvas.addEventListener('pointerdown', this.onPointerDown, { passive: false, capture: true });
+    canvas.addEventListener('pointerdown', this.onPointerDown, { passive: true, capture: true });
     window.addEventListener('pointermove', this.onPointerMove, { passive: true, capture: true });
     window.addEventListener('pointerup', this.onPointerUp, { passive: true, capture: true });
     window.addEventListener('pointercancel', this.onPointerCancel, { passive: true, capture: true });

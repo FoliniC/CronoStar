@@ -1,7 +1,7 @@
 // core/CronoStar.js - FIXED VERSION
 import { LitElement } from 'lit';
 import { cardStyles } from '../styles.js';
-import { VERSION } from '../config.js';
+import { VERSION, extractCardConfig } from '../config.js';
 
 import { StateManager } from '../managers/state_manager.js';
 import { ProfileManager } from '../managers/profile_manager.js';
@@ -40,6 +40,8 @@ export class CronoStarCard extends LitElement {
       outOfSyncDetails: { type: String },
       isDragging: { type: Boolean },
       selectedPoints: { type: Array },
+      isPreview: { type: Boolean },
+      previewData: { type: Array },
     };
   }
 
@@ -74,7 +76,8 @@ export class CronoStarCard extends LitElement {
     this.hourBase = 0;
     this.hourBaseDetermined = false;
     this.isPaused = false;
-    this.selectedProfile = '';
+    this.showUnsavedChangesDialog = false;
+    this.pendingProfileChange = null;
     this.profileOptions = [];
     this.hasUnsavedChanges = false;
     this.suppressClickUntil = 0;
@@ -105,6 +108,8 @@ export class CronoStarCard extends LitElement {
     this.mismatchSince = 0;
     this._startupOverlayState = false;
     this.selectedPoints = [];
+    this.isPreview = false;
+    this.previewData = null;
 
     try {
         this.localizationManager = new LocalizationManager(this);
@@ -140,6 +145,9 @@ export class CronoStarCard extends LitElement {
         }
       }
 
+      // Close menu immediately when configuration changes (typically entering editor)
+      this.isMenuOpen = false;
+
       if (!this.cardLifecycle) {
         Logger.error('CONFIG', '[CronoStar] setConfig called but cardLifecycle is not initialized!');
         return;
@@ -161,6 +169,40 @@ export class CronoStarCard extends LitElement {
     super.updated(changed);
     if (this.cardLifecycle) {
       this.cardLifecycle.updated(changed);
+    }
+
+    if (this.isPreview) {
+      this.initialLoadComplete = true;
+      this.cronostarReady = true;
+    }
+
+    if (changed.has('previewData') && this.previewData) {
+      Logger.log('PREVIEW', '[CronoStar] Applying previewData', this.previewData);
+      
+      // Explicitly remove container_meta if it leaked through from backend
+      if (this.previewData.container_meta) {
+        delete this.previewData.container_meta;
+      }
+
+      const isFullObject = !Array.isArray(this.previewData) && typeof this.previewData === 'object';
+      const schedule = isFullObject ? this.previewData.schedule : this.previewData;
+      
+      if (this.stateManager && schedule) {
+        this.stateManager.setData(schedule);
+        this.hasUnsavedChanges = false;
+      }
+
+      // Se vengono passati metadati nel previewData, aggiorna la configurazione locale
+      const meta = this.previewData.meta;
+      if (isFullObject && meta) {
+        const cleanMeta = extractCardConfig(meta);
+        this.config = { ...this.config, ...cleanMeta };
+      }
+
+      if (this.chartManager && this.chartManager.isInitialized()) {
+        this.chartManager.updateData(schedule || []);
+        this.chartManager.recreateChartOptions();
+      }
     }
   }
 
