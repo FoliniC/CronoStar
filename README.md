@@ -5,9 +5,15 @@
 [![License](https://img.shields.io/github/license/FoliniC/cronostar.svg)](LICENSE)
 
 Easily add time-based schedules to any entity. The integration can automatically create the required helpers and automations, stores its settings in editable JSON files, and provides an intuitive visual interface to manage all your time profiles. 
-![CronoStar](https://github.com/user-attachments/assets/54958194-a0ec-4e41-8edc-76251f07b6db)
 
-![CronoStar settings](https://github.com/user-attachments/assets/8bd1361f-53ea-4aee-943d-b8e374308e36)
+![CronoStar](https://github.com/user-attachments/assets/724972bf-f360-4e84-ada9-66577adb4328)
+
+
+
+![CronoStar settings](https://github.com/user-attachments/assets/fd130bd6-aea4-4578-b25a-35ac61a969f6)
+
+![CronoStar manager](https://github.com/user-attachments/assets/2a9155f9-75f6-4d1a-8d3a-56339c1ef937)
+
 
 ## 🎯 What's New in v5.0
 
