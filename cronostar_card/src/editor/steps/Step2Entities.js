@@ -1,5 +1,5 @@
 import { html } from 'lit';
-import { getEffectivePrefix, isValidPrefix } from '../../utils/prefix_utils.js';
+import { getEffectivePrefix } from '../../utils/prefix_utils.js';
 import { buildHelpersFilename } from '../../utils/filename_utils.js';
 
 export class Step2Entities {
@@ -9,7 +9,6 @@ export class Step2Entities {
 
   render() {
     const effectivePrefix = getEffectivePrefix(this.editor._config);
-    const prefixValid = isValidPrefix(effectivePrefix);
 
     const hasPause = !!this.editor._config.pause_entity;
     const pauseVal = this.editor._config.pause_entity || `input_boolean.${effectivePrefix}paused`;
@@ -19,9 +18,6 @@ export class Step2Entities {
 
     const packageFilename = buildHelpersFilename(effectivePrefix);
     const helpersDisplayPath = `config/packages/${packageFilename}`;
-
-    // Ensure service handlers are available
-    const serviceHandlers = this.editor.serviceHandlers || {};
 
     return html`
       <div class="step-content">

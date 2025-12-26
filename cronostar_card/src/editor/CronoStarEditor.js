@@ -1,7 +1,7 @@
 // editor/CronoStarEditor.js
 import { LitElement, html, css } from 'lit';
-import { CARD_CONFIG_PRESETS, DEFAULT_CONFIG, COLORS, validateConfig } from '../config.js';
-import { normalizePrefix, getEffectivePrefix, isValidPrefix } from '../utils/prefix_utils.js';
+import { CARD_CONFIG_PRESETS, DEFAULT_CONFIG, validateConfig } from '../config.js';
+import { normalizePrefix, isValidPrefix } from '../utils/prefix_utils.js';
 import { buildHelpersFilename, buildAutomationFilename } from '../utils/filename_utils.js';
 import { EditorI18n } from './EditorI18n.js';
 import { EditorWizard } from './EditorWizard.js';
@@ -539,7 +539,7 @@ export class CronoStarEditor extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     if (this._unsubscribeDeep) {
-      try { this._unsubscribeDeep(); } catch { }
+      try { this._unsubscribeDeep(); } catch (e) { /* ignore */ }
       this._unsubscribeDeep = null;
     }
     this._deepCheckSubscribed = false;

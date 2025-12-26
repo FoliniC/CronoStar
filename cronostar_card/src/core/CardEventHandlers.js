@@ -201,7 +201,8 @@ export class CardEventHandlers {
             // Persist profile explicitly like the wizard
             const safeMeta = (() => {
                 const src = (this.card.config && typeof this.card.config === 'object') ? this.card.config : {};
-                const { entity_prefix, ...rest } = src;
+                const rest = { ...src };
+                delete rest.entity_prefix;
                 if (!rest.global_prefix && effectivePrefix) rest.global_prefix = effectivePrefix;
                 // Ensure scheduler can apply immediately by persisting the canonical target entity in profile meta
                 if (!rest.target_entity && targetEntity) rest.target_entity = targetEntity;

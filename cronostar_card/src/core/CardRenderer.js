@@ -1,6 +1,5 @@
 import { html } from 'lit';
 import { CARD_CONFIG_PRESETS, TIMEOUTS } from '../config.js';
-import { Logger } from '../utils.js';
 
 export class CardRenderer {
   constructor(card) {

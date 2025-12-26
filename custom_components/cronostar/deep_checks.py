@@ -1,11 +1,12 @@
 """CronoStar Deep Checks - Modular configuration verification."""
+
+import json
+import logging
 import os
 import re
-import json
 import time
-import logging
-from typing import Any, Dict, List, Tuple, Optional
 from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.util import yaml as yaml_util
@@ -13,28 +14,31 @@ from homeassistant.util import yaml as yaml_util
 _LOGGER = logging.getLogger(__name__)
 DOMAIN = "cronostar"
 
+
 @dataclass
 class InputNumberInfo:
     source: str
-    include_target: Optional[str]
+    include_target: str | None
     full_path: str
     yaml_keys_count: int
-    yaml_keys: List[str]
+    yaml_keys: list[str]
     runtime_found_total: int
     runtime_found_prefixed: int
-    runtime_missing: List[str]
+    runtime_missing: list[str]
     used_prefix: str
     hour_base: int
+
 
 @dataclass
 class AutomationInfo:
     source: str
-    include_target: Optional[str]
+    include_target: str | None
     full_path: str
     yaml_count: int
     storage_count: int
-    runtime_entities: List[str]
-    found_by_alias: List[str]
+    runtime_entities: list[str]
+    found_by_alias: list[str]
+
 
 @dataclass
 class CardInitInfo:
@@ -46,13 +50,15 @@ class CardInitInfo:
     package_path: str
     automation_path: str
 
+
 @dataclass
 class PackageContentInfo:
     ok: bool
     path: str
     input_number_key: str
-    missing_keys: List[str]
-    present_keys: List[str]
+    missing_keys: list[str]
+    present_keys: list[str]
+
 
 @dataclass
 class AutomationContentInfo:
@@ -63,6 +69,7 @@ class AutomationContentInfo:
     path: str
     details: str
 
+
 @dataclass
 class ProfileJsonInfo:
     ok: bool
@@ -70,14 +77,15 @@ class ProfileJsonInfo:
     has_schedule: bool
     schedule_count: int
     invalid_items: int
-    required_keys_present: List[str]
+    required_keys_present: list[str]
+
 
 class YamlInspector:
     def __init__(self, hass: HomeAssistant, base_dir: str):
         self.hass = hass
         self.base_dir = base_dir
 
-    async def find_section_source(self, cfg_path: str, section: str) -> Tuple[str, Optional[str]]:
+    async def find_section_source(self, cfg_path: str, section: str) -> tuple[str, str | None]:
         try:
             text = await self.hass.async_add_executor_job(self._read_file, cfg_path)
         except Exception as e:
@@ -99,10 +107,10 @@ class YamlInspector:
 
     @staticmethod
     def _read_file(path: str) -> str:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return f.read()
 
-    async def find_packages_dir(self, cfg_path: str) -> Optional[str]:
+    async def find_packages_dir(self, cfg_path: str) -> str | None:
         """Detect the packages include directory from configuration.yaml.
         Supports both !include_dir_named and !include_dir_merge_named.
         """
@@ -123,6 +131,7 @@ class YamlInspector:
                 _LOGGER.info("[DeepCheck] Detected packages include dir: %s", target)
                 return target
         return None
+
 
 class InputNumberInspector:
     def __init__(self, hass: HomeAssistant, yaml_inspector: YamlInspector):
@@ -154,10 +163,12 @@ class InputNumberInspector:
             runtime_found_prefixed=len(found_prefixed),
             runtime_missing=missing,
             used_prefix=used_prefix,
-            hour_base=hour_base
+            hour_base=hour_base,
         )
 
-    async def validate_package_content(self, base_dir: str, source: str, include_target: Optional[str], cfg_path: str, used_prefix: str) -> PackageContentInfo:
+    async def validate_package_content(
+        self, base_dir: str, source: str, include_target: str | None, cfg_path: str, used_prefix: str
+    ) -> PackageContentInfo:
         """Ensure the package contains the expected input_number helper and basic attributes."""
         input_key = f"{used_prefix}current"
         missing = []
@@ -175,7 +186,7 @@ class InputNumberInspector:
             elif source == "include_dir_named" and include_target:
                 # Merge dicts across named files
                 dir_path = os.path.join(base_dir, include_target)
-                merged: Dict[str, Any] = {}
+                merged: dict[str, Any] = {}
                 for name in sorted(await self.hass.async_add_executor_job(os.listdir, dir_path)):
                     if not name.lower().endswith((".yaml", ".yml")):
                         continue
@@ -186,7 +197,7 @@ class InputNumberInspector:
             elif source == "include_dir_list" and include_target:
                 # Build a dict from list items
                 dir_path = os.path.join(base_dir, include_target)
-                merged: Dict[str, Any] = {}
+                merged: dict[str, Any] = {}
                 for name in sorted(await self.hass.async_add_executor_job(os.listdir, dir_path)):
                     if not name.lower().endswith((".yaml", ".yml")):
                         continue
@@ -216,8 +227,8 @@ class InputNumberInspector:
 
         return PackageContentInfo(ok=len(missing) == 0, path=path, input_number_key=input_key, missing_keys=missing, present_keys=present)
 
-    async def _count_yaml_entities(self, base_dir: str, source: str, include_target: Optional[str], cfg_path: str) -> Tuple[int, List[str]]:
-        keys: List[str] = []
+    async def _count_yaml_entities(self, base_dir: str, source: str, include_target: str | None, cfg_path: str) -> tuple[int, list[str]]:
+        keys: list[str] = []
         try:
             if source == "inline":
                 loaded = await self.hass.async_add_executor_job(yaml_util.load_yaml, cfg_path)
@@ -239,7 +250,7 @@ class InputNumberInspector:
             _LOGGER.warning("Error reading input_number YAML: %s", e)
         return len(keys), keys
 
-    async def _read_dir_named(self, dir_path: str) -> List[str]:
+    async def _read_dir_named(self, dir_path: str) -> list[str]:
         keys = []
         for name in sorted(await self.hass.async_add_executor_job(os.listdir, dir_path)):
             if not name.lower().endswith((".yaml", ".yml")):
@@ -249,7 +260,7 @@ class InputNumberInspector:
                 keys.extend(list(inc.keys()))
         return keys
 
-    async def _read_dir_list(self, dir_path: str) -> List[str]:
+    async def _read_dir_list(self, dir_path: str) -> list[str]:
         keys = []
         for name in sorted(await self.hass.async_add_executor_job(os.listdir, dir_path)):
             if not name.lower().endswith((".yaml", ".yml")):
@@ -262,12 +273,13 @@ class InputNumberInspector:
         return keys
 
     @staticmethod
-    def _build_full_path(base_dir: str, include_target: Optional[str], cfg_path: str) -> str:
+    def _build_full_path(base_dir: str, include_target: str | None, cfg_path: str) -> str:
         if include_target:
             full_path = os.path.join(base_dir, include_target)
         else:
             full_path = cfg_path
         return full_path.replace(base_dir, "/config").replace("\\", "/")
+
 
 class AutomationInspector:
     def __init__(self, hass: HomeAssistant, yaml_inspector: YamlInspector):
@@ -292,10 +304,12 @@ class AutomationInspector:
             yaml_count=yaml_count,
             storage_count=storage_count,
             runtime_entities=[s.entity_id for s in auto_entities],
-            found_by_alias=found_by_alias
+            found_by_alias=found_by_alias,
         )
 
-    async def validate_automation_content(self, base_dir: str, source: str, include_target: Optional[str], cfg_path: str, alias: str, used_prefix: str) -> AutomationContentInfo:
+    async def validate_automation_content(
+        self, base_dir: str, source: str, include_target: str | None, cfg_path: str, alias: str, used_prefix: str
+    ) -> AutomationContentInfo:
         """Validate that the automation applies the value and schedules the next run."""
         path = self._build_full_path(base_dir, include_target, cfg_path)
         ok_alias = False
@@ -304,7 +318,7 @@ class AutomationInspector:
         details = ""
         try:
             # Load automations list from YAML depending on source
-            def load_list_from_obj(obj: Any) -> List[Dict[str, Any]]:
+            def load_list_from_obj(obj: Any) -> list[dict[str, Any]]:
                 if isinstance(obj, list):
                     return obj
                 if isinstance(obj, dict):
@@ -341,7 +355,14 @@ class AutomationInspector:
                     break
 
             if not target:
-                return AutomationContentInfo(ok_alias=ok_alias, ok_apply_value=False, ok_schedule_next=False, alias=alias, path=path, details="Alias not found in YAML")
+                return AutomationContentInfo(
+                    ok_alias=ok_alias,
+                    ok_apply_value=False,
+                    ok_schedule_next=False,
+                    alias=alias,
+                    path=path,
+                    details="Alias not found in YAML",
+                )
 
             # Validate apply value: look for an action calling a service and referencing input_number.<prefix>current
             actions = target.get("action") or []
@@ -379,13 +400,17 @@ class AutomationInspector:
                         ok_sched = True
                         break
 
-            return AutomationContentInfo(ok_alias=ok_alias, ok_apply_value=ok_apply, ok_schedule_next=ok_sched, alias=alias, path=path, details="")
+            return AutomationContentInfo(
+                ok_alias=ok_alias, ok_apply_value=ok_apply, ok_schedule_next=ok_sched, alias=alias, path=path, details=""
+            )
         except Exception as e:
             details = f"Error validating automation content: {e}"
             _LOGGER.warning(details)
-            return AutomationContentInfo(ok_alias=ok_alias, ok_apply_value=False, ok_schedule_next=False, alias=alias, path=path, details=details)
+            return AutomationContentInfo(
+                ok_alias=ok_alias, ok_apply_value=False, ok_schedule_next=False, alias=alias, path=path, details=details
+            )
 
-    async def _count_yaml_automations(self, base_dir: str, source: str, include_target: Optional[str], cfg_path: str) -> int:
+    async def _count_yaml_automations(self, base_dir: str, source: str, include_target: str | None, cfg_path: str) -> int:
         count = 0
         try:
             if source == "inline":
@@ -437,9 +462,11 @@ class AutomationInspector:
         try:
             if not await self.hass.async_add_executor_job(os.path.exists, storage_path):
                 return 0
+
             def read_storage():
-                with open(storage_path, "r", encoding="utf-8") as f:
+                with open(storage_path, encoding="utf-8") as f:
                     return json.load(f)
+
             data = await self.hass.async_add_executor_job(read_storage)
             if isinstance(data, list):
                 return len(data)
@@ -451,19 +478,25 @@ class AutomationInspector:
         return 0
 
     @staticmethod
-    def _build_full_path(base_dir: str, include_target: Optional[str], cfg_path: str) -> str:
+    def _build_full_path(base_dir: str, include_target: str | None, cfg_path: str) -> str:
         if include_target:
             full_path = os.path.join(base_dir, include_target)
         else:
             full_path = cfg_path
         return full_path.replace(base_dir, "/config").replace("\\", "/")
 
+
 class ReportGenerator:
     @staticmethod
-    def render_message(input_number: InputNumberInfo, automation: AutomationInfo, alias: str, version: str,
-                       package_content: Optional[PackageContentInfo] = None,
-                       automation_content: Optional[AutomationContentInfo] = None,
-                       profile_json: Optional[ProfileJsonInfo] = None) -> str:
+    def render_message(
+        input_number: InputNumberInfo,
+        automation: AutomationInfo,
+        alias: str,
+        version: str,
+        package_content: PackageContentInfo | None = None,
+        automation_content: AutomationContentInfo | None = None,
+        profile_json: ProfileJsonInfo | None = None,
+    ) -> str:
         parts = []
         parts.append(f"--- CronoStar Setup Check (v{version}) ---")
 
@@ -524,6 +557,7 @@ class ReportGenerator:
 
         return "\n".join(parts)
 
+
 def register_check_setup_service(hass: HomeAssistant) -> None:
     async def async_check_setup(call: ServiceCall) -> None:
         prefix = (call.data.get("prefix") or "").strip()
@@ -546,7 +580,7 @@ def register_check_setup_service(hass: HomeAssistant) -> None:
         prefix_base = used_prefix.rstrip("_")
 
         # Helper to infer prefix from existing package filename
-        def _infer_prefix_from_packages(dir_path: str) -> Optional[str]:
+        def _infer_prefix_from_packages(dir_path: str) -> str | None:
             try:
                 if not os.path.isdir(dir_path):
                     return None
@@ -556,9 +590,9 @@ def register_check_setup_service(hass: HomeAssistant) -> None:
                 # Prefer exact prefix match, else take first
                 for fn in candidates:
                     if fn.startswith(f"{prefix_base}_") or fn.startswith(f"{used_prefix}package"):
-                        base = fn[:-len("_package.yaml")]
+                        base = fn[: -len("_package.yaml")]
                         return f"{base}_"
-                base = candidates[0][:-len("_package.yaml")]
+                base = candidates[0][: -len("_package.yaml")]
                 return f"{base}_"
             except Exception as _e:
                 return None
@@ -609,22 +643,27 @@ def register_check_setup_service(hass: HomeAssistant) -> None:
             automation_file_exists=os.path.exists(automation_path),
             profiles_path=profiles_path,
             package_path=package_path,
-            automation_path=automation_path
+            automation_path=automation_path,
         )
 
         # Validate contents
-        package_content = await input_number_inspector.validate_package_content(base_dir, input_number_info.source, input_number_info.include_target, cfg_path, used_prefix)
-        automation_content = await automation_inspector.validate_automation_content(base_dir, automation_info.source, automation_info.include_target, cfg_path, alias, used_prefix)
+        package_content = await input_number_inspector.validate_package_content(
+            base_dir, input_number_info.source, input_number_info.include_target, cfg_path, used_prefix
+        )
+        automation_content = await automation_inspector.validate_automation_content(
+            base_dir, automation_info.source, automation_info.include_target, cfg_path, alias, used_prefix
+        )
 
         # Profiles JSON validation
         def _read_json(path: str) -> Any:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
+
         prof_ok = False
         has_schedule = False
         schedule_count = 0
         invalid_items = 0
-        req_keys_present: List[str] = []
+        req_keys_present: list[str] = []
         try:
             if os.path.exists(profiles_path):
                 data = await hass.async_add_executor_job(_read_json, profiles_path)
@@ -638,16 +677,33 @@ def register_check_setup_service(hass: HomeAssistant) -> None:
                     has_schedule = True
                     schedule_count = len(schedule)
                     for item in schedule:
-                        if not (isinstance(item, dict) and isinstance(item.get("time"), str) and isinstance(item.get("value"), (int, float))):
+                        if not (
+                            isinstance(item, dict) and isinstance(item.get("time"), str) and isinstance(item.get("value"), (int, float))
+                        ):
                             invalid_items += 1
         except Exception as e:
             _LOGGER.warning("Error reading profiles JSON: %s", e)
 
-        profile_json = ProfileJsonInfo(ok=prof_ok, path=profiles_path.replace(base_dir, "/config").replace("\\", "/"), has_schedule=has_schedule, schedule_count=schedule_count, invalid_items=invalid_items, required_keys_present=req_keys_present)
+        profile_json = ProfileJsonInfo(
+            ok=prof_ok,
+            path=profiles_path.replace(base_dir, "/config").replace("\\", "/"),
+            has_schedule=has_schedule,
+            schedule_count=schedule_count,
+            invalid_items=invalid_items,
+            required_keys_present=req_keys_present,
+        )
 
         # Report message
         component_version = hass.data.get(DOMAIN, {}).get("version", "unknown")
-        message = ReportGenerator.render_message(input_number_info, automation_info, alias, component_version, package_content=package_content, automation_content=automation_content, profile_json=profile_json)
+        message = ReportGenerator.render_message(
+            input_number_info,
+            automation_info,
+            alias,
+            component_version,
+            package_content=package_content,
+            automation_content=automation_content,
+            profile_json=profile_json,
+        )
         message += "\n\n[Card Initialization]"
         message += f"\nPrefix valid: {'✅' if card_init.prefix_valid else '❌'}"
         message += f"\nProfiles JSON: {'✅' if card_init.profiles_file_exists else '❌'} @ {card_init.profiles_path}"
@@ -658,12 +714,8 @@ def register_check_setup_service(hass: HomeAssistant) -> None:
         await hass.services.async_call(
             "persistent_notification",
             "create",
-            {
-                "title": "CronoStar Setup Check",
-                "message": message,
-                "notification_id": notification_id
-            },
-            blocking=True
+            {"title": "CronoStar Setup Check", "message": message, "notification_id": notification_id},
+            blocking=True,
         )
 
         report = {
@@ -673,7 +725,7 @@ def register_check_setup_service(hass: HomeAssistant) -> None:
             "package_content": (package_content.__dict__ if package_content else None),
             "automation_content": (automation_content.__dict__ if automation_content else None),
             "profile_json": (profile_json.__dict__ if profile_json else None),
-            "formatted_message": message
+            "formatted_message": message,
         }
         hass.bus.async_fire("cronostar_setup_report", report)
         _LOGGER.info("CronoStar setup report fired")

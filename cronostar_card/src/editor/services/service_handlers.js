@@ -3,7 +3,6 @@
  */
 import { getEffectivePrefix, getAliasWithPrefix } from '../../utils/prefix_utils.js';
 import { buildHelpersFilename, buildAutomationFilename } from '../../utils/filename_utils.js';
-import { escapeHtml } from '../../utils/editor_utils.js';
 import { buildAutomationYaml, buildInputNumbersYaml } from '../yaml/yaml_generators.js';
 import { I18N } from '../EditorI18n.js';
 import { Logger } from '../../utils.js';
@@ -44,7 +43,7 @@ export async function createYamlFile(hass, filePath, content, append = false) {
  */
 export async function handleCreateHelpersYaml(hass, config, deepReport, language) {
   // Force deep check to determine include paths if possible
-  try { await runDeepChecks(hass, config, language); } catch { }
+  try { await runDeepChecks(hass, config, language); } catch (e) { /* ignore */ }
   const effectivePrefix = getEffectivePrefix(config);
   const filename = buildHelpersFilename(effectivePrefix);
   // Always generate a proper package file with headers and place it under 'packages'
@@ -54,18 +53,12 @@ export async function handleCreateHelpersYaml(hass, config, deepReport, language
   return { success: true, message: `✓ File created: ${fullPath}` };
 }
 
-function minutesToTime(minutes) {
-  const h = Math.floor(minutes / 60) % 24;
-  const m = Math.floor(minutes % 60);
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
 /**
  * Automation YAML file creation
  */
 export async function handleCreateAutomationYaml(hass, config, deepReport, language) {
   // Force deep check to determine include paths if possible
-  try { await runDeepChecks(hass, config, language); } catch { }
+  try { await runDeepChecks(hass, config, language); } catch (e) { /* ignore */ }
   const effectivePrefix = getEffectivePrefix(config);
   const filename = buildAutomationFilename(effectivePrefix);
   const autoSource = deepReport?.automation?.source || 'unknown';
@@ -91,7 +84,7 @@ export async function handleCreateAutomationYaml(hass, config, deepReport, langu
  */
 export async function handleCreateAndReloadAutomation(hass, config, deepReport, language) {
   // Ensure deep checks run before attempting creation
-  try { await runDeepChecks(hass, config, language); } catch { }
+  try { await runDeepChecks(hass, config, language); } catch (e) { /* ignore */ }
   const hasCreateFile = !!hass?.services?.cronostar?.create_yaml_file;
   const deepOk = !!deepReport?.automation?.source;
   if (hasCreateFile && deepOk) {
@@ -191,7 +184,8 @@ export async function handleInitializeData(hass, config, language) {
   // 4. Save back with updated meta
   const safeMeta = (() => {
     const src = (config && typeof config === 'object') ? config : {};
-    const { entity_prefix, ...rest } = src;
+    const rest = { ...src };
+    delete rest.entity_prefix;
     if (!rest.global_prefix && prefix) rest.global_prefix = prefix;
     return rest;
   })();

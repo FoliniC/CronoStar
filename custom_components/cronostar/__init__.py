@@ -1,26 +1,23 @@
 """CronoStar custom component - Enhanced with auto-save and dashboard support."""
-import logging
-import os
-import json
-from pathlib import Path
-import voluptuous as vol
 
-from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
-from homeassistant import config_entries
-from homeassistant.const import EVENT_HOMEASSISTANT_START, EVENT_HOMEASSISTANT_STOP
-from homeassistant.helpers.typing import ConfigType
+import logging
+from pathlib import Path
+
 import homeassistant.helpers.config_validation as cv
-from homeassistant.components.http import StaticPathConfig
+import voluptuous as vol
+from homeassistant import config_entries
 from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
+from homeassistant.const import EVENT_HOMEASSISTANT_START, EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
+from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
-from .services.file_service import FileService
-from .storage.storage_manager import StorageManager
-from .services.profile_service import ProfileService
-from .services.automation_service import AutomationService
 from .scheduler.smart_scheduler import SmartScheduler
-from .utils.prefix_normalizer import PRESETS_CONFIG, normalize_preset_type
-from .utils.filename_builder import build_profile_filename
+from .services.file_service import FileService
+from .services.profile_service import ProfileService
+from .storage.storage_manager import StorageManager
+from .utils.prefix_normalizer import normalize_preset_type
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +31,7 @@ CONFIG_SCHEMA = vol.Schema(
     },
     extra=vol.ALLOW_EXTRA,
 )
+
 
 async def _set_debug_logging(hass: HomeAssistant) -> None:
     """Force DEBUG logging on Home Assistant and this component at startup."""
@@ -53,32 +51,35 @@ async def _set_debug_logging(hass: HomeAssistant) -> None:
         except Exception:
             pass
 
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the CronoStar component from YAML."""
     if DOMAIN not in config:
         return True
-    
+
     conf = config[DOMAIN]
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
-    
+
     hass.data[DOMAIN]["enable_backups"] = conf.get("enable_backups", False)
-    
+
     return await _async_setup_core(hass)
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> bool:
     """Set up CronoStar from a config entry."""
     return await _async_setup_core(hass)
 
+
 async def _async_setup_core(hass: HomeAssistant) -> bool:
     """Core setup logic shared by YAML and Config Entry."""
     _LOGGER.warning("[CRONOSTAR] async_setup_core ENTER")
-    
+
     await _set_debug_logging(hass)
-    
+
     component_version = "5.2.0"
     if DOMAIN not in hass.data:
-        hass.data[DOMAIN] = { "version": component_version }
+        hass.data[DOMAIN] = {"version": component_version}
 
     www_path = hass.config.path("custom_components/cronostar/www/cronostar_card")
     www_path = Path(www_path)
@@ -90,14 +91,13 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
         _LOGGER.info("Frontend JS URL registered")
 
     file_service = FileService(hass)
-    
+
     # NUOVO: Leggi configurazione backups (default: False)
     enable_backups = hass.data.get(DOMAIN, {}).get("enable_backups", False)
     storage_manager = StorageManager(hass, profiles_dir, enable_backups=enable_backups)
-    
+
     profile_service = ProfileService(hass, file_service, storage_manager)
     scheduler = SmartScheduler(hass, profile_service)
-    automation_service = AutomationService(hass)
 
     hass.data[DOMAIN]["storage_manager"] = storage_manager
     hass.data[DOMAIN]["scheduler"] = scheduler
@@ -105,6 +105,7 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
 
     try:
         from .deep_checks import register_check_setup_service
+
         register_check_setup_service(hass)
     except Exception as e:
         _LOGGER.warning("deep_checks module not available: %s", e)
@@ -117,7 +118,7 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
         preset = call.data.get("preset_type")
         if preset:
             await scheduler.update_preset(preset)
-    
+
     if not hass.services.has_service(DOMAIN, "save_profile"):
         hass.services.async_register(DOMAIN, "save_profile", save_profile_wrapper)
 
@@ -126,7 +127,7 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
     # ========================================
     async def load_profile_service(call: ServiceCall) -> ServiceResponse:
         return await profile_service.load_profile(call)
-    
+
     if not hass.services.has_service(DOMAIN, "load_profile"):
         hass.services.async_register(DOMAIN, "load_profile", load_profile_service, supports_response=True)
 
@@ -170,26 +171,26 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
         preset = call.data.get("preset", "thermostat")
         global_prefix = call.data.get("global_prefix")
         requested_profile = call.data.get("selected_profile")
-        
+
         _LOGGER.info("Lovelace Card Connected: ID=%s, Preset=%s, RequestedProfile=%s", card_id, preset, requested_profile)
         _LOGGER.debug("[REGISTER] global_prefix=%s", global_prefix)
-        
+
         response = {"success": True, "profile_data": None}
-        
+
         # Logica semplificata per il recupero del profilo attivo con logging esteso
         state = None
         # Prefix MUST end with underscore for StorageManager filtering
-        prefix_with_underscore = (global_prefix or "cronostar_")
+        prefix_with_underscore = global_prefix or "cronostar_"
         if not prefix_with_underscore.endswith("_"):
             prefix_with_underscore += "_"
-            
+
         base = prefix_with_underscore.rstrip("_")
         dynamic_selector = f"input_select.{base}_profiles"
         _LOGGER.debug("[REGISTER] computed base=%s, dynamic_selector=%s", base, dynamic_selector)
-        
+
         # Lettura dello stato dell'entity input_select
         state = hass.states.get(dynamic_selector)
-        
+
         profile_to_load = None
         if state and state.state not in ("unknown", "unavailable"):
             profile_to_load = state.state
@@ -199,10 +200,7 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
             profile_to_load = requested_profile
             _LOGGER.info("[REGISTER] Fallback to requested profile: '%s' (entity %s missing/unknown)", profile_to_load, dynamic_selector)
         else:
-            _LOGGER.info(
-                "[REGISTER] No active profile via entity: entity missing (%s) and no requested profile",
-                dynamic_selector
-            )
+            _LOGGER.info("[REGISTER] No active profile via entity: entity missing (%s) and no requested profile", dynamic_selector)
 
         if profile_to_load:
             try:
@@ -218,10 +216,7 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
                     )
                     response["profile_data"] = data
                 else:
-                    _LOGGER.warning(
-                        "⚠️ get_profile_data returned error during register for '%s': %s",
-                        profile_to_load, data.get("error")
-                    )
+                    _LOGGER.warning("⚠️ get_profile_data returned error during register for '%s': %s", profile_to_load, data.get("error"))
             except Exception as e:
                 _LOGGER.error("❌ Exception while loading profile '%s' during register: %s", profile_to_load, e)
 
@@ -231,8 +226,13 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
                 canonical_preset = normalize_preset_type(preset)
                 # Use full prefix with underscore to match StorageManager startswith
                 files = await storage_manager.list_profiles(preset_type=canonical_preset, prefix=prefix_with_underscore)
-                _LOGGER.debug("[REGISTER] Fallback search: found %d files for prefix=%s, preset=%s", len(files), prefix_with_underscore, canonical_preset)
-                
+                _LOGGER.debug(
+                    "[REGISTER] Fallback search: found %d files for prefix=%s, preset=%s",
+                    len(files),
+                    prefix_with_underscore,
+                    canonical_preset,
+                )
+
                 # If no files found with underscore, try stripping it (for loose files)
                 if not files:
                     files = await storage_manager.list_profiles(preset_type=canonical_preset, prefix=base)
@@ -265,7 +265,7 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
                             _LOGGER.warning("[REGISTER] Fallback candidate '%s' failed: %s", candidate, data.get("error"))
                     if response.get("profile_data"):
                         break
-                
+
                 if not response.get("profile_data"):
                     _LOGGER.info("[REGISTER] Fallback did not find a usable profile for prefix=%s", prefix_with_underscore)
             except Exception as e:
@@ -273,7 +273,7 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
 
         # Recupero stati correnti per l'help
         entity_states = {}
-        
+
         def get_formatted_state(entity_id):
             if not entity_id:
                 return "Not configured"
@@ -295,17 +295,19 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
             target_ent_for_states = state.attributes.get("target_entity")
         if not target_ent_for_states and response.get("profile_data") and "meta" in response["profile_data"]:
             target_ent_for_states = response["profile_data"]["meta"].get("target_entity")
-        
+
         entity_states["target"] = get_formatted_state(target_ent_for_states)
         entity_states["current_helper"] = get_formatted_state(f"input_number.{prefix_with_underscore}current")
         entity_states["selector"] = get_formatted_state(dynamic_selector)
         entity_states["pause"] = get_formatted_state(f"input_boolean.{prefix_with_underscore}paused")
-        
+
         response["entity_states"] = entity_states
-        
+
         _LOGGER.debug(
             "[REGISTER] Response summary: success=%s, has_profile=%s, states=%s",
-            response.get("success"), bool(response.get("profile_data")), entity_states
+            response.get("success"),
+            bool(response.get("profile_data")),
+            entity_states,
         )
         return response
 
@@ -337,18 +339,13 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
                         global_prefix = data["meta"].get("global_prefix", "")
 
                         if preset_type not in profiles_by_preset:
-                            profiles_by_preset[preset_type] = {
-                                "global_prefix": global_prefix,
-                                "profiles": []
-                            }
+                            profiles_by_preset[preset_type] = {"global_prefix": global_prefix, "profiles": []}
 
                         for profile_name, profile_content in data["profiles"].items():
                             schedule = profile_content.get("schedule", [])
-                            profiles_by_preset[preset_type]["profiles"].append({
-                                "name": profile_name,
-                                "points": len(schedule),
-                                "updated_at": profile_content.get("updated_at", "unknown")
-                            })
+                            profiles_by_preset[preset_type]["profiles"].append(
+                                {"name": profile_name, "points": len(schedule), "updated_at": profile_content.get("updated_at", "unknown")}
+                            )
 
                     # Legacy format
                     elif "profile_name" in data:
@@ -356,17 +353,16 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
                         global_prefix = data.get("global_prefix", "")
 
                         if preset_type not in profiles_by_preset:
-                            profiles_by_preset[preset_type] = {
-                                "global_prefix": global_prefix,
-                                "profiles": []
-                            }
+                            profiles_by_preset[preset_type] = {"global_prefix": global_prefix, "profiles": []}
 
                         schedule = data.get("schedule", [])
-                        profiles_by_preset[preset_type]["profiles"].append({
-                            "name": data.get("profile_name", "Unknown"),
-                            "points": len(schedule),
-                            "updated_at": data.get("updated_at", "unknown")
-                        })
+                        profiles_by_preset[preset_type]["profiles"].append(
+                            {
+                                "name": data.get("profile_name", "Unknown"),
+                                "points": len(schedule),
+                                "updated_at": data.get("updated_at", "unknown"),
+                            }
+                        )
 
                 except Exception as e:
                     _LOGGER.warning("Error reading profile file %s: %s", filename, e)
@@ -380,12 +376,7 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
             return {"error": str(e)}
 
     if not hass.services.has_service(DOMAIN, "list_all_profiles"):
-        hass.services.async_register(
-            DOMAIN,
-            "list_all_profiles",
-            list_all_profiles_service,
-            supports_response=True
-        )
+        hass.services.async_register(DOMAIN, "list_all_profiles", list_all_profiles_service, supports_response=True)
 
     # ========================================
     # EVENT HANDLERS
@@ -401,5 +392,5 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
 
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, on_hass_start)
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, on_hass_stop)
-    
+
     return True

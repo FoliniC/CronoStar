@@ -221,7 +221,7 @@ export class CardLifecycle {
                 this.reinitializeCard();
               } else {
                 // Chart exists and canvas has size: trigger a safe update
-                try { this.card.chartManager?.update?.('none'); } catch { }
+                try { this.card.chartManager?.update?.('none'); } catch (e) { /* ignore */ }
               }
             } catch (err) {
               Logger.warn('LIFECYCLE', 'Canvas check error:', err);
@@ -229,7 +229,7 @@ export class CardLifecycle {
           };
 
           // After the next render cycle
-          try { this.card.updateComplete?.then(() => setTimeout(doCanvasCheck, 0)); } catch { }
+          try { this.card.updateComplete?.then(() => setTimeout(doCanvasCheck, 0)); } catch (e) { /* ignore */ }
           // Also schedule via RAF as a fallback
           requestAnimationFrame(() => setTimeout(doCanvasCheck, 0));
         }
@@ -341,7 +341,7 @@ export class CardLifecycle {
       // Recreate chart
       const canvas = this.card.shadowRoot?.getElementById('myChart');
       if (canvas) {
-        try { this.card.chartManager?.destroy?.(); } catch { }
+        try { this.card.chartManager?.destroy?.(); } catch (e) { /* ignore */ }
         if (typeof this.card.chartManager?.initChart === 'function') {
           this.card.chartManager.initChart(canvas);
         }
@@ -350,13 +350,13 @@ export class CardLifecycle {
       // Reattach keyboard listeners to chart-container
       const container = this.card.shadowRoot?.querySelector('.chart-container');
       if (container) {
-        try { this.card.keyboardHandler?.detachListeners?.(container); } catch { }
+        try { this.card.keyboardHandler?.detachListeners?.(container); } catch (e) { /* ignore */ }
         this.card.keyboardHandler?.attachListeners?.(container);
       }
 
       // Reattach pointer listeners to canvas
       if (canvas) {
-        try { this.card.pointerHandler?.detachListeners?.(canvas); } catch { }
+        try { this.card.pointerHandler?.detachListeners?.(canvas); } catch (e) { /* ignore */ }
         this.card.pointerHandler?.attachListeners?.(canvas);
       }
 
@@ -436,7 +436,7 @@ export class CardLifecycle {
               }
             }
           }
-        } catch { }
+        } catch (e) { /* ignore */ }
       }
 
       // Registration succeeded: mark initial load complete and backend ready to hide overlays

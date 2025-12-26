@@ -251,12 +251,12 @@ export class CronoStarCard extends LitElement {
   handleAddProfile() {
     try {
       return this.eventHandlers?.handleAddProfile?.();
-    } catch {}
+    } catch (e) { /* ignore */ }
   }
 
   handleDeleteProfile() {
     try {
       return this.eventHandlers?.handleDeleteProfile?.();
-    } catch {}
+    } catch (e) { /* ignore */ }
   }
 }

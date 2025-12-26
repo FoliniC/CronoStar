@@ -2,23 +2,23 @@
 CronoStar Storage Manager - Centralizes all profile storage operations.
 Handles atomic saves, concurrent access, and profile versioning.
 """
-import logging
-import os
-import json
-import time
-from datetime import datetime, timezone
+
 import asyncio
-from typing import Dict, List, Optional, Any
-from functools import partial
+import json
+import logging
+import time
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class StorageManager:
     """Centralized storage management for CronoStar profiles."""
-    
+
     def __init__(self, hass: HomeAssistant, profiles_dir: str, enable_backups: bool = False):
         """Initialize storage manager.
 
@@ -30,16 +30,12 @@ class StorageManager:
         self.hass = hass
         self.profiles_dir = Path(profiles_dir)
         self.enable_backups = enable_backups  # NUOVO FLAG
-        self._locks: Dict[str, asyncio.Lock] = {}
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._cache: dict[str, dict[str, Any]] = {}
         self._cache_timeout = 30
-        
+
         self.profiles_dir.mkdir(parents=True, exist_ok=True)
-        _LOGGER.info(
-            "StorageManager initialized: %s (backups: %s)", 
-            self.profiles_dir, 
-            "enabled" if enable_backups else "disabled"
-        )
+        _LOGGER.info("StorageManager initialized: %s (backups: %s)", self.profiles_dir, "enabled" if enable_backups else "disabled")
 
     def _get_lock(self, filename: str) -> asyncio.Lock:
         """Get or create a lock for a specific file."""
@@ -50,55 +46,46 @@ class StorageManager:
     async def save_profile_atomic(
         self,
         filename: str,
-        profile_data: Dict[str, Any],
-        backup: bool = None  # None = usa il default dalla config
+        profile_data: dict[str, Any],
+        backup: bool = None,  # None = usa il default dalla config
     ) -> bool:
         """Save profile with atomic write and optional backup.
-        
+
         Args:
             filename: Profile filename
             profile_data: Profile data to save
             backup: Override backup setting (None = use self.enable_backups)
-            
+
         Returns:
             True if save successful, False otherwise
         """
         file_path = self.profiles_dir / filename
         lock = self._get_lock(filename)
-        
+
         # Determina se fare il backup
         should_backup = backup if backup is not None else self.enable_backups
-        
+
         async with lock:
             try:
                 # Add metadata
                 now_ts = time.time()
                 profile_data["saved_at"] = now_ts
-                profile_data["saved_at_iso"] = datetime.fromtimestamp(now_ts, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+                profile_data["saved_at_iso"] = datetime.fromtimestamp(now_ts, tz=UTC).isoformat().replace("+00:00", "Z")
                 profile_data["version"] = 2  # Storage format version
 
                 # Create backup SOLO se abilitato
                 if should_backup and file_path.exists():
                     backup_path = file_path.with_suffix(f".{int(time.time())}.bak")
-                    await self.hass.async_add_executor_job(
-                        self._copy_file, file_path, backup_path
-                    )
+                    await self.hass.async_add_executor_job(self._copy_file, file_path, backup_path)
                     _LOGGER.debug("Backup created: %s", backup_path.name)
 
                 # Atomic write: write to temp file, then rename
                 temp_path = file_path.with_suffix(".tmp")
-                await self.hass.async_add_executor_job(
-                    self._write_json, temp_path, profile_data
-                )
-                await self.hass.async_add_executor_job(
-                    self._rename_file, temp_path, file_path
-                )
+                await self.hass.async_add_executor_job(self._write_json, temp_path, profile_data)
+                await self.hass.async_add_executor_job(self._rename_file, temp_path, file_path)
 
                 # Update cache
-                self._cache[filename] = {
-                    "data": profile_data,
-                    "timestamp": time.time()
-                }
+                self._cache[filename] = {"data": profile_data, "timestamp": time.time()}
 
                 # Log a concise summary of what was written
                 try:
@@ -112,7 +99,7 @@ class StorageManager:
                         len(profile_names),
                         first_name,
                         len(sched),
-                        should_backup
+                        should_backup,
                     )
                 except Exception:
                     _LOGGER.info("Profile saved atomically: %s (backup=%s)", filename, should_backup)
@@ -122,11 +109,7 @@ class StorageManager:
                 _LOGGER.error("Failed to save profile %s: %s", filename, e)
                 return False
 
-    async def load_profile_cached(
-        self,
-        filename: str,
-        force_reload: bool = False
-    ) -> Optional[Dict[str, Any]]:
+    async def load_profile_cached(self, filename: str, force_reload: bool = False) -> dict[str, Any] | None:
         """Load profile with caching support.
 
         Args:
@@ -153,15 +136,10 @@ class StorageManager:
             return None
 
         try:
-            data = await self.hass.async_add_executor_job(
-                self._read_json, file_path
-            )
+            data = await self.hass.async_add_executor_job(self._read_json, file_path)
 
             # Update cache
-            self._cache[filename] = {
-                "data": data,
-                "timestamp": time.time()
-            }
+            self._cache[filename] = {"data": data, "timestamp": time.time()}
 
             # Log a concise summary of what was read
             try:
@@ -229,11 +207,7 @@ class StorageManager:
                 _LOGGER.error("Failed to delete profile %s: %s", filename, e)
                 return False
 
-    async def list_profiles(
-        self,
-        preset_type: Optional[str] = None,
-        prefix: Optional[str] = None
-    ) -> List[str]:
+    async def list_profiles(self, preset_type: str | None = None, prefix: str | None = None) -> list[str]:
         """List all profile files, optionally filtered.
 
         Args:
@@ -244,9 +218,7 @@ class StorageManager:
             List of profile filenames
         """
         try:
-            files = await self.hass.async_add_executor_job(
-                lambda: [f.name for f in self.profiles_dir.glob("*.json")]
-            )
+            files = await self.hass.async_add_executor_job(lambda: [f.name for f in self.profiles_dir.glob("*.json")])
 
             # Apply filters
             if prefix:
@@ -265,8 +237,7 @@ class StorageManager:
                         filtered.append(filename)
                 files = filtered
 
-            _LOGGER.debug("Listed %d profiles (preset=%s, prefix=%s)",
-                         len(files), preset_type, prefix)
+            _LOGGER.debug("Listed %d profiles (preset=%s, prefix=%s)", len(files), preset_type, prefix)
             return sorted(files)
 
         except Exception as e:
@@ -284,9 +255,7 @@ class StorageManager:
         """
         try:
             cutoff = time.time() - (days * 86400)
-            backups = await self.hass.async_add_executor_job(
-                lambda: list(self.profiles_dir.glob("*.bak"))
-            )
+            backups = await self.hass.async_add_executor_job(lambda: list(self.profiles_dir.glob("*.bak")))
 
             deleted = 0
             for backup_file in backups:
@@ -303,7 +272,7 @@ class StorageManager:
             _LOGGER.error("Failed to cleanup backups: %s", e)
             return 0
 
-    def clear_cache(self, filename: Optional[str] = None):
+    def clear_cache(self, filename: str | None = None):
         """Clear profile cache.
 
         Args:
@@ -319,21 +288,22 @@ class StorageManager:
     # Synchronous helper methods (run in executor)
 
     @staticmethod
-    def _write_json(path: Path, data: Dict[str, Any]):
+    def _write_json(path: Path, data: dict[str, Any]):
         """Write JSON data to file."""
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
     @staticmethod
-    def _read_json(path: Path) -> Dict[str, Any]:
+    def _read_json(path: Path) -> dict[str, Any]:
         """Read JSON data from file."""
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
 
     @staticmethod
     def _copy_file(src: Path, dst: Path):
         """Copy file."""
         import shutil
+
         shutil.copy2(src, dst)
 
     @staticmethod

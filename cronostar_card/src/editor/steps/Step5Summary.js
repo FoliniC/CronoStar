@@ -1,7 +1,7 @@
 import { html } from 'lit';
 import { getAliasWithPrefix, getEffectivePrefix } from '../../utils/prefix_utils.js';
-import { getExpectedAutomationId, buildAutomationFilename } from '../../utils/filename_utils.js';
-import { handleSaveAll, runDeepChecks } from '../services/service_handlers.js';
+import { getExpectedAutomationId } from '../../utils/filename_utils.js';
+import { handleSaveAll } from '../services/service_handlers.js';
 
 export class Step5Summary {
   constructor(editor) {
@@ -27,13 +27,11 @@ export class Step5Summary {
   }
 
   render() {
-    const hasDeep = !!this.editor.hass?.services?.cronostar?.check_setup;
     const inum = this.editor._deepReport?.input_number;
     const autoInfo = this.editor._deepReport?.automation;
     const effectivePrefix = getEffectivePrefix(this.editor._config);
     const expectedAlias = getAliasWithPrefix(effectivePrefix, this.editor._lang);
     const expectedId = getExpectedAutomationId(effectivePrefix);
-    const autoFilename = buildAutomationFilename(effectivePrefix);
 
     // Verifica configurazione lovelace
     const requiredFields = [

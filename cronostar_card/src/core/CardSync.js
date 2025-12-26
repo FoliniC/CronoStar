@@ -1,6 +1,5 @@
 import { TIMEOUTS } from '../config.js';
 import { Logger } from '../utils.js';
-import { getEffectivePrefix } from '../utils/prefix_utils.js';
 
 export class CardSync {
     constructor(card) {

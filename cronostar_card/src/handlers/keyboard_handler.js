@@ -389,7 +389,7 @@ export class KeyboardHandler {
       
       const newData = dataset.data.map((pt) => ({ time: stateMgr.minutesToTime(pt.x), value: Number(pt.y) }));
       stateMgr.setData(newData);
-    } catch { }
+    } catch (e) { /* ignore */ }
 
     chartMgr.updatePointStyling(this.card.selectionManager.selectedPoint, this.card.selectionManager.selectedPoints);
     chartMgr.update('none');

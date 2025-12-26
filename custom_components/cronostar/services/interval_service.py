@@ -1,7 +1,8 @@
 """Gestione intervalli variabili per CronoStar."""
+
 import logging
-from typing import List, Optional
 from enum import Enum
+from typing import Optional
 
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
 
@@ -10,6 +11,7 @@ _LOGGER = logging.getLogger(__name__)
 
 class IntervalType(Enum):
     """Intervalli supportati."""
+
     HOURLY = 60
     HALF_HOUR = 30
     QUARTER = 15
@@ -18,7 +20,7 @@ class IntervalType(Enum):
     MINUTE = 1
     
     @classmethod
-    def from_minutes(cls, minutes: int) -> Optional['IntervalType']:
+    def from_minutes(cls, minutes: int) -> Optional["IntervalType"]:
         for interval in cls:
             if interval.value == minutes:
                 return interval
@@ -27,7 +29,7 @@ class IntervalType(Enum):
     def get_points_count(self) -> int:
         return (24 * 60) // self.value
     
-    def get_time_labels(self) -> List[str]:
+    def get_time_labels(self) -> list[str]:
         labels = []
         for i in range(0, 24 * 60, self.value):
             h = i // 60
@@ -42,32 +44,25 @@ class IntervalConverter:
     @staticmethod
     def convert_schedule(schedule, target_interval: IntervalType):
         """Converte schedule a nuovo intervallo."""
-        from ..storage.schedule_manager import Schedule, SchedulePoint
+        from ..storage.schedule_manager import Schedule
         
         if schedule.interval_minutes == target_interval.value:
             return schedule
         
         if schedule.interval_minutes > target_interval.value:
             # Upscale: interpola
-            new_points = IntervalConverter._interpolate(
-                schedule.points,
-                schedule.interval_minutes,
-                target_interval.value
-            )
+            new_points = IntervalConverter._interpolate(schedule.points, schedule.interval_minutes, target_interval.value)
         else:
             # Downscale: seleziona
-            new_points = IntervalConverter._select(
-                schedule.points,
-                target_interval.value
-            )
+            new_points = IntervalConverter._select(schedule.points, target_interval.value)
         
         return Schedule(
             profile_name=schedule.profile_name,
             preset_type=schedule.preset_type,
             interval_minutes=target_interval.value,
             points=new_points,
-            global_prefix=getattr(schedule, 'global_prefix', None),
-            saved_at=schedule.saved_at
+            global_prefix=getattr(schedule, "global_prefix", None),
+            saved_at=schedule.saved_at,
         )
     
     @staticmethod
@@ -87,7 +82,7 @@ class IntervalConverter:
             prev_point = None
             next_point = None
             
-            for idx, point in enumerate(sorted_points):
+            for _idx, point in enumerate(sorted_points):
                 if point.to_minutes() <= i:
                     prev_point = point
                 if point.to_minutes() > i:
@@ -149,22 +144,12 @@ class IntervalService:
         
         target_interval = IntervalType.from_minutes(target_minutes)
         if not target_interval:
-            return {
-                "success": False,
-                "error": f"Invalid interval: {target_minutes}"
-            }
+            return {"success": False, "error": f"Invalid interval: {target_minutes}"}
         
-        schedule = await self.storage_manager.load_schedule(
-            profile_name,
-            preset_type,
-            global_prefix
-        )
+        schedule = await self.storage_manager.load_schedule(profile_name, preset_type, global_prefix)
         
         if not schedule:
-            return {
-                "success": False,
-                "error": f"Schedule not found: {profile_name}"
-            }
+            return {"success": False, "error": f"Schedule not found: {profile_name}"}
         
         converted = IntervalConverter.convert_schedule(schedule, target_interval)
         
@@ -179,7 +164,7 @@ class IntervalService:
             "new_interval": converted.interval_minutes,
             "original_points": len(schedule.points),
             "new_points": len(converted.points),
-            "profile_name": converted.profile_name
+            "profile_name": converted.profile_name,
         }
     
     async def get_schedule_info(self, call: ServiceCall) -> ServiceResponse:
@@ -188,17 +173,10 @@ class IntervalService:
         preset_type = call.data.get("preset_type")
         global_prefix = call.data.get("global_prefix", "cronostar_")
         
-        schedule = await self.storage_manager.load_schedule(
-            profile_name,
-            preset_type,
-            global_prefix
-        )
+        schedule = await self.storage_manager.load_schedule(profile_name, preset_type, global_prefix)
         
         if not schedule:
-            return {
-                "success": False,
-                "error": f"Schedule not found: {profile_name}"
-            }
+            return {"success": False, "error": f"Schedule not found: {profile_name}"}
         
         values = [p.value for p in schedule.points]
         
@@ -211,5 +189,5 @@ class IntervalService:
             "points_count": len(schedule.points),
             "min_value": min(values) if values else None,
             "max_value": max(values) if values else None,
-            "avg_value": sum(values) / len(values) if values else None
+            "avg_value": sum(values) / len(values) if values else None,
         }

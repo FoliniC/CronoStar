@@ -1,0 +1,43 @@
+{
+    "config": {
+        "title": "CronoStar",
+        "step": {
+            "user": {
+                "title": "CronoStar setup",
+                "description": "This setup will:\n- Enable packages in configuration.yaml if needed\n- Create packages folder and copy cronostar_package.yaml\n- Ensure automations include automations directory\n- Create profiles folder\n- Register frontend assets so you can add the 'cronostar' Lovelace card\n\n{automation_note}\n\nProceed?",
+                "data": {
+                    "confirm": "Confirm"
+                }
+            },
+            "enable_packages": {
+                "title": "Enable packages",
+                "description": "CronoStar needs Home Assistant packages enabled. Proceed to update configuration.yaml?",
+                "data": {
+                    "confirm": "Enable packages"
+                }
+            },
+            "confirm_setup": {
+                "title": "Finalize setup",
+                "description": "Automation status: {automation_status}"
+            }
+        },
+        "abort": {
+            "single_instance_allowed": "Only one CronoStar instance is allowed",
+            "aborted_by_user": "Setup aborted by user"
+        },
+        "error": {
+            "packages_required": "Packages must be enabled to continue"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "CronoStar options",
+                "description": "Set component options",
+                "data": {
+                    "logging_enabled": "Enable debug logging"
+                }
+            }
+        }
+    }
+}

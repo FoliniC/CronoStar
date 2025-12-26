@@ -10,7 +10,6 @@ import { normalizePrefix, getAliasWithPrefix } from '../../utils/prefix_utils.js
 export function buildAutomationYaml(config, style = 'list') {
   const applyEntity = config.target_entity;
   const pauseEntity = config.pause_entity;
-  const profilesSelect = config.profiles_select_entity || '';
   const interval = config.interval_minutes || 60;
 
   const rawPrefix = normalizePrefix(config.global_prefix || 'cronostar_');
@@ -142,7 +141,6 @@ export function buildInputNumbersYaml(config, isInline = false) {
   const applyEntity = config.target_entity;
 
   const lines = [];
-  const isList = false; // Package format usually uses dictionary keys
 
   // 1. INPUT NUMBERS
   if (isInline) lines.push('input_number:');

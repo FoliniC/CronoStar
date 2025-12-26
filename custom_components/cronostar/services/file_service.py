@@ -1,13 +1,14 @@
+import json
 import logging
 import os
-import json
 from functools import partial
 
 from homeassistant.core import HomeAssistant, ServiceCall
 
 _LOGGER = logging.getLogger(__name__)
 
-PROFILES_PATH = "cronostar/profiles" 
+PROFILES_PATH = "cronostar/profiles"
+
 
 class FileService:
     def __init__(self, hass: HomeAssistant):
@@ -24,7 +25,7 @@ class FileService:
         """Load JSON data from file."""
         if not os.path.exists(path):
             return {"error": "File not found"}
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
 
     async def create_yaml_file(self, call: ServiceCall):
@@ -48,9 +49,7 @@ class FileService:
 
         mode = "a" if append else "w"
         try:
-            await self.hass.async_add_executor_job(
-                partial(self._write_file_content, abs_path, content, mode)
-            )
+            await self.hass.async_add_executor_job(partial(self._write_file_content, abs_path, content, mode))
             _LOGGER.info("Successfully wrote to file: %s (mode: %s)", file_path, mode)
         except Exception as e:
             _LOGGER.error("Failed to write file %s: %s", file_path, e)
@@ -58,4 +57,3 @@ class FileService:
     def _write_file_content(self, path: str, content: str, mode: str):
         with open(path, mode, encoding="utf-8") as f:
             f.write(content)
-

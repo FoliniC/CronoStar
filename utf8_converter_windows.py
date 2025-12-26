@@ -3,7 +3,6 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, filedialog
 import threading
 import chardet
-from pathlib import Path
 import shutil
 from datetime import datetime
 
@@ -320,7 +319,7 @@ class UTF8ConverterApp:
                     
             return encoding if encoding else 'windows-1252', confidence
             
-        except Exception as e:
+        except Exception:
             return None, 0.0
     
     def detect_newline_type(self, content):
@@ -735,13 +734,13 @@ class UTF8ConverterApp:
                 nl_type = r.get('newline_type', '')
                 if newline_mode == 'windows' and nl_type in ['unix', 'mac']:
                     include = True
-                    reason.append(f"unix_to_windows")
+                    reason.append("unix_to_windows")
                 elif newline_mode == 'unix' and nl_type in ['windows', 'mac']:
                     include = True
-                    reason.append(f"windows_to_unix")
+                    reason.append("windows_to_unix")
                 elif newline_mode == 'auto' and nl_type in ['unix', 'mac', 'mixed']:
                     include = True
-                    reason.append(f"auto_normalize")
+                    reason.append("auto_normalize")
             
             if include:
                 r['convert_reason'] = ', '.join(reason)

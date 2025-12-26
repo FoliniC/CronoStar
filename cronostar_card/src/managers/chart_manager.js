@@ -50,7 +50,7 @@ export class ChartManager {
         });
       };
       tryNext(0);
-    } catch { }
+    } catch (e) { /* ignore */ }
   }
 
   _onWindowPointerMove(e) {
@@ -110,7 +110,7 @@ export class ChartManager {
       const activeX = dataset.data[activeIndex]?.x;
       const activeY = dataset.data[activeIndex]?.y;
       this.showDragValueDisplay(activeY, activeX);
-    } catch (err) { }
+    } catch (err) { /* ignore */ }
   }
 
   _onWindowPointerUp(e) {
@@ -133,7 +133,7 @@ export class ChartManager {
       }
       this.card.isDragging = false;
       this.scheduleHideDragValueDisplay(500);
-    } catch { }
+    } catch (e) { /* ignore */ }
   }
 
   isInitialized() { return this._initialized && !!this.chart; }
@@ -143,7 +143,7 @@ export class ChartManager {
 
   update(mode = 'none') {
     if (!this.chart) return;
-    try { this.chart.update(mode); } catch { try { this.chart.update(); } catch { } }
+    try { this.chart.update(mode); } catch (e) { try { this.chart.update(); } catch (e2) { /* ignore */ } }
   }
 
   showDragValueDisplay(value, minutes) {
@@ -187,7 +187,7 @@ export class ChartManager {
 
       el.style.top = `${Math.round(topPos - 28)}px`;
       el.style.display = 'block';
-    } catch (e) { }
+    } catch (e) { /* ignore */ }
   }
 
   scheduleHideDragValueDisplay(ms = 2000) {
@@ -268,7 +268,7 @@ export class ChartManager {
       el.style.display = 'block';
       if (this._hoverHideTimer) clearTimeout(this._hoverHideTimer);
       this._hoverHideTimer = setTimeout(() => this._hideHoverInfo(), 1500);
-    } catch { }
+    } catch (e) { /* ignore */ }
   }
 
   _hideHoverInfo() {
@@ -504,7 +504,7 @@ export class ChartManager {
         canvas.removeEventListener('pointerout', this._hoverOutHandler);
       }
       this._hoverHandler = null; this._hoverOutHandler = null;
-      try { this.chart.destroy(); } catch { }
+      try { this.chart.destroy(); } catch (e) { /* ignore */ }
       this.chart = null;
     }
     this._initialized = false;

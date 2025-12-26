@@ -3,7 +3,7 @@
  * @module profile-manager
  */
 
-import { Logger, safeParseFloat } from '../utils.js';
+import { Logger } from '../utils.js';
 import { TIMEOUTS, extractCardConfig } from '../config.js';
 import { getEffectivePrefix } from '../utils/prefix_utils.js';
 
@@ -18,7 +18,8 @@ export class ProfileManager {
     // Persist only safe wizard/card config keys (single source of truth).
     // IMPORTANT: do not leak deprecated keys like entity_prefix into saved JSON.
     const cleanConfig = extractCardConfig(src);
-    const { entity_prefix, ...rest } = cleanConfig;
+    const rest = { ...cleanConfig };
+    delete rest.entity_prefix;
     // Ensure meta carries global_prefix consistently.
     if (!rest.global_prefix) {
       const effectivePrefix = getEffectivePrefix(src);

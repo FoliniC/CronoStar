@@ -2,14 +2,12 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Optional, List
-import asyncio
 
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.util import dt as dt_util
 
-from ..utils.prefix_normalizer import normalize_preset_type, normalize_prefix, PRESETS_CONFIG
+from ..utils.prefix_normalizer import PRESETS_CONFIG
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,8 +19,8 @@ class SchedulerService:
         """Initialize the scheduler service."""
         self.hass = hass
         self.profile_service = profile_service
-        self.active_timers: Dict[str, callable] = {}
-        self.cached_schedules: Dict[str, Dict] = {}
+        self.active_timers: dict[str, callable] = {}
+        self.cached_schedules: dict[str, dict] = {}
         self.check_interval = 60  # Default: check every minute
 
         _LOGGER.info("SchedulerService initialized. check_interval=%s", self.check_interval)
@@ -114,7 +112,7 @@ class SchedulerService:
         except Exception as e:
             _LOGGER.error("Error loading schedule for %s: %s", preset, e)
 
-    async def _apply_current_value(self, preset: str, profile_data: Dict):
+    async def _apply_current_value(self, preset: str, profile_data: dict):
         """Apply the appropriate value for current time."""
         _LOGGER.debug("_apply_current_value called for preset=%s", preset)
 
@@ -175,10 +173,10 @@ class SchedulerService:
 
     def _get_value_for_time(
         self,
-        schedule: List[Dict],
+        schedule: list[dict],
         interval_minutes: int,
-        target_time: Optional[datetime] = None,
-    ) -> Optional[float]:
+        target_time: datetime | None = None,
+    ) -> float | None:
         """Get the scheduled value for a specific time."""
         if not schedule:
             _LOGGER.debug("_get_value_for_time: empty schedule")
@@ -220,9 +218,9 @@ class SchedulerService:
 
     def _calculate_next_change(
         self,
-        schedule: List[Dict],
+        schedule: list[dict],
         interval_minutes: int,
-    ) -> Optional[datetime]:
+    ) -> datetime | None:
         """Calculate when the next value change occurs."""
         if not schedule:
             _LOGGER.debug("_calculate_next_change: empty schedule")
