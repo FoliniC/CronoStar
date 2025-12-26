@@ -18,17 +18,16 @@ jobs:
       - name: Create directory structure ok
         run: |
           mkdir -p build/custom_components
-          mkdir -p build/custom_components/cronostar
-          mkdir -p build/custom_components/cronostar/www
-    
+          
+          # Copy component (this already includes the built www/cronostar_card/)
           cp -v -r custom_components/cronostar build/custom_components/
-          cp -v -r www/community/cronostar_card/cronostar-card.js build/custom_components/cronostar/www/cronostar_card/
           
-          [ -d blueprints ] && cp -r blueprints build/ || true
-          [ -d automations ] && cp -r automations build/ || true
-          [ -d packages ] && cp -r packages build/ || true
+          # Copy extras
+          [ -d blueprints ] && cp -v -r blueprints build/ || true
+          [ -d automations ] && cp -v -r automations build/ || true
+          [ -d packages ] && cp -v -r packages build/ || true
           
-          cp README.md LICENSE build/ 2>/dev/null || true
+          cp -v README.md LICENSE build/ 2>/dev/null || true
       
       - name: Create ZIP
         run: |
