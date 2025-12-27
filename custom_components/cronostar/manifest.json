@@ -16,8 +16,5 @@
     "custom_components.cronostar"
   ],
   "requirements": [],
-  "version": "5.2.0",
-  "translations": [
-    "translations/en.json"
-  ]
+  "version": "5.2.0"
 }

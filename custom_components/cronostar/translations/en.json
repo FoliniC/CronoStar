@@ -1,6 +1,5 @@
 {
     "config": {
-        "title": "CronoStar",
         "step": {
             "user": {
                 "title": "CronoStar setup",
@@ -29,6 +28,7 @@
             "packages_required": "Packages must be enabled to continue"
         }
     },
+    "title": "CronoStar",
     "options": {
         "step": {
             "init": {
