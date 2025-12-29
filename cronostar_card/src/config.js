@@ -1,5 +1,5 @@
 /** Configuration management for CronoStar Card with Interval Support */
-export const VERSION = window.CRONOSTAR_CARD_VERSION || '5.2.7';
+export const VERSION = window.CRONOSTAR_CARD_VERSION || '5.3.0';
 
 export const COLORS = {
   primary: "#03a9f4",
