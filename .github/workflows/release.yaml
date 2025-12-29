@@ -39,6 +39,7 @@ jobs:
         run: |
           gh release create ${{ github.ref_name }} CronoStar.zip \
             --title "CronoStar ${{ github.ref_name }}" \
-            --generate-notes
+            --generate-notes \
+            --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
