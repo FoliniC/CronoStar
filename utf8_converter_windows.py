@@ -280,7 +280,7 @@ class UTF8ConverterApp:
             
             # PRIORITÀ ASSOLUTA: Prova UTF-8 prima di tutto
             try:
-                decoded = raw_data.decode('utf-8')
+                raw_data.decode('utf-8')
                 return 'utf-8', 1.0
             except UnicodeDecodeError:
                 pass
@@ -324,9 +324,6 @@ class UTF8ConverterApp:
     
     def detect_newline_type(self, content):
         """Rileva il tipo di newline presente nel file"""
-        has_crlf = '\r\n' in content
-        has_cr = '\r' in content and not has_crlf  # Solo CR senza LF
-        has_lf = '\n' in content
         
         # Conta le occorrenze
         crlf_count = content.count('\r\n')
@@ -642,7 +639,6 @@ class UTF8ConverterApp:
             # Conversione normale per altri encoding
             # Prova diversi encoding in ordine di probabilità
             content = None
-            used_encoding = encoding
             
             # Lista di encoding da provare in ordine
             encodings_to_try = [encoding]
@@ -661,7 +657,6 @@ class UTF8ConverterApp:
                 try:
                     with open(file_path, 'r', encoding=enc, errors='strict') as f:
                         content = f.read()
-                    used_encoding = enc
                     break
                 except (UnicodeDecodeError, LookupError):
                     continue
@@ -860,7 +855,7 @@ class UTF8ConverterApp:
 
 def main():
     root = tk.Tk()
-    app = UTF8ConverterApp(root)
+    UTF8ConverterApp(root)
     root.mainloop()
 
 if __name__ == "__main__":

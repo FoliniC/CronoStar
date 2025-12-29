@@ -3,7 +3,7 @@
     "global_prefix": "cronostar_ev_",
     "preset_type": "ev_charging",
     "created_at": "2025-12-23T14:52:48.855745",
-    "updated_at": "2025-12-23T20:49:38.427313",
+    "updated_at": "2025-12-28T01:01:27.705499",
     "type": "custom:cronostar-card",
     "preset": "ev_charging",
     "hour_base": {
@@ -23,51 +23,52 @@
     "max_value": 8,
     "step_value": 0.5,
     "is_switch_preset": false,
-    "height": "300px"
+    "height": "280px"
   },
   "profiles": {
     "F3": {
       "schedule": [
         {
           "time": "00:00",
+          "value": 3.794733192202055
+        },
+        {
+          "time": "05:55",
+          "value": 3.794733192202055
+        },
+        {
+          "time": "05:56",
           "value": 0
         },
         {
-          "time": "23:59",
+          "time": "22:59",
           "value": 0
+        },
+        {
+          "time": "23:00",
+          "value": 3.794733192202055
+        },
+        {
+          "time": "23:59",
+          "value": 3.794733192202055
         }
       ],
-      "updated_at": "2025-12-23T14:52:48.855819",
-      "global_prefix": "cronostar_ev_",
-      "profile_name": "F3"
+      "updated_at": "2025-12-28T00:34:10.184204"
     },
-    "unavailable": {
+    "Default": {
       "schedule": [
         {
           "time": "00:00",
-          "value": 0
-        },
-        {
-          "time": "09:44",
-          "value": 0
-        },
-        {
-          "time": "09:48",
-          "value": 4
-        },
-        {
-          "time": "11:16",
-          "value": 0
+          "value": 2.2135943621178655
         },
         {
           "time": "23:59",
-          "value": 0
+          "value": 2.2135943621178655
         }
       ],
-      "updated_at": "2025-12-23T20:49:38.427346"
+      "updated_at": "2025-12-28T01:01:27.705649"
     }
   },
-  "saved_at": 1766519378.4381776,
-  "saved_at_iso": "2025-12-23T19:49:38.438178Z",
+  "saved_at": "2025-12-28T00:01:27.705699Z",
   "version": 2
 }

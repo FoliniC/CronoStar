@@ -35,13 +35,11 @@
       state: "off"
   actions:
     - variables:
-        current_hour: "{{ now().hour }}"
-        hour_str: "{{ '%02d' | format(current_hour) }}"
-        target_input: "input_number.cronostar_temp_{{ hour_str }}"
+        target_input: "input_number.cronostar_temp_current"
         target_value: "{{ states(target_input) | float(20) }}"
     - action: system_log.write
       data:
-        message: "[CronoStar TEMP] Hour {{ hour_str }}: Setting temperature to {{ target_value }}°C"
+        message: "[CronoStar TEMP] Setting temperature to {{ target_value }}°C"
         level: info
     # =========================================================
     # CUSTOMIZE HERE: Replace with your climate entity
@@ -71,9 +69,7 @@
       state: "off"
   actions:
     - variables:
-        current_hour: "{{ now().hour }}"
-        hour_str: "{{ '%02d' | format(current_hour) }}"
-        target_input: "input_number.cronostar_ev_{{ hour_str }}"
+        target_input: "input_number.cronostar_ev_current"
         target_value: "{{ states(target_input) | float(0) }}"
         symbolic_max_value: "{{ state_attr(target_input, 'max') | float(1) }}"
         is_max_value: "{{ target_value >= symbolic_max_value }}"
@@ -84,7 +80,7 @@
       then:
         - action: system_log.write
           data:
-            message: "[CronoStar EV] Hour {{ hour_str }}: MAX POWER requested. Deferring to other automations (e.g., solar)."
+            message: "[CronoStar EV] MAX POWER requested. Deferring to other automations (e.g., solar)."
             level: info
         # =========================================================
         # CUSTOMIZE HERE: Add your logic for maximum power.
@@ -98,7 +94,7 @@
       else:
         - action: system_log.write
           data:
-            message: "[CronoStar EV] Hour {{ hour_str }}: Setting power to {{ target_value }}kW ({{ target_ampere }}A)"
+            message: "[CronoStar EV] Setting power to {{ target_value }}kW ({{ target_ampere }}A)"
             level: info
         # =========================================================
         # CUSTOMIZE HERE: Replace with your EV charger entity
@@ -129,14 +125,12 @@
       state: "off"
   actions:
     - variables:
-        current_hour: "{{ now().hour }}"
-        hour_str: "{{ '%02d' | format(current_hour) }}"
-        target_input: "input_number.cronostar_switch_{{ hour_str }}"
+        target_input: "input_number.cronostar_switch_current"
         target_value: "{{ states(target_input) | int(0) }}"
         target_state: "{{ 'on' if target_value == 1 else 'off' }}"
     - action: system_log.write
       data:
-        message: "[CronoStar SWITCH] Hour {{ hour_str }}: Setting switch to {{ target_state | upper }}"
+        message: "[CronoStar SWITCH] Setting switch to {{ target_state | upper }}"
         level: info
     # =========================================================
     # CUSTOMIZE HERE: Replace with your switch entity
@@ -173,13 +167,11 @@
       state: "off"
   actions:
     - variables:
-        current_hour: "{{ now().hour }}"
-        hour_str: "{{ '%02d' | format(current_hour) }}"
-        target_input: "input_number.cronostar_kwh_{{ hour_str }}"
+        target_input: "input_number.cronostar_kwh_current"
         target_value: "{{ states(target_input) | float(0) }}"
     - action: system_log.write
       data:
-        message: "[CronoStar KWH] Hour {{ hour_str }}: Setting limit to {{ target_value }}kWh"
+        message: "[CronoStar KWH] Setting limit to {{ target_value }}kWh"
         level: info
     # =========================================================
     # CUSTOMIZE HERE: Add your logic
@@ -204,13 +196,11 @@
       state: "off"
   actions:
     - variables:
-        current_hour: "{{ now().hour }}"
-        hour_str: "{{ '%02d' | format(current_hour) }}"
-        target_input: "input_number.cronostar_gentemp_{{ hour_str }}"
+        target_input: "input_number.cronostar_gentemp_current"
         target_value: "{{ states(target_input) | float(20) }}"
     - action: system_log.write
       data:
-        message: "[CronoStar GENTEMP] Hour {{ hour_str }}: Setting temperature to {{ target_value }}°C"
+        message: "[CronoStar GENTEMP] Setting temperature to {{ target_value }}°C"
         level: info
     # =========================================================
     # CUSTOMIZE HERE: Add your logic

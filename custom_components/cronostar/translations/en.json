@@ -2,22 +2,22 @@
     "config": {
         "step": {
             "user": {
-                "title": "CronoStar setup",
-                "description": "This setup will:\n- Enable packages in configuration.yaml if needed\n- Create packages folder and copy cronostar_package.yaml\n- Ensure automations include automations directory\n- Create profiles folder\n- Register frontend assets so you can add the 'cronostar' Lovelace card\n\n{automation_note}\n\nProceed?",
+                "title": "CronoStar Setup",
+                "description": "Welcome to CronoStar. This wizard will prepare your Home Assistant environment.\n\n### Key Features:\n- ⏰ **Visual Schedule Editor**: Interactive drag-and-drop chart.\n- 🎯 **Multiple Presets**: Thermostat, EV Charging, Switch, etc.\n- 📊 **Profile Management**: Save, load, and manage multiple schedules.\n- ⌨️ **Smart Control**: Support for keyboard shortcuts and precise adjustments.\n\n### What will be done:\n- **Packages**: Enable `!include_dir_named packages` in `configuration.yaml`.\n- **Files**: Create `packages/` and `automations/` folders.\n- **Profiles**: Create `cronostar/profiles/` for data storage.\n- **Frontend**: Register the Lovelace card.\n\n{automation_note}\n\nDo you want to proceed with the automatic installation?",
                 "data": {
-                    "confirm": "Confirm"
+                    "confirm": "Start Installation"
                 }
             },
             "enable_packages": {
-                "title": "Enable packages",
-                "description": "CronoStar needs Home Assistant packages enabled. Proceed to update configuration.yaml?",
+                "title": "Enable Packages",
+                "description": "CronoStar requires the 'packages' feature enabled in Home Assistant. \n\nWe will attempt to add the following block to your `configuration.yaml`:\n```yaml\nhomeassistant:\n  packages: !include_dir_named packages\n```\nProceed?",
                 "data": {
-                    "confirm": "Enable packages"
+                    "confirm": "Enable Packages & Continue"
                 }
             },
             "confirm_setup": {
-                "title": "Finalize setup",
-                "description": "Automation status: {automation_status}"
+                "title": "Finalize Setup",
+                "description": "Environment analysis complete.\n- Automation configuration: **{automation_status}**\n- Directory structure: **Ready**\n\nClick 'Submit' to create folders and initial files. After this, you can add the CronoStar card to your dashboard."
             }
         },
         "abort": {
@@ -32,10 +32,10 @@
     "options": {
         "step": {
             "init": {
-                "title": "CronoStar options",
-                "description": "Set component options",
+                "title": "CronoStar Configuration",
+                "description": "CronoStar is correctly installed and running.\n\nTo start using it, add a **CronoStar Card** to your dashboard.\n\n### Core Features:\n- ⏰ **Visual Schedule Editor**: Interactive drag-and-drop chart.\n- 🎯 **Multiple Presets**: Thermostat, EV Charging, Switch, etc.\n- 📊 **Profile Management**: Save, load, and manage multiple schedules.\n- ⌨️ **Smart Control**: Support for keyboard shortcuts and precise adjustments.\n\nConfigure component settings below:",
                 "data": {
-                    "logging_enabled": "Enable debug logging"
+                    "logging_enabled": "Enable Debug Logging"
                 }
             }
         }

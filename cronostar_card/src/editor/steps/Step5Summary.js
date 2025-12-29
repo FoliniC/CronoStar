@@ -105,9 +105,9 @@ export class Step5Summary {
           <div style="display: flex; flex-direction: column; gap: 10px;">
             <div style="display: flex; align-items: flex-start; gap: 10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px;">
               <ha-icon icon="mdi:package-variant-closed" style="color: #0ea5e9;"></ha-icon>
-              <div style="flex: 1;">
+              <div style="flex: 1; overflow: hidden;">
                 <div style="font-size: 0.9em; color: #fff;">YAML Package File</div>
-                <div style="font-size: 0.8em; color: #a0a8c0; font-family: monospace;">config/packages/${effectivePrefix}package.yaml</div>
+                <div style="font-size: 0.8em; color: #a0a8c0; font-family: monospace; word-break: break-all; overflow-wrap: anywhere;">config/packages/${effectivePrefix}package.yaml</div>
               </div>
               <div style="color: ${inum && inum.found >= inum.expected ? '#22c55e' : '#8891a8'};">
                 <ha-icon icon=${inum && inum.found >= inum.expected ? 'mdi:check-circle' : 'mdi:circle-outline'}></ha-icon>
@@ -116,9 +116,9 @@ export class Step5Summary {
 
             <div style="display: flex; align-items: flex-start; gap: 10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px;">
               <ha-icon icon="mdi:database" style="color: #0ea5e9;"></ha-icon>
-              <div style="flex: 1;">
+              <div style="flex: 1; overflow: hidden;">
                 <div style="font-size: 0.9em; color: #fff;">Profile Data Storage</div>
-                <div style="font-size: 0.8em; color: #a0a8c0; font-family: monospace;">config/cronostar/profiles/${effectivePrefix.replace(/_+$/, '')}_data.json</div>
+                <div style="font-size: 0.8em; color: #a0a8c0; font-family: monospace; word-break: break-all; overflow-wrap: anywhere;">config/cronostar/profiles/${effectivePrefix.replace(/_+$/, '')}_data.json</div>
               </div>
               <div style="color: #22c55e;">
                 <ha-icon icon="mdi:check-circle"></ha-icon>
@@ -133,10 +133,10 @@ export class Step5Summary {
           
           <div style="display: flex; align-items: flex-start; gap: 10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px;">
             <ha-icon icon="mdi:robot" style="color: #0ea5e9;"></ha-icon>
-            <div style="flex: 1;">
+            <div style="flex: 1; overflow: hidden;">
               <div style="font-size: 0.9em; color: #fff;">Hourly Scheduler</div>
               <div style="font-size: 0.85em; color: #a0a8c0;">Alias: <strong>${expectedAlias}</strong></div>
-              <div style="font-size: 0.8em; color: #a0a8c0; font-family: monospace; margin-top: 4px;">ID: ${expectedId}</div>
+              <div style="font-size: 0.8em; color: #a0a8c0; font-family: monospace; margin-top: 4px; word-break: break-all;">ID: ${expectedId}</div>
             </div>
             <div style="color: ${autoInfo && autoInfo.found ? '#22c55e' : '#8891a8'};">
               <ha-icon icon=${autoInfo && autoInfo.found ? 'mdi:check-circle' : 'mdi:alert-circle-outline'}></ha-icon>
@@ -144,10 +144,34 @@ export class Step5Summary {
           </div>
         </div>
 
+        <!-- 4. MANUAL CONFIGURATION FIX (IF NEEDED) -->
+        ${(!inum || inum.found < inum.expected || !autoInfo || !autoInfo.found) ? html`
+          <div class="field-group" style="border-left: 4px solid #ef4444; background: rgba(239, 68, 68, 0.05);">
+            <strong style="display: block; font-size: 1.1em; color: #fff; margin-bottom: 12px;">⚠️ ${this.editor.i18n._t('ui.manual_config_title')}</strong>
+            <p style="font-size: 0.9em; color: #cbd3e8;">${this.editor.i18n._t('ui.manual_config_desc')}</p>
+            
+            <div style="position: relative; margin-top: 12px;">
+              <pre style="background: #000; color: #22c55e; padding: 12px; border-radius: 8px; font-size: 0.85em; overflow-x: auto; border: 1px solid #333;"><code>homeassistant:
+  packages: !include_dir_named packages
+
+automation: !include_dir_merge_list automations</code></pre>
+              <mwc-button dense style="position: absolute; top: 4px; right: 4px; --mdc-theme-primary: #0ea5e9;" 
+                @click=${() => this.editor.serviceHandlers.copyToClipboard('homeassistant:\n  packages: !include_dir_named packages\n\nautomation: !include_dir_merge_list automations')}>
+                ${this.editor.i18n._t('ui.copy')}
+              </mwc-button>
+            </div>
+          </div>
+        ` : ''}
+
         <!-- SUMMARY ACTION -->
-        <div class="info-box" style="border: 1px solid rgba(14, 165, 233, 0.3); background: rgba(14, 165, 233, 0.05);">
-          <strong style="color: #fff;">${this.editor.i18n._t('finalmodtitle')}</strong>
-          <p style="font-size: 0.9em; margin: 8px 0;">${this.editor.i18n._t('finalmodtext')}</p>
+        <div class="info-box" style="border: 1px solid rgba(14, 165, 233, 0.3); background: rgba(14, 165, 233, 0.05); display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center;">
+          <div>
+            <strong style="color: #fff;">${this.editor.i18n._t('finalmodtitle')}</strong>
+            <p style="font-size: 0.9em; margin: 8px 0;">${this.editor.i18n._t('finalmodtext')}</p>
+          </div>
+          <mwc-button raised @click=${() => this.handleSaveAll()}>
+            💾 ${this.editor._language === 'it' ? 'Salva e Applica File' : 'Save & Apply Files'}
+          </mwc-button>
         </div>
       </div>
     `;

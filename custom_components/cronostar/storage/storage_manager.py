@@ -69,8 +69,7 @@ class StorageManager:
             try:
                 # Add metadata
                 now_ts = time.time()
-                profile_data["saved_at"] = now_ts
-                profile_data["saved_at_iso"] = datetime.fromtimestamp(now_ts, tz=UTC).isoformat().replace("+00:00", "Z")
+                profile_data["saved_at"] = datetime.fromtimestamp(now_ts, tz=UTC).isoformat().replace("+00:00", "Z")
                 profile_data["version"] = 2  # Storage format version
 
                 # Create backup SOLO se abilitato
@@ -125,7 +124,8 @@ class StorageManager:
             age = time.time() - cache_entry["timestamp"]
 
             if age < self._cache_timeout:
-                _LOGGER.debug("Cache hit for %s (age: %.1fs)", filename, age)
+                # Minimal log for cache hits to avoid spam
+                _LOGGER.debug("Cache hit: %s", filename)
                 return cache_entry["data"]
 
         # Load from disk
@@ -149,7 +149,7 @@ class StorageManager:
                         names = list(profiles.keys())
                         first_name = names[0] if names else None
                         sched = profiles.get(first_name, {}).get("schedule", []) if first_name else []
-                        _LOGGER.info(
+                        _LOGGER.debug(
                             "[STORAGE] Loaded container: file=%s, profiles=%d, first_profile=%s, schedule_points=%d",
                             file_path,
                             len(names),
@@ -159,16 +159,16 @@ class StorageManager:
                     elif "profile_name" in data:
                         name = data.get("profile_name")
                         sched = data.get("schedule", [])
-                        _LOGGER.info(
+                        _LOGGER.debug(
                             "[STORAGE] Loaded legacy profile: file=%s, profile=%s, schedule_points=%d",
                             file_path,
                             name,
                             len(sched),
                         )
                     else:
-                        _LOGGER.info("[STORAGE] Loaded JSON file: %s", file_path)
+                        _LOGGER.debug("[STORAGE] Loaded JSON file: %s", file_path)
                 else:
-                    _LOGGER.info("[STORAGE] Loaded non-dict JSON from: %s", file_path)
+                    _LOGGER.debug("[STORAGE] Loaded non-dict JSON from: %s", file_path)
             except Exception:
                 _LOGGER.debug("Profile loaded from disk: %s", filename)
             return data

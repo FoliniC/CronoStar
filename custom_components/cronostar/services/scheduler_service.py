@@ -140,36 +140,36 @@ class SchedulerService:
             _LOGGER.info("No current value found for preset %s at this time", preset)
             return
 
-        # Update input_number
-        try:
-            _LOGGER.info(
-                "Calling input_number.set_value for %s with value=%s (preset=%s)",
-                current_value_entity,
-                current_value,
-                preset,
-            )
-            await self.hass.services.async_call(
-                "input_number",
-                "set_value",
-                {
-                    "entity_id": current_value_entity,
-                    "value": current_value,
-                },
-                blocking=True,
-            )
+            # Update input_number
+            try:
+                _LOGGER.info(
+                    "Calling input_number.set_value for %s with value=%s (preset=%s)",
+                    current_value_entity,
+                    current_value,
+                    preset,
+                )
+                await self.hass.services.async_call(
+                    "input_number",
+                    "set_value",
+                    {
+                        "entity_id": current_value_entity,
+                        "value": current_value,
+                    },
+                    blocking=True,
+                )
 
-            _LOGGER.info(
-                "Updated %s to value %.2f for preset %s",
-                current_value_entity,
-                current_value,
-                preset,
-            )
+                _LOGGER.info(
+                    "Updated %s to value %.2f for preset %s",
+                    current_value_entity,
+                    current_value,
+                    preset,
+                )
 
-            # Also apply to target entity if configured
-            await self._apply_to_target(preset, current_value)
+                # Also apply to target entity if configured
+                await self._apply_to_target(preset, current_value)
 
-        except Exception as e:
-            _LOGGER.error("Error updating %s: %s", current_value_entity, e)
+            except Exception as e:
+                _LOGGER.error("Error updating %s: %s", current_value_entity, e)
 
     def _get_value_for_time(
         self,

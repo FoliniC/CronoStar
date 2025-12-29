@@ -1,5 +1,4 @@
 import { html } from 'lit';
-import { extractCardConfig } from '../../config.js';
 
 export class Step0Dashboard {
   constructor(editor) {
@@ -32,6 +31,7 @@ export class Step0Dashboard {
   async _loadAllProfiles() {
     if (!this.editor.hass) return;
 
+    this.editor._dashboardView = 'status';
     this.editor._dashboardLoading = true;
     this.editor.requestUpdate();
 
@@ -210,20 +210,6 @@ export class Step0Dashboard {
     const targetEntity = meta.target_entity || detailData.target_entity || '';
     const updatedAt = detailData.updated_at || meta.updated_at || 'N/A';
 
-    // Costruisce la configurazione per la card includendo tutti i metadati (min_value, max_value, ecc.)
-    const cardConfig = extractCardConfig({
-      type: 'custom:cronostar-card',
-      preset: presetType,
-      global_prefix: globalPrefix,
-      target_entity: targetEntity,
-      title: meta.title || profileName,
-      ...meta
-    });
-
-    // Ottiene le opzioni per il selettore profili
-    const presetData = this.editor._dashboardProfilesData[presetType] || {};
-    const profileOptions = (presetData.profiles || []).map(p => p.name);
-
     // LOGICA VISIBILITÀ TASTO SALVA:
     // 1. Nome modificato
     const isNameChanged = (this.editor._dashboardEditName || "").trim() !== profileName;
@@ -276,27 +262,38 @@ export class Step0Dashboard {
             </div>
           </div>
 
-          <div class="modal-body" style="padding: 0;">
-            <div style="padding: 20px;">
-                <cronostar-card
-                    .hass=${this.editor.hass}
-                    .config=${cardConfig}
-                    .isPreview=${true}
-                    .previewData=${detailData}
-                    .selectedProfile=${profileName}
-                    .profileOptions=${profileOptions}
-                    @cronostar-state-changed=${() => this.editor.requestUpdate()}
-                ></cronostar-card>
-            </div>
-
-            <div class="info-section" style="padding: 0 20px 20px 20px;">
+          <div class="modal-body" style="padding: 20px;">
+            <div class="info-section">
               <h3>ℹ️ Metadata</h3>
               <div class="info-grid">
                 <div><strong>Preset Type:</strong> ${presetType}</div>
                 <div><strong>Global Prefix:</strong> ${globalPrefix}</div>
                 <div><strong>Target Entity:</strong> ${targetEntity || 'N/A'}</div>
-                <div><strong>Schedule Points:</strong> ${schedule.length}</div>
                 <div><strong>Updated:</strong> ${updatedAt}</div>
+              </div>
+            </div>
+
+            <div class="schedule-section">
+              <h3>⏰ Schedule Points (${schedule.length})</h3>
+              <div style="background: rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; color: #cbd3e8;">
+                  <thead>
+                    <tr style="background: rgba(255,255,255,0.05); text-align: left;">
+                      <th style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.1);">Time</th>
+                      <th style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.1);">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${schedule.map((point, index) => html`
+                      <tr style="${index % 2 === 0 ? '' : 'background: rgba(255,255,255,0.02);'}">
+                        <td style="padding: 8px 15px; font-family: monospace;">${point.time}</td>
+                        <td style="padding: 8px 15px; font-family: monospace; color: #0ea5e9; font-weight: bold;">
+                          ${this.editor._selectedPreset === 'generic_switch' ? (point.value >= 0.5 ? 'ON' : 'OFF') : point.value}
+                        </td>
+                      </tr>
+                    `)}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -306,7 +303,7 @@ export class Step0Dashboard {
   }
 
   _renderProfilesList() {
-    if (!this.editor._dashboardProfilesData) return html``;
+    if (!this.editor._dashboardProfilesData || this.editor._dashboardView !== 'status') return html``;
 
     const presets = Object.keys(this.editor._dashboardProfilesData);
 
@@ -320,57 +317,55 @@ export class Step0Dashboard {
 
     return html`
       <div class="profiles-list">
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
+          <mwc-button outlined @click=${() => { this.editor._dashboardView = 'choice'; this.editor.requestUpdate(); }}>
+            ↩ Back to Choices
+          </mwc-button>
+        </div>
         ${presets.map(presetType => {
           const presetData = this.editor._dashboardProfilesData[presetType];
-          const profiles = presetData.profiles || [];
-          const globalPrefix = presetData.global_prefix || 'N/A';
+          const files = presetData.files || [];
 
           return html`
             <div class="preset-section">
-              <div class="preset-header">
+              <div class="preset-header" style="margin-bottom: 0; border-bottom: none;">
                 <h3>${this.editor.i18n._t(`presetNames.${presetType}`) || presetType}</h3>
-                <div class="preset-actions">
-                  <mwc-button
-                    outlined
-                    @click=${() => {
-                      this.editor._config = {
-                        ...this.editor._config,
-                        preset: presetType,
-                        global_prefix: globalPrefix
-                      };
-                      this.editor._selectedPreset = presetType;
-                      this.editor._isEditing = true;
-                      this.editor._step = 1;
-                      this.editor.requestUpdate();
-                    }}
-                  >
-                    ⚙️ Edit Configuration
-                  </mwc-button>
-                </div>
               </div>
               
-              <div class="preset-info">
-                <span><strong>Prefix:</strong> ${globalPrefix}</span>
-                <span><strong>Profiles:</strong> ${profiles.length}</span>
-              </div>
-
-              <div class="profiles-grid">
-                ${profiles.map(profile => html`
-                  <div class="profile-card">
-                    <div class="profile-name">${profile.name}</div>
-                    <div class="profile-info">
-                      <span>📍 Points: ${profile.points || 0}</span>
-                      <span>🕐 Updated: ${profile.updated_at || 'N/A'}</span>
+              ${files.map((fileInfo, fIdx) => html`
+                <div class="file-entry" style="${fIdx > 0 ? 'margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;' : 'margin-top: 10px;'}">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                    <div style="display: flex; flex-direction: column; gap: 4px; overflow: hidden; width: 100%;">
+                      <span style="font-family: monospace; color: #0ea5e9; font-size: 0.95rem; font-weight: bold; display: flex; align-items: center; gap: 8px; word-break: break-all;">
+                        <ha-icon icon="mdi:file-code-outline" style="--mdc-icon-size: 18px; flex-shrink: 0;"></ha-icon>
+                        ${fileInfo.filename}
+                      </span>
+                      <span style="font-size: 0.75rem; color: #8891a8; margin-left: 26px; font-family: monospace; word-break: break-all;">
+                        <strong>Path:</strong> /config/cronostar/profiles/${fileInfo.filename}
+                      </span>
+                      <span style="font-size: 0.8rem; color: #a0a8c0; margin-left: 26px;"><strong>Prefix:</strong> ${fileInfo.global_prefix}</span>
                     </div>
-                    <mwc-button 
-                      raised
-                      @click=${() => this._showProfileDetail(presetType, profile.name, globalPrefix)}
-                    >
-                      📊 View Details
-                    </mwc-button>
                   </div>
-                `)}
-              </div>
+
+                  <div class="profiles-grid">
+                    ${fileInfo.profiles.map(profile => html`
+                      <div class="profile-card">
+                        <div class="profile-name">${profile.name}</div>
+                        <div class="profile-info">
+                          <span>📍 Points: ${profile.points || 0}</span>
+                          <span>🕐 Updated: ${profile.updated_at || 'N/A'}</span>
+                        </div>
+                        <mwc-button 
+                          raised
+                          @click=${() => this._showProfileDetail(presetType, profile.name, fileInfo.global_prefix)}
+                        >
+                          📊 View Details
+                        </mwc-button>
+                      </div>
+                    `)}
+                  </div>
+                </div>
+              `)}
             </div>
           `;
         })}
@@ -379,6 +374,8 @@ export class Step0Dashboard {
   }
 
   render() {
+    const showChoice = this.editor._dashboardView === 'choice';
+
     return html`
       <style>
         .dashboard-container {
@@ -479,24 +476,29 @@ export class Step0Dashboard {
       </style>
 
       <div class="dashboard-container">
-        <div class="step-header">${this.editor.i18n._t('headers.step0') || 'Dashboard'}</div>
-        <div class="step-description">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <img src="/cronostar_card/cronostar-logo.png" style="width: 24px; height: auto; margin-bottom: 16px;">
+          <div class="step-header" style="margin-bottom: 0;">${this.editor.i18n._t('headers.step0') || 'Dashboard'}</div>
+        </div>
+        <div class="step-description" style="text-align: center;">
           ${this.editor.i18n._t('descriptions.step0') || 'Choose an action: configure a new preset or analyze existing profiles.'}
         </div>
 
-        <div class="choice-buttons">
-          <div class="choice-button" @click=${() => { this.editor._isEditing = false; this.editor._step = 1; this.editor.requestUpdate(); }}>
-            <div class="choice-button-icon">⚙️</div>
-            <div class="choice-button-title">Edit Configuration</div>
-            <div class="choice-button-desc">Modify the current card configuration</div>
-          </div>
+        ${showChoice ? html`
+          <div class="choice-buttons">
+            <div class="choice-button" @click=${() => { this.editor._step = 1; this.editor.requestUpdate(); }}>
+              <div class="choice-button-icon">⚙️</div>
+              <div class="choice-button-title">${this.editor._isEditing ? 'Edit Configuration' : 'New Configuration'}</div>
+              <div class="choice-button-desc">${this.editor._isEditing ? 'Modify the current card configuration' : 'Start a fresh configuration for this card'}</div>
+            </div>
 
-          <div class="choice-button" @click=${() => this._loadAllProfiles()}>
-            <div class="choice-button-icon">📊</div>
-            <div class="choice-button-title">Analyze Status</div>
-            <div class="choice-button-desc">View existing profiles and configurations</div>
+            <div class="choice-button" @click=${() => this._loadAllProfiles()}>
+              <div class="choice-button-icon">📊</div>
+              <div class="choice-button-title">Analyze Status</div>
+              <div class="choice-button-desc">View existing111 profiles and configurations</div>
+            </div>
           </div>
-        </div>
+        ` : ''}
 
         ${this.editor._dashboardLoading ? html`
           <div class="info-box">

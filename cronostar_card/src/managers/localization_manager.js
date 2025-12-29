@@ -39,7 +39,9 @@ const TRANSLATIONS = {
       delete_profile: "Delete profile",
       help: "Help",
       enable_logging: "Enable logging",
-      select_preset: "Select preset"
+      select_preset: "Select preset",
+      delete_selected: "Delete selected",
+      close_menu: "Close"
     },
     preset: {
       thermostat: "Thermostat",
@@ -60,7 +62,9 @@ const TRANSLATIONS = {
     },
     help: {
       title: "CronoStar Help",
-      text: "Use mouse/touch to drag points. Keyboard: Ctrl+A select all, arrows change values, Esc clears selection."
+      text: "Use mouse/touch to drag points. Keyboard: Ctrl+A select all, arrows change values, Esc clears selection.",
+      mouse_manual: "Mouse Usage:\n- Add Points: Left-click on empty space\n- Selection: Click on a point\n- Multiple Selection: Ctrl/Cmd + Click or Selection Box (drag on empty area)\n- Adjust Values: Drag point up/down\n- Delete: Right-click on a point\n- Alignment: Alt + Left/Right Click\n- Zoom: Wheel/Pinch on X-axis (bottom) or Y-axis (left)\n- Pan: Click and drag on axes",
+      keyboard_manual: "Keyboard Usage:\n- Arrows: UP/DOWN (value), LEFT/RIGHT (move/align)\n- Modifiers: Ctrl/Cmd (Fine), Shift (Snap)\n- Shortcuts: Ctrl+Z (Undo), Ctrl+Y (Redo), Ctrl+A (Select All), Alt+Q (Insert), Alt+W (Delete), Esc (Deselect), Enter (Apply)"
     },
     error: {
       chart_init_failed: "Chart initialization failed. See console logs.",
@@ -108,7 +112,9 @@ const TRANSLATIONS = {
       delete_profile: "Elimina profilo",
       help: "Aiuto",
       enable_logging: "Abilita log",
-      select_preset: "Seleziona preset"
+      select_preset: "Seleziona preset",
+      delete_selected: "Elimina selezionati",
+      close_menu: "Chiudi"
     },
     preset: {
       thermostat: "Termostato",
@@ -129,7 +135,9 @@ const TRANSLATIONS = {
     },
     help: {
       title: "Aiuto CronoStar",
-      text: "Usa mouse/touch per trascinare i punti. Tastiera: Ctrl+A seleziona tutto, frecce cambiano i valori, Esc cancella la selezione."
+      text: "Usa mouse/touch per trascinare i punti. Tastiera: Ctrl+A seleziona tutto, frecce cambiano i valori, Esc cancella la selezione.",
+      mouse_manual: "Utilizzo Mouse:\n- Aggiungi Punti: Click sinistro su spazio vuoto\n- Selezione: Click su un punto\n- Selezione Multipla: Ctrl/Cmd + Click o Box di selezione (trascina su area vuota)\n- Regola Valori: Trascina il punto su/giù\n- Elimina: Click destro su un punto\n- Allineamento: Alt + Click Sinistro/Destro\n- Zoom: Rotella/Pinch su asse X (fondo) o Y (sinistra)\n- Pan: Trascina sugli assi",
+      keyboard_manual: "Utilizzo Tastiera:\n- Frecce: SU/GIÙ (valore), SINISTRA/DESTRA (sposta/allinea)\n- Modificatori: Ctrl/Cmd (Fine), Shift (Snap)\n- Scorciatoie: Ctrl+Z (Undo), Ctrl+Y (Redo), Ctrl+A (Tutto), Alt+Q (Inserisci), Alt+W (Elimina), Esc (Deseleziona), Invio (Applica)"
     },
     error: {
       chart_init_failed: "Inizializzazione grafico fallita. Vedi i log della console.",

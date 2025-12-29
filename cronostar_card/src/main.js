@@ -12,20 +12,7 @@ globalThis.PRESETS = CARD_CONFIG_PRESETS;
 // Espone classi su window (utile per debug / integrazioni esterne)
 window.CronoStarCard = CronoStarCard;
 window.CronoStarEditor = CronoStarEditor;
-///////////
-// Register custom element  
-customElements.define('cronostar-card', CronoStarCard);  
-  
-// Add card to custom card picker  
-//window.customCards = window.customCards || [];  
-//window.customCards.push({  
-//  type: 'cronostar-card',  
-//  name: 'CronoStar',  
-//  description: 'Visual hourly schedule editor with drag-and-drop control',  
-//  preview: true,  
-//  documentationURL: 'https://github.com/FoliniC/cronostar-card',  
-//});  
-///////////
+
 console.log(`CRONOSTAR: main.js started (v${VERSION})`);
 console.log('CRONOSTAR: window.CronoStarCard assigned:', !!window.CronoStarCard);
 console.log('CRONOSTAR: window.CronoStarEditor assigned:', !!window.CronoStarEditor);
@@ -94,6 +81,30 @@ if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
         console.log('CRONOSTAR:   registry scoped diverso dal globale, registrazione elementi...');
         registerInRegistry(registry, 'cronostar-card', CronoStarCard, `${ctx} / card`);
         registerInRegistry(registry, 'cronostar-card-editor', CronoStarEditor, `${ctx} / editor`);
+
+        // Assicurati che i componenti HA essenziali siano disponibili nel registry scoped
+        try {
+          const haEntityPickerCtor = customElements.get('ha-entity-picker');
+          if (haEntityPickerCtor) {
+            registerInRegistry(registry, 'ha-entity-picker', haEntityPickerCtor, `${ctx} / ha-entity-picker`);
+          } else {
+            console.warn('CRONOSTAR: ha-entity-picker non ancora definito nel registry globale, attendo whenDefined...');
+            if (customElements.whenDefined) {
+              customElements.whenDefined('ha-entity-picker').then(() => {
+                try {
+                  const ctor = customElements.get('ha-entity-picker');
+                  if (ctor) {
+                    registerInRegistry(registry, 'ha-entity-picker', ctor, `${ctx} / ha-entity-picker(late)`);
+                  }
+                } catch (e) {
+                  console.warn('CRONOSTAR: errore nella registrazione tardiva di ha-entity-picker nel registry scoped:', e);
+                }
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('CRONOSTAR: errore durante la registrazione di ha-entity-picker nel registry scoped:', e);
+        }
       } else if (registry === customElements) {
         console.log('CRONOSTAR:   registry coincidente con customElements globale, nessuna azione');
       } else {
@@ -113,17 +124,28 @@ if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
 
 // 3) Registrazione in window.customCards per apparire nel card picker
 window.customCards = window.customCards || [];
-if (!window.customCards.some((c) => c.type === 'custom:cronostar-card')) {
-  window.customCards.push({
-    type: 'cronostar-card',
-    name: 'CronoStar Card',
-    description: 'Visual hourly schedule editor with drag-and-drop control',
-    preview: true,
-    documentationURL: 'https://github.com/FoliniC/cronostar_card',
-  });
+const cardType = 'cronostar-card'; // ✅ Senza prefisso "custom:"
+const existingCardIndex = window.customCards.findIndex((c) => c.type === cardType || c.type === 'custom:cronostar-card');
+
+const cardMetadata = {
+  type: cardType, // ✅ Home Assistant aggiunge automaticamente "custom:"
+  name: '🌟 CronoStar Card',
+  description: 'Visual hourly schedule editor with drag-and-drop control',
+  // Enable live preview in card picker (we will swap content to an image at runtime when in preview)
+  preview: true,
+  // Use the project logo as thumbnail in the picker
+  preview_image: '/cronostar_card/cronostar-logo.png',
+  thumbnail: '/cronostar_card/cronostar-logo.png',
+  documentationURL: 'https://github.com/FoliniC/cronostar_card'
+};
+
+if (existingCardIndex === -1) {
+  window.customCards.push(cardMetadata);
   console.log('CRONOSTAR: ✅ Aggiunto a window.customCards');
 } else {
-  console.log('CRONOSTAR: Già presente in window.customCards');
+  // Update existing registration to ensure image is included
+  window.customCards[existingCardIndex] = cardMetadata;
+  console.log('CRONOSTAR: ✅ Aggiornata registrazione in window.customCards');
 }
 
 // Banner finale

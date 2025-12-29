@@ -166,9 +166,7 @@ class InputNumberInspector:
             hour_base=hour_base,
         )
 
-    async def validate_package_content(
-        self, base_dir: str, source: str, include_target: str | None, cfg_path: str, used_prefix: str
-    ) -> PackageContentInfo:
+    async def validate_package_content(self, base_dir: str, source: str, include_target: str | None, cfg_path: str, used_prefix: str) -> PackageContentInfo:
         """Ensure the package contains the expected input_number helper and basic attributes."""
         input_key = f"{used_prefix}current"
         missing = []
@@ -364,19 +362,28 @@ class AutomationInspector:
                     details="Alias not found in YAML",
                 )
 
-            # Validate apply value: look for an action calling a service and referencing input_number.<prefix>current
+            # Validate apply value: look for an action calling a service
             actions = target.get("action") or []
             if isinstance(actions, dict):
                 actions = [actions]
             for act in actions:
                 if not isinstance(act, dict):
                     continue
-                svc = act.get("service") or act.get("action")
+                svc = (act.get("service") or act.get("action") or "").strip()
                 data = act.get("data") or act.get("data_template") or {}
-                # Look for Jinja template or entity_id referencing the helper
+
+                # Check for modern service call
+                if svc == "cronostar.apply_now":
+                    # Verify global_prefix matches if provided in data
+                    provided_prefix = data.get("global_prefix", "")
+                    if not provided_prefix or provided_prefix == used_prefix:
+                        ok_apply = True
+                        break
+
+                # Fallback: Look for Jinja template or entity_id referencing the helper
                 helper_id = f"input_number.{used_prefix}current"
                 serialized = json.dumps(data, ensure_ascii=False) if data else ""
-                if isinstance(svc, str) and helper_id in serialized:
+                if svc and helper_id in serialized:
                     ok_apply = True
                     break
 
@@ -400,15 +407,11 @@ class AutomationInspector:
                         ok_sched = True
                         break
 
-            return AutomationContentInfo(
-                ok_alias=ok_alias, ok_apply_value=ok_apply, ok_schedule_next=ok_sched, alias=alias, path=path, details=""
-            )
+            return AutomationContentInfo(ok_alias=ok_alias, ok_apply_value=ok_apply, ok_schedule_next=ok_sched, alias=alias, path=path, details="")
         except Exception as e:
             details = f"Error validating automation content: {e}"
             _LOGGER.warning(details)
-            return AutomationContentInfo(
-                ok_alias=ok_alias, ok_apply_value=False, ok_schedule_next=False, alias=alias, path=path, details=details
-            )
+            return AutomationContentInfo(ok_alias=ok_alias, ok_apply_value=False, ok_schedule_next=False, alias=alias, path=path, details=details)
 
     async def _count_yaml_automations(self, base_dir: str, source: str, include_target: str | None, cfg_path: str) -> int:
         count = 0
@@ -677,9 +680,7 @@ def register_check_setup_service(hass: HomeAssistant) -> None:
                     has_schedule = True
                     schedule_count = len(schedule)
                     for item in schedule:
-                        if not (
-                            isinstance(item, dict) and isinstance(item.get("time"), str) and isinstance(item.get("value"), (int, float))
-                        ):
+                        if not (isinstance(item, dict) and isinstance(item.get("time"), str) and isinstance(item.get("value"), (int, float))):
                             invalid_items += 1
         except Exception as e:
             _LOGGER.warning("Error reading profiles JSON: %s", e)
@@ -718,9 +719,17 @@ def register_check_setup_service(hass: HomeAssistant) -> None:
             blocking=True,
         )
 
+        # Prepare report data
+        input_number_report = input_number_info.__dict__
+        input_number_report["found"] = input_number_info.runtime_found_prefixed
+        input_number_report["expected"] = 1  # In sparse/current mode, we expect at least the _current helper
+
+        automation_report = automation_info.__dict__
+        automation_report["found"] = len(automation_info.found_by_alias) > 0
+
         report = {
-            "input_number": input_number_info.__dict__,
-            "automation": automation_info.__dict__,
+            "input_number": input_number_report,
+            "automation": automation_report,
             "card_init": card_init.__dict__,
             "package_content": (package_content.__dict__ if package_content else None),
             "automation_content": (automation_content.__dict__ if automation_content else None),

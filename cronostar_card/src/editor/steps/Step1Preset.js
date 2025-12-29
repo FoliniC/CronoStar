@@ -5,6 +5,7 @@ import { getEffectivePrefix, isValidPrefix } from '../../utils/prefix_utils.js';
 export class Step1Preset {
   constructor(editor) {
     this.editor = editor;
+    this._debugLoggedOnce = false;
   }
 
   render() {
@@ -24,45 +25,60 @@ export class Step1Preset {
     const applyExists = !!(applyEntity && this.editor.hass?.states?.[applyEntity]);
     const minimalConfigComplete = prefixValid && !!applyEntity;
 
+    const domains = this.getApplyIncludeDomains();
+    // Prefer ha-selector (HA core) instead of ha-entity-picker (often not registered globally in scoped contexts)
+    const localRegistry = this.editor.renderRoot?.customElements;
+    const localHasGet = !!(localRegistry && typeof localRegistry.get === 'function');
+    const localSelectorCtor = localHasGet ? localRegistry.get('ha-selector') : undefined;
+    const globalSelectorCtor = customElements.get('ha-selector');
+    const canRenderSelector = !!(localSelectorCtor || globalSelectorCtor);
+
+    // LOG diagnostici (una volta per apertura step)
+    if (!this._debugLoggedOnce) {
+      this._debugLoggedOnce = true;
+      try {
+        console.log('[WIZARD-STEP1] target_entity UI debug', {
+          hass: !!this.editor.hass,
+          hassStatesCount: this.editor.hass?.states ? Object.keys(this.editor.hass.states).length : 0,
+          preset: this.editor._selectedPreset,
+          includeDomains: domains,
+          applyEntity,
+          applyExists,
+          minimalConfigComplete,
+          // registry / element availability
+          hasRenderRoot: !!this.editor.renderRoot,
+          hasLocalRegistry: !!localRegistry,
+          localHasGet,
+          localSelectorDefined: !!localSelectorCtor,
+          globalSelectorDefined: !!globalSelectorCtor,
+          canRenderSelector,
+          // DOM context hints
+          editorTag: this.editor.tagName,
+        });
+      } catch (e) {
+        console.log('[WIZARD-STEP1] target_entity UI debug (failed to serialize)', e);
+      }
+    }
+    if (!canRenderSelector && customElements.whenDefined) {
+      // Pianifica un aggiornamento quando il selector sarà definito globalmente
+      customElements.whenDefined('ha-selector').then(() => {
+        try { this.editor.requestUpdate(); } catch (_) { /* ignore */ }
+      });
+    }
+
     const headerKey = this.editor._isEditing ? 'headers.step1_edit' : 'headers.step1';
 
     return html`
       <div class="step-content">
-        <div class="step-header">${this.editor.i18n._t(headerKey)}</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+          <div class="step-header" style="margin-bottom: 0;">${this.editor.i18n._t(headerKey)}</div>
+          <mwc-button outlined @click=${() => this.editor.handleShowHelp()} style="--mdc-theme-primary: #0ea5e9;">
+            ℹ️ ${this.editor._language === 'it' ? 'Info Componente' : 'Component Info'}
+          </mwc-button>
+        </div>
         <div class="step-description">${this.editor.i18n._t('descriptions.step1')}</div>
 
-        <div class="field-group" style="margin-bottom: 24px;">
-          <label class="field-label">1. ${this.editor.i18n._t('fields.target_entity_label')}</label>
-          <div class="field-description">${this.editor.i18n._t('fields.target_entity_desc')}</div>
-          ${this.editor._isElDefined('ha-entity-picker')
-        ? html`<ha-entity-picker
-                .hass=${this.editor.hass}
-                .value=${applyEntity}
-                allow-custom-entity
-                @value-changed=${(e) => this.editor._updateConfig('target_entity', e.detail.value)}
-              ></ha-entity-picker>`
-        : this.editor._renderTextInput('target_entity', applyEntity, 'Entity ID')}
-          ${applyExists
-        ? html`<div class="hint" style="color: var(--success-color);">✓ Entity found</div>`
-        : html``}
-        </div>
-
-        <div class="field-group" style="margin-bottom: 24px;">
-          <label class="field-label">${this.editor.i18n._t('ui.identification_prefix')}</label>
-          <div class="field-description">
-            ${this.editor.i18n._t('ui.prefix_description')}
-          </div>
-          ${this.editor._renderTextInput('global_prefix', currentPrefix, `input_number.${currentPrefix}...`)}
-        </div>
-
-        <div style="margin-bottom: 12px;">
-            ${prefixValid
-                ? html`<div style="color: #cbd3e8; font-size: 1rem; margin-bottom: 8px;">${this.editor.i18n._t('step2_msgs.prefix_ok')}</div>`
-                : html`<div style="color: var(--error-color); font-size: 1rem; margin-bottom: 8px;">${this.editor.i18n._t('step2_msgs.prefix_bad')}</div>`
-            }
-        </div>
-
-        <div class="preset-cards">
+        <div class="preset-cards" style="margin-bottom: 24px;">
           ${list.map(preset => html`
             <button
               type="button"
@@ -77,21 +93,61 @@ export class Step1Preset {
           `)}
         </div>
 
+        <div class="field-group" style="margin-bottom: 24px;">
+          <label class="field-label">1. ${this.editor.i18n._t('fields.target_entity_label')}</label>
+          <div class="field-description">${this.editor.i18n._t('fields.target_entity_desc')}</div>
+          ${canRenderSelector ? html`
+            <ha-selector
+              .hass=${this.editor.hass}
+              .selector=${{ entity: { domain: domains.length === 1 ? domains[0] : domains } }}
+              .value=${applyEntity}
+              .label=${"Target Entity"}
+              @value-changed=${(e) => {
+          const v = e?.detail?.value;
+          this.editor._updateConfig('target_entity', v);
+          this.editor._dispatchConfigChanged(true);
+        }}
+            ></ha-selector>
+          ` : html`
+            ${this.editor._renderTextInput('target_entity', applyEntity, 'entity_id (es. climate.salotto)')}
+            <div style="margin-top:8px; color:#a0a8c0; font-size:0.85rem;">
+              ${this.editor._language === 'it'
+          ? 'Il selector entità (ha-selector) non è disponibile in questo contesto. Puoi inserire l’entity_id manualmente.'
+          : 'Entity selector (ha-selector) is not available in this context. You can type the entity_id manually.'}
+            </div>
+          `}
+        </div>
+
+        <div class="field-group" style="margin-bottom: 24px;">
+          <label class="field-label">${this.editor.i18n._t('ui.identification_prefix')}</label>
+          <div class="field-description">
+            ${this.editor.i18n._t('ui.prefix_description')}
+          </div>
+          ${this.editor._renderTextInput('global_prefix', currentPrefix, `input_number.${currentPrefix}...`)}
+        </div>
+
+        <div style="margin-bottom: 12px;">
+            ${prefixValid
+        ? html`<div style="color: #cbd3e8; font-size: 1rem; margin-bottom: 8px;">${this.editor.i18n._t('step2_msgs.prefix_ok')}</div>`
+        : html`<div style="color: var(--error-color); font-size: 1rem; margin-bottom: 8px;">${this.editor.i18n._t('step2_msgs.prefix_bad')}</div>`
+      }
+        </div>
+
         ${minimalConfigComplete ? html`
           <div class="success-box" style="margin: 20px 0; border: 1px solid var(--success-color); padding: 16px; border-radius: 8px; background: rgba(0, 255, 0, 0.05);">
             <strong>✅ ${this.editor.i18n._t('ui.minimal_config_complete')}</strong>
             <div style="margin-top: 8px;">
               ${this.editor.i18n._t('ui.minimal_config_info', {
-          '{entity}': `input_number.${currentPrefix}current`,
-          '{package}': `${currentPrefix}package.yaml`
-        })}
+        '{entity}': `input_number.${currentPrefix}current`,
+        '{package}': `${currentPrefix}package.yaml`
+      })}
             </div>
             <div style="margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
-              <mwc-button raised @click=${() => this._handleEarlySave()}>
-                💾 ${this.editor.i18n._t('actions.save_and_create')}
+              <mwc-button raised @click=${() => this._handleSaveExit()}>
+                💾 ${this.editor._language === 'it' ? 'Salva...' : 'Save...'}
               </mwc-button>
-              <mwc-button outlined @click=${() => this.editor.wizard._nextStep()}>
-                ⚙️ ${this.editor.i18n._t('actions.advanced_config')}
+              <mwc-button outlined @click=${() => this._handleAdvanced()}>
+                ⚙️ ${this.editor._language === 'it' ? 'Avanzate...' : 'Advanced...'}
               </mwc-button>
             </div>
           </div>
@@ -128,14 +184,38 @@ export class Step1Preset {
     this.editor.requestUpdate();
   }
 
-  async _handleEarlySave() {
-    this.editor._dispatchConfigChanged();
+  async _handleSaveExit() {
+    this.editor._dispatchConfigChanged(true);
     if (this.editor.hass) {
       try {
-        await this.editor._handleFinishClick({ force: true });
+        await this.editor._handleFinishClick({ force: true, skipClose: false });
       } catch (e) {
-        console.error("Early save failed:", e);
+        console.error("Save & Exit failed:", e);
       }
+    }
+  }
+
+  async _handleAdvanced() {
+    this.editor._dispatchConfigChanged(true);
+    if (this.editor.hass) {
+      try {
+        await this.editor._handleFinishClick({ force: true, skipClose: true });
+        this.editor.wizard._nextStep();
+      } catch (e) {
+        console.error("Save & Advanced failed:", e);
+        this.editor.wizard._nextStep();
+      }
+    }
+  }
+
+  getApplyIncludeDomains() {
+    switch (this.editor._selectedPreset) {
+      case 'thermostat': return ['climate'];
+      case 'ev_charging': return ['number', 'input_number'];
+      case 'generic_switch': return ['switch', 'input_boolean'];
+      case 'generic_kwh': return ['number', 'input_number'];
+      case 'generic_temperature': return ['number', 'input_number', 'sensor'];
+      default: return [];
     }
   }
 }

@@ -71,7 +71,7 @@ export async function handleCreateAutomationYaml(hass, config, deepReport, langu
     await createYamlFile(hass, fullPath, content);
     return { success: true, message: `✓ File created: ${fullPath}` };
   } else if (autoSource === 'include_file') {
-    await createYamlFile(hass, autoDir, `\n# ==== CronoStar Automation ====`, true);
+    await createYamlFile(hass, autoDir, `\n# ==== CronoStar Automation ====\n${content}`, true);
     return { success: true, message: `✓ Appended to: ${autoDir}` };
   } else if (autoSource === 'inline') {
     throw new Error(localize(language, 'ui.inline_automation_use_ui'));

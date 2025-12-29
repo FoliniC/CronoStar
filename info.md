@@ -1,5 +1,7 @@
 # CronoStar for Home Assistant
 
+![CronoStar](https://raw.githubusercontent.com/FoliniC/CronoStar/main/custom_components/cronostar/www/cronostar_card/cronostar-logo.png)
+
 Time-based profile management with visual interface.
 
 ## Features

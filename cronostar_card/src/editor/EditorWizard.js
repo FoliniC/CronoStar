@@ -38,7 +38,6 @@ export class EditorWizard {
       if (this.editor._persistCardConfigNow) {
         this.editor._persistCardConfigNow()
           .then(() => {
-            console.log('[Wizard] Config persisted on finish');
             this.editor._dispatchConfigChanged(true);
           })
           .catch(err => {

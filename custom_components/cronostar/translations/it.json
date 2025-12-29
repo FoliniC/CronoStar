@@ -1,0 +1,43 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Installazione CronoStar",
+                "description": "Benvenuto in CronoStar. Questo wizard preparerà il tuo ambiente Home Assistant.\n\n### Caratteristiche Principali:\n- **Editor Visuale**: Grafico interattivo con trascinamento.\n- **Multi-Preset**: Termostato, Ricarica EV, Interruttore, ecc.\n- **Gestione Profili**: Salva, carica e gestisci più programmi.\n- **Controllo Avanzato**: Supporto scorciatoie da tastiera e regolazioni precise.\n\n### Operazioni pianificate:\n- **Package**: Abilita `!include_dir_named packages` in `configuration.yaml`.\n- **File**: Crea le cartelle `packages/` e `automations/`.\n- **Profili**: Crea `cronostar/profiles/` per l\'archiviazione dati.\n- **Frontend**: Registra la card Lovelace.\n\n{automation_note}\n\nVuoi procedere con l\'installazione automatica?",
+                "data": {
+                    "confirm": "Inizia Installazione"
+                }
+            },
+            "enable_packages": {
+                "title": "Abilita Package",
+                "description": "CronoStar richiede la funzione 'packages' abilitata in Home Assistant. \n\nTenteremo di aggiungere il seguente blocco al tuo `configuration.yaml`:\n```yaml\nhomeassistant:\n  packages: !include_dir_named packages\n```\nProcedere?",
+                "data": {
+                    "confirm": "Abilita Package e Continua"
+                }
+            },
+            "confirm_setup": {
+                "title": "Finalizza Setup",
+                "description": "Analisi dell\'ambiente completata.\n- Configurazione automazioni: **{automation_status}**\n- Struttura directory: **Pronta**\n\nClicca 'Invia' per creare le cartelle e i file iniziali. Successivamente, potrai aggiungere la card CronoStar alla tua dashboard."
+            }
+        },
+        "abort": {
+            "single_instance_allowed": "È consentita una sola istanza di CronoStar",
+            "aborted_by_user": "Installazione annullata dall\'utente"
+        },
+        "error": {
+            "packages_required": "I package devono essere abilitati per continuare"
+        }
+    },
+    "title": "CronoStar",
+    "options": {
+        "step": {
+            "init": {
+                "title": "Configurazione CronoStar",
+                "description": "✅ **CronoStar è installato correttamente e in funzione.**\n\nPer iniziare ad usarlo, aggiungi una **Card CronoStar** alla tua dashboard.\n\n### Caratteristiche Principali:\n- ⏰ **Editor Visuale**: Grafico interattivo con trascinamento.\n- 🎯 **Multi-Preset**: Termostato, Ricarica EV, Interruttore, ecc.\n- 📊 **Gestione Profili**: Salva, carica e gestisci più programmi.\n- ⌨️ **Controllo Avanzato**: Supporto scorciatoie da tastiera e regolazioni precise.\n\nConfigura le impostazioni del componente:",
+                "data": {
+                    "logging_enabled": "Abilita Log di Debug"
+                }
+            }
+        }
+    }
+}

@@ -11,6 +11,23 @@ export const cardStyles = css`
     display: flex;
     flex-direction: column;
     position: relative;
+    transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
+                width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.4s ease;
+    overflow: hidden;
+  }
+
+  ha-card.expanded-v {
+    height: auto !important;
+    min-height: 600px !important;
+    max-height: 90vh !important;
+  }
+
+  ha-card.expanded-h {
+    width: 95vw !important;
+    margin-left: calc(-47.5vw + 50%);
+    z-index: 100;
+    overflow: visible !important;
   }
 
   .card-header {
@@ -18,6 +35,24 @@ export const cardStyles = css`
     justify-content: space-between;
     align-items: center;
     padding-bottom: 8px;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .header-logo {
+    height: 1em;
+    width: auto;
+    object-fit: contain;
+  }
+
+  .title {
+    font-size: 1.2rem;
+    font-weight: 500;
+    line-height: 1.5em;
   }
 
   .name {
@@ -54,10 +89,24 @@ export const cardStyles = css`
     right: 8px;
     background: var(--card-background-color, white);
     border: 1px solid var(--divider-color, #e0e0e0);
-    border-radius: 4px;
+    border-radius: 8px;
     z-index: 100;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    padding: 8px 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    padding: 4px 0;
+    width: 200px;
+  }
+
+  .menu-content mwc-list-item {
+    --mdc-list-item-vertical-padding: 4px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .menu-content ha-icon,
+  .context-menu ha-icon {
+    margin-right: 12px;
+    --mdc-icon-size: 20px;
+    color: var(--secondary-text-color);
   }
 
   .menu-item-with-switch,
@@ -65,35 +114,40 @@ export const cardStyles = css`
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 16px;
-    min-height: 48px;
-  }
-
-  .menu-item-with-switch span,
-  .menu-item-with-select span {
-    flex-grow: 1;
-    color: var(--primary-text-color);
+    padding: 4px 16px;
+    min-height: 36px;
+    font-size: 13px;
   }
 
   .language-menu {
     display: flex;
     align-items: center;
-    padding: 8px 16px;
+    justify-content: center;
+    padding: 4px 8px;
     border: 1px solid var(--divider-color, #e0e0e0);
     border-radius: 4px;
-    margin: 8px 16px;
+    margin: 4px 8px;
     background: var(--card-background-color, white);
+    gap: 4px;
   }
 
   .language-menu mwc-button {
-    margin: 0 4px;
+    --mdc-button-horizontal-padding: 8px;
+    min-width: 40px;
+    height: 28px;
+    font-size: 11px;
   }
   
   .language-menu mwc-button[raised] {
     --mdc-theme-primary: var(--primary-color, #03a9f4);
     --mdc-theme-on-primary: white;
     font-weight: bold;
-    border: 2px solid var(--primary-color, #03a9f4);
+  }
+
+  ha-select {
+    --mdc-select-vertical-padding: 0;
+    --mdc-select-height: 32px;
+    font-size: 12px;
   }
 
   .card-content {
@@ -113,7 +167,41 @@ export const cardStyles = css`
     outline: none;
     border-radius: 4px;
     overflow: hidden;
-    transition: box-shadow 0.2s ease;
+    transition: box-shadow 0.2s ease, min-height 0.3s ease;
+  }
+
+  ha-card.expanded-v .chart-container {
+    min-height: 450px;
+    flex: 1;
+  }
+
+  .context-menu {
+    position: absolute;
+    background: var(--card-background-color, white);
+    border: 1px solid var(--divider-color);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    padding: 4px 0;
+    min-width: 150px;
+    animation: fadeIn 0.2s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .context-menu mwc-list-item {
+    --mdc-list-item-vertical-padding: 4px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .context-menu ha-icon {
+    margin-right: 8px;
+    --mdc-icon-size: 18px;
+    color: var(--secondary-text-color);
   }
 
   /* Visual focus indicator for keyboard navigation */
@@ -284,10 +372,8 @@ export const cardStyles = css`
     height: 100%;
   }
 
-  .drag-value-display {
+  .chart-tooltip {
     position: absolute;
-    top: 0;
-    left: 0;
     background: var(--card-background-color, white);
     border: 1px solid var(--divider-color, #e0e0e0);
     padding: 4px 8px;
@@ -298,6 +384,10 @@ export const cardStyles = css`
     font-weight: 500;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     white-space: nowrap;
+  }
+
+  .drag-value-display {
+    /* Inherits from .chart-tooltip */
   }
 
   .controls {

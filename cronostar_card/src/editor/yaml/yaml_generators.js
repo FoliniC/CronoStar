@@ -11,18 +11,13 @@ export function buildAutomationYaml(config, style = 'list') {
   const applyEntity = config.target_entity;
   const pauseEntity = config.pause_entity;
   const interval = config.interval_minutes || 60;
+  const preset = config.preset || 'thermostat';
 
   const rawPrefix = normalizePrefix(config.global_prefix || 'cronostar_');
   const idBase = rawPrefix.replace(/_+$/, '');
   const id = `${idBase}_apply`;
 
   const alias = getAliasWithPrefix(rawPrefix, 'en');
-
-  // Determine target entities
-  const domain = (applyEntity || '').split('.')[0];
-  const isClimate = domain === 'climate';
-  const isNumber = domain === 'number';
-  const isSwitch = domain === 'switch';
 
   const lines = [];
 
@@ -65,60 +60,11 @@ export function buildAutomationYaml(config, style = 'list') {
 
   // Actions
   lines.push(`${indent}  actions:`);
-
-  // Variable definitions
-  lines.push(`${indent}    - variables:`);
-  lines.push(`${indent}        current_hour: "{{ now().hour }}"`);
-  lines.push(`${indent}        hour_str: "{{ '%02d' | format(current_hour) }}"`);
-  lines.push(`${indent}        target_input: "input_number.${rawPrefix}{{ hour_str }}"`);
-
-  // Determine default value based on domain
-  let defaultVal = '20';
-  if (isSwitch) defaultVal = '0';
-  if (isNumber) defaultVal = '0';
-
-  lines.push(`${indent}        target_value: "{{ states(target_input) | float(${defaultVal}) }}"`);
-
-  // Log action
-  lines.push(`${indent}    - action: system_log.write`);
+  lines.push(`${indent}    - action: cronostar.apply_now`);
   lines.push(`${indent}      data:`);
-  lines.push(`${indent}        message: "[CronoStar] Applying {{ target_value }} to ${applyEntity}"`);
-  lines.push(`${indent}        level: info`);
-
-  // Apply action based on domain
-  if (isClimate) {
-    lines.push(`${indent}    - action: climate.set_temperature`);
-    lines.push(`${indent}      target:`);
-    lines.push(`${indent}        entity_id: ${applyEntity}`);
-    lines.push(`${indent}      data:`);
-    lines.push(`${indent}        temperature: "{{ target_value }}"`);
-  } else if (isNumber) {
-    lines.push(`${indent}    - action: number.set_value`);
-    lines.push(`${indent}      target:`);
-    lines.push(`${indent}        entity_id: ${applyEntity}`);
-    lines.push(`${indent}      data:`);
-    lines.push(`${indent}        value: "{{ target_value }}"`);
-  } else if (isSwitch) {
-    lines.push(`${indent}    - if:`);
-    lines.push(`${indent}        - condition: template`);
-    lines.push(`${indent}          value_template: "{{ target_value | int > 0 }}"`);
-    lines.push(`${indent}      then:`);
-    lines.push(`${indent}        - action: switch.turn_on`);
-    lines.push(`${indent}          target:`);
-    lines.push(`${indent}            entity_id: ${applyEntity}`);
-    lines.push(`${indent}      else:`);
-    lines.push(`${indent}        - action: switch.turn_off`);
-    lines.push(`${indent}          target:`);
-    lines.push(`${indent}            entity_id: ${applyEntity}`);
-  } else {
-    // Generic/Unknown entity fallback
-    lines.push(`${indent}    # TODO: Add specific action for ${applyEntity}`);
-    lines.push(`${indent}    # - action: domain.service`);
-    lines.push(`${indent}    #   target:`);
-    lines.push(`${indent}    #     entity_id: ${applyEntity}`);
-    lines.push(`${indent}    #   data:`);
-    lines.push(`${indent}    #     value: "{{ target_value }}"`);
-  }
+  lines.push(`${indent}        target_entity: "${applyEntity}"`);
+  lines.push(`${indent}        preset_type: "${preset}"`);
+  lines.push(`${indent}        global_prefix: "${rawPrefix}"`);
 
   return lines.join('\n');
 }

@@ -1,6 +1,6 @@
 import { CARD_CONFIG_PRESETS, validateConfig, VERSION } from '../config.js';
 import { Logger } from '../utils.js';
-import { getEffectivePrefix } from '../utils/prefix_utils.js';
+import { getEffectivePrefix, getAliasWithPrefix } from '../utils/prefix_utils.js';
 import { buildHelpersFilename } from '../utils/filename_utils.js';
 
 export class CardEventHandlers {
@@ -136,6 +136,7 @@ export class CardEventHandlers {
         this.card.chartManager?.update();
         this.card.isMenuOpen = false;
         this.card.keyboardHandler.enable();
+        this._closeContextMenu();
 
         const chartContainer = this.card.shadowRoot?.querySelector(".chart-container");
         if (chartContainer && !this.card.isEditorContext()) {
@@ -146,11 +147,45 @@ export class CardEventHandlers {
     handleAlignLeft() {
         this.card.stateManager.alignSelectedPoints('left');
         this.card.isMenuOpen = false;
+        this._closeContextMenu();
     }
 
     handleAlignRight() {
         this.card.stateManager.alignSelectedPoints('right');
         this.card.isMenuOpen = false;
+        this._closeContextMenu();
+    }
+
+    handleDeleteSelected() {
+        const selMgr = this.card.selectionManager;
+        const indices = [...selMgr.getSelectedPoints()].sort((a, b) => b - a);
+        
+        if (indices.length === 0) {
+            this._closeContextMenu();
+            return;
+        }
+
+        // Don't delete anchors if they are the only points
+        const allByTime = this.card.chartManager?.chart?.data?.datasets[0]?.data
+            .map((pt, i) => ({ i, x: pt.x }))
+            .sort((a, b) => a.x - b.x) || [];
+        
+        const firstIdx = allByTime[0]?.i;
+        const lastIdx = allByTime[allByTime.length - 1]?.i;
+
+        indices.forEach(idx => {
+            if (idx === firstIdx || idx === lastIdx) return;
+            this.card.stateManager.removePoint(idx);
+        });
+
+        this.card.chartManager.updateData(this.card.stateManager.getData());
+        selMgr.clearSelection();
+        this._closeContextMenu();
+        this.card.requestUpdate();
+    }
+
+    _closeContextMenu() {
+        this.card.contextMenu = { ...this.card.contextMenu, show: false };
     }
 
     async handleApplyNow() {
@@ -425,8 +460,14 @@ export class CardEventHandlers {
     }
 
     handleHelp() {
-        const title = this.card.localizationManager.localize(this.card.language, 'help.title');
-        const text = this.card.localizationManager.localize(this.card.language, 'help.text');
+        const localize = (key, search, replace) =>
+            this.card.localizationManager.localize(this.card.language, key, search, replace);
+
+        const title = localize('help.title');
+        const introText = localize('help.text');
+        const mouseManual = localize('help.mouse_manual');
+        const keyboardManual = localize('help.keyboard_manual');
+
         // Current Configuration Info
         const cardId = this.card.cardId || 'Not registered';
         const preset = this.card.config?.preset || 'thermostat';
@@ -435,6 +476,7 @@ export class CardEventHandlers {
         const profileEntity = this.card.config?.profiles_select_entity || 'Not configured';
         const pauseEntity = this.card.config?.pause_entity || 'Not configured';
         const currentProfile = this.card.selectedProfile || 'No profile selected';
+        const automationAlias = getAliasWithPrefix(prefix, this.card.language);
         
         // Entity States (from registration)
         const states = this.card.entityStates || {};
@@ -448,16 +490,18 @@ export class CardEventHandlers {
         const currentEntity = `input_number.${prefix}current`;
         const packageFile = buildHelpersFilename(prefix);
         const packagePath = `config/packages/${packageFile}`;
-        // Interval info
-        const interval = this.card.config?.interval_minutes || 60;
-        const numPoints = Math.floor(1440 / interval);
-        const configInfo = this.card.language === 'it'
+        
+        // Dynamic info
+        const actualPoints = this.card.stateManager?.getNumPoints() || 0;
+        
+        const configInfoTechnical = this.card.language === 'it'
             ? `=== Configurazione Attuale ===
 Card ID: ${cardId}
 Versione: ${VERSION}
 Preset: ${preset}
 Profilo Attivo: ${currentProfile}
 Prefisso: ${prefix}
+Automazione: ${automationAlias}
 
 === Entità ===
 Entità Destinazione: ${targetEntity}${stTarget}
@@ -467,30 +511,19 @@ Entità Pausa: ${pauseEntity}${stPause}
 
 === Configurazione ===
 File Package: /config/packages/${packageFile}
-Intervallo: ${interval} minuti
-Punti Schedule: ${numPoints}
-
-=== Istruzioni ===
-${text}
+Intervallo: Dinamico (Time-based)
+Punti nel Profilo: ${actualPoints}
 
 === File di Configurazione ===
-Il sistema utilizza:
-1. Package: /${packagePath}   Contiene tutte le entità helper necessarie
-2. Profili: /config/cronostar/profiles/${prefixBase}_data.json   Contiene tutti i profili salvati per questo preset
-3. Automazione: Da creare tramite l'editor (Step 4)   o manualmente in automations/
-
-=== Prossimi Passi ===
-1. Se non l'hai fatto, crea il package usando l'editor (Step 2)
-2. Copia il contenuto in /${packagePath}
-3. Riavvia Home Assistant
-4. Crea l'automazione usando l'editor (Step 4)
-5. Salva la configurazione della card`
+1. Package: /${packagePath}
+2. Profili: /config/cronostar/profiles/${prefixBase}_data.json`
             : `=== Current Configuration ===
 Card ID: ${cardId}
 Version: ${VERSION}
 Preset: ${preset}
 Active Profile: ${currentProfile}
 Prefix: ${prefix}
+Automation: ${automationAlias}
 
 === Entities ===
 Target Entity: ${targetEntity}${stTarget}
@@ -500,130 +533,116 @@ Pause Entity: ${pauseEntity}${stPause}
 
 === Configuration ===
 Package File: /config/packages/${packageFile}
-Interval: ${interval} minutes
-Schedule Points: ${numPoints}
-
-=== Instructions ===
-${text}
+Interval: Dynamic (Time-based)
+Points in Profile: ${actualPoints}
 
 === Configuration Files ===
-The system uses:
-1. Package: /${packagePath}   Contains all required helper entities
-2. Profiles: /config/cronostar/profiles/${prefixBase}_data.json   Contains all saved profiles for this preset
-3. Automation: To be created via editor (Step 4)   or manually in automations/
-
-=== Next Steps ===
-1. If not done, create package using editor (Step 2)
-2. Copy content to /${packagePath}
-3. Restart Home Assistant
-4. Create automation using editor (Step 4)
-5. Save card configuration`;
+1. Package: /${packagePath}
+2. Profiles: /config/cronostar/profiles/${prefixBase}_data.json`;
 
         // Create custom dialog overlay
         const overlay = document.createElement('div');
         overlay.style.cssText = `
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      padding: 20px;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10000; padding: 20px;
     `;
         const dialog = document.createElement('div');
         dialog.style.cssText = `
       background: var(--card-background-color, white);
-      border-radius: 8px;
-      padding: 24px;
-      max-width: 700px;
-      max-height: 80vh;
-      overflow-y: auto;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      border-radius: 12px; padding: 24px;
+      max-width: 800px; width: 100%; max-height: 90vh;
+      overflow-y: auto; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--divider-color);
+      color: var(--primary-text-color);
+      font-family: var(--paper-font-body1_-_font-family, inherit);
     `;
         const headerDiv = document.createElement('div');
         headerDiv.style.cssText = `
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 20px; border-bottom: 1px solid var(--divider-color);
+      padding-bottom: 10px;
     `;
         const titleEl = document.createElement('h2');
         titleEl.textContent = title;
-        titleEl.style.cssText = `
-      margin: 0;
-      color: var(--primary-text-color);
-    `;
+        titleEl.style.cssText = `margin: 0; color: var(--primary-color);`;
+        
         const closeBtn = document.createElement('button');
         closeBtn.textContent = '✕';
         closeBtn.style.cssText = `
-      background: none;
-      border: none;
-      font-size: 24px;
-      cursor: pointer;
-      color: var(--primary-text-color);
-      padding: 0;
-      width: 32px;
-      height: 32px;
+      background: none; border: none; font-size: 24px; cursor: pointer;
+      color: var(--primary-text-color); padding: 4px;
     `;
         closeBtn.onclick = () => overlay.remove();
+        headerDiv.appendChild(titleEl);
+        headerDiv.appendChild(closeBtn);
+        dialog.appendChild(headerDiv);
+
+        const sections = [
+            { title: '', text: introText },
+            { title: this.card.language === 'it' ? '(Mouse) Utilizzo Mouse' : '(Mouse) Mouse Usage', text: mouseManual },
+            { title: this.card.language === 'it' ? '(Keyboard) Utilizzo Tastiera' : '(Keyboard) Keyboard Usage', text: keyboardManual }
+        ];
+
+        sections.forEach(s => {
+            if (s.title) {
+                const h3 = document.createElement('h3');
+                h3.textContent = s.title;
+                h3.style.margin = '16px 0 8px 0';
+                dialog.appendChild(h3);
+            }
+            const p = document.createElement('div');
+            p.style.whiteSpace = 'pre-wrap';
+            p.style.marginBottom = '16px';
+            p.style.lineHeight = '1.5';
+            p.style.fontSize = '14px';
+            p.textContent = s.text;
+            dialog.appendChild(p);
+        });
+
+        const techTitle = document.createElement('h3');
+        techTitle.textContent = this.card.language === 'it' ? '(Technical Details) Dettagli Tecnici' : '(Technical Details) Technical Details';
+        techTitle.style.margin = '24px 0 8px 0';
+        dialog.appendChild(techTitle);
+
         const textarea = document.createElement('textarea');
-        textarea.value = configInfo;
+        textarea.value = configInfoTechnical;
         textarea.readOnly = true;
         textarea.style.cssText = `
-      width: 100%;
-      min-height: 400px;
-      font-family: monospace;
-      font-size: 12px;
-      padding: 12px;
-      border: 1px solid var(--divider-color);
-      border-radius: 4px;
-      background: var(--code-editor-background-color, #1e1e1e);
-      color: var(--code-editor-color, #d4d4d4);
-      resize: vertical;
-      box-sizing: border-box;
+      width: 100%; min-height: 200px;
+      font-family: monospace; font-size: 12px;
+      padding: 12px; border: 1px solid var(--divider-color);
+      border-radius: 8px; background: var(--secondary-background-color, #f5f5f5);
+      color: var(--primary-text-color); resize: vertical; box-sizing: border-box;
     `;
+        dialog.appendChild(textarea);
+
         const copyBtn = document.createElement('button');
-        copyBtn.textContent = this.card.language === 'it' ? '📋 Copia negli appunti' : '📋 Copy to clipboard';
+        copyBtn.textContent = this.card.language === 'it' ? '📋 Copia dettagli tecnici' : '📋 Copy technical details';
         copyBtn.style.cssText = `
-      margin-top: 12px;
-      padding: 8px 16px;
-      background: var(--primary-color);
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
+      margin-top: 12px; padding: 10px 20px;
+      background: var(--primary-color); color: white;
+      border: none; border-radius: 6px;
+      cursor: pointer; font-size: 14px; font-weight: bold;
     `;
         copyBtn.onclick = async () => {
             try {
-                await navigator.clipboard.writeText(configInfo);
-                copyBtn.textContent = this.card.language === 'it' ? '✅ Copiato!' : '✅ Copied!';
+                await navigator.clipboard.writeText(configInfoTechnical);
+                copyBtn.textContent = this.card.language === 'it' ? '(Copied!) Copiato!' : '(Copied!) Copied!';
                 setTimeout(() => {
-                    copyBtn.textContent = this.card.language === 'it' ? '📋 Copia negli appunti' : '📋 Copy to clipboard';
+                    copyBtn.textContent = this.card.language === 'it' ? '📋 Copia dettagli tecnici' : '📋 Copy technical details';
                 }, 2000);
             } catch (e) {
                 Logger.warn('HELP', 'Failed to copy to clipboard:', e);
             }
         };
-        headerDiv.appendChild(titleEl);
-        headerDiv.appendChild(closeBtn);
-        dialog.appendChild(headerDiv);
-        dialog.appendChild(textarea);
+        dialog.appendChild(document.createElement('br'));
         dialog.appendChild(copyBtn);
         overlay.appendChild(dialog);
-        // Close on overlay click
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) {
-                overlay.remove();
-            }
-        });
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
         document.body.appendChild(overlay);
-        // Select text for easy copying
-        textarea.select();
     } // Missing closing brace added here
     async togglePause(e) {
         try {
@@ -646,7 +665,7 @@ The system uses:
         const notificationId = `cronostar_notification_${Date.now()}`;
         try {
             this.card.hass.callService("persistent_notification", "create", {
-                title: type === 'success' ? "✅ CronoStar" : "❌ CronoStar",
+                title: type === 'success' ? "(Success) CronoStar" : "(Error) CronoStar",
                 message: message,
                 notification_id: notificationId
             });
@@ -664,9 +683,6 @@ The system uses:
     }
 
     handleCardClick(e) {
-        if (this.card.isEditorContext()) {
-            return;
-        }
         if (this.card.isMenuOpen && !e.target.closest('.menu-content') && !e.target.closest('.menu-button')) {
             this.card.isMenuOpen = false;
             this.card.keyboardHandler.enable();

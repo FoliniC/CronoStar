@@ -6,7 +6,8 @@
 export const I18N = {
   en: {
     step2_msgs: {
-      prefix_ok: 'Prefix looks valid.'
+      prefix_ok: 'Prefix looks valid.',
+      prefix_bad: 'Invalid prefix. Must end with underscore (_).'
     },
     steps: {
       tipo: 'Setup',
@@ -100,6 +101,8 @@ export const I18N = {
       run_deep_checks: 'Run Deep Checks'
     },
     ui: {
+      manual_config_title: 'Manual Configuration Required',
+      manual_config_desc: 'If the components above are not READY, ensure your configuration.yaml contains:',
       automatic_entities_desc: 'CronoStar will create the required helper entities automatically when supported.',
       loading_deep_check_results: 'Loading deep check results…',
       card_config_complete: 'Card configuration complete',
@@ -136,7 +139,8 @@ export const I18N = {
 
   it: {
     step2_msgs: {
-      prefix_ok: 'Prefisso valido.'
+      prefix_ok: 'Prefisso valido.',
+      prefix_bad: 'Prefisso non valido. Deve terminare con underscore (_).'
     },
     steps: {
       tipo: 'Setup',
@@ -226,6 +230,8 @@ export const I18N = {
       run_deep_checks: 'Esegui Verifiche Approfondite'
     },
     ui: {
+      manual_config_title: 'Configurazione Manuale Richiesta',
+      manual_config_desc: 'Se i componenti sopra non sono PRONTI, assicurati che il tuo configuration.yaml contenga:',
       automatic_entities_desc: 'CronoStar creerà automaticamente le entità helper necessarie quando supportato.',
       loading_deep_check_results: 'Caricamento risultati verifiche approfondite…',
       card_config_complete: 'Configurazione card completa',

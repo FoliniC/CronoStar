@@ -42,6 +42,11 @@ export class CronoStarCard extends LitElement {
       selectedPoints: { type: Array },
       isPreview: { type: Boolean },
       previewData: { type: Array },
+      cardId: { type: String },
+      isExpandedV: { type: Boolean },
+      isExpandedH: { type: Boolean },
+      contextMenu: { type: Object },
+      modificationCounter: { type: Number },
     };
   }
 
@@ -61,6 +66,8 @@ export class CronoStarCard extends LitElement {
     return {
       type: 'custom:cronostar-card',
       preset: 'thermostat',
+      global_prefix: 'cronostar_temp_',
+      target_entity: 'climate.climatizzazione_appartamento',
       hour_base: 'auto',
       logging_enabled: true,
     };
@@ -68,6 +75,33 @@ export class CronoStarCard extends LitElement {
 
   getCardSize() {
     return 6;
+  }
+
+  // Prevent HA from trying to use our card color in history charts
+  shouldUpdate(changedProps) {
+    // Don't update if being rendered in a history context
+    if (this._isInHistoryContext()) {
+      return false;
+    }
+    return super.shouldUpdate(changedProps);
+  }
+
+  _isInHistoryContext() {
+    try {
+      let el = this;
+      while (el) {
+        const tag = el.tagName?.toLowerCase();
+        if (tag === 'state-history-chart-timeline' || 
+            tag === 'ha-chart-base' ||
+            tag === 'hui-history-graph-card') {
+          return true;
+        }
+        el = el.parentElement || el.parentNode || el.host;
+      }
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   constructor() {
@@ -110,27 +144,32 @@ export class CronoStarCard extends LitElement {
     this.selectedPoints = [];
     this.isPreview = false;
     this.previewData = null;
+    this.cardId = "";
+    this.isExpandedV = false;
+    this.isExpandedH = false;
+    this.contextMenu = { show: false, x: 0, y: 0 };
+    this.modificationCounter = 0;
 
     try {
-        this.localizationManager = new LocalizationManager(this);
-        this.stateManager = new StateManager(this);
-        this.profileManager = new ProfileManager(this);        
-        this.selectionManager = new SelectionManager(this);        
-        this.chartManager = new ChartManager(this);
-        this.keyboardHandler = new KeyboardHandler(this);
-        this.pointerHandler = new PointerHandler(this);
+      this.localizationManager = new LocalizationManager(this);
+      this.stateManager = new StateManager(this);
+      this.profileManager = new ProfileManager(this);
+      this.selectionManager = new SelectionManager(this);
+      this.chartManager = new ChartManager(this);
+      this.keyboardHandler = new KeyboardHandler(this);
+      this.pointerHandler = new PointerHandler(this);
 
-        this.cardLifecycle = new CardLifecycle(this);
-        Logger.log('INIT', `[CronoStar] CardLifecycle initialized successfully (v${VERSION})`);        
-        this.cardRenderer = new CardRenderer(this);
-        this.eventHandlers = new CardEventHandlers(this);
-        this.cardSync = new CardSync(this);
+      this.cardLifecycle = new CardLifecycle(this);
+      Logger.log('INIT', `[CronoStar] CardLifecycle initialized successfully (v${VERSION})`);
+      this.cardRenderer = new CardRenderer(this);
+      this.eventHandlers = new CardEventHandlers(this);
+      this.cardSync = new CardSync(this);
 
-        Logger.setEnabled(true);
-        Logger.log('INIT', `[CronoStar] Card constructor completed (v${VERSION})`);
+      Logger.setEnabled(true);
+      Logger.log('INIT', `[CronoStar] Card constructor completed (v${VERSION})`);
     } catch (e) {
-        Logger.error('INIT', '[CronoStar] Error initializing Managers:', e);
-        if (!this.cardLifecycle) this.cardLifecycle = new CardLifecycle(this); 
+      Logger.error('INIT', '[CronoStar] Error initializing Managers:', e);
+      if (!this.cardLifecycle) this.cardLifecycle = new CardLifecycle(this);
     }
   }
 
@@ -178,7 +217,7 @@ export class CronoStarCard extends LitElement {
 
     if (changed.has('previewData') && this.previewData) {
       Logger.log('PREVIEW', '[CronoStar] Applying previewData', this.previewData);
-      
+
       // Explicitly remove container_meta if it leaked through from backend
       if (this.previewData.container_meta) {
         delete this.previewData.container_meta;
@@ -186,7 +225,7 @@ export class CronoStarCard extends LitElement {
 
       const isFullObject = !Array.isArray(this.previewData) && typeof this.previewData === 'object';
       const schedule = isFullObject ? this.previewData.schedule : this.previewData;
-      
+
       if (this.stateManager && schedule) {
         this.stateManager.setData(schedule);
         this.hasUnsavedChanges = false;
@@ -206,14 +245,14 @@ export class CronoStarCard extends LitElement {
     }
   }
 
-  // â†" FIX: Setter now only delegates to CardLifecycle
+  // ✅ FIX: Setter now only delegates to CardLifecycle
   set hass(hass) {
     if (this.cardLifecycle) {
       this.cardLifecycle.setHass(hass);
     }
   }
 
-  // â†" FIX: Getter reads from CardLifecycle's internal storage
+  // ✅ FIX: Getter reads from CardLifecycle's internal storage
   get hass() {
     return this.cardLifecycle?._hass;
   }

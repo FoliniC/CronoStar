@@ -8,7 +8,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.const import EVENT_HOMEASSISTANT_START, EVENT_HOMEASSISTANT_STOP
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
 from homeassistant.helpers.typing import ConfigType
 
@@ -77,7 +77,7 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
 
     await _set_debug_logging(hass)
 
-    component_version = "5.2.0"
+    component_version = "5.2.3"
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {"version": component_version}
 
@@ -88,6 +88,8 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
     if www_path.exists() and www_path.is_dir():
         await hass.http.async_register_static_paths([StaticPathConfig(url_path="/cronostar_card", path=www_path)])
         add_extra_js_url(hass, "/cronostar_card/cronostar-card.js?v=5")
+        # Ensure card picker shows PNG thumbnail instead of live preview
+        add_extra_js_url(hass, "/cronostar_card/card-picker-metadata.js?v=1")
         _LOGGER.info("Frontend JS URL registered")
 
     file_service = FileService(hass)
@@ -150,8 +152,13 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
         """Apply current scheduled value and trigger scheduler update."""
         payload = getattr(call, "service_data", None) or getattr(call, "data", None) or {}
         preset_type = payload.get("preset_type")
+        global_prefix = payload.get("global_prefix")
+        target_entity = payload.get("target_entity")
+
         if preset_type:
-            await scheduler.update_preset(preset_type)
+            # Prepare optional profile_data override if target_entity is provided
+            profile_data = {"target_entity": target_entity} if target_entity else None
+            await scheduler.update_preset(preset_type, profile_data=profile_data, global_prefix=global_prefix)
 
     if not hass.services.has_service(DOMAIN, "apply_now"):
         hass.services.async_register(DOMAIN, "apply_now", apply_now_service)
@@ -172,7 +179,7 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
         global_prefix = call.data.get("global_prefix")
         requested_profile = call.data.get("selected_profile")
 
-        _LOGGER.info("Lovelace Card Connected: ID=%s, Preset=%s, RequestedProfile=%s", card_id, preset, requested_profile)
+        _LOGGER.debug("Lovelace Card Connected: ID=%s, Preset=%s, RequestedProfile=%s", card_id, preset, requested_profile)
         _LOGGER.debug("[REGISTER] global_prefix=%s", global_prefix)
 
         response = {"success": True, "profile_data": None}
@@ -194,20 +201,20 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
         profile_to_load = None
         if state and state.state not in ("unknown", "unavailable"):
             profile_to_load = state.state
-            _LOGGER.info("[REGISTER] Active profile detected: '%s' via %s", profile_to_load, dynamic_selector)
+            _LOGGER.debug("[REGISTER] Active profile detected: '%s' via %s", profile_to_load, dynamic_selector)
         elif requested_profile:
             # Se l'entity manca o non ha uno stato valido, usiamo quello richiesto dalla card (presentation)
             profile_to_load = requested_profile
-            _LOGGER.info("[REGISTER] Fallback to requested profile: '%s' (entity %s missing/unknown)", profile_to_load, dynamic_selector)
+            _LOGGER.debug("[REGISTER] Fallback to requested profile: '%s' (entity %s missing/unknown)", profile_to_load, dynamic_selector)
         else:
-            _LOGGER.info("[REGISTER] No active profile via entity: entity missing (%s) and no requested profile", dynamic_selector)
+            _LOGGER.debug("[REGISTER] No active profile via entity: entity missing (%s) and no requested profile", dynamic_selector)
 
         if profile_to_load:
             try:
                 data = await profile_service.get_profile_data(profile_to_load, preset, global_prefix)
                 if "error" not in data:
                     sched = data.get("schedule", [])
-                    _LOGGER.info(
+                    _LOGGER.debug(
                         "✅ Profile resolved during register: name=%s, points=%d, first=%s, last=%s",
                         profile_to_load,
                         len(sched),
@@ -216,7 +223,7 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
                     )
                     response["profile_data"] = data
                 else:
-                    _LOGGER.warning("⚠️ get_profile_data returned error during register for '%s': %s", profile_to_load, data.get("error"))
+                    _LOGGER.debug("⚠️ get_profile_data returned error during register for '%s': %s", profile_to_load, data.get("error"))
             except Exception as e:
                 _LOGGER.error("❌ Exception while loading profile '%s' during register: %s", profile_to_load, e)
 
@@ -318,7 +325,7 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
     # SERVICE: list_all_profiles (NUOVO)
     # ========================================
     async def list_all_profiles_service(call: ServiceCall) -> ServiceResponse:
-        """List all profiles grouped by preset type for dashboard."""
+        """List all profiles grouped by preset type and filename for dashboard."""
         try:
             if not hasattr(profile_service, "storage"):
                 return {"error": "Storage not available"}
@@ -339,13 +346,17 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
                         global_prefix = data["meta"].get("global_prefix", "")
 
                         if preset_type not in profiles_by_preset:
-                            profiles_by_preset[preset_type] = {"global_prefix": global_prefix, "profiles": []}
+                            profiles_by_preset[preset_type] = {"files": []}
+
+                        file_info = {"filename": filename, "global_prefix": global_prefix, "profiles": []}
 
                         for profile_name, profile_content in data["profiles"].items():
                             schedule = profile_content.get("schedule", [])
-                            profiles_by_preset[preset_type]["profiles"].append(
+                            file_info["profiles"].append(
                                 {"name": profile_name, "points": len(schedule), "updated_at": profile_content.get("updated_at", "unknown")}
                             )
+
+                        profiles_by_preset[preset_type]["files"].append(file_info)
 
                     # Legacy format
                     elif "profile_name" in data:
@@ -353,14 +364,20 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
                         global_prefix = data.get("global_prefix", "")
 
                         if preset_type not in profiles_by_preset:
-                            profiles_by_preset[preset_type] = {"global_prefix": global_prefix, "profiles": []}
+                            profiles_by_preset[preset_type] = {"files": []}
 
                         schedule = data.get("schedule", [])
-                        profiles_by_preset[preset_type]["profiles"].append(
+                        profiles_by_preset[preset_type]["files"].append(
                             {
-                                "name": data.get("profile_name", "Unknown"),
-                                "points": len(schedule),
-                                "updated_at": data.get("updated_at", "unknown"),
+                                "filename": filename,
+                                "global_prefix": global_prefix,
+                                "profiles": [
+                                    {
+                                        "name": data.get("profile_name", "Unknown"),
+                                        "points": len(schedule),
+                                        "updated_at": data.get("updated_at", "unknown"),
+                                    }
+                                ],
                             }
                         )
 
@@ -381,16 +398,24 @@ async def _async_setup_core(hass: HomeAssistant) -> bool:
     # ========================================
     # EVENT HANDLERS
     # ========================================
-    async def on_hass_start(event):
-        _LOGGER.info("CronoStar: Home Assistant has started.")
-        await profile_service.async_update_profile_selectors()
-        await scheduler.async_initialize()
+    async def on_hass_start(event=None):
+        _LOGGER.info("CronoStar: Starting initialization (Warm-up phase)...")
+
+        # 1. Single scan of the directory
+        all_profile_files = await storage_manager.list_profiles()
+
+        # 2. Pass the list to services. They will now use the SAME list.
+        await profile_service.async_update_profile_selectors(all_files=all_profile_files)
+        await scheduler.async_initialize(files=all_profile_files)
 
     async def on_hass_stop(event):
         scheduler.stop()
         storage_manager.clear_cache()
 
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, on_hass_start)
+    # Trigger initialization immediately.
+    # In Home Assistant, calling it here during async_setup covers both fresh starts and reloads.
+    hass.async_create_task(on_hass_start())
+
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, on_hass_stop)
 
     return True

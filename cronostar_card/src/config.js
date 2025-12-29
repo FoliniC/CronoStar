@@ -1,5 +1,16 @@
 /** Configuration management for CronoStar Card with Interval Support */
-export const VERSION = '5.2.0';
+export const VERSION = window.CRONOSTAR_CARD_VERSION || '5.2.7';
+
+export const COLORS = {
+  primary: "#03a9f4",
+  primaryLight: "rgba(3, 169, 244, 0.2)",
+  selected: "#ff0000",
+  selectedDark: "#8b0000",
+  anchor: "#ff5252",
+  anchorDark: "#b71c1c",
+  max_value: "#ffd700",
+  max_value_border: "#daa520"
+};
 
 // Interval options (minutes)
 // Sparse mode: remove interval options
@@ -115,17 +126,6 @@ export const TIMEOUTS = {
   mismatchPersistenceMs: 20000
 };
 
-export const COLORS = {
-  primary: "rgba(3, 169, 244, 1)",
-  primaryLight: "rgba(3, 169, 244, 0.2)",
-  selected: "red",
-  selectedDark: "darkred",
-  anchor: "#ff5252",
-  anchorDark: "#b71c1c",
-  max_value: '#FFD700',
-  max_value_border: '#DAA520'
-};
-
 /**
  * Normalize alias keys used in Lovelace YAML (no-underscore) to the canonical
  * underscore-based keys expected by the card/editor/backend.
@@ -169,7 +169,7 @@ export function normalizeConfigAliases(cfg = {}) {
  */
 export function validateConfig(config) {
   const normalized = normalizeConfigAliases(config);
-  
+
   // Explicitly remove legacy aliases from the final object to avoid confusion in logs/ui
   const aliasesToRemove = [
     'globalprefix', 'targetentity', 'apply_entity', 'applyentity',
@@ -184,10 +184,10 @@ export function validateConfig(config) {
   const presetName = normalized.preset || DEFAULT_CONFIG.preset;
   const presetConfig = CARD_CONFIG_PRESETS[presetName] || CARD_CONFIG_PRESETS.thermostat;
   const mergedConfig = { ...DEFAULT_CONFIG, ...presetConfig, ...normalized };
-  
+
   // CRITICAL: Ensure card type is always correct and stable
   mergedConfig.type = config.type || DEFAULT_CONFIG.type;
-  
+
   if (!mergedConfig.global_prefix) {
     throw new Error("Configuration error: global_prefix is required");
   }
@@ -226,7 +226,7 @@ export function extractCardConfig(src = {}) {
     'profiles_select_entity', 'min_value', 'max_value', 'step_value',
     'unit_of_measurement', 'y_axis_label', 'allow_max_value',
     'logging_enabled', 'hour_base', 'title', 'missing_yaml_style',
-    'interval_minutes'
+    'interval_minutes', 'step'
   ];
   const out = {};
   for (const key of validKeys) {
@@ -240,8 +240,7 @@ export function extractCardConfig(src = {}) {
   }
   // Ensure type is preserved if explicitly passed as preset type or missing
   if (src.type === undefined && out.type === undefined) {
-      out.type = 'custom:cronostar-card';
+    out.type = 'custom:cronostar-card';
   }
   return out;
 }
-

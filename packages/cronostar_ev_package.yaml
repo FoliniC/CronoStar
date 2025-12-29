@@ -18,7 +18,6 @@ input_select:
     options:
       - "Default"
       - "F3"
-      - "default"
     initial: "Default"
     icon: mdi:format-list-bulleted
 

@@ -71,10 +71,10 @@ export class ProfileManager {
       this.card.hasUnsavedChanges = false;
       this.lastLoadedProfile = profileName;
 
-      Logger.save(`[CronoStar] ✅ Profile '${profileName}' saved successfully.`);
+      Logger.save(`[CronoStar] (Success) Profile '${profileName}' saved successfully.`);
       Logger.save("[CronoStar] === SAVE PROFILE END ===");
     } catch (err) {
-      Logger.error('SAVE', `[CronoStar] ❌ Error calling save_profile service for '${profileName}':`, err);
+      Logger.error('SAVE', `[CronoStar] (Error) Error calling save_profile service for '${profileName}':`, err);
       Logger.save("[CronoStar] === SAVE PROFILE END (ERROR) ===");
       throw err;
     }
@@ -133,7 +133,7 @@ export class ProfileManager {
           `[CronoStar] 📊 Parsed schedule: length=${scheduleValues.length}, sample=${JSON.stringify(sample)}`
         );
 
-        Logger.load(`[CronoStar] ✅ Profile data processed for '${profileName}'. Points: ${scheduleValues.length}`);
+        Logger.load(`[CronoStar] (Success) Profile data processed for '${profileName}'. Points: ${scheduleValues.length}`);
       } else {
         // Fallback: no schedule returned; keep existing data (sparse mode)
         Logger.warn('LOAD', `[CronoStar] ⚠️ Profile '${profileName}' not found or invalid. Keeping existing schedule.`);
@@ -152,11 +152,11 @@ export class ProfileManager {
 
       this.card.hasUnsavedChanges = false;
       this.lastLoadedProfile = profileName;
-      Logger.load(`[CronoStar] ✅ Profile '${profileName}' loaded to memory successfully.`);
+      Logger.load(`[CronoStar] (Success) Profile '${profileName}' loaded to memory successfully.`);
       Logger.load("[CronoStar] === LOAD PROFILE END ===");
 
     } catch (err) {
-      Logger.error('LOAD', `[CronoStar] ❌ Error calling load_profile service for '${profileName}':`, err);
+      Logger.error('LOAD', `[CronoStar] (Error) Error calling load_profile service for '${profileName}':`, err);
       Logger.load("[CronoStar] === LOAD PROFILE END (ERROR) ===");
     } finally {
       this.card.stateManager.isLoadingProfile = false;

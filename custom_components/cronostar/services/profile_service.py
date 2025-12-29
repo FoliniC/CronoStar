@@ -1,5 +1,6 @@
-"""Profile management with BACKWARD COMPATIBILITY for old format."""
+"Profile management with BACKWARD COMPATIBILITY for old format."
 
+import asyncio
 import json
 import logging
 import time
@@ -20,11 +21,15 @@ class ProfileService:
         self.hass = hass
         self.file_service = file_service
         self.storage = storage_manager
+        self._pending_requests = {}  # Track inflight get_profile_data tasks
+        self._requests_lock = asyncio.Lock()
 
     def _to_iso8601(self, timestamp=None):
         """Convert timestamp to ISO 8601 format."""
         if timestamp is None:
             timestamp = time.time()
+        if isinstance(timestamp, str):
+            return timestamp
         return datetime.fromtimestamp(timestamp).isoformat()
 
     def _optimize_schedule(self, schedule):
@@ -129,32 +134,14 @@ class ProfileService:
         global_prefix = payload.get("global_prefix")
 
         # NOTE: schedule can legitimately be an empty list.
-        # Also, some callers may persist meta-only updates.
         if not profile_name or not preset_type:
-            missing = []
-            if not profile_name:
-                missing.append("profile_name")
-            if not preset_type:
-                missing.append("preset_type")
-            _LOGGER.warning(
-                "save_profile: Missing required parameters: %s (profile_name=%s preset_type=%s global_prefix=%s schedule_is_none=%s)",
-                ",".join(missing) if missing else "<unknown>",
-                profile_name,
-                preset_type,
-                global_prefix,
-                schedule is None,
-            )
+            _LOGGER.warning("save_profile: Missing required parameters: profile_name or preset_type")
             return
 
         canonical = normalize_preset_type(preset_type)
 
         if not global_prefix:
-            _LOGGER.warning(
-                "save_profile: Missing required parameter global_prefix (profile_name=%s preset_type=%s schedule_is_none=%s)",
-                profile_name,
-                preset_type,
-                schedule is None,
-            )
+            _LOGGER.warning("save_profile: Missing required parameter global_prefix")
             return
 
         if schedule is None:
@@ -163,34 +150,10 @@ class ProfileService:
         filename = build_profile_filename(profile_name, canonical, global_prefix=global_prefix)
 
         _LOGGER.info("=== SAVE PROFILE START === Profile: '%s', Preset: %s, File: %s", profile_name, canonical, filename)
-        try:
-            _LOGGER.info(
-                "[PROFILE] Incoming schedule points: %d; first=%s; last=%s",
-                len(schedule) if isinstance(schedule, list) else -1,
-                schedule[0] if isinstance(schedule, list) and schedule else None,
-                schedule[-1] if isinstance(schedule, list) and schedule else None,
-            )
-        except Exception:
-            pass
 
         # Normalize and optimize schedule (ensure 00:00 and 23:59 bounds)
         normalized_schedule = self._normalize_schedule(schedule)
         optimized_schedule = self._optimize_schedule(normalized_schedule)
-        try:
-            _LOGGER.info(
-                "[PROFILE] Normalized schedule points: %d; first=%s; last=%s",
-                len(normalized_schedule),
-                normalized_schedule[0] if normalized_schedule else None,
-                normalized_schedule[-1] if normalized_schedule else None,
-            )
-            _LOGGER.info(
-                "[PROFILE] Optimized schedule points: %d; first=%s; last=%s",
-                len(optimized_schedule),
-                optimized_schedule[0] if optimized_schedule else None,
-                optimized_schedule[-1] if optimized_schedule else None,
-            )
-        except Exception:
-            pass
 
         # Load existing data
         existing_data = await self.storage.load_profile_cached(filename) or {}
@@ -208,9 +171,7 @@ class ProfileService:
                     "created_at": self._to_iso8601(existing_data.get("saved_at", time.time())),
                     "updated_at": self._to_iso8601(),
                 },
-                "profiles": {
-                    old_profile_name: {"schedule": old_schedule, "updated_at": self._to_iso8601(existing_data.get("saved_at", time.time()))}
-                },
+                "profiles": {old_profile_name: {"schedule": old_schedule, "updated_at": self._to_iso8601(existing_data.get("saved_at", time.time()))}},
             }
 
         # Prepare NEW container structure
@@ -227,32 +188,29 @@ class ProfileService:
                 "updated_at": self._to_iso8601(),
             }
 
-        # Always enforce canonical identifiers in meta (do not rely on previous files)
-        try:
-            new_data["meta"]["global_prefix"] = global_prefix
-            new_data["meta"]["preset_type"] = canonical
-        except Exception:
-            pass
+        # Always enforce canonical identifiers in meta
+        new_data["meta"]["global_prefix"] = global_prefix
+        new_data["meta"]["preset_type"] = canonical
 
         # Persist wizard/card configuration in meta (best-effort).
-        # This allows SmartScheduler to discover target_entity and other settings from JSON.
         wizard_meta = payload.get("meta")
         if isinstance(wizard_meta, dict) and wizard_meta:
-            try:
-                # Defensive: never persist deprecated keys
-                wizard_meta.pop("entity_prefix", None)
-                new_data["meta"].update(wizard_meta)
-            except Exception:
-                pass
+            wizard_meta.pop("entity_prefix", None)
+            new_data["meta"].update(wizard_meta)
 
         if "profiles" in existing_data:
             new_data["profiles"] = existing_data["profiles"]
             # Clean existing profiles from any polluted keys (best-effort)
-            for p_name in new_data["profiles"]:
+            for p_name in list(new_data["profiles"].keys()):
                 p_entry = new_data["profiles"][p_name]
                 if isinstance(p_entry, dict):
                     for key in ["meta", "container_meta", "target_entity", "global_prefix", "profile_name"]:
                         p_entry.pop(key, None)
+
+                # Case-insensitive unification: if a profile with same name (diff case) exists, remove it
+                if p_name.lower() == profile_name.lower() and p_name != profile_name:
+                    _LOGGER.info("[PROFILE] Unifying profile name case: replacing '%s' with '%s'", p_name, profile_name)
+                    del new_data["profiles"][p_name]
         else:
             new_data["profiles"] = {}
 
@@ -271,102 +229,82 @@ class ProfileService:
         _LOGGER.info("=== SAVE PROFILE END ===")
 
     async def get_profile_data(
-        self, profile_name: str, preset_type: str, global_prefix: str | None = None, force_reload: bool = False
+        self,
+        profile_name: str,
+        preset_type: str,
+        global_prefix: str | None = None,
+        force_reload: bool = False,
     ) -> dict:
-        """Fetch profile data with BACKWARD COMPATIBILITY."""
-        # Input validation with logging
+        """Fetch profile data with Request Coalescing and BACKWARD COMPATIBILITY."""
         if not all((profile_name, preset_type)):
-            _LOGGER.warning(
-                "[PROFILE] get_profile_data called with missing parameters: profile_name=%s, preset_type=%s",
-                profile_name,
-                preset_type,
-            )
             return {"error": "Missing parameters"}
 
         canonical = normalize_preset_type(preset_type)
-        _LOGGER.debug("[PROFILE] normalized preset_type: '%s' -> '%s'", preset_type, canonical)
-
         if not global_prefix:
-            _LOGGER.warning("[PROFILE] get_profile_data missing global_prefix for profile '%s'", profile_name)
             return {"error": "Missing global_prefix"}
 
+        # Request Coalescing Key
+        request_key = f"{canonical}_{global_prefix}_{profile_name}"
+
+        async with self._requests_lock:
+            if not force_reload and request_key in self._pending_requests:
+                _LOGGER.debug("[PROFILE] Coalescing request for %s", request_key)
+                return await self._pending_requests[request_key]
+
+            # Create a future/task for this unique request
+            task = self.hass.async_create_task(self._fetch_profile_data_internal(profile_name, canonical, global_prefix, force_reload))
+            self._pending_requests[request_key] = task
+
+        try:
+            result = await task
+            return result
+        finally:
+            async with self._requests_lock:
+                if self._pending_requests.get(request_key) == task:
+                    del self._pending_requests[request_key]
+
+    async def _fetch_profile_data_internal(self, profile_name: str, canonical: str, global_prefix: str, force_reload: bool) -> dict:
+        """Internal method to perform the actual disk/cache fetch."""
         filenames_to_try = [build_profile_filename(profile_name, canonical, global_prefix=global_prefix)]
-        _LOGGER.info(
-            "[PROFILE] get_profile_data: name=%s, preset=%s, global_prefix=%s, filenames_to_try=%s, force_reload=%s",
+        _LOGGER.debug(
+            "[PROFILE] fetch_internal: name=%s, preset=%s, global_prefix=%s",
             profile_name,
             canonical,
             global_prefix,
-            filenames_to_try,
-            force_reload,
         )
 
         for filename in filenames_to_try:
-            _LOGGER.debug("[PROFILE] Attempting to load cached container: %s", filename)
             data = await self.storage.load_profile_cached(filename, force_reload=force_reload)
-
             if not data:
-                _LOGGER.debug("[PROFILE] No data found for: %s", filename)
                 continue
-            else:
-                meta = data.get("meta", {})
-                keys = list(data.keys())
-                _LOGGER.debug("[PROFILE] Container loaded: keys=%s, meta=%s", keys, meta)
 
-            # NEW FORMAT: Container with meta + profiles
             if "profiles" in data:
-                available_profiles = list(data.get("profiles", {}).keys())
-                _LOGGER.debug("[PROFILE] Available profiles in container: %s", available_profiles)
-                if profile_name in data["profiles"]:
-                    # Create a deep-ish copy to avoid polluting the cached container object
-                    profile_entry = data["profiles"][profile_name]
-                    profile_content = dict(profile_entry)
+                profiles = data["profiles"]
 
-                    # Propagate container-level metadata
+                # Case-insensitive lookup
+                matched_profile = None
+                for p_key in profiles:
+                    if p_key.lower() == profile_name.lower():
+                        matched_profile = profiles[p_key]
+                        break
+
+                if matched_profile:
+                    profile_content = dict(matched_profile)
                     container_meta = data.get("meta", {})
-
-                    # Ensure essential fields are present in the response for the frontend
                     profile_content["global_prefix"] = container_meta.get("global_prefix")
                     profile_content["target_entity"] = container_meta.get("target_entity")
                     profile_content["profile_name"] = profile_name
-
-                    # Provide metadata for frontend config synchronization
                     profile_content["meta"] = container_meta
-
-                    sched = profile_content.get("schedule", [])
-                    _LOGGER.info(
-                        "[PROFILE] Profile '%s' extracted: points=%d, first=%s, last=%s (file=%s)",
-                        profile_name,
-                        len(sched),
-                        sched[0] if sched else None,
-                        sched[-1] if sched else None,
-                        filename,
-                    )
                     return profile_content
-                else:
-                    _LOGGER.warning(
-                        "[PROFILE] Requested profile '%s' not present in container (available=%s). Falling back to 'Default' if available.",
-                        profile_name,
-                        available_profiles,
-                    )
-                    # If 'Default' exists and was not the one requested, try loading it
-                    if "Default" in data["profiles"] and profile_name != "Default":
-                        profile_entry = data["profiles"]["Default"]
-                        profile_content = dict(profile_entry)
-                        profile_content["profile_name"] = "Default"
-                        profile_content["meta"] = data.get("meta", {})
-                        profile_content["was_fallback"] = True
-                        return profile_content
-            else:
-                _LOGGER.warning("[PROFILE] Unsupported container format (missing 'profiles') for %s", filename)
+                elif "Default" in profiles or "default" in profiles:
+                    fallback_key = "Default" if "Default" in profiles else "default"
+                    profile_entry = profiles[fallback_key]
+                    profile_content = dict(profile_entry)
+                    profile_content["profile_name"] = fallback_key
+                    profile_content["meta"] = data.get("meta", {})
+                    profile_content["was_fallback"] = True
+                    return profile_content
 
-            # OLD FORMAT is not supported anymore
-
-        _LOGGER.warning(
-            "[PROFILE] Profile not found: name=%s, preset=%s, global_prefix=%s",
-            profile_name,
-            canonical,
-            global_prefix,
-        )
         return {"error": "Profile not found"}
 
     async def load_profile(self, call: ServiceCall) -> ServiceResponse:
@@ -376,14 +314,14 @@ class ProfileService:
         global_prefix = call.data.get("global_prefix")
         force_reload = call.data.get("force_reload", False)
 
-        _LOGGER.info("=== LOAD PROFILE START === Profile: '%s', Preset: %s, force_reload=%s", profile_name, preset_type, force_reload)
+        _LOGGER.debug("=== LOAD PROFILE START === Profile: '%s', Preset: %s, force_reload=%s", profile_name, preset_type, force_reload)
 
         result = await self.get_profile_data(profile_name, preset_type, global_prefix, force_reload=force_reload)
 
         if "error" not in result:
             try:
                 sched = result.get("schedule", [])
-                _LOGGER.info(
+                _LOGGER.debug(
                     "✅ Profile loaded: name=%s, points=%d, first=%s, last=%s",
                     profile_name,
                     len(sched),
@@ -391,11 +329,11 @@ class ProfileService:
                     sched[-1] if sched else None,
                 )
             except Exception:
-                _LOGGER.info("✅ Profile loaded successfully: %s", profile_name)
+                _LOGGER.debug("✅ Profile loaded successfully: %s", profile_name)
         else:
-            _LOGGER.warning("⚠️ Profile load failed: %s", result.get("error"))
+            _LOGGER.debug("⚠️ Profile load failed: %s", result.get("error"))
 
-        _LOGGER.info("=== LOAD PROFILE END ===")
+        _LOGGER.debug("=== LOAD PROFILE END ===")
         return result
 
     async def add_profile(self, call: ServiceCall):
@@ -430,6 +368,11 @@ class ProfileService:
 
         # Prepare data structure
         if "profiles" in existing_data:
+            # Case-insensitive check: if exists, remove old case version
+            for p_name in list(existing_data["profiles"].keys()):
+                if p_name.lower() == profile_name.lower():
+                    del existing_data["profiles"][p_name]
+
             # Container already exists, just add/update the profile
             existing_data["profiles"][profile_name] = {"schedule": default_schedule, "updated_at": self._to_iso8601()}
             if "meta" in existing_data:
@@ -484,9 +427,15 @@ class ProfileService:
 
         # NEW container format handling
         if "profiles" in existing_data:
-            if profile_name in existing_data["profiles"]:
-                del existing_data["profiles"][profile_name]
-                _LOGGER.info("✅ Profile '%s' removed from container %s", profile_name, filename)
+            matched_key = None
+            for p_key in existing_data["profiles"]:
+                if p_key.lower() == profile_name.lower():
+                    matched_key = p_key
+                    break
+
+            if matched_key:
+                del existing_data["profiles"][matched_key]
+                _LOGGER.info("✅ Profile '%s' removed from container %s", matched_key, filename)
 
                 # If no profiles left, delete the entire file
                 if not existing_data["profiles"]:
@@ -550,17 +499,20 @@ class ProfileService:
 
         return "\n".join(lines)
 
-    async def async_update_profile_selectors(self):
+    async def async_update_profile_selectors(self, all_files: list[str] | None = None):
         """Scan profiles and update input_select entities."""
         _LOGGER.info("Updating profile selectors...")
 
         profiles_by_preset = {}
-        all_files = await self.storage.list_profiles()
+        if all_files is None:
+            all_files = await self.storage.list_profiles()
+
+        # Track prefixes found in files to validate dynamic selectors
+        found_prefixes = set()
 
         for filename in all_files:
             try:
                 container_data = await self.storage.load_profile_cached(filename)
-
                 if not container_data:
                     continue
 
@@ -571,22 +523,22 @@ class ProfileService:
 
                     if preset_type and profiles_dict:
                         canonical_preset = normalize_preset_type(preset_type)
-
                         if canonical_preset not in profiles_by_preset:
                             profiles_by_preset[canonical_preset] = []
-
                         profiles_by_preset[canonical_preset].extend(profiles_dict.keys())
+
+                    prefix = container_data["meta"].get("global_prefix")
+                    if prefix:
+                        found_prefixes.add(prefix.rstrip("_"))
 
                 # OLD format
                 elif "profile_name" in container_data:
                     preset_type = container_data.get("preset_type", "thermostat")
                     profile_name = container_data.get("profile_name")
-
                     canonical_preset = normalize_preset_type(preset_type)
 
                     if canonical_preset not in profiles_by_preset:
                         profiles_by_preset[canonical_preset] = []
-
                     profiles_by_preset[canonical_preset].append(profile_name)
 
             except Exception as e:
@@ -596,21 +548,26 @@ class ProfileService:
         valid_selectors = set()
         for preset, config in PRESETS_CONFIG.items():
             selector_entity_id = config.get("profiles_select")
-
-            if not selector_entity_id:
-                continue
-
-            valid_selectors.add(selector_entity_id)
+            if selector_entity_id:
+                valid_selectors.add(selector_entity_id)
 
             # Always ensure "Default" exists as an option
             preset_profiles = profiles_by_preset.get(preset, [])
-            if "Default" not in preset_profiles:
+            if "Default" not in [p.lower() for p in preset_profiles]:
                 preset_profiles.append("Default")
 
             current_state = self.hass.states.get(selector_entity_id)
             current_options = current_state.attributes.get("options", []) if current_state else []
 
-            new_options = sorted(list(set(preset_profiles)))
+            # Case-insensitive unification: use a dict to keep the "best" version of the name
+            unified_names = {}
+            for p_name in preset_profiles:
+                key = p_name.lower()
+                # Prefer names that start with a capital letter (like "Default")
+                if key not in unified_names or (p_name[0].isupper() and not unified_names[key][0].isupper()):
+                    unified_names[key] = p_name
+
+            new_options = sorted(list(unified_names.values()))
 
             if set(current_options) != set(new_options):
                 _LOGGER.info("Updating %s with %d profiles", selector_entity_id, len(new_options))
@@ -624,7 +581,6 @@ class ProfileService:
                     )
 
                     # Update YAML package file on disk if we have metadata
-                    # We look for ANY container that matches this preset to get global_prefix and target_entity
                     for filename in all_files:
                         container = await self.storage.load_profile_cached(filename)
                         if container and "meta" in container and container["meta"].get("preset_type") == preset:
@@ -634,7 +590,6 @@ class ProfileService:
                             if prefix:
                                 package_path = f"packages/{prefix}package.yaml"
                                 yaml_content = self._generate_package_yaml(prefix, preset, new_options, target)
-                                # Update min/max/step if available in meta
                                 if "min_value" in meta:
                                     yaml_content = yaml_content.replace("min: 0", f"min: {meta['min_value']}")
                                 if "max_value" in meta:
@@ -642,7 +597,6 @@ class ProfileService:
                                 if "step_value" in meta:
                                     yaml_content = yaml_content.replace("step: 0.5", f"step: {meta['step_value']}")
 
-                                _LOGGER.info("Updating package file: %s", package_path)
                                 await self.hass.services.async_call(
                                     "cronostar", "create_yaml_file", {"file_path": package_path, "content": yaml_content}, blocking=True
                                 )
@@ -650,15 +604,23 @@ class ProfileService:
                 except Exception as e:
                     _LOGGER.error("Failed to update %s or its package file: %s", selector_entity_id, e)
 
-        # NEW: Check for stray cronostar_ input_select entities that aren't in PRESETS_CONFIG
-        # or don't match any profile data on disk.
+        # NEW: Improved consistency check
         all_input_selects = [sid for sid in self.hass.states.async_entity_ids("input_select") if sid.startswith("input_select.cronostar_")]
         for sid in all_input_selects:
             if sid in valid_selectors:
                 continue
 
-            # This is a cronostar_ select that is NOT in current PRESETS_CONFIG
-            # Log as error suggesting deletion.
+            # Check if it matches a dynamic prefix from disk
+            is_dynamic_valid = False
+            for pfx in found_prefixes:
+                if sid == f"input_select.{pfx}_profiles":
+                    is_dynamic_valid = True
+                    break
+
+            if is_dynamic_valid:
+                continue
+
+            # This is a cronostar_ select that is NOT in PRESETS_CONFIG and NOT on disk
             state = self.hass.states.get(sid)
             options = state.attributes.get("options", []) if state else []
             _LOGGER.error(

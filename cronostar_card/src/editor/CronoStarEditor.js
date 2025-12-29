@@ -54,7 +54,9 @@ export class CronoStarEditor extends LitElement {
       _dashboardDetailData: { type: Object },
       _dashboardIsEditingName: { type: Boolean },
       _dashboardEditName: { type: String },
-      _isEditing: { type: Boolean }
+      _isEditing: { type: Boolean },
+      _pickerLoaded: { type: Boolean },
+      _dashboardView: { type: String } // 'choice' or 'status'
     };
   }
 
@@ -506,15 +508,19 @@ export class CronoStarEditor extends LitElement {
     this._dashboardIsEditingName = false;
     this._dashboardEditName = "";
     this._isEditing = false;
+    this._dashboardView = 'choice';
+    // Forza il rendering del picker: la definizione può arrivare dal registry scoped (patch in main.js)
+    this._pickerLoaded = true;
 
     // Debounce config-changed to avoid constant card recreations while typing
     this._debouncedDispatch = this._debounce(() => {
-      this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config } }));
+      this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: { ...this._config, step: this._step } } }));
     }, 500);
 
     // Bind methods
     this._renderTextInput = this._renderTextInput.bind(this);
     this._renderButton = this._renderButton.bind(this);
+    this._handleKeyDown = this._handleKeyDown.bind(this);
 
     // Expose ALL service handlers to children steps
     this.serviceHandlers = {
@@ -527,6 +533,76 @@ export class CronoStarEditor extends LitElement {
       handleInitializeData,
       handleSaveAll
     };
+  }
+
+  handleShowHelp() {
+    const lang = this._language || 'en';
+    const title = this.i18n._t('help.title');
+    const introText = this.i18n._t('help.text');
+    const mouseManual = this.i18n._t('help.mouse_manual');
+    const keyboardManual = this.i18n._t('help.keyboard_manual');
+
+    // Create custom dialog overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.85); display: flex; align-items: center;
+      justify-content: center; z-index: 10000; padding: 20px;
+      backdrop-filter: blur(5px);
+    `;
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      background: #1a1f2e; border-radius: 16px; padding: 32px;
+      max-width: 850px; width: 100%; max-height: 90vh;
+      overflow-y: auto; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #e8eaf0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    `;
+    const headerDiv = document.createElement('div');
+    headerDiv.style.cssText = `
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 16px;
+    `;
+    const titleEl = document.createElement('h2');
+    titleEl.textContent = title;
+    titleEl.style.cssText = `margin: 0; color: #0ea5e9; font-size: 1.8rem;`;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = `
+      background: none; border: none; font-size: 28px; cursor: pointer;
+      color: #a0a8c0; padding: 4px; transition: color 0.2s;
+    `;
+    closeBtn.onmouseover = () => closeBtn.style.color = '#fff';
+    closeBtn.onmouseout = () => closeBtn.style.color = '#a0a8c0';
+    closeBtn.onclick = () => overlay.remove();
+    headerDiv.appendChild(titleEl);
+    headerDiv.appendChild(closeBtn);
+    dialog.appendChild(headerDiv);
+
+    const sections = [
+      { title: '', text: introText },
+      { title: lang === 'it' ? '🖱️ Utilizzo Mouse' : '🖱️ Mouse Usage', text: mouseManual },
+      { title: lang === 'it' ? '⌨️ Utilizzo Tastiera' : '⌨️ Keyboard Usage', text: keyboardManual }
+    ];
+
+    sections.forEach(s => {
+      if (s.title) {
+        const h3 = document.createElement('h3');
+        h3.textContent = s.title;
+        h3.style.cssText = 'margin: 24px 0 12px 0; color: #fff; border-left: 4px solid #0ea5e9; padding-left: 12px;';
+        dialog.appendChild(h3);
+      }
+      const p = document.createElement('div');
+      p.style.cssText = 'white-space: pre-wrap; margin-bottom: 20px; line-height: 1.6; font-size: 15px; color: #cbd3e8;';
+      p.textContent = s.text;
+      dialog.appendChild(p);
+    });
+
+    overlay.appendChild(dialog);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
   }
 
   connectedCallback() {
@@ -543,6 +619,11 @@ export class CronoStarEditor extends LitElement {
       this._unsubscribeDeep = null;
     }
     this._deepCheckSubscribed = false;
+  }
+
+  firstUpdated() {
+    // Ensure card in preview knows the initial step (0)
+    this._dispatchConfigChanged(true);
   }
 
   async _ensureDeepCheckSubscription() {
@@ -565,6 +646,9 @@ export class CronoStarEditor extends LitElement {
   updated(changedProps) {
     super.updated?.(changedProps);
     if (changedProps.has('hass')) {
+      if (this.hass) {
+        console.log('[EDITOR] HASS object received/updated');
+      }
       this._ensureDeepCheckSubscription();
       if (this.hass && this._step === 1 && !this._deepCheckRanForStep1) {
         this._deepCheckRanForStep1 = true;
@@ -576,6 +660,9 @@ export class CronoStarEditor extends LitElement {
       }
     }
     if (changedProps.has('_step')) {
+      // ✅ FIX: Dispatch immediately on step change so preview is updated
+      this._dispatchConfigChanged(true);
+
       if (this._step === 1 && this.hass && !this._deepCheckRanForStep1) {
         this._deepCheckRanForStep1 = true;
         this._runDeepChecks();
@@ -587,14 +674,126 @@ export class CronoStarEditor extends LitElement {
       if (this._step !== 1) this._deepCheckRanForStep1 = false;
       if (this._step !== 5) this._deepCheckRanForStep5 = false;
     }
+
+    // Hide preview in Step 0
+    this._updatePreviewVisibility();
+  }
+
+  _updatePreviewVisibility() {
+    try {
+      const shouldHide = (this._step === 0);
+      
+      const root = this.getRootNode();
+      if (!root || (root !== document && !(root instanceof ShadowRoot))) {
+        return;
+      }
+
+      // Inject both in local root and global document for maximum coverage
+      const targets = [root, document.head];
+      
+      targets.forEach(t => {
+        if (!t) return;
+        let styleEl = (t === document.head) 
+          ? document.getElementById('cronostar-editor-style-global')
+          : root.getElementById('cronostar-editor-style');
+
+        if (shouldHide) {
+          if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = (t === document.head) ? 'cronostar-editor-style-global' : 'cronostar-editor-style';
+            t.appendChild(styleEl);
+          }
+
+          styleEl.textContent = `
+            /* CronoStar: Force 0x0 preview collapse */
+            .element-preview,
+            .preview,
+            hui-card-preview,
+            hui-card-preview-overlay,
+            [class*="preview-container"],
+            [class*="PreviewContainer"] {
+              display: none !important;
+              height: 0 !important;
+              width: 0 !important;
+              min-height: 0 !important;
+              min-width: 0 !important;
+              max-height: 0 !important;
+              max-width: 0 !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              border: none !important;
+              opacity: 0 !important;
+              visibility: hidden !important;
+              pointer-events: none !important;
+              position: absolute !important;
+              transform: scale(0) !important;
+              overflow: hidden !important;
+              z-index: -9999 !important;
+              left: -9999px !important;
+              top: -9999px !important;
+            }
+
+            /* Kill grid gaps and padding in parent containers */
+            .elements, .content, .container, hui-card-element-editor {
+              gap: 0 !important;
+              grid-gap: 0 !important;
+              padding: 0 !important;
+            }
+
+            .element-editor, .editor, hui-card-editor {
+              width: 100% !important;
+              max-width: 100% !important;
+              min-width: 100% !important;
+              flex: 1 1 100% !important;
+            }
+          `;
+        } else if (styleEl) {
+          styleEl.textContent = '';
+        }
+      });
+
+      this._previewWasHidden = shouldHide;
+    } catch (e) {
+      console.warn('[EDITOR][PREVIEW] Visibility update failed:', e);
+    }
+  }
+
+  _renderWizardSteps() {
+    if (this._step === 0) return html``;
+    const steps = [0, 1, 2, 3, 4, 5];
+    const canJump = this._canGoNext();
+
+    return html`
+      <div class="wizard-steps">
+        ${steps.map(s => html`
+          <div
+            class="step-badge ${this._step === s ? "active" : ""}"
+            @click=${() => {
+        if (s === 0 || s <= this._step || (canJump && this._step !== 0)) {
+          this._step = s;
+          this._dispatchConfigChanged(true); // Dispatch immediately on click
+          this.requestUpdate();
+        }
+      }}
+          >
+            ${s === 0 ? '🏠' : s}
+          </div>
+        `)}
+      </div>
+    `;
   }
 
   setConfig(config) {
     try {
       this._config = validateConfig(config);
+      // If we have a global_prefix and target_entity, and it's not the default stub prefix,
+      // we consider it an existing config being edited.
+      this._isEditing = !!(config.global_prefix && config.target_entity) &&
+        config.global_prefix !== 'cronostar_temp_';
     } catch (e) {
       console.warn("Config validation warning:", e);
       this._config = { ...DEFAULT_CONFIG, ...config };
+      this._isEditing = false;
     }
 
     if (this._config.preset) this._selectedPreset = this._config.preset;
@@ -630,7 +829,15 @@ export class CronoStarEditor extends LitElement {
   _dispatchConfigChanged(immediate = false) {
     if (immediate) {
       if (this._debounceTimer) clearTimeout(this._debounceTimer);
-      this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config } }));
+      // Ensure type is present and correct, and pass current step
+      const configToDispatch = { ...this._config, step: this._step };
+      if (!configToDispatch.type) configToDispatch.type = 'custom:cronostar-card';
+
+      console.log('[Editor] Dispatching config-changed', configToDispatch); this.dispatchEvent(new CustomEvent('config-changed', {
+        detail: { config: configToDispatch },
+        bubbles: true,
+        composed: true
+      }));
     } else {
       this._debouncedDispatch();
     }
@@ -674,30 +881,6 @@ export class CronoStarEditor extends LitElement {
     }
   }
 
-  _renderWizardSteps() {
-    const steps = [0, 1, 2, 3, 4, 5];
-    const canJump = this._canGoNext();
-
-    return html`
-      <div class="wizard-steps">
-        ${steps.map(s => html`
-          <div 
-            class="step-badge ${this._step === s ? 'active' : ''}" 
-            @click=${() => { 
-              // Permetti di tornare indietro sempre, o andare avanti solo se la config minima è ok
-              if (s === 0 || (s <= this._step) || (canJump && this._step !== 0)) {
-                this._step = s; 
-                this.requestUpdate();
-              }
-            }}
-          >
-            ${s === 0 ? '🏠' : s}
-          </div>
-        `)}
-      </div>
-    `;
-  }
-
   _renderStepContent() {
     switch (this._step) {
       case 0: return new Step0Dashboard(this).render();
@@ -715,11 +898,38 @@ export class CronoStarEditor extends LitElement {
     newConfig.type = this._config.type || DEFAULT_CONFIG.type;
     if ('entity_prefix' in newConfig) delete newConfig.entity_prefix;
     this._config = newConfig;
-    
+
     this._syncConfigAliases();
     this._updateAutomationYaml();
     this._updateHelpersYaml();
     this.requestUpdate();
+  }
+
+  _renderEntityPicker(key, value, label = "Entity") {
+    // fallback se il picker non c'è (o non è ancora definito)
+    if (!this._pickerLoaded) {
+      return this._renderTextInput(key, value, label);
+    }
+
+    return html`
+      <ha-entity-picker
+        .hass=${this.hass}
+        .label=${label}
+        .value=${value ?? ""}
+        allow-custom-entity
+        @value-changed=${(ev) => {
+        const v = ev?.detail?.value ?? "";
+        // se vuoi salvare null quando vuoto:
+        this._handleLocalUpdate(key, v === "" ? null : v);
+        this._dispatchConfigChanged(true);
+      }}
+      ></ha-entity-picker>
+    `;
+  }
+
+  // opzionale: wrapper pubblico come hai fatto per renderTextInput
+  renderEntityPicker(key, value, label) {
+    return this._renderEntityPicker(key, value, label);
   }
 
   _renderTextInput(key, value, placeholder = '') {
@@ -752,13 +962,13 @@ export class CronoStarEditor extends LitElement {
 
   _updateConfig(key, value) {
     const newConfig = { ...this._config, [key]: value };
-    
+
     // Explicitly enforce stable type to avoid reconstruction
     newConfig.type = this._config.type || DEFAULT_CONFIG.type;
 
     // Hard-remove deprecated keys
     if ('entity_prefix' in newConfig) delete newConfig.entity_prefix;
-    
+
     if (key === 'preset') {
       const presetConfig = CARD_CONFIG_PRESETS[value];
       if (presetConfig) {
@@ -786,27 +996,58 @@ export class CronoStarEditor extends LitElement {
   }
 
   async _handleFinishClick(options = {}) {
-    const force = options.force === true;
+    const isFinalStep = this._step === 5;
+    const isForced = options.force === true;
+    const skipClose = options.skipClose === true;
 
-    if ((this._step === 5 || force) && this.hass) {
+    if ((isFinalStep || isForced) && this.hass) {
+      // 1. Dispatch current config immediately so HA preview is up to date
+      this._dispatchConfigChanged(true);
+
       try {
+        // 2. Perform backend operations
         const result = await handleSaveAll(this.hass, this._config, this._deepReport, this._language);
         this.showToast(result.message);
 
-        if (force) {
+        // 3. One last dispatch to be safe
+        this._dispatchConfigChanged(true);
+
+        // 4. Close dialog only if not skipped
+        if (!skipClose && (isFinalStep || isForced)) {
           const closeEvent = new CustomEvent('closed', { bubbles: true, composed: true });
           this.dispatchEvent(closeEvent);
         }
 
       } catch (e) {
+        console.error('[Editor] Finish error:', e);
         this.showToast(`✗ ${e.message}`);
+      }
+    } else {
+      // Not at the end yet, just move next if possible
+      if (this.wizard && typeof this.wizard._nextStep === 'function') {
+        this.wizard._nextStep();
       }
     }
 
-    this._persistCardConfigNow();
-    if (this.wizard && typeof this.wizard._finish === 'function') this.wizard._finish();
+    if (this._persistCardConfigNow) {
+      this._persistCardConfigNow();
+    }
+
+    if (this.wizard && typeof this.wizard._finish === 'function') {
+      this.wizard._finish();
+    }
   }
 
+  _handleKeyDown(e) {
+    // Disable exit on Enter if in wizard (step > 0)
+    if (this._step > 0 && e.key === 'Enter') {
+      // Only block if not in a textarea
+      if (e.target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+  }
   _canGoNext() {
     if (this._step === 0) return true;
     if (this._step === 1) {
@@ -851,7 +1092,9 @@ export class CronoStarEditor extends LitElement {
         </div>
         <div>
           ${this._step === 5
-        ? html`<mwc-button raised @click=${() => this._handleFinishClick()}>${this.i18n._t('actions.save')}</mwc-button>`
+        ? html`<mwc-button raised @click=${() => this._handleFinishClick({ force: false })}>
+                 ${this._language === 'it' ? 'Fine' : 'Finish'}
+               </mwc-button>`
         : html`<mwc-button raised @click=${() => this._handleNextClick()}>${this.i18n._t('actions.next')}</mwc-button>`}
         </div>
       </div>
@@ -860,9 +1103,9 @@ export class CronoStarEditor extends LitElement {
 
   render() {
     return html`
-      <div class="editor-container">
-        ${this._renderWizardSteps()}
+      <div class="editor-container" @keydown=${this._handleKeyDown}>
         ${this._renderStepContent()}
+        ${this._renderWizardSteps()}
         ${this._renderWizardActions()}
       </div>
     `;

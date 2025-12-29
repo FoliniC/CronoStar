@@ -42,9 +42,13 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             automation_note = ""
             if self._automations_setup == "other":
                 automation_note = (
-                    "Note: If your automations are inline in configuration.yaml or included as a single file (e.g. 'automation: !include automations.yaml'), "
-                    "CronoStar will not modify configuration.yaml. It will create the 'automations/' folder, but you must either switch to "
-                    "'automation: !include_dir_merge_list automations' or manually merge CronoStar automation entries into your existing setup."
+                    "\n\n**Note: Manual Automation Setup Required**\n"
+                    "Your `configuration.yaml` uses a different include style for automations. "
+                    "To use CronoStar, please ensure you have this line in your `configuration.yaml`:\n"
+                    "```yaml\n"
+                    "automation: !include_dir_merge_list automations\n"
+                    "```\n"
+                    "Or manually add CronoStar automations to your existing files."
                 )
 
             return self.async_show_form(
@@ -127,8 +131,8 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not ha_section_found:
             new_lines.extend(
                 [
-                "\nhomeassistant:\n",
-                "  packages: !include_dir_named packages\n",
+                    "\nhomeassistant:\n",
+                    "  packages: !include_dir_named packages\n",
                 ]
             )
         elif not packages_added:
@@ -149,10 +153,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     "create",
                     {
                         "title": "CronoStar",
-                        "message": (
-                            "Created configuration for CronoStar. "
-                            "Add the 'cronostar' card to a dashboard (Lovelace) in the usual Home Assistant way."
-                        ),
+                        "message": ("Created configuration for CronoStar. Add the 'cronostar' card to a dashboard (Lovelace) in the usual Home Assistant way."),
                         "notification_id": "cronostar_setup_info",
                     },
                     blocking=False,
@@ -197,7 +198,12 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             src_pkg = self.hass.config.path("packages/cronostar_package.yaml")
 
         if os.path.exists(src_pkg):
-            shutil.copy(src_pkg, os.path.join(pkg_dir, "cronostar_package.yaml"))
+            dst_pkg = os.path.join(pkg_dir, "cronostar_package.yaml")
+            if os.path.abspath(src_pkg) != os.path.abspath(dst_pkg):
+                try:
+                    shutil.copy(src_pkg, dst_pkg)
+                except shutil.SameFileError:
+                    _LOGGER.debug("Source and destination are the same file, skipping copy")
 
         # 2. Gestione Automazioni
         auto_dir = self.hass.config.path("automations")
@@ -209,9 +215,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Caso in cui esiste già un'altra direttiva (es. !include automations.yaml)
             # Creiamo comunque la cartella per i file di CronoStar se non esiste
             os.makedirs(auto_dir, exist_ok=True)
-            _LOGGER.warning(
-                "CronoStar: automation folder created but configuration.yaml uses a different include style. Manual check required."
-            )
+            _LOGGER.warning("CronoStar: automation folder created but configuration.yaml uses a different include style. Manual check required.")
 
         # 3. Cartella profili
         os.makedirs(self.hass.config.path("cronostar/profiles"), exist_ok=True)

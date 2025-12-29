@@ -157,10 +157,15 @@ export class KeyboardHandler {
       return;
     }
 
-    // Escape: Clear selection
+    // Escape: Clear selection or close context menu
     if (e.key === "Escape") {
       e.preventDefault();
-      this.handleEscape();
+      if (this.card.contextMenu?.show) {
+        this.card.contextMenu = { ...this.card.contextMenu, show: false };
+        this.card.requestUpdate();
+      } else {
+        this.handleEscape();
+      }
       this.focusContainer();
       return;
     }

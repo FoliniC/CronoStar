@@ -46,7 +46,7 @@ export class ChartManager {
         const name = candidates[idx];
         if (!name) return;
         this.card.profileManager.loadProfile(name).catch(() => {
-            if (idx + 1 < candidates.length) tryNext(idx + 1);
+          if (idx + 1 < candidates.length) tryNext(idx + 1);
         });
       };
       tryNext(0);
@@ -172,8 +172,10 @@ export class ChartManager {
       text = `${this.card.stateManager.minutesToTime(xRaw)} • ${text}`;
 
       el.textContent = text;
-      const leftPos = pixelX + (canvasRect.left - containerRect.left);
-      const topPos = pixelY + (canvasRect.top - containerRect.top);
+      // Tooltips are absolute within .chart-container. Canvas usually fills container.
+      // Use pixel coordinates directly from chart scales (relative to canvas).
+      const leftPos = pixelX;
+      const topPos = pixelY;
       const containerWidth = containerRect.width;
       const tooltipWidth = 100;
 
@@ -250,21 +252,20 @@ export class ChartManager {
       const minutes = x.getValueForPixel(pos.x);
       const val = this._interpolateValueAtMinutes(minutes);
       if (val === null) return;
-      el.textContent = `${this.card.stateManager.minutesToTime(minutes)} • ${val.toFixed(1)}`;
-      const cRect = this.chart.canvas.getBoundingClientRect();
+      const isSwitch = !!(this.card.config?.is_switch_preset || this.card.selectedPreset?.includes('switch'));
+      const textVal = isSwitch ? (val >= 0.5 ? 'On' : 'Off') : val.toFixed(1);
+      el.textContent = `${this.card.stateManager.minutesToTime(minutes)} • ${textVal}`;
       const cont = this.card.shadowRoot.querySelector('.chart-container');
       if (!cont) return;
       const contRect = cont.getBoundingClientRect();
-      const leftPos = pos.x + (cRect.left - contRect.left);
+      // Tooltips are absolute within .chart-container. Use pointer position relative to canvas directly.
+      const leftPos = pos.x;
+      const topPos = pos.y;
 
-      if (leftPos + 10 + 100 > contRect.width) {
-        el.style.left = `${Math.round(leftPos - 110)}px`;
-        el.style.textAlign = 'right';
-      } else {
-        el.style.left = `${Math.round(leftPos + 10)}px`;
-        el.style.textAlign = 'left';
-      }
-      el.style.top = `${Math.round(pos.y + (cRect.top - contRect.top) - 24)}px`;
+      // Simplified positioning, always offset from cursor
+      el.style.left = `${Math.round(leftPos + 10)}px`;
+      el.style.top = `${Math.round(topPos - 24)}px`; // Display above the cursor
+      el.style.textAlign = 'left'; // Default to left alignment
       el.style.display = 'block';
       if (this._hoverHideTimer) clearTimeout(this._hoverHideTimer);
       this._hoverHideTimer = setTimeout(() => this._hideHoverInfo(), 1500);
@@ -276,14 +277,44 @@ export class ChartManager {
     if (el) el.style.display = 'none';
   }
 
+  deletePointAtEvent(e) {
+    if (e.altKey) return false; // Alt-key is for point alignment
+
+    const points = this.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
+    if (points.length) {
+      this.card.stateManager.removePoint(points[0].index);
+      this.updateData(this.card.stateManager.getData());
+      this.card.requestUpdate();
+      return true; // Point was deleted
+    }
+    return false; // No point deleted
+  }
+
   initChart(canvas) {
     if (!canvas) {
       Logger.error('CHART', '[CronoStar] initChart: canvas is null');
       return false;
     }
-    if (!canvas.isConnected) {
-      Logger.warn('CHART', '[CronoStar] initChart: canvas not connected, retrying...');
-      requestAnimationFrame(() => this.initChart(canvas));
+
+    // Check size and attachment without flooding the log with warnings
+    const rect = canvas.getBoundingClientRect();
+    const hasSize = rect.width > 0 && rect.height > 0;
+
+    if (!canvas.isConnected || !hasSize) {
+      // Log as simple debug info, not warning, to avoid cluttering standard logs
+      Logger.log('CHART', `[CronoStar] initChart: canvas not ready (connected=${canvas.isConnected}, size=${Math.round(rect.width)}x${Math.round(rect.height)})`);
+
+      // Schedule ONE single retry if not already pending
+      if (!this._retryScheduled) {
+        this._retryScheduled = true;
+        setTimeout(() => {
+          this._retryScheduled = false;
+          // Only retry if still needed and element is likely visible now
+          if (canvas.isConnected && !this._initialized) {
+            this.initChart(canvas);
+          }
+        }, 500);
+      }
       return false;
     }
 
@@ -294,24 +325,18 @@ export class ChartManager {
 
     this.destroy();
 
-    canvas.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      if (e.altKey) {
-        const selMgr = this.card.selectionManager;
-        const indices = selMgr.getActiveIndices();
-        if (indices.length > 1) {
-             this.card.stateManager.alignSelectedPoints('right');
-             e.stopImmediatePropagation();
-             return;
-        }
-      }
-      const points = this.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
-      if (points.length) {
-        this.card.stateManager.removePoint(points[0].index);
-        this.updateData(this.card.stateManager.getData());
-        this.card.requestUpdate();
-      }
-    }, { passive: false });
+    // Prevent browser-native touch gestures and scrolling from interfering
+    // with Chart.js plugins (drag/zoom) which may call preventDefault.
+    // Setting touchAction to 'none' and overscrollBehavior to 'contain'
+    // avoids passive listener warnings during pointer/touch interactions.
+    try {
+      canvas.style.touchAction = 'none';
+      canvas.style.overscrollBehavior = 'contain';
+      canvas.style.userSelect = 'none';
+      canvas.style.webkitUserSelect = 'none';
+    } catch (_) { /* ignore styling issues */ }
+
+
 
     canvas.addEventListener('pointerdown', (e) => {
       if (!this.chart || this.card.pointerSelecting || e.button !== 0) return;
@@ -352,14 +377,25 @@ export class ChartManager {
       this.dragDatasetIndex = 0; this.dragActiveIndex = idx; this.dragStartX = dataset.data[idx].x;
       this._hDragActive = true; this._hDragPointerId = e.pointerId;
       this.card.isDragging = true;
-      window.addEventListener('pointermove', this._boundOnWindowPointerMove, { capture: true, passive: true });
-      window.addEventListener('pointerup', this._boundOnWindowPointerUp, { capture: true, passive: true });
-    }, { capture: true, passive: true });
+      window.addEventListener('pointermove', this._boundOnWindowPointerMove, { capture: true, passive: false });
+      window.addEventListener('pointerup', this._boundOnWindowPointerUp, { capture: true, passive: false });
+    }, { capture: true, passive: false });
+
+    canvas.addEventListener('contextmenu', (e) => {
+      // Prevent the default context menu from appearing
+      e.preventDefault();
+      // Call the delete point function
+      this.deletePointAtEvent(e);
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      this.lastMousePosition = this._getCanvasRelativePosition(e);
+    }, { passive: false });
 
     this._hoverHandler = (e) => this._showHoverInfo(e);
     this._hoverOutHandler = () => this._hideHoverInfo();
-    canvas.addEventListener('pointermove', this._hoverHandler, { passive: true });
-    canvas.addEventListener('pointerout', this._hoverOutHandler, { passive: true });
+    canvas.addEventListener('pointermove', this._hoverHandler, { passive: false });
+    canvas.addEventListener('pointerout', this._hoverOutHandler, { passive: false });
 
     const isSwitch = !!(this.card.config?.is_switch_preset || this.card.selectedPreset?.includes('switch'));
     const step = isSwitch ? 1 : (Number(this.card.config?.step_value) || 0.5);
@@ -373,7 +409,13 @@ export class ChartManager {
         if (!ctx || !chartArea || !scales?.x) return;
         const xPos = scales.x.getPixelForValue(new Date().getHours() * 60 + new Date().getMinutes());
         if (xPos < chartArea.left || xPos > chartArea.right) return;
-        ctx.save(); ctx.setLineDash([5, 5]); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255, 82, 82, 0.5)';
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, chartArea.bottom - chartArea.top);
+        ctx.clip();
+        ctx.setLineDash([5, 5]); ctx.lineWidth = 1;
+        // Safe color fallback for indicator
+        ctx.strokeStyle = 'rgba(255, 82, 82, 0.5)';
         ctx.beginPath(); ctx.moveTo(xPos, chartArea.top); ctx.lineTo(xPos, chartArea.bottom); ctx.stroke(); ctx.restore();
       }
     };
@@ -387,13 +429,13 @@ export class ChartManager {
             : [{ x: 0, y: isSwitch ? 0 : minV }, { x: 1439, y: isSwitch ? 0 : minV }],
           borderColor: COLORS.primary, backgroundColor: 'rgba(3, 169, 244, 0.1)',
           pointRadius: 6, borderWidth: 2, tension: 0,
-          stepped: isSwitch ? 'before' : false, fill: true, clip: false, spanGaps: true
+          stepped: isSwitch ? 'before' : false, fill: true, clip: 8, spanGaps: true
         }]
       },
       plugins: [currentTimeIndicatorPlugin],
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
-        layout: { padding: { top: 15, right: 10, bottom: 25, left: 10 } },
+        layout: { padding: { top: 15, right: 15, bottom: 25, left: 15 } },
         onClick: (evt) => {
           if (!this.chart || this.card.pointerSelecting || Date.now() < (this.card.suppressClickUntil || 0) || evt.altKey) return;
           const pos = this._getCanvasRelativePosition(evt);
@@ -420,25 +462,147 @@ export class ChartManager {
         },
         plugins: {
           legend: { display: false }, tooltip: { enabled: false },
+          zoom: {
+            pan: {
+              enabled: true,
+              mode: (context) => {
+                const { chart } = context;
+                const { x, y } = chart.scales;
+                const pos = this.lastMousePosition || { x: 0, y: 0 };
+
+                // Allow panning only if starting from axis areas
+                if (pos.y >= x.top) return 'x';
+                if (pos.x <= y.right) return 'y';
+
+                return ''; // Disable pan in plot area
+              },
+              threshold: 5,
+            },
+            zoom: {
+              wheel: {
+                enabled: true,
+                speed: 0.1,
+              },
+              pinch: {
+                enabled: true
+              },
+              mode: (context) => {
+                const { chart } = context;
+                const { x, y } = chart.scales;
+                const pos = this.lastMousePosition || { x: 0, y: 0 };
+
+                if (pos.y >= x.top) return 'x';
+                if (pos.x <= y.right) return 'y';
+
+                // If inside the plot area, allow XY zoom to trigger full expansion
+                return 'xy';
+              },
+              onZoomStart: ({ chart }) => {
+                // Hide chart during zoom to prevent visual glitches
+                chart.canvas.style.opacity = '0';
+              },
+              onZoom: ({ chart }) => {
+                // Robustly synchronize scale options with current zoom levels
+                if (chart.options.scales.y) {
+                  chart.options.scales.y.min = chart.scales.y.min;
+                  chart.options.scales.y.max = chart.scales.y.max;
+                }
+                if (chart.options.scales.x) {
+                  chart.options.scales.x.min = chart.scales.x.min;
+                  chart.options.scales.x.max = chart.scales.x.max;
+                }
+
+                const { x, y } = chart.scales;
+                const pos = this.lastMousePosition || { x: 0, y: 0 };
+
+                const isOverX = pos.y >= x.top;
+                const isOverY = pos.x <= y.right;
+                const isInside = !isOverX && !isOverY;
+
+                let needsUpdate = false;
+
+                // Expand Horizontal if over X axis OR inside
+                if ((isOverX || isInside) && !this.card.isExpandedH) {
+                  this.card.isExpandedH = true;
+                  needsUpdate = true;
+                }
+
+                // Expand Vertical if over Y axis OR inside
+                if ((isOverY || isInside) && !this.card.isExpandedV) {
+                  this.card.isExpandedV = true;
+                  needsUpdate = true;
+                }
+
+                if (needsUpdate) {
+                  this.card.requestUpdate();
+                  setTimeout(() => {
+                    if (this.chart) this.chart.resize();
+                  }, 410);
+                }
+              },
+              onZoomComplete: ({ chart }) => {
+                // Ensure chart visibility is restored and synced
+                chart.canvas.style.opacity = '1';
+                // Trigger a final 'none' update to commit scale options changes without animation loops
+                chart.update('none');
+              }
+            },
+            limits: {
+              x: { min: 0, max: 1440 },
+              y: { min: isSwitch ? -0.1 : minV, max: isSwitch ? 1.1 : maxV }
+            }
+          },
           dragData: {
-            round: step, showTooltip: false, dragX: false, dragY: !isSwitch,
+            round: step, showTooltip: false, dragX: false, dragY: true,
             onDragStart: (e, ds, i, v) => {
-              if (!this.chart || this.card.pointerSelecting || isSwitch) return false;
+              if (!this.chart || this.card.pointerSelecting) return false;
               const val = (typeof v === 'object' && v !== null && v.y !== undefined) ? v.y : v;
-              this.dragStartValue = Number(val); this.initialSelectedValues = {};
+
+              const isSwitch = !!(this.card.config?.is_switch_preset || this.card.selectedPreset?.includes('switch'));
+              this.dragStartValue = isSwitch ? (Number(val) >= 0.5 ? 1 : 0) : Number(val);
+
+              this.initialSelectedValues = {};
               this.dragSelectedPoints = this.card.selectionManager.getSelectedPoints();
-              this.dragSelectedPoints.forEach(idx => { this.initialSelectedValues[idx] = this.chart.data.datasets[0].data[idx].y; });
+              this.dragSelectedPoints.forEach(idx => {
+                const yVal = this.chart.data.datasets[0].data[idx].y;
+                this.initialSelectedValues[idx] = isSwitch ? (yVal >= 0.5 ? 1 : 0) : yVal;
+              });
               this.card.isDragging = true; return true;
             },
             onDrag: (e, ds, i, v) => {
               const val = (typeof v === 'object' && v !== null && v.y !== undefined) ? v.y : v;
               let safeVal = Number(val); if (!Number.isFinite(safeVal)) return;
+
+              // For switch preset: do not show intermediate movement. Snap to 0 until passing 0.5, then snap to 1.
+              if (isSwitch) {
+                const pointerY = this._getCanvasRelativePosition(e).y;
+                const yScale = this.chart.scales.y;
+                const midpointPixel = yScale.getPixelForValue(0.5);
+                const snapped = pointerY < midpointPixel ? 1 : 0;
+
+                this.dragSelectedPoints.forEach(idx => {
+                  if (this.initialSelectedValues[idx] === undefined) return;
+                  // Override plugin's value directly and dataset to stop visual following
+                  if (typeof v === 'object' && v !== null && v.y !== undefined && idx === i) {
+                    v.y = snapped;
+                  }
+                  this.chart.data.datasets[0].data[idx].y = snapped;
+                });
+
+                this.chart.update('none');
+                const p = this.chart.data.datasets[0].data[i];
+                if (p) this.showDragValueDisplay(p.y, p.x);
+                return false; // prevent plugin default update (no intermediate movement)
+              }
+
+              // Non-switch presets: standard continuous drag with snapping to configured step
               const diff = safeVal - this.dragStartValue;
               this.dragSelectedPoints.forEach(idx => {
                 if (this.initialSelectedValues[idx] === undefined) return;
-                let newVal = Math.max(minV, Math.min(maxV, Math.round((this.initialSelectedValues[idx] + diff) / step) * step));
+                const newVal = Math.max(minV, Math.min(maxV, Math.round((this.initialSelectedValues[idx] + diff) / step) * step));
                 this.chart.data.datasets[0].data[idx].y = newVal;
               });
+
               this.chart.update('none');
               const p = this.chart.data.datasets[0].data[i];
               if (p) this.showDragValueDisplay(p.y, p.x);
@@ -446,6 +610,7 @@ export class ChartManager {
             onDragEnd: () => {
               this.card.isDragging = false; this.scheduleHideDragValueDisplay(500);
               this.card.stateManager.setData(this.chart.data.datasets[0].data.map(p => ({ time: this.card.stateManager.minutesToTime(p.x), value: p.y })));
+              this.card.requestUpdate();
             }
           }
         },
@@ -457,7 +622,11 @@ export class ChartManager {
               callback: (v) => (v === 1439 || v === 1440) ? '23:59' : this.card.stateManager.minutesToTime(v)
             }
           },
-          y: { min: isSwitch ? -0.1 : minV, max: isSwitch ? 1.1 : maxV, ticks: { stepSize: isSwitch ? 1 : undefined, callback: v => isSwitch ? (v === 0 ? 'Off' : (v === 1 ? 'On' : '')) : v } }
+          y: {
+            suggestedMin: isSwitch ? -0.1 : minV,
+            suggestedMax: isSwitch ? 1.1 : maxV,
+            ticks: { stepSize: isSwitch ? 1 : undefined, callback: v => isSwitch ? (v === 0 ? 'Off' : (v === 1 ? 'On' : '')) : Number(v).toFixed(1) }
+          }
         }
       }
     });

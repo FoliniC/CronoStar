@@ -21,6 +21,52 @@ export class PointerHandler {
     this.onPointerMove = this.onPointerMove.bind(this);
     this.onPointerUp = this.onPointerUp.bind(this);
     this.onPointerCancel = this.onPointerCancel.bind(this);
+    this.onContextMenu = this.onContextMenu.bind(this);
+  }
+
+  /**
+   * Handle context menu (right click)
+   */
+  onContextMenu(e) {
+    e.preventDefault();
+
+    // Attempt to delete a point on right-click
+    if (this.card.chartManager?.deletePointAtEvent?.(e)) {
+      return; // Point was deleted, do not show context menu
+    }
+
+    const pos = this.getContainerRelativeCoords(e);
+    this.showContextMenu(pos.x, pos.y);
+  }
+
+  showContextMenu(x, y) {
+    const container = this.card.shadowRoot?.querySelector(".chart-container");
+    let finalX = x;
+    let finalY = y;
+
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      const menuWidth = 160; // Approximate
+      const menuHeight = 200; // Approximate
+
+      if (x + menuWidth > rect.width) {
+        finalX = x - menuWidth;
+      }
+      if (y + menuHeight > rect.height) {
+        finalY = y - menuHeight;
+      }
+    }
+
+    this.card.contextMenu = { show: true, x: Math.max(5, finalX), y: Math.max(5, finalY) };
+    this.card.requestUpdate();
+
+    // Close menu on next click
+    const closeMenu = () => {
+      this.card.contextMenu = { ...this.card.contextMenu, show: false };
+      this.card.requestUpdate();
+      document.removeEventListener('pointerdown', closeMenu);
+    };
+    setTimeout(() => document.addEventListener('pointerdown', closeMenu), 10);
   }
 
   /**
@@ -85,17 +131,39 @@ export class PointerHandler {
         Logger.log('POINTER', 'onPointerDown ignored: isDragging');
         return;
       }
+
+      const pos = this.getContainerRelativeCoords(e);
+
+      // AXIS CHECK: If the click starts on an axis area, ignore it here
+      // to let Chart.js panning handle it.
+      const chart = this.card.chartManager?.getChart();
+      if (chart) {
+        const { x, y } = chart.scales;
+        if (pos.y >= x.top || pos.x <= y.right) {
+          Logger.log('POINTER', 'onPointerDown ignored: axis area');
+          return;
+        }
+      }
+
       // Pointerdown may prevent default in some interactions
       e.stopPropagation();
       // Do not call preventDefault unconditionally: keep compatibility with passive listeners
 
-      const pos = this.getContainerRelativeCoords(e);
       // Defer selection start until movement exceeds threshold
       this.pendingSelectStart = pos;
       this.selStartPx = null;
       this.selEndPx = null;
       this.activePointerId = e.pointerId;
       this.isSelecting = false;
+
+      // Long press detection
+      if (this.longPressTimeout) clearTimeout(this.longPressTimeout);
+      this.longPressTimeout = setTimeout(() => {
+        if (!this.isSelecting && !this.card.isDragging) {
+          this.showContextMenu(pos.x, pos.y);
+        }
+      }, 500);
+
       // Do not mark pointerSelecting yet; allow click selection to proceed if no drag
       this.card.selectionJustCompletedAt = 0;
       this.selectionAdditive = !!(e.ctrlKey || e.metaKey || e.shiftKey);
@@ -120,6 +188,7 @@ export class PointerHandler {
           const dx = pos.x - this.pendingSelectStart.x;
           const dy = pos.y - this.pendingSelectStart.y;
           if (Math.sqrt(dx * dx + dy * dy) >= this.dragThresholdPx) {
+            if (this.longPressTimeout) clearTimeout(this.longPressTimeout);
             // Begin selection
             this.isSelecting = true;
             this.card.pointerSelecting = true;
@@ -142,6 +211,7 @@ export class PointerHandler {
    * Handle pointer up event
    */
   onPointerUp(e) {
+    if (this.longPressTimeout) clearTimeout(this.longPressTimeout);
     try {
       // Ignore pointer up selection completion while chart drag is active
       if (this.card?.isDragging) {
@@ -232,10 +302,11 @@ export class PointerHandler {
    * @param {HTMLCanvasElement} canvas - Canvas element
    */
   attachListeners(canvas) {
-    canvas.addEventListener('pointerdown', this.onPointerDown, { passive: true, capture: true });
-    window.addEventListener('pointermove', this.onPointerMove, { passive: true, capture: true });
-    window.addEventListener('pointerup', this.onPointerUp, { passive: true, capture: true });
-    window.addEventListener('pointercancel', this.onPointerCancel, { passive: true, capture: true });
+    canvas.addEventListener('pointerdown', this.onPointerDown, { passive: false, capture: true });
+    canvas.addEventListener('contextmenu', this.onContextMenu);
+    window.addEventListener('pointermove', this.onPointerMove, { passive: false, capture: true });
+    window.addEventListener('pointerup', this.onPointerUp, { passive: false, capture: true });
+    window.addEventListener('pointercancel', this.onPointerCancel, { passive: false, capture: true });
   }
 
   /**
@@ -244,6 +315,7 @@ export class PointerHandler {
    */
   detachListeners(canvas) {
     canvas.removeEventListener('pointerdown', this.onPointerDown, { capture: true });
+    canvas.removeEventListener('contextmenu', this.onContextMenu);
     window.removeEventListener('pointermove', this.onPointerMove, { capture: true });
     window.removeEventListener('pointerup', this.onPointerUp, { capture: true });
     window.removeEventListener('pointercancel', this.onPointerCancel, { capture: true });

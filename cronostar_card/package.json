@@ -1,6 +1,6 @@
 {
   "name": "cronostar-card",
-  "version": "5.2.0",
+  "version": "5.2.16",
   "description": "Visual hourly schedule editor for Home Assistant",
   "main": "cronostar_card/cronostar-card.js",
   "type": "module",
@@ -8,7 +8,8 @@
     "build": "rollup -c ",
     "watch": "rollup -c -w",
     "dev": "rollup -c -w",
-    "lint:fix": "eslint src/ --fix"
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier src/ --write \"**/*.{js,jsx,ts,tsx,json,css,md}\""
   },
   "repository": {
     "type": "git",
