@@ -37,9 +37,12 @@ jobs:
       
       - name: Create Release
         run: |
-          gh release create ${{ github.ref_name }} CronoStar.zip \
+          # Create the release if it doesn't exist (ignore error if it does)
+          gh release create ${{ github.ref_name }} \
             --title "CronoStar ${{ github.ref_name }}" \
-            --generate-notes \
-            --clobber
+            --generate-notes || true
+            
+          # Upload or overwrite the asset
+          gh release upload ${{ github.ref_name }} CronoStar.zip 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
