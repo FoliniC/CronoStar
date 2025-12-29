@@ -3,7 +3,7 @@
         "step": {
             "user": {
                 "title": "Installazione CronoStar",
-                "description": "Benvenuto in CronoStar. Questo wizard preparerà il tuo ambiente Home Assistant.\n\n### Caratteristiche Principali:\n- **Editor Visuale**: Grafico interattivo con trascinamento.\n- **Multi-Preset**: Termostato, Ricarica EV, Interruttore, ecc.\n- **Gestione Profili**: Salva, carica e gestisci più programmi.\n- **Controllo Avanzato**: Supporto scorciatoie da tastiera e regolazioni precise.\n\n### Operazioni pianificate:\n- **Package**: Abilita `!include_dir_named packages` in `configuration.yaml`.\n- **File**: Crea le cartelle `packages/` e `automations/`.\n- **Profili**: Crea `cronostar/profiles/` per l\'archiviazione dati.\n- **Frontend**: Registra la card Lovelace.\n\n{automation_note}\n\nVuoi procedere con l\'installazione automatica?",
+                "description": "Benvenuto in CronoStar. Questo wizard preparerà il tuo ambiente Home Assistant.\n\n### Caratteristiche Principali:\n- **Editor Visuale**: Grafico interattivo con trascinamento.\n- **Multi-Preset**: Termostato, Ricarica EV, Interruttore, ecc.\n- **Gestione Profili**: Salva, carica e gestisci più programmi.\n- **Controllo Avanzato**: Supporto scorciatoie da tastiera e regolazioni precise.\n\n### Operazioni pianificate:\n- **Package**: Abilita `!include_dir_named packages` in `configuration.yaml`.\n- **File**: Crea le cartelle `packages/` e `automations/`.\n- **Profili**: Crea `cronostar/profiles/` per l'archiviazione dati.\n- **Frontend**: Registra la card Lovelace.\n\n{automation_note}\n\nVuoi procedere con l'installazione automatica?",
                 "data": {
                     "confirm": "Inizia Installazione"
                 }
@@ -17,12 +17,12 @@
             },
             "confirm_setup": {
                 "title": "Finalizza Setup",
-                "description": "Analisi dell\'ambiente completata.\n- Configurazione automazioni: **{automation_status}**\n- Struttura directory: **Pronta**\n\nClicca 'Invia' per creare le cartelle e i file iniziali. Successivamente, potrai aggiungere la card CronoStar alla tua dashboard."
+                "description": "Analisi dell'ambiente completata.\n- Configurazione automazioni: **{automation_status}**\n- Struttura directory: **Pronta**\n\nClicca 'Invia' per creare le cartelle e i file iniziali. Successivamente, potrai aggiungere la card CronoStar alla tua dashboard."
             }
         },
         "abort": {
             "single_instance_allowed": "È consentita una sola istanza di CronoStar",
-            "aborted_by_user": "Installazione annullata dall\'utente"
+            "aborted_by_user": "Installazione annullata dall'utente"
         },
         "error": {
             "packages_required": "I package devono essere abilitati per continuare"
