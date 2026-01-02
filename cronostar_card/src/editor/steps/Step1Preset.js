@@ -16,7 +16,7 @@ export class Step1Preset {
       { id: 'ev_charging', icon: '🔌', title: 'EV Charging', desc: 'Schedule EV charging power' },
       { id: 'generic_kwh', icon: '⚡', title: 'Generic kWh', desc: 'Schedule hourly energy limits (0-7 kWh)' },
       { id: 'generic_temperature', icon: '🌡️', title: 'Generic Temperature', desc: 'Schedule generic temperatures (0-40°C)' },
-      { id: 'generic_switch', icon: '💡', title: 'Switch', desc: 'Schedule device on/off' },
+      { id: 'generic_switch', icon: '💡', title: 'Generic switch', desc: 'Schedule device on/off' },
     ];
 
     const currentPrefix = this.editor._config.global_prefix || getEffectivePrefix(this.editor._config);
@@ -73,7 +73,7 @@ export class Step1Preset {
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
           <div class="step-header" style="margin-bottom: 0;">${this.editor.i18n._t(headerKey)}</div>
           <mwc-button outlined @click=${() => this.editor.handleShowHelp()} style="--mdc-theme-primary: #0ea5e9;">
-            ℹ️ ${this.editor._language === 'it' ? 'Info Componente' : 'Component Info'}
+            ℹ️ ${this.editor.i18n._t('actions.component_info')}
           </mwc-button>
         </div>
         <div class="step-description">${this.editor.i18n._t('descriptions.step1')}</div>
@@ -111,9 +111,7 @@ export class Step1Preset {
           ` : html`
             ${this.editor._renderTextInput('target_entity', applyEntity, 'entity_id (es. climate.salotto)')}
             <div style="margin-top:8px; color:#a0a8c0; font-size:0.85rem;">
-              ${this.editor._language === 'it'
-          ? 'Il selector entità (ha-selector) non è disponibile in questo contesto. Puoi inserire l’entity_id manualmente.'
-          : 'Entity selector (ha-selector) is not available in this context. You can type the entity_id manually.'}
+              ${this.editor.i18n._t('ui.entity_selector_unavailable')}
             </div>
           `}
         </div>
@@ -128,8 +126,8 @@ export class Step1Preset {
 
         <div style="margin-bottom: 12px;">
             ${prefixValid
-        ? html`<div style="color: #cbd3e8; font-size: 1rem; margin-bottom: 8px;">${this.editor.i18n._t('step2_msgs.prefix_ok')}</div>`
-        : html`<div style="color: var(--error-color); font-size: 1rem; margin-bottom: 8px;">${this.editor.i18n._t('step2_msgs.prefix_bad')}</div>`
+        ? html`<div style="color: #cbd3e8; font-size: 1rem; margin-bottom: 8px;">${this.editor.i18n._t('ui.prefix_ok')}</div>`
+        : html`<div style="color: var(--error-color); font-size: 1rem; margin-bottom: 8px;">${this.editor.i18n._t('ui.prefix_bad')}</div>`
       }
         </div>
 
@@ -137,17 +135,13 @@ export class Step1Preset {
           <div class="success-box" style="margin: 20px 0; border: 1px solid var(--success-color); padding: 16px; border-radius: 8px; background: rgba(0, 255, 0, 0.05);">
             <strong>✅ ${this.editor.i18n._t('ui.minimal_config_complete')}</strong>
             <div style="margin-top: 8px;">
-              ${this.editor.i18n._t('ui.minimal_config_info', {
-        '{entity}': `input_number.${currentPrefix}current`,
-        '{package}': `${currentPrefix}package.yaml`
+              ${this.editor.i18n._t('ui.minimal_config_info_no_package', {
+        '{entity}': `input_number.${currentPrefix}current`
       })}
             </div>
             <div style="margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
-              <mwc-button raised @click=${() => this._handleSaveExit()}>
-                💾 ${this.editor._language === 'it' ? 'Salva...' : 'Save...'}
-              </mwc-button>
-              <mwc-button outlined @click=${() => this._handleAdvanced()}>
-                ⚙️ ${this.editor._language === 'it' ? 'Avanzate...' : 'Advanced...'}
+              <mwc-button raised @click=${() => this._handleSaveAndContinue()}>
+                💾 ${this.editor.i18n._t('actions.save')} & ${this.editor.i18n._t('actions.next')}
               </mwc-button>
             </div>
           </div>
@@ -164,15 +158,15 @@ export class Step1Preset {
   selectPresetWithPrefix(presetId) {
     this.editor._selectedPreset = presetId;
     const tags = {
-      'thermostat': 'temp',
-      'ev_charging': 'ev',
-      'generic_kwh': 'kwh',
-      'generic_temperature': 'gentemp',
-      'generic_switch': 'switch'
+      'thermostat': 'thermostat',
+      'ev_charging': 'ev_charging',
+      'generic_kwh': 'generic_kwh',
+      'generic_temperature': 'generic_temperature',
+      'generic_switch': 'generic_switch'
     };
-    const newPrefix = `cronostar_${tags[presetId] || 'temp'}_`;
+    const newPrefix = `cronostar_${tags[presetId] || presetId}_`;
 
-    this.editor._updateConfig('preset', presetId);
+    this.editor._updateConfig('preset_type', presetId);
     this.editor._updateConfig('global_prefix', newPrefix);
 
     const presetConfig = CARD_CONFIG_PRESETS[presetId];
@@ -184,25 +178,16 @@ export class Step1Preset {
     this.editor.requestUpdate();
   }
 
-  async _handleSaveExit() {
+  async _handleSaveAndContinue() {
     this.editor._dispatchConfigChanged(true);
     if (this.editor.hass) {
       try {
-        await this.editor._handleFinishClick({ force: true, skipClose: false });
-      } catch (e) {
-        console.error("Save & Exit failed:", e);
-      }
-    }
-  }
-
-  async _handleAdvanced() {
-    this.editor._dispatchConfigChanged(true);
-    if (this.editor.hass) {
-      try {
-        await this.editor._handleFinishClick({ force: true, skipClose: true });
+        // Save files on server
+        await this.editor._handleFinishClick({ force: true });
+        // Move to Step 2
         this.editor.wizard._nextStep();
       } catch (e) {
-        console.error("Save & Advanced failed:", e);
+        console.error("Save & Continue failed:", e);
         this.editor.wizard._nextStep();
       }
     }

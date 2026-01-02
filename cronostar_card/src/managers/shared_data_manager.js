@@ -15,15 +15,16 @@ export class SharedDataManager {
   }
 
   /**  
-   * Generates the filename for a profile  
-   * @param {string} profileName - Profile name  
+   * Generates the filename for a profile container
+   * Standard: cronostar_<preset>_<prefix>_data.json
+   * @param {string} profileName - Ignored in new standard
    * @param {string} presetType - Preset type (temp, ev, switch, etc.)  
    * @returns {string} Filename  
    */
   getProfileFilename(profileName, presetType = null) {
     const type = presetType || this.getPresetType();
-    const slug = this.slugify(profileName);
-    return `cronostar_${type}_${slug}.json`;
+    const prefix = (this.card.config?.global_prefix || 'cronostar_').replace(/_+$/, '');
+    return `cronostar_${type}_${prefix}_data.json`;
   }
 
   /**  

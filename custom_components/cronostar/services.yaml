@@ -1,4 +1,6 @@
-# Existing services (unchanged)
+# custom_components/cronostar/services.yaml
+# Service definitions for CronoStar
+
 save_profile:
   name: Save Profile
   description: Saves a CronoStar schedule profile to a JSON file.
@@ -7,17 +9,25 @@ save_profile:
       name: Profile Name
       description: "The name of the profile to save (e.g., Comfort)."
       required: true
+      example: "Comfort"
       selector:
         text:
     preset_type:
       name: Preset Type
-      description: "The type of preset this profile belongs to (e.g., thermostat, ev_charging)."
+      description: "The type of preset this profile belongs to."
       required: true
+      default: "thermostat"
       selector:
-        text:
+        select:
+          options:
+            - "thermostat"
+            - "fan"
+            - "switch"
+            - "cover"
+            - "custom"
     schedule:
       name: Schedule
-      description: "An array of 24 numeric values for the schedule."
+      description: Schedule data (array of time/value pairs)
       required: true
       selector:
         object:
@@ -27,49 +37,63 @@ save_profile:
       required: false
       selector:
         text:
+    meta:
+      name: Metadata
+      description: Additional metadata
+      required: false
+      selector:
+        object:
 
 load_profile:
   name: Load Profile
-  description: "Loads a CronoStar schedule profile from a JSON file and returns its content."
+  description: "Loads a CronoStar schedule profile."
   fields:
     profile_name:
       name: Profile Name
-      description: "The name of the profile to load."
       required: true
       selector:
         text:
     preset_type:
       name: Preset Type
-      description: "The type of preset to which the profile belongs."
       required: true
+      default: "thermostat"
       selector:
-        text:
+        select:
+          options:
+            - "thermostat"
+            - "fan"
+            - "switch"
+            - "cover"
+            - "custom"
     global_prefix:
       name: Global Prefix
-      description: "The global identification prefix."
       required: false
       selector:
         text:
 
 add_profile:
   name: Add Profile
-  description: "Creates a new profile with default values."
+  description: "Creates a new profile."
   fields:
     profile_name:
       name: Profile Name
-      description: "The name of the profile to create."
       required: true
       selector:
         text:
     preset_type:
       name: Preset Type
-      description: "The type of preset this profile belongs to."
       required: true
+      default: "thermostat"
       selector:
-        text:
+        select:
+          options:
+            - "thermostat"
+            - "fan"
+            - "switch"
+            - "cover"
+            - "custom"
     global_prefix:
       name: Global Prefix
-      description: "The global identification prefix."
       required: false
       selector:
         text:
@@ -80,107 +104,45 @@ delete_profile:
   fields:
     profile_name:
       name: Profile Name
-      description: "The name of the profile to delete."
       required: true
       selector:
         text:
     preset_type:
       name: Preset Type
-      description: "The type of preset this profile belongs to."
       required: true
+      default: "thermostat"
       selector:
-        text:
+        select:
+          options:
+            - "thermostat"
+            - "fan"
+            - "switch"
+            - "cover"
+            - "custom"
     global_prefix:
       name: Global Prefix
-      description: "The global identification prefix."
       required: false
       selector:
         text:
 
 apply_now:
-  name: Apply current hour value
-  description: Apply the scheduled value for the current hour to the target entity (CronoStar).
+  name: Apply current value
+  description: Force apply the current scheduled value to the target entity.
   fields:
     target_entity:
       name: Target entity_id
-      description: Entity to control (climate, number, switch).
+      description: Entity to control.
       required: true
       selector:
         entity:
     preset_type:
       name: Preset type
-      description: Preset used to decide how to apply values (e.g., thermostat, generic_switch).
-      required: true
-      selector:
-        select:
-          options:
-            - thermostat
-            - ev_charging
-            - generic_kwh
-            - generic_temperature
-            - generic_switch
-    allow_max_value:
-      name: Allow Max Value
+      description: Preset type.
       required: false
       selector:
-        boolean:
+        text:
     global_prefix:
       name: Global Prefix
       required: false
       selector:
         text:
-
-check_setup:
-  name: Check CronoStar setup
-  description: Inspect configuration.yaml and included files to verify input_number helpers and automation storage.
-  fields:
-    prefix:
-      name: Helpers prefix
-      example: cronostar_switch_presa_balcone_
-      required: false
-      selector:
-        text:
-    hour_base:
-      name: Hour base
-      required: false
-      selector:
-        number:
-          min: 0
-          max: 1
-          step: 1
-          mode: slider
-    alias:
-      name: Expected automation alias
-      required: false
-      selector:
-        text:
-    expected_count:
-      name: Expected helpers count
-      required: false
-      selector:
-        number:
-          min: 1
-          max: 48
-          step: 1
-          mode: box
-
-create_yaml_file:
-  name: Create YAML File
-  description: "Creates a YAML file with the given content. For internal use by the wizard."
-  fields:
-    file_path:
-      name: File Path
-      description: "Path relative to /config."
-      required: true
-      selector:
-        text:
-    content:
-      name: Content
-      required: true
-      selector:
-        text:
-    append:
-      name: Append
-      required: false
-      selector:
-        boolean:

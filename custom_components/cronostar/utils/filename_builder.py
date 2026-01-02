@@ -5,21 +5,16 @@ from .prefix_normalizer import normalize_prefix
 _LOGGER = logging.getLogger(__name__)
 
 
-def build_profile_filename(profile_name: str, canonical_preset: str, global_prefix: str | None = None) -> str:
+def build_profile_filename(preset_type: str, global_prefix: str) -> str:
     """
-    Build profile filename using the correct prefix.
-    Generates a single file per prefix context (e.g. cronostar_prefix_data.json).
+    Build profile filename using the correct prefix and preset.
+    Standard: cronostar_<base>_<preset_type>.json
     """
-    # Determine which prefix to use
-    if global_prefix:
-        used_prefix = normalize_prefix(global_prefix)
-    else:
-        raise ValueError("global_prefix is required")
-    _LOGGER.debug("FilenameBuilder: resolved prefix '%s' (global=%s, preset=%s)", used_prefix, bool(global_prefix), canonical_preset)
+    prefix_with_underscore = normalize_prefix(global_prefix)
+    base = prefix_with_underscore.rstrip("_") or "default"
 
-    # Remove trailing underscore and create filename
-    prefix_base = used_prefix.rstrip("_")
+    # Ensure base doesn't start with cronostar_ if we are going to add it
+    if base.startswith("cronostar_"):
+        base = base[len("cronostar_") :]
 
-    _LOGGER.debug("Building filename: prefix=%s (profile_name ignored for filename)", prefix_base)
-
-    return f"{prefix_base}_data.json"
+    return f"cronostar_{base}_data.json"

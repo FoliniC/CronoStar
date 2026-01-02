@@ -30,9 +30,22 @@ export class PointerHandler {
   onContextMenu(e) {
     e.preventDefault();
 
-    // Attempt to delete a point on right-click
-    if (this.card.chartManager?.deletePointAtEvent?.(e)) {
-      return; // Point was deleted, do not show context menu
+    // Alt + Right Click Alignment logic
+    if (e.altKey) {
+      e.stopPropagation();
+      this.card.stateManager.alignSelectedPoints('right');
+      this.card.chartManager?._updatePointStyles();
+      return;
+    }
+
+    // If multiple points are selected, always show menu to allow batch operations
+    const selectedCount = this.card.selectionManager?.getSelectedPoints().length || 0;
+    
+    if (selectedCount <= 1) {
+      // Attempt to delete a point on right-click (fast delete for single point)
+      if (this.card.chartManager?.deletePointAtEvent?.(e)) {
+        return; // Point was deleted, do not show context menu
+      }
     }
 
     const pos = this.getContainerRelativeCoords(e);
@@ -64,9 +77,9 @@ export class PointerHandler {
     const closeMenu = () => {
       this.card.contextMenu = { ...this.card.contextMenu, show: false };
       this.card.requestUpdate();
-      document.removeEventListener('pointerdown', closeMenu);
+      document.removeEventListener('click', closeMenu);
     };
-    setTimeout(() => document.addEventListener('pointerdown', closeMenu), 10);
+    setTimeout(() => document.addEventListener('click', closeMenu), 10);
   }
 
   /**
@@ -145,10 +158,6 @@ export class PointerHandler {
         }
       }
 
-      // Pointerdown may prevent default in some interactions
-      e.stopPropagation();
-      // Do not call preventDefault unconditionally: keep compatibility with passive listeners
-
       // Defer selection start until movement exceeds threshold
       this.pendingSelectStart = pos;
       this.selStartPx = null;
@@ -177,10 +186,20 @@ export class PointerHandler {
    */
   onPointerMove(e) {
     try {
+      if (e.pointerId !== this.activePointerId && this.activePointerId !== null) return;
+      const pos = this.getContainerRelativeCoords(e);
+
+      if (this.isSelecting) {
+        // Update selection rectangle
+        this.selEndPx = pos;
+        this.updateSelectionOverlay();
+        // Prevent browser defaults (scrolling, etc) during selection
+        if (e.cancelable) e.preventDefault();
+        return;
+      }
+
       // Ignore area selection while chart drag is active
       if (this.card?.isDragging) return;
-      if (e.pointerId !== this.activePointerId) return;
-      const pos = this.getContainerRelativeCoords(e);
 
       if (!this.isSelecting) {
         // Check if movement exceeded threshold to start area selection
@@ -194,13 +213,15 @@ export class PointerHandler {
             this.card.pointerSelecting = true;
             this.selStartPx = { ...this.pendingSelectStart };
             this.selEndPx = { ...pos };
+            
+            // Capture pointer to ensure we get events even outside the canvas
+            if (e.target && typeof e.target.setPointerCapture === 'function') {
+              try { e.target.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+            }
+            
             this.showSelectionOverlay();
           }
         }
-      } else {
-        // Update selection rectangle
-        this.selEndPx = pos;
-        this.updateSelectionOverlay();
       }
     } catch (err) {
       Logger.warn('POINTER', 'onPointerMove failed:', err);
@@ -213,8 +234,15 @@ export class PointerHandler {
   onPointerUp(e) {
     if (this.longPressTimeout) clearTimeout(this.longPressTimeout);
     try {
+      if (e.pointerId !== this.activePointerId && this.activePointerId !== null) return;
+      
+      // Release pointer capture if we were selecting
+      if (this.isSelecting && e.target && typeof e.target.releasePointerCapture === 'function') {
+        try { e.target.releasePointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      }
+
       // Ignore pointer up selection completion while chart drag is active
-      if (this.card?.isDragging) {
+      if (this.card?.isDragging && !this.isSelecting) {
         this.activePointerId = null;
         this.pendingSelectStart = null;
         this.selStartPx = null;
@@ -224,7 +252,7 @@ export class PointerHandler {
         Logger.log('POINTER', 'onPointerUp ignored: isDragging');
         return;
       }
-      if (e.pointerId !== this.activePointerId) return;
+      
       this.activePointerId = null;
 
       // If no selection started (click), do not interfere; reset state and exit
@@ -261,8 +289,8 @@ export class PointerHandler {
         selMgr.clearSelection();
       }
 
-      chartMgr.updatePointStyling(selMgr.selectedPoint, selMgr.selectedPoints);
-      chartMgr.update();
+      chartMgr.updatePointStyles?.(); // Use new consistent method name if available
+      if (chartMgr.update) chartMgr.update();
       selMgr.logSelection('area selection completed');
 
       // Suppress immediate click after selection

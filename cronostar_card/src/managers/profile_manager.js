@@ -1,235 +1,317 @@
+// cronostar_card/src/managers/ProfileManager.js
 /**
- * Profile management for CronoStar Card (Refactored - No Entities)
- * @module profile-manager
+ * Profile management for loading and saving schedules
+ * Handles profile operations and sync with backend
  */
 
 import { Logger } from '../utils.js';
-import { TIMEOUTS, extractCardConfig } from '../config.js';
+import { Events } from '../core/EventBus.js';
 import { getEffectivePrefix } from '../utils/prefix_utils.js';
 
 export class ProfileManager {
-  constructor(card) {
-    this.card = card;
-    this.lastLoadedProfile = "";
-  }
-
-  _buildMetaFromConfig(config) {
-    const src = (config && typeof config === 'object') ? config : {};
-    // Persist only safe wizard/card config keys (single source of truth).
-    // IMPORTANT: do not leak deprecated keys like entity_prefix into saved JSON.
-    const cleanConfig = extractCardConfig(src);
-    const rest = { ...cleanConfig };
-    delete rest.entity_prefix;
-    // Ensure meta carries global_prefix consistently.
-    if (!rest.global_prefix) {
-      const effectivePrefix = getEffectivePrefix(src);
-      if (effectivePrefix) rest.global_prefix = effectivePrefix;
-    }
-    return rest;
-  }
-
-  async saveProfile(profileName = this.lastLoadedProfile) {
-    if (!profileName) {
-      Logger.warn('SAVE', "[CronoStar] No profile specified for saving.");
-      throw new Error("No profile specified for saving");
-    }
-
-    const presetType = this.card.selectedPreset || 'thermostat';
-    const effectivePrefix = getEffectivePrefix(this.card.config);
-
-    Logger.save(
-      `[CronoStar] === SAVE PROFILE START === Profile: '${profileName}', Preset: ${presetType}, Prefix: ${effectivePrefix}`
-    );
-
-    // Build schedule from current points without extra compression;
-    // backend will normalize and optimize.
-    const rawData = this.card.stateManager.getData() || [];
-    const scheduleData = rawData
-      .map((p) => ({
-        minutes: this.card.stateManager.timeToMinutes(p.time),
-        time: String(p.time),
-        value: Number(p.value)
-      }))
-      .filter((pt) => Number.isFinite(pt.value) && /^\d{2}:\d{2}$/.test(pt.time))
-      .sort((a, b) => a.minutes - b.minutes)
-      .map(({ time, value }) => ({ time, value }));
-
-    // Log outgoing sparse schedule
-    Logger.save(
-      `[CronoStar] 📤 Outgoing schedule: count=${scheduleData.length}, sample=${JSON.stringify(scheduleData.slice(0, 10))}`
-    );
-
-    try {
-      await this.card.hass.callService('cronostar', 'save_profile', {
-        profile_name: profileName,
-        preset_type: presetType,
-        schedule: scheduleData,
-        global_prefix: effectivePrefix,
-        meta: this._buildMetaFromConfig(this.card.config),
-      });
-
-      this.card.hasUnsavedChanges = false;
-      this.lastLoadedProfile = profileName;
-
-      Logger.save(`[CronoStar] (Success) Profile '${profileName}' saved successfully.`);
-      Logger.save("[CronoStar] === SAVE PROFILE END ===");
-    } catch (err) {
-      Logger.error('SAVE', `[CronoStar] (Error) Error calling save_profile service for '${profileName}':`, err);
-      Logger.save("[CronoStar] === SAVE PROFILE END (ERROR) ===");
-      throw err;
-    }
+  constructor(context) {
+    this.context = context;
+    this.lastLoadedProfile = '';
+    this._isLoading = false;
   }
 
   /**
-   * Load a profile into the schedule using the backend service.
-   * @param {string} profileName - Name of the profile to load.
-   * @returns {Promise}
+   * Load a profile
+   * @param {string} profileName - Profile name
+   * @returns {Promise<void>}
    */
   async loadProfile(profileName) {
-    this.card.stateManager.isLoadingProfile = true;
+    if (this._isLoading) {
+      Logger.warn('PROFILE', 'Load already in progress');
+      return;
+    }
 
-    const effectivePrefix = getEffectivePrefix(this.card.config);
-    Logger.load(
-      `[CronoStar] === LOAD PROFILE START === Profile: '${profileName}', Prefix: '${effectivePrefix}'`
-    );
+    this._isLoading = true;
+    const effectivePrefix = getEffectivePrefix(this.context.config);
+
+    Logger.load(`=== LOAD PROFILE START === Profile: '${profileName}', Prefix: '${effectivePrefix}'`);
 
     try {
-      const presetType = this.card.selectedPreset || 'thermostat';
+      const presetType = this.context.selectedPreset || 'thermostat';
 
-      const result = await this.card.hass.callWS({
-        type: "call_service",
-        domain: "cronostar",
-        service: "load_profile",
+      const result = await this.context.hass.callWS({
+        type: 'call_service',
+        domain: 'cronostar',
+        service: 'load_profile',
         service_data: {
           profile_name: profileName,
           preset_type: presetType,
           global_prefix: effectivePrefix
         },
-        return_response: true,
+        return_response: true
       });
 
       const responseData = result?.response;
 
-      Logger.load(`[CronoStar] 📥 Response received:`, responseData);
-
-      const rawSchedule = responseData?.schedule;
-      const meta = responseData?.meta;
-      let scheduleValues = [];
-
-      if (responseData && !responseData.error && rawSchedule && Array.isArray(rawSchedule)) {
-        // Success case: Profile loaded from backend
-        // Update local config if meta is present in response
-        if (meta) {
-          const cleanMeta = extractCardConfig(meta);
-          this.card.config = { ...this.card.config, ...cleanMeta };
-        }
-
-        // Sparse mode: expect {time,value} or {x,y} objects and pass through
-        scheduleValues = rawSchedule;
-
-        // Log sample
-        const sample = scheduleValues.slice(0, 5);
-        Logger.load(
-          `[CronoStar] 📊 Parsed schedule: length=${scheduleValues.length}, sample=${JSON.stringify(sample)}`
-        );
-
-        Logger.load(`[CronoStar] (Success) Profile data processed for '${profileName}'. Points: ${scheduleValues.length}`);
-      } else {
-        // Fallback: no schedule returned; keep existing data (sparse mode)
-        Logger.warn('LOAD', `[CronoStar] ⚠️ Profile '${profileName}' not found or invalid. Keeping existing schedule.`);
-        scheduleValues = this.card.stateManager.getData();
+      if (!responseData || responseData.error) {
+        Logger.warn('PROFILE', `Profile '${profileName}' not found or error:`, responseData?.error);
+        return;
       }
 
-      // Update Internal Memory directly
-      this.card.stateManager.setData(scheduleValues);
-
-      // Sparse mode: no grid resize
-
-      // Update Chart
-      if (this.card.chartManager?.isInitialized()) {
-        this.card.chartManager.updateData(scheduleValues);
+      // Update config from metadata
+      if (responseData.meta) {
+        this._updateConfigFromMeta(responseData.meta);
       }
 
-      this.card.hasUnsavedChanges = false;
+      // Load schedule
+      const schedule = responseData.schedule || [];
+      const stateManager = this.context.getManager('state');
+
+      if (stateManager) {
+        stateManager.setData(schedule, true); // Skip history
+      }
+
       this.lastLoadedProfile = profileName;
-      Logger.load(`[CronoStar] (Success) Profile '${profileName}' loaded to memory successfully.`);
-      Logger.load("[CronoStar] === LOAD PROFILE END ===");
+      this.context.hasUnsavedChanges = false;
+
+      this.context.events.emit(Events.PROFILE_LOADED, {
+        name: profileName,
+        schedule
+      });
+
+      Logger.load(`✅ Profile '${profileName}' loaded successfully`);
 
     } catch (err) {
-      Logger.error('LOAD', `[CronoStar] (Error) Error calling load_profile service for '${profileName}':`, err);
-      Logger.load("[CronoStar] === LOAD PROFILE END (ERROR) ===");
+      Logger.error('PROFILE', `Error loading profile '${profileName}':`, err);
+      throw err;
     } finally {
-      this.card.stateManager.isLoadingProfile = false;
+      this._isLoading = false;
+      Logger.load('=== LOAD PROFILE END ===');
     }
   }
 
   /**
-   * Handle profile selection change from the UI.
-   * @param {Event} e - The selection event.
+   * Save current profile
+   * @param {string} profileName - Profile name (optional)
+   * @returns {Promise<void>}
    */
-  async handleProfileSelection(e) {
-    this.card.suppressClickUntil = Date.now() + TIMEOUTS.menuSuppression + 500;
-
-    if (this.card.selectionManager) {
-      this.card.selectionManager.snapshotSelection();
+  async saveProfile(profileName = this.lastLoadedProfile) {
+    if (!profileName) {
+      Logger.warn('PROFILE', 'No profile specified for save');
+      throw new Error('No profile specified');
     }
 
-    const newProfile = e?.target?.value || e?.detail?.value || '';
-    if (!newProfile || newProfile === this.card.selectedProfile) {
+    const presetType = this.context.selectedPreset || 'thermostat';
+    const effectivePrefix = getEffectivePrefix(this.context.config);
+
+    Logger.save(`=== SAVE PROFILE START === Profile: '${profileName}', Preset: ${presetType}`);
+
+    try {
+      const stateManager = this.context.getManager('state');
+      if (!stateManager) {
+        throw new Error('StateManager not available');
+      }
+
+      // Build schedule
+      const schedule = this._buildSchedulePayload(stateManager.getData());
+
+      // Save via backend
+      await this.context.hass.callService('cronostar', 'save_profile', {
+        profile_name: profileName,
+        preset_type: presetType,
+        schedule: schedule,
+        global_prefix: effectivePrefix,
+        meta: this._buildMetaPayload()
+      });
+
+      this.lastLoadedProfile = profileName;
+      this.context.hasUnsavedChanges = false;
+
+      this.context.events.emit(Events.PROFILE_SAVED, {
+        name: profileName,
+        schedule
+      });
+
+      Logger.save(`✅ Profile '${profileName}' saved successfully`);
+
+    } catch (err) {
+      Logger.error('PROFILE', `Error saving profile '${profileName}':`, err);
+      throw err;
+    } finally {
+      Logger.save('=== SAVE PROFILE END ===');
+    }
+  }
+
+  /**
+   * Handle profile selection from UI
+   * @param {Event} event - Selection event
+   */
+  async handleProfileSelection(event) {
+    const newProfile = event?.target?.value || event?.detail?.value || '';
+
+    if (!newProfile || newProfile === this.context.selectedProfile) {
       return;
     }
 
-    const previousProfile = this.lastLoadedProfile || this.card.selectedProfile;
+    const previousProfile = this.lastLoadedProfile || this.context.selectedProfile;
 
-    if (this.card.hasUnsavedChanges && previousProfile) {
-      this.card.pendingProfileChange = newProfile;
-      this.card.showUnsavedChangesDialog = true;
-      this.card.requestUpdate();
+    // Check for unsaved changes
+    if (this.context.hasUnsavedChanges && previousProfile) {
+      this._showUnsavedDialog(newProfile);
       return;
     }
 
-    this.card.selectedProfile = newProfile;
+    // Load new profile
+    this.context.selectedProfile = newProfile;
 
-    // Update the input_select entity so other clients know (if configured)
-    if (this.card.config.profiles_select_entity) {
-      this.card.hass.callService("input_select", "select_option", {
-        entity_id: this.card.config.profiles_select_entity,
-        option: newProfile,
-      }).catch(err => Logger.warn('LOAD', "[CronoStar] select_option failed:", err));
+    // Update input_select entity
+    this._updateProfileSelector(newProfile);
+
+    // Snapshot selection before load
+    const selectionManager = this.context.getManager('selection');
+    if (selectionManager) {
+      selectionManager.snapshotSelection();
     }
 
     try {
       await this.loadProfile(newProfile);
-      if (this.card.selectionManager) {
-        this.card.selectionManager.restoreSelectionFromSnapshot();
+
+      // Restore selection
+      if (selectionManager) {
+        selectionManager.restoreSelection();
       }
-      this.card.suppressClickUntil = Date.now() + TIMEOUTS.clickSuppression;
     } catch (err) {
-      Logger.error('LOAD', "[CronoStar] Error during profile load:", err);
+      Logger.error('PROFILE', 'Error during profile selection:', err);
     }
   }
 
   /**
-   * Reset changes by reloading the current profile.
+   * Show unsaved changes dialog
+   * @private
+   * @param {string} newProfile - Profile to switch to
+   */
+  _showUnsavedDialog(newProfile) {
+    // Signal to card to show dialog
+    this.context._card.showUnsavedChangesDialog = true;
+    this.context._card.pendingProfileChange = newProfile;
+    this.context.requestUpdate();
+  }
+
+  /**
+   * Update profile selector entity
+   * @private
+   * @param {string} profileName - Profile name
+   */
+  _updateProfileSelector(profileName) {
+    const selectorEntity = this.context.config?.profiles_select_entity;
+
+    if (selectorEntity) {
+      this.context.hass.callService('input_select', 'select_option', {
+        entity_id: selectorEntity,
+        option: profileName
+      }).catch(() => {
+        // Ignore errors (entity might not exist)
+      });
+    }
+  }
+
+  /**
+   * Build schedule payload for backend
+   * @private
+   * @param {Array} rawData - Raw schedule data
+   * @returns {Array} Normalized schedule
+   */
+  _buildSchedulePayload(rawData) {
+    const stateManager = this.context.getManager('state');
+
+    return rawData
+      .map(point => ({
+        time: String(point.time),
+        value: Number(point.value)
+      }))
+      .filter(point =>
+        /^\d{2}:\d{2}$/.test(point.time) &&
+        Number.isFinite(point.value)
+      )
+      .sort((a, b) => {
+        const aMin = stateManager.timeToMinutes(a.time);
+        const bMin = stateManager.timeToMinutes(b.time);
+        return aMin - bMin;
+      });
+  }
+
+  /**
+   * Build metadata payload
+   * @private
+   * @returns {Object} Metadata
+   */
+  _buildMetaPayload() {
+    const config = this.context.config || {};
+    const meta = { ...config };
+
+    // Remove deprecated/internal keys
+    delete meta.entity_prefix;
+    delete meta.step;
+
+    // Ensure global_prefix is set
+    if (!meta.global_prefix) {
+      meta.global_prefix = getEffectivePrefix(config);
+    }
+
+    return meta;
+  }
+
+  /**
+   * Update config from metadata
+   * @private
+   * @param {Object} meta - Metadata
+   */
+  _updateConfigFromMeta(meta) {
+    if (!meta || typeof meta !== 'object') return;
+
+    // Extract only card config keys
+    const cardKeys = [
+      'title', 'y_axis_label', 'unit_of_measurement',
+      'min_value', 'max_value', 'step_value',
+      'allow_max_value', 'target_entity'
+    ];
+
+    cardKeys.forEach(key => {
+      if (meta[key] !== undefined) {
+        this.context._card.config[key] = meta[key];
+      }
+    });
+  }
+
+  /**
+   * Reset to last loaded state
+   * @returns {Promise<void>}
    */
   async resetChanges() {
-    const profileToReload = this.lastLoadedProfile || this.card.selectedProfile;
+    const profileToReload = this.lastLoadedProfile || this.context.selectedProfile;
+
     if (!profileToReload) {
-      Logger.warn('LOAD', "[CronoStar] No profile to reload.");
+      Logger.warn('PROFILE', 'No profile to reload');
       return;
     }
 
-    if (this.card.selectionManager) {
-      this.card.selectionManager.snapshotSelection();
+    const selectionManager = this.context.getManager('selection');
+    if (selectionManager) {
+      selectionManager.snapshotSelection();
     }
 
     try {
       await this.loadProfile(profileToReload);
-      if (this.card.selectionManager) {
-        this.card.selectionManager.restoreSelectionFromSnapshot();
+
+      if (selectionManager) {
+        selectionManager.restoreSelection();
       }
     } catch (err) {
-      Logger.error('LOAD', "[CronoStar] Error reloading profile:", err);
+      Logger.error('PROFILE', 'Error reloading profile:', err);
+    }
+  }
+
+  /**
+   * Cleanup
+   */
+  destroy() {
+    if (this._autoSaveTimer) {
+      clearTimeout(this._autoSaveTimer);
     }
   }
 }

@@ -5,11 +5,11 @@
         const type = 'cronostar-card';
         const idx = window.customCards.findIndex((c) => c.type === type || c.type === 'custom:cronostar-card');
         const meta = {
-            type,
+            type: 'cronostar-card',
             name: '🌟 CronoStar Card',
             description: 'Visual hourly schedule editor with drag-and-drop control',
             preview: true,
-            preview_image: '/cronostar_card/cronostar-logo.png',
+            preview_image: '/cronostar_card/cronostar-preview.png',
             thumbnail: '/cronostar_card/cronostar-logo.png',
             documentationURL: 'https://github.com/FoliniC/cronostar_card'
         };

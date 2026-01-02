@@ -18,8 +18,30 @@ function localize(lang, key, search, replace) {
 }
 
 export async function copyToClipboard(text, successMessage, errorMessage) {
-  try { await navigator.clipboard.writeText(text); return { success: true, message: successMessage }; }
-  catch (e) { console.warn('Clipboard write failed:', e); return { success: false, message: errorMessage }; }
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(text);
+      return { success: true, message: successMessage };
+    }
+    // Fallback for non-secure contexts or missing API
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    if (successful) {
+      return { success: true, message: successMessage };
+    }
+    throw new Error('execCommand copy failed');
+  } catch (e) {
+    console.warn('Clipboard write failed:', e);
+    return { success: false, message: errorMessage };
+  }
 }
 
 export function downloadFile(filename, content, successMessage, errorMessage) {
@@ -95,7 +117,7 @@ export async function handleCreateAndReloadAutomation(hass, config, deepReport, 
   const style = deepReport?.automation?.source === 'inline' ? 'inline' : 'list';
   const yaml = buildAutomationYaml(config, style);
   // Do not open a new window; just copy YAML to clipboard and inform the user
-  try { await navigator.clipboard.writeText(yaml); } catch (e) { console.warn('Clipboard write failed:', e); }
+  const copyResult = await copyToClipboard(yaml, '', '');
   return { success: true, message: localize(language, 'ui.yaml_copied_go_to_automations') };
 }
 
@@ -104,7 +126,8 @@ export async function handleCreateAndReloadAutomation(hass, config, deepReport, 
  */
 export async function runDeepChecks(hass, config, language) {
   if (!hass?.services?.cronostar?.check_setup) {
-    throw new Error(localize(language, 'ui.service_check_setup_not_available'));
+    Logger.warn('Deep checks service not available yet');
+    return { success: false, message: localize(language, 'ui.service_check_setup_not_available') };
   }
   const effectivePrefix = getEffectivePrefix(config);
   const alias = getAliasWithPrefix(effectivePrefix, language);

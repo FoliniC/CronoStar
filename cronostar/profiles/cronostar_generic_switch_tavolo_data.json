@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "preset_type": "generic_switch",
+    "global_prefix": "cronostar_generic_switch_tavolo_",
+    "updated_at": "2026-01-01T23:10:24.626734",
+    "title": "CronoStar Generic Switch",
+    "y_axis_label": "State",
+    "unit_of_measurement": "",
+    "min_value": 0,
+    "max_value": 1,
+    "step_value": 1,
+    "allow_max_value": false,
+    "target_entity": "switch.luci_cucina_switch_3"
+  },
+  "profiles": {
+    "Default": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 0.0
+        },
+        {
+          "time": "15:48",
+          "value": 0.0
+        },
+        {
+          "time": "18:27",
+          "value": 0.0
+        },
+        {
+          "time": "23:59",
+          "value": 0.0
+        }
+      ],
+      "updated_at": "2026-01-01T23:10:24.626757"
+    }
+  }
+}

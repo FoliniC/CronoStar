@@ -1,8 +1,10 @@
 // editor/CronoStarEditor.js
 import { LitElement, html, css } from 'lit';
 import { CARD_CONFIG_PRESETS, DEFAULT_CONFIG, validateConfig } from '../config.js';
-import { normalizePrefix, isValidPrefix } from '../utils/prefix_utils.js';
+import { log } from '../utils/logger_utils.js';
+import { normalizePrefix, isValidPrefix, getEffectivePrefix } from '../utils/prefix_utils.js';
 import { buildHelpersFilename, buildAutomationFilename } from '../utils/filename_utils.js';
+import { debounce, Logger } from '../utils.js';
 import { EditorI18n } from './EditorI18n.js';
 import { EditorWizard } from './EditorWizard.js';
 import { Step0Dashboard } from './steps/Step0Dashboard.js';
@@ -56,7 +58,8 @@ export class CronoStarEditor extends LitElement {
       _dashboardEditName: { type: String },
       _isEditing: { type: Boolean },
       _pickerLoaded: { type: Boolean },
-      _dashboardView: { type: String } // 'choice' or 'status'
+      _dashboardView: { type: String }, // 'choice' or 'status'
+      logging_enabled: { type: Boolean }
     };
   }
 
@@ -494,11 +497,13 @@ export class CronoStarEditor extends LitElement {
     super();
     this._step = 0;
     this._config = { ...DEFAULT_CONFIG };
+    // Initialize logging preference for the editor
+    this._config.logging_enabled = DEFAULT_CONFIG.logging_enabled;
     this._language = 'en';
-    this.i18n = new EditorI18n('en');
+    this.i18n = new EditorI18n(this);
     this.wizard = new EditorWizard(this);
 
-    // NUOVO: Inizializza proprietà dashboard
+    // NUOVO: Proprietà reattive per Step 0 Dashboard
     this._dashboardProfilesData = null;
     this._dashboardLoading = false;
     this._dashboardSelectedPreset = null;
@@ -513,7 +518,7 @@ export class CronoStarEditor extends LitElement {
     this._pickerLoaded = true;
 
     // Debounce config-changed to avoid constant card recreations while typing
-    this._debouncedDispatch = this._debounce(() => {
+    this._debouncedDispatch = debounce(() => {
       this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: { ...this._config, step: this._step } } }));
     }, 500);
 
@@ -534,6 +539,8 @@ export class CronoStarEditor extends LitElement {
       handleSaveAll
     };
   }
+
+
 
   handleShowHelp() {
     const lang = this._language || 'en';
@@ -638,7 +645,7 @@ export class CronoStarEditor extends LitElement {
         }, 'cronostar_setup_report');
         this._deepCheckSubscribed = true;
       } catch (e) {
-        console.warn('Failed to subscribe to deep check reports:', e);
+        log('warn', this._config.logging_enabled, 'Failed to subscribe to deep check reports:', e);
       }
     }
   }
@@ -647,7 +654,7 @@ export class CronoStarEditor extends LitElement {
     super.updated?.(changedProps);
     if (changedProps.has('hass')) {
       if (this.hass) {
-        console.log('[EDITOR] HASS object received/updated');
+        log('info', this._config.logging_enabled, 'HASS object received/updated');
       }
       this._ensureDeepCheckSubscription();
       if (this.hass && this._step === 1 && !this._deepCheckRanForStep1) {
@@ -682,7 +689,7 @@ export class CronoStarEditor extends LitElement {
   _updatePreviewVisibility() {
     try {
       const shouldHide = (this._step === 0);
-      
+
       const root = this.getRootNode();
       if (!root || (root !== document && !(root instanceof ShadowRoot))) {
         return;
@@ -690,10 +697,10 @@ export class CronoStarEditor extends LitElement {
 
       // Inject both in local root and global document for maximum coverage
       const targets = [root, document.head];
-      
+
       targets.forEach(t => {
         if (!t) return;
-        let styleEl = (t === document.head) 
+        let styleEl = (t === document.head)
           ? document.getElementById('cronostar-editor-style-global')
           : root.getElementById('cronostar-editor-style');
 
@@ -754,7 +761,7 @@ export class CronoStarEditor extends LitElement {
 
       this._previewWasHidden = shouldHide;
     } catch (e) {
-      console.warn('[EDITOR][PREVIEW] Visibility update failed:', e);
+      log('warn', this._config.logging_enabled, '[PREVIEW] Visibility update failed:', e);
     }
   }
 
@@ -785,22 +792,32 @@ export class CronoStarEditor extends LitElement {
 
   setConfig(config) {
     try {
-      this._config = validateConfig(config);
-      // If we have a global_prefix and target_entity, and it's not the default stub prefix,
-      // we consider it an existing config being edited.
-      this._isEditing = !!(config.global_prefix && config.target_entity) &&
-        config.global_prefix !== 'cronostar_temp_';
+      this._config = validateConfig(config, config.logging_enabled);
+      // Determine if this is likely a brand-new (stub) configuration provided by the card/editor.
+      // In that case we should show "New configuration" instead of "Edit configuration".
+      const isLikelyStub = (
+        // Empty or minimal config
+        !config || Object.keys(config).length === 0 ||
+        // Known stub from getStubConfig()
+        (config.global_prefix === 'cronostar_thermostat_' &&
+          config.target_entity === 'climate.climatizzazione_appartamento')
+      );
+
+      // If we have a meaningful saved config (not stub), show Edit; otherwise show New.
+      this._isEditing = !!(config?.global_prefix && config?.target_entity) &&
+        config.global_prefix !== 'cronostar_temp_' &&
+        !isLikelyStub;
     } catch (e) {
-      console.warn("Config validation warning:", e);
+      log('warn', this._config.logging_enabled, "Config validation warning:", e);
       this._config = { ...DEFAULT_CONFIG, ...config };
       this._isEditing = false;
     }
 
-    if (this._config.preset) this._selectedPreset = this._config.preset;
+    if (this._config.preset_type) this._selectedPreset = this._config.preset_type;
 
     if (this.hass && this.hass.language) {
       this._language = this.hass.language.split('-')[0];
-      this.i18n = new EditorI18n(this._language);
+      this.i18n = new EditorI18n(this);
     }
 
     this._syncConfigAliases();
@@ -826,14 +843,35 @@ export class CronoStarEditor extends LitElement {
     this._helpersYaml = buildInputNumbersYaml(this._config, false);
   }
 
+  // Ensure dispatched/saved config contains required fields and omits nulls
+  _sanitizeConfig(cfg) {
+    const out = { ...cfg };
+    // Ensure type
+    if (!out.type) out.type = 'custom:cronostar-card';
+    // Normalize global_prefix only if provided; avoid defaulting to 'cronostar_'
+    if (out.global_prefix) {
+      out.global_prefix = normalizePrefix(out.global_prefix);
+    }
+    // Remove null/undefined/empty-string values
+    for (const key of Object.keys(out)) {
+      const val = out[key];
+      if (val === null || val === undefined || (typeof val === 'string' && val.trim() === '')) {
+        delete out[key];
+      }
+    }
+    return out;
+  }
+
   _dispatchConfigChanged(immediate = false) {
     if (immediate) {
       if (this._debounceTimer) clearTimeout(this._debounceTimer);
       // Ensure type is present and correct, and pass current step
-      const configToDispatch = { ...this._config, step: this._step };
-      if (!configToDispatch.type) configToDispatch.type = 'custom:cronostar-card';
+      const configToDispatch = { ...this._sanitizeConfig(this._config), step: this._step };
 
-      console.log('[Editor] Dispatching config-changed', configToDispatch); this.dispatchEvent(new CustomEvent('config-changed', {
+      // Log the exact payload intended for YAML persistence via standard Save using CronoStar Logger
+      Logger.log('CONFIG', '[EDITOR] YAML save intent (standard Save):', configToDispatch);
+      Logger.log('CONFIG', 'Dispatching config-changed', configToDispatch);
+      this.dispatchEvent(new CustomEvent('config-changed', {
         detail: { config: configToDispatch },
         bubbles: true,
         composed: true
@@ -841,13 +879,6 @@ export class CronoStarEditor extends LitElement {
     } else {
       this._debouncedDispatch();
     }
-  }
-
-  _debounce(func, wait) {
-    return (...args) => {
-      clearTimeout(this._debounceTimer);
-      this._debounceTimer = setTimeout(() => func.apply(this, args), wait);
-    };
   }
 
   _persistCardConfigNow() {
@@ -864,6 +895,17 @@ export class CronoStarEditor extends LitElement {
     this.dispatchEvent(event);
   }
 
+  _handleResetConfig() {
+    const confirmMsg = this.i18n._t('prompts.reset_confirm') || 'Are you sure you want to reset this card?';
+    if (!this._isEditing || confirm(confirmMsg)) {
+      this._config = { ...DEFAULT_CONFIG };
+      this._isEditing = false;
+      this._step = 1;
+      this._dispatchConfigChanged(true);
+      this.requestUpdate();
+    }
+  }
+
   // Implementation of _runDeepChecks called by Wizard
   async _runDeepChecks() {
     if (!this.hass) return;
@@ -874,7 +916,7 @@ export class CronoStarEditor extends LitElement {
       await runDeepChecks(this.hass, this._config, this._language);
       // The actual report will arrive via the 'cronostar_setup_report' event subscription.
     } catch (e) {
-      console.warn("Deep check failed:", e);
+      log('warn', this._config.logging_enabled, "Deep check failed:", e);
     } finally {
       this._deepCheckInProgress = false;
       this.requestUpdate();
@@ -902,6 +944,8 @@ export class CronoStarEditor extends LitElement {
     this._syncConfigAliases();
     this._updateAutomationYaml();
     this._updateHelpersYaml();
+    // Immediately notify HA editor so the standard Save button persists latest values
+    this._dispatchConfigChanged(true);
     this.requestUpdate();
   }
 
@@ -969,7 +1013,7 @@ export class CronoStarEditor extends LitElement {
     // Hard-remove deprecated keys
     if ('entity_prefix' in newConfig) delete newConfig.entity_prefix;
 
-    if (key === 'preset') {
+    if (key === 'preset_type') {
       const presetConfig = CARD_CONFIG_PRESETS[value];
       if (presetConfig) {
         Object.assign(newConfig, presetConfig);
@@ -998,28 +1042,37 @@ export class CronoStarEditor extends LitElement {
   async _handleFinishClick(options = {}) {
     const isFinalStep = this._step === 5;
     const isForced = options.force === true;
-    const skipClose = options.skipClose === true;
 
     if ((isFinalStep || isForced) && this.hass) {
-      // 1. Dispatch current config immediately so HA preview is up to date
-      this._dispatchConfigChanged(true);
+      // 1. Prepare final clean config for persistence (remove internal wizard helpers)
+      let finalConfig = { ...this._config };
+      delete finalConfig.step;
+
+      // Sanitize before dispatch/save
+      finalConfig = this._sanitizeConfig(finalConfig);
+
+      // Log what should be saved to YAML, then dispatch immediately so HA can persist
+      Logger.log('CONFIG', '[EDITOR] YAML save intent (wizard Finish):', finalConfig);
+      this.dispatchEvent(new CustomEvent('config-changed', {
+        detail: { config: finalConfig },
+        bubbles: true,
+        composed: true
+      }));
 
       try {
-        // 2. Perform backend operations
-        const result = await handleSaveAll(this.hass, this._config, this._deepReport, this._language);
+        // 2. Perform backend operations (file creation, etc.)
+        const result = await handleSaveAll(this.hass, finalConfig, this._deepReport, this._language);
         this.showToast(result.message);
 
-        // 3. One last dispatch to be safe
-        this._dispatchConfigChanged(true);
-
-        // 4. Close dialog only if not skipped
-        if (!skipClose && (isFinalStep || isForced)) {
-          const closeEvent = new CustomEvent('closed', { bubbles: true, composed: true });
-          this.dispatchEvent(closeEvent);
+        // 3. Update local state to show 'Finished' state if needed, 
+        // but let the user click the HA "SAVE" button to close the dialog.
+        if (isFinalStep) {
+          this._step = 5;
+          this.requestUpdate();
         }
 
       } catch (e) {
-        console.error('[Editor] Finish error:', e);
+        log('error', this._config.logging_enabled, 'Finish error:', e);
         this.showToast(`✗ ${e.message}`);
       }
     } else {

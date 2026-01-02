@@ -305,7 +305,35 @@ export class Step0Dashboard {
   _renderProfilesList() {
     if (!this.editor._dashboardProfilesData || this.editor._dashboardView !== 'status') return html``;
 
-    const presets = Object.keys(this.editor._dashboardProfilesData);
+    // Aggregazione intelligente per evitare mis-categorizzazioni
+    const categorizedData = {};
+    
+    Object.keys(this.editor._dashboardProfilesData).forEach(presetType => {
+      const presetData = this.editor._dashboardProfilesData[presetType];
+      const files = presetData.files || [];
+      
+      files.forEach(fileInfo => {
+        // Determina il preset REALE del file
+        let realPreset = presetType;
+        const filename = fileInfo.filename.toLowerCase();
+        
+        // Se un file contiene 'switch' nel nome ma è finito in thermostat, correggilo
+        if (filename.includes('_switch_')) realPreset = 'generic_switch';
+        else if (filename.includes('_temp_')) realPreset = 'thermostat';
+        else if (filename.includes('_ev_')) realPreset = 'ev_charging';
+        else if (filename.includes('_kwh_')) realPreset = 'generic_kwh';
+        else if (filename.includes('_gentemp_')) realPreset = 'generic_temperature';
+
+        if (!categorizedData[realPreset]) categorizedData[realPreset] = { files: [] };
+        
+        // Evita duplicati se il file è già stato aggiunto (per sicurezza)
+        if (!categorizedData[realPreset].files.find(f => f.filename === fileInfo.filename)) {
+          categorizedData[realPreset].files.push(fileInfo);
+        }
+      });
+    });
+
+    const presets = Object.keys(categorizedData).sort();
 
     if (presets.length === 0) {
       return html`
@@ -322,42 +350,44 @@ export class Step0Dashboard {
             ↩ Back to Choices
           </mwc-button>
         </div>
-        ${presets.map(presetType => {
-          const presetData = this.editor._dashboardProfilesData[presetType];
+        ${presets.map(presetKey => {
+          const presetData = categorizedData[presetKey];
           const files = presetData.files || [];
 
           return html`
             <div class="preset-section">
-              <div class="preset-header" style="margin-bottom: 0; border-bottom: none;">
-                <h3>${this.editor.i18n._t(`presetNames.${presetType}`) || presetType}</h3>
+              <div class="preset-header">
+                <h3>${this.editor.i18n._t(`presetNames.${presetKey}`) || presetKey}</h3>
               </div>
               
               ${files.map((fileInfo, fIdx) => html`
-                <div class="file-entry" style="${fIdx > 0 ? 'margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;' : 'margin-top: 10px;'}">
-                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                <div class="file-entry">
+                  <div class="file-header">
                     <div style="display: flex; flex-direction: column; gap: 4px; overflow: hidden; width: 100%;">
-                      <span style="font-family: monospace; color: #0ea5e9; font-size: 0.95rem; font-weight: bold; display: flex; align-items: center; gap: 8px; word-break: break-all;">
-                        <ha-icon icon="mdi:file-code-outline" style="--mdc-icon-size: 18px; flex-shrink: 0;"></ha-icon>
+                      <span style="font-family: monospace; color: #0ea5e9; font-size: 1rem; font-weight: bold; display: flex; align-items: center; gap: 10px; word-break: break-all;">
+                        <ha-icon icon="mdi:file-code-outline" style="--mdc-icon-size: 22px; flex-shrink: 0;"></ha-icon>
                         ${fileInfo.filename}
                       </span>
-                      <span style="font-size: 0.75rem; color: #8891a8; margin-left: 26px; font-family: monospace; word-break: break-all;">
+                      <span style="font-size: 0.8rem; color: #a0a8c0; margin-left: 32px; font-family: monospace; opacity: 0.8;">
                         <strong>Path:</strong> /config/cronostar/profiles/${fileInfo.filename}
                       </span>
-                      <span style="font-size: 0.8rem; color: #a0a8c0; margin-left: 26px;"><strong>Prefix:</strong> ${fileInfo.global_prefix}</span>
+                      <span style="font-size: 0.85rem; color: #cbd3e8; margin-left: 32px;"><strong>Prefix:</strong> ${fileInfo.global_prefix}</span>
                     </div>
                   </div>
 
                   <div class="profiles-grid">
                     ${fileInfo.profiles.map(profile => html`
                       <div class="profile-card">
-                        <div class="profile-name">${profile.name}</div>
+                        <div class="profile-name">📄 ${profile.name}</div>
                         <div class="profile-info">
                           <span>📍 Points: ${profile.points || 0}</span>
                           <span>🕐 Updated: ${profile.updated_at || 'N/A'}</span>
                         </div>
                         <mwc-button 
                           raised
-                          @click=${() => this._showProfileDetail(presetType, profile.name, fileInfo.global_prefix)}
+                          fullwidth
+                          @click=${() => this._showProfileDetail(presetKey, profile.name, fileInfo.global_prefix)}
+                          style="margin-top: 8px;"
                         >
                           📊 View Details
                         </mwc-button>
@@ -383,47 +413,78 @@ export class Step0Dashboard {
         }
 
         .choice-buttons {
-          display: flex; gap: 20px; margin-bottom: 30px; justify-content: center;
+          display: flex; gap: 16px; margin-bottom: 30px; justify-content: center;
+          flex-wrap: wrap;
         }
 
         .choice-button {
-          flex: 1; max-width: 300px; padding: 40px 20px;
+          flex: 1; min-width: 200px; max-width: 280px; padding: 30px 16px;
           background: linear-gradient(145deg, rgba(48, 55, 75, 0.9), rgba(38, 44, 62, 0.9));
           border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px;
           cursor: pointer; transition: all 0.3s ease; text-align: center;
+          display: flex; flex-direction: column; align-items: center;
         }
 
         .choice-button:hover {
           transform: translateY(-5px); border-color: rgba(14, 165, 233, 0.5);
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+          background: linear-gradient(145deg, rgba(58, 65, 85, 0.9), rgba(48, 54, 72, 0.9));
         }
 
-        .choice-button-icon { font-size: 3rem; margin-bottom: 10px; }
-        .choice-button-title { font-size: 1.3rem; font-weight: 700; color: #ffffff; margin-bottom: 8px; }
-        .choice-button-desc { font-size: 0.9rem; color: #cbd3e8; }
+        .choice-button-icon { font-size: 2.5rem; margin-bottom: 12px; }
+        .choice-button-title { font-size: 1.15rem; font-weight: 700; color: #ffffff; margin-bottom: 8px; }
+        .choice-button-desc { font-size: 0.85rem; color: #cbd3e8; line-height: 1.4; }
 
         .preset-section {
           background: linear-gradient(145deg, rgba(48, 55, 75, 0.7), rgba(38, 44, 62, 0.7));
-          border-radius: 12px; padding: 20px; margin-bottom: 20px;
+          border-radius: 12px; padding: 20px; margin-bottom: 30px;
           border: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         .preset-header {
           display: flex; justify-content: space-between; align-items: center;
-          margin-bottom: 15px; padding-bottom: 15px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          margin-bottom: 20px; padding-bottom: 15px;
+          border-bottom: 2px solid rgba(14, 165, 233, 0.3);
         }
 
-        .preset-header h3 { margin: 0; color: #ffffff; font-size: 1.4rem; }
-        .preset-info { display: flex; gap: 20px; margin-bottom: 15px; color: #cbd3e8; font-size: 0.9rem; }
-        .profiles-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
+        .file-entry {
+          background: rgba(0, 0, 0, 0.25);
+          border-radius: 12px;
+          padding: 16px;
+          margin-bottom: 24px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          position: relative;
+        }
+
+        .file-header {
+          display: flex; justify-content: space-between; align-items: flex-start; 
+          margin-bottom: 20px; background: rgba(14, 165, 233, 0.1); 
+          padding: 12px 16px; border-radius: 8px;
+          border-left: 4px solid #0ea5e9;
+        }
+
+        .preset-header h3 { margin: 0; color: #ffffff; font-size: 1.4rem; text-transform: uppercase; letter-spacing: 1px; }
+        .profiles-grid { 
+          display: grid; 
+          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); 
+          gap: 16px;
+          padding-left: 10px;
+        }
 
         .profile-card {
-          background: rgba(28, 33, 48, 0.8); border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 8px; padding: 15px; transition: all 0.3s ease;
+          background: rgba(255, 255, 255, 0.03); 
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 10px; padding: 16px; 
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative;
         }
 
-        .profile-card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4); border-color: rgba(14, 165, 233, 0.3); }
+        .profile-card:hover { 
+          transform: translateY(-4px); 
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6); 
+          border-color: rgba(14, 165, 233, 0.5);
+          background: rgba(14, 165, 233, 0.05);
+        }
         .profile-name { font-weight: 600; font-size: 1.1rem; color: #ffffff; margin-bottom: 8px; }
         .profile-info { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; font-size: 0.85rem; color: #a0a8c0; }
 
@@ -486,16 +547,24 @@ export class Step0Dashboard {
 
         ${showChoice ? html`
           <div class="choice-buttons">
-            <div class="choice-button" @click=${() => { this.editor._step = 1; this.editor.requestUpdate(); }}>
-              <div class="choice-button-icon">⚙️</div>
-              <div class="choice-button-title">${this.editor._isEditing ? 'Edit Configuration' : 'New Configuration'}</div>
-              <div class="choice-button-desc">${this.editor._isEditing ? 'Modify the current card configuration' : 'Start a fresh configuration for this card'}</div>
-            </div>
+            ${this.editor._isEditing ? html`
+              <div class="choice-button" @click=${() => { this.editor._step = 1; this.editor.requestUpdate(); }}>
+                <div class="choice-button-icon">⚙️</div>
+                <div class="choice-button-title">${this.editor.i18n._t('actions.edit_config')}</div>
+                <div class="choice-button-desc">${this.editor._language === 'it' ? 'Modifica i parametri attuali di questa card' : 'Modify the current parameters of this card'}</div>
+              </div>
+            ` : html`
+              <div class="choice-button" @click=${() => this.editor._handleResetConfig()}>
+                <div class="choice-button-icon">🆕</div>
+                <div class="choice-button-title">${this.editor.i18n._t('actions.new_config')}</div>
+                <div class="choice-button-desc">${this.editor._language === 'it' ? 'Crea una configurazione da zero per questa card' : 'Create a configuration from scratch for this card'}</div>
+              </div>
+            `}
 
             <div class="choice-button" @click=${() => this._loadAllProfiles()}>
               <div class="choice-button-icon">📊</div>
-              <div class="choice-button-title">Analyze Status</div>
-              <div class="choice-button-desc">View existing111 profiles and configurations</div>
+              <div class="choice-button-title">${this.editor.i18n._t('actions.analyze_status')}</div>
+              <div class="choice-button-desc">${this.editor._language === 'it' ? 'Visualizza tutti i file e i profili esistenti' : 'View all existing files and profiles'}</div>
             </div>
           </div>
         ` : ''}

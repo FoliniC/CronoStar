@@ -1,319 +1,383 @@
-import { Logger } from '../utils.js';
+// cronostar_card/src/managers/StateManager.js
+/**
+ * State management for schedule data
+ * Handles sparse time-based schedules with undo/redo
+ */
+
+import { Logger, timeToMinutes, minutesToTime } from '../utils.js';
+import { Events } from '../core/EventBus.js';
 
 export class StateManager {
-  constructor(card) {
-    this.card = card;
-    // Sparse schedule: array of {time: "HH:MM", value: number}
+  constructor(context) {
+    this.context = context;
     this.scheduleData = [];
     this.isLoadingProfile = false;
 
-    // History for Undo/Redo
-    this.undoStack = [];
-    this.redoStack = [];
-    this.maxHistory = 50;
+    // History management
+    this._undoStack = [];
+    this._redoStack = [];
+    this._maxHistory = 50;
 
-    this._initializeScheduleData();
+    this._initializeSchedule();
+    this._setupEventListeners();
   }
 
   /**
-   * Initialize schedule for sparse mode: start with boundary points.
+   * Initialize with default schedule (boundaries only)
+   * @private
    */
-  _initializeScheduleData() {
-    const defaultVal = this.card.config?.min_value ?? 0;
+  _initializeSchedule() {
+    const defaultValue = this.context.config?.min_value ?? 0;
     this.scheduleData = [
-      { time: "00:00", value: defaultVal },
-      { time: "23:59", value: defaultVal }
+      { time: '00:00', value: defaultValue },
+      { time: '23:59', value: defaultValue }
     ];
-    this.undoStack = [];
-    this.redoStack = [];
-    Logger.state(`[StateManager] Initialized (sparse) with ${this.scheduleData.length} points`);
+    this._undoStack = [];
+    this._redoStack = [];
+
+    Logger.state(`Initialized schedule with ${this.scheduleData.length} points`);
   }
 
   /**
-   * Push current state to undo stack
+   * Setup event listeners
+   * @private
    */
-  _pushHistory() {
-    if (this.isLoadingProfile) return;
-    
-    // Save a deep copy of current data
-    const snapshot = JSON.stringify(this.scheduleData);
-    
-    // Don't push if it's the same as the last one
-    if (this.undoStack.length > 0 && this.undoStack[this.undoStack.length - 1] === snapshot) {
-      return;
-    }
-
-    this.undoStack.push(snapshot);
-    if (this.undoStack.length > this.maxHistory) {
-      this.undoStack.shift();
-    }
-    // Clear redo stack on new action
-    this.redoStack = [];
-  }
-
-  undo() {
-    if (this.undoStack.length === 0) return false;
-
-    // Save current state to redo stack
-    this.redoStack.push(JSON.stringify(this.scheduleData));
-    
-    // Restore previous state
-    const snapshot = this.undoStack.pop();
-    this.scheduleData = JSON.parse(snapshot);
-    
-    this._syncState();
-    return true;
-  }
-
-  redo() {
-    if (this.redoStack.length === 0) return false;
-
-    // Save current state to undo stack
-    this.undoStack.push(JSON.stringify(this.scheduleData));
-    
-    // Restore next state
-    const snapshot = this.redoStack.pop();
-    this.scheduleData = JSON.parse(snapshot);
-    
-    this._syncState();
-    return true;
-  }
-
-  _syncState() {
-    if (this.card.chartManager?.isInitialized()) {
-      this.card.chartManager.updateData(this.scheduleData);
-    }
-    this.card.hasUnsavedChanges = true;
-    this.card.requestUpdate();
+  _setupEventListeners() {
+    // Listen for config changes that require schedule reset
+    this.context.events.on(Events.PRESET_CHANGED, () => {
+      this._initializeSchedule();
+      this.context.events.emit(Events.SCHEDULE_UPDATED, this.scheduleData);
+    });
   }
 
   /**
-   * Get current number of points (sparse schedule)
-   */
-  getNumPoints() {
-    return this.scheduleData.length;
-  }
-
-  /**
-   * Robustly set data, normalizing missing time/value fields
-   */
-  setData(newData, skipHistory = false) {
-    if (!Array.isArray(newData)) {
-      Logger.warn('STATE', '[StateManager] setData received non-array data');
-      return;
-    }
-
-    if (!skipHistory) this._pushHistory();
-
-    // Sparse mode: accept only object items with {time,value} or {x,y}
-    this.scheduleData = newData
-      .map((item) => {
-        if (typeof item !== 'object' || item === null) return null;
-        let timeStr;
-        let val;
-
-        if (typeof item.time === 'string' && item.value !== undefined) {
-          timeStr = String(item.time);
-          val = Number(item.value);
-        } else if (item.x !== undefined && item.y !== undefined) {
-          timeStr = this.minutesToTime(Number(item.x));
-          val = Number(item.y);
-        } else {
-          return null;
-        }
-
-        if (!/^\d{2}:\d{2}$/.test(timeStr)) return null;
-        if (!Number.isFinite(val)) val = 0;
-        return { time: timeStr, value: val };
-      })
-      .filter((p) => p !== null);
-
-    // Ensure at least boundary points exist
-    if (this.scheduleData.length === 0) {
-      const defaultVal = this.card.config?.min_value ?? 0;
-      this.scheduleData = [
-        { time: "00:00", value: defaultVal },
-        { time: "23:59", value: defaultVal }
-      ];
-    }
-
-    this.card.hasUnsavedChanges = true;
-    this.card.dispatchEvent(new CustomEvent('cronostar-state-changed', { 
-      detail: { hasUnsavedChanges: true },
-      bubbles: true, 
-      composed: true 
-    }));
-    Logger.state(`[StateManager] setData (sparse) accepted ${this.scheduleData.length} points`);
-  }
-
-  /**
-   * Return copy of schedule data
+   * Get current schedule data
+   * @returns {Array} Copy of schedule
    */
   getData() {
     return [...this.scheduleData];
   }
 
   /**
-   * Insert point (used by pointer/keyboard handlers)
+   * Set schedule data with normalization
+   * @param {Array} newData - Schedule data
+   * @param {boolean} skipHistory - Skip history tracking
    */
-  insertPoint(timeStr, value) {
-    this._pushHistory();
-    const newMinutes = this.timeToMinutes(timeStr);
+  setData(newData, skipHistory = false) {
+    if (!Array.isArray(newData)) {
+      Logger.warn('STATE', 'setData received non-array data');
+      return;
+    }
 
-    // Try to update existing point within small tolerance
-    const existingIndex = this.scheduleData.findIndex(p => Math.abs(this.timeToMinutes(p.time) - newMinutes) < 2);
+    if (!skipHistory) {
+      this._pushHistory();
+    }
+
+    // Normalize and validate
+    this.scheduleData = this._normalizeSchedule(newData);
+
+    // Ensure boundaries exist
+    this._ensureBoundaries();
+
+    this.context.hasUnsavedChanges = true;
+    this.context.events.emit(Events.SCHEDULE_UPDATED, this.scheduleData);
+
+    Logger.state(`Schedule updated: ${this.scheduleData.length} points`);
+  }
+
+  /**
+   * Normalize schedule data
+   * @private
+   * @param {Array} schedule - Raw schedule data
+   * @returns {Array} Normalized schedule
+   */
+  _normalizeSchedule(schedule) {
+    const byMinute = new Map();
+
+    schedule.forEach(item => {
+      if (typeof item !== 'object' || item === null) return;
+
+      let time, value;
+
+      if (item.time !== undefined && item.value !== undefined) {
+        time = String(item.time);
+        value = Number(item.value);
+      } else if (item.x !== undefined && item.y !== undefined) {
+        time = minutesToTime(Number(item.x));
+        value = Number(item.y);
+      } else {
+        return;
+      }
+
+      if (!/^\d{2}:\d{2}$/.test(time)) return;
+      if (!Number.isFinite(value)) value = 0;
+
+      const minute = timeToMinutes(time);
+      byMinute.set(minute, value);
+    });
+
+    // Sort by time
+    return Array.from(byMinute.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([minute, value]) => ({
+        time: minutesToTime(minute),
+        value
+      }));
+  }
+
+  /**
+   * Ensure 00:00 and 23:59 boundaries exist
+   * @private
+   */
+  _ensureBoundaries() {
+    const minutes = this.scheduleData.map(p => timeToMinutes(p.time));
+
+    if (!minutes.includes(0)) {
+      const firstValue = this.scheduleData[0]?.value ?? this.context.config?.min_value ?? 0;
+      this.scheduleData.unshift({ time: '00:00', value: firstValue });
+    }
+
+    if (!minutes.includes(1439)) {
+      const lastValue = this.scheduleData[this.scheduleData.length - 1]?.value ?? this.context.config?.min_value ?? 0;
+      this.scheduleData.push({ time: '23:59', value: lastValue });
+    }
+  }
+
+  /**
+   * Insert a point at specified time
+   * @param {string} time - Time in HH:MM format
+   * @param {number} value - Point value
+   * @returns {number} Index of inserted point
+   */
+  insertPoint(time, value) {
+    this._pushHistory();
+
+    const minutes = timeToMinutes(time);
+
+    // Check if point already exists nearby
+    const existingIndex = this.scheduleData.findIndex(p =>
+      Math.abs(timeToMinutes(p.time) - minutes) < 2
+    );
+
     if (existingIndex !== -1) {
       this.scheduleData[existingIndex].value = value;
-      this.card.hasUnsavedChanges = true;
-      Logger.state(`[StateManager] Updated existing point at ${timeStr} = ${value}`);
+      this.context.hasUnsavedChanges = true;
+      this.context.events.emit(Events.POINT_UPDATED, { index: existingIndex, value });
       return existingIndex;
     }
 
     // Find insertion position
-    let insertIndex = this.scheduleData.findIndex(p => this.timeToMinutes(p.time) > newMinutes);
-    if (insertIndex === -1) insertIndex = this.scheduleData.length;
+    let insertIndex = this.scheduleData.findIndex(p =>
+      timeToMinutes(p.time) > minutes
+    );
 
-    this.scheduleData.splice(insertIndex, 0, { time: timeStr, value });
-    this.card.hasUnsavedChanges = true;
+    if (insertIndex === -1) {
+      insertIndex = this.scheduleData.length;
+    }
 
-    Logger.state(`[StateManager] Inserted point at ${timeStr} = ${value}`);
+    this.scheduleData.splice(insertIndex, 0, { time, value });
+    this.context.hasUnsavedChanges = true;
+    this.context.events.emit(Events.POINT_ADDED, { index: insertIndex, time, value });
+    this.context.events.emit(Events.SCHEDULE_UPDATED, this.scheduleData);
+
+    Logger.state(`Inserted point at ${time} = ${value}`);
     return insertIndex;
   }
 
   /**
    * Remove point at index
+   * @param {number} index - Point index
+   * @returns {boolean} Success
    */
   removePoint(index) {
-    if (index >= 0 && index < this.scheduleData.length) {
-      this._pushHistory();
-      this.scheduleData.splice(index, 1);
-      this.card.hasUnsavedChanges = true;
-      Logger.state(`[StateManager] Removed point at index ${index}`);
-      return true;
+    if (index < 0 || index >= this.scheduleData.length) {
+      return false;
     }
-    return false;
+
+    this._pushHistory();
+
+    const removed = this.scheduleData.splice(index, 1)[0];
+    this.context.hasUnsavedChanges = true;
+    this.context.events.emit(Events.POINT_REMOVED, { index, point: removed });
+    this.context.events.emit(Events.SCHEDULE_UPDATED, this.scheduleData);
+
+    Logger.state(`Removed point at index ${index}`);
+    return true;
   }
 
   /**
-   * Update a single point's value by index
+   * Update point value
+   * @param {number} index - Point index
+   * @param {number} value - New value
    */
   updatePoint(index, value) {
     if (index < 0 || index >= this.scheduleData.length) return;
-    // Note: for points dragging, history is pushed on drag start in chart_manager
+
     this.scheduleData[index].value = value;
-    this.card.hasUnsavedChanges = true;
-    this.card.lastEditAt = Date.now();
+    this.context.hasUnsavedChanges = true;
+    this.context.events.emit(Events.POINT_UPDATED, { index, value });
+    this.context.events.emit(Events.SCHEDULE_UPDATED, this.scheduleData);
   }
 
   /**
-   * Align selected points to leftmost or rightmost selected value
+   * Align selected points
+   * @param {string} direction - 'left' or 'right'
+   * @param {Array<number>} indices - Point indices to align
    */
-  alignSelectedPoints(direction) {
-    try {
-      const selMgr = this.card.selectionManager;
-      let indices = selMgr?.getSelectedPoints?.() || [];
-      if (!Array.isArray(indices) || indices.length === 0) return;
-
-      // Keep indices within bounds to avoid "undefined.value" errors
-      indices = indices
-        .map((i) => Number(i))
-        .filter((i) => Number.isInteger(i) && i >= 0 && i < this.scheduleData.length);
-
-      if (indices.length < 2) return;
-
-      this._pushHistory();
-
-      const sorted = [...indices].sort((a, b) => a - b);
-      const anchorIdx = direction === 'right' ? sorted[sorted.length - 1] : sorted[0];
-
-      const anchorValue = this.scheduleData[anchorIdx]?.value;
-      if (anchorValue === undefined) return;
-
-      sorted.forEach((i) => {
-        if (i !== anchorIdx && this.scheduleData[i]) {
-          this.scheduleData[i].value = anchorValue;
-        }
-      });
-
-      // Update chart to reflect changes
-      if (this.card.chartManager?.isInitialized()) {
-        this.card.chartManager.updateData(this.scheduleData);
-      }
-
-      this.card.hasUnsavedChanges = true;
-      this.card.lastEditAt = Date.now();
-      Logger.state(`[StateManager] Aligned ${indices.length} points to ${direction} value=${anchorValue}`);
-    } catch (e) {
-      Logger.warn('STATE', 'alignSelectedPoints failed:', e);
-    }
-  }
-
-  /**
-   * Utility: convert minutes to HH:MM
-   */
-  minutesToTime(minutes) {
-    let m = Math.round(minutes);
-    while (m < 0) m += 1440;
-    while (m >= 1440) m -= 1440;
-    const h = Math.floor(m / 60) % 24;
-    const mm = m % 60;
-    return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-  }
-
-  /**
-   * Utility: convert HH:MM to total minutes
-   */
-  timeToMinutes(timeStr) {
-    const [hh, mm] = String(timeStr || '00:00').split(':').map((s) => Number(s));
-    const h = Number.isFinite(hh) ? hh : 0;
-    const m = Number.isFinite(mm) ? mm : 0;
-    return (h % 24) * 60 + (m % 60);
-  }
-
-  /**
-   * Get value at a given time, using nearest or previous point
-   */
-  getValueAtTime(timeStr) {
-    const target = this.timeToMinutes(timeStr);
-    let bestIdx = -1;
-    let bestDelta = Infinity;
-
-    for (let i = 0; i < this.scheduleData.length; i++) {
-      const d = Math.abs(this.timeToMinutes(this.scheduleData[i].time) - target);
-      if (d < bestDelta) {
-        bestDelta = d;
-        bestIdx = i;
-      }
+  alignSelectedPoints(direction, indices) {
+    let targetIndices = indices;
+    if (!targetIndices) {
+      const selectionManager = this.context.getManager('selection');
+      targetIndices = selectionManager ? selectionManager.getSelectedPoints() : [];
     }
 
-    if (bestIdx !== -1) return this.scheduleData[bestIdx].value;
-    return this.card.config?.min_value ?? 0;
+    if (!targetIndices || targetIndices.length < 2) return;
+
+    this._pushHistory();
+
+    // Filter valid indices
+    const validIndices = targetIndices.filter(i =>
+      i >= 0 && i < this.scheduleData.length
+    );
+
+    if (validIndices.length < 2) return;
+
+    // Get anchor value
+    const sorted = [...validIndices].sort((a, b) => a - b);
+    const anchorIndex = direction === 'right' ? sorted[sorted.length - 1] : sorted[0];
+    const anchorValue = this.scheduleData[anchorIndex]?.value;
+
+    if (anchorValue === undefined) return;
+
+    // Apply to all points
+    validIndices.forEach(i => {
+      if (i !== anchorIndex) {
+        this.scheduleData[i].value = anchorValue;
+      }
+    });
+
+    this.context.hasUnsavedChanges = true;
+    this.context.events.emit(Events.SCHEDULE_UPDATED, this.scheduleData);
+
+    Logger.state(`Aligned ${validIndices.length} points to ${direction}`);
   }
 
   /**
-   * Current index based on local time and interval
+   * Get number of points
+   * @returns {number}
+   */
+  getNumPoints() {
+    return this.scheduleData.length;
+  }
+
+  /**
+   * Get current point index based on time
+   * @returns {number}
    */
   getCurrentIndex() {
-    // Sparse: find nearest point to current time
     const now = new Date();
     const target = now.getHours() * 60 + now.getMinutes();
-    let bestIdx = -1;
+
+    let bestIndex = 0;
     let bestDelta = Infinity;
-    for (let i = 0; i < this.scheduleData.length; i++) {
-      const d = Math.abs(this.timeToMinutes(this.scheduleData[i].time) - target);
-      if (d < bestDelta) {
-        bestDelta = d;
-        bestIdx = i;
+
+    this.scheduleData.forEach((point, index) => {
+      const delta = Math.abs(timeToMinutes(point.time) - target);
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        bestIndex = index;
       }
-    }
-    return bestIdx === -1 ? 0 : bestIdx;
+    });
+
+    return bestIndex;
   }
 
   /**
-   * Get label for a point (HH:MM)
+   * Get label for point
+   * @param {number} index - Point index
+   * @returns {string} Time label
    */
   getPointLabel(index) {
-    const p = this.scheduleData[index];
-    return p?.time || '00:00';
+    return this.scheduleData[index]?.time ?? '00:00';
+  }
+
+  /**
+   * Undo last change
+   * @returns {boolean} Success
+   */
+  undo() {
+    if (this._undoStack.length === 0) return false;
+
+    // Save current to redo
+    this._redoStack.push(JSON.stringify(this.scheduleData));
+
+    // Restore previous
+    const snapshot = this._undoStack.pop();
+    this.scheduleData = JSON.parse(snapshot);
+
+    this._syncToChart();
+    return true;
+  }
+
+  /**
+   * Redo last undo
+   * @returns {boolean} Success
+   */
+  redo() {
+    if (this._redoStack.length === 0) return false;
+
+    // Save current to undo
+    this._undoStack.push(JSON.stringify(this.scheduleData));
+
+    // Restore next
+    const snapshot = this._redoStack.pop();
+    this.scheduleData = JSON.parse(snapshot);
+
+    this._syncToChart();
+    return true;
+  }
+
+  /**
+   * Push current state to history
+   * @private
+   */
+  _pushHistory() {
+    if (this.isLoadingProfile) return;
+
+    const snapshot = JSON.stringify(this.scheduleData);
+
+    // Don't push if same as last
+    if (this._undoStack.length > 0 &&
+        this._undoStack[this._undoStack.length - 1] === snapshot) {
+      return;
+    }
+
+    this._undoStack.push(snapshot);
+
+    // Limit stack size
+    if (this._undoStack.length > this._maxHistory) {
+      this._undoStack.shift();
+    }
+
+    // Clear redo stack on new action
+    this._redoStack = [];
+  }
+
+  /**
+   * Sync state to chart
+   * @private
+   */
+  _syncToChart() {
+    this.context.events.emit(Events.SCHEDULE_UPDATED, this.scheduleData);
+    this.context.hasUnsavedChanges = true;
+    this.context.requestUpdate();
+  }
+
+  /**
+   * Cleanup
+   */
+  destroy() {
+    this._undoStack = [];
+    this._redoStack = [];
   }
 }

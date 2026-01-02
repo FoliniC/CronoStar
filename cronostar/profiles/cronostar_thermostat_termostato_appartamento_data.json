@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "global_prefix": "cronostar_termostato_appartamento_",
+    "preset_type": "thermostat",
+    "created_at": "2025-12-25T20:37:38.131478",
+    "updated_at": "2025-12-30T12:45:23.823470",
+    "type": "custom:cronostar-card",
+    "hour_base": {
+      "value": 0,
+      "determined": false
+    },
+    "logging_enabled": true,
+    "pause_entity": "input_boolean.cronostar_termostato_appartamento_paused",
+    "profiles_select_entity": "input_select.cronostar_termostato_appartamento_profiles",
+    "target_entity": "climate.climatizzazione_appartamento",
+    "allow_max_value": false,
+    "missing_yaml_style": "named",
+    "title": "CronoStar Thermostat",
+    "y_axis_label": "Temperature",
+    "unit_of_measurement": "°C",
+    "min_value": 15,
+    "max_value": 30,
+    "step_value": 0.5,
+    "is_switch_preset": false,
+    "step": 5
+  },
+  "profiles": {
+    "Default": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 21
+        },
+        {
+          "time": "02:50",
+          "value": 22.135943621178654
+        },
+        {
+          "time": "07:21",
+          "value": 21.5
+        },
+        {
+          "time": "07:22",
+          "value": 21
+        },
+        {
+          "time": "13:45",
+          "value": 24
+        },
+        {
+          "time": "14:56",
+          "value": 24
+        },
+        {
+          "time": "16:56",
+          "value": 24
+        },
+        {
+          "time": "19:40",
+          "value": 24
+        },
+        {
+          "time": "20:05",
+          "value": 24
+        },
+        {
+          "time": "23:59",
+          "value": 24
+        }
+      ],
+      "updated_at": "2025-12-30T12:45:23.823543"
+    },
+    "Comfort": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 21
+        },
+        {
+          "time": "07:21",
+          "value": 21.5
+        },
+        {
+          "time": "07:22",
+          "value": 21
+        },
+        {
+          "time": "15:11",
+          "value": 25.4
+        },
+        {
+          "time": "17:55",
+          "value": 26.563132345414385
+        },
+        {
+          "time": "18:20",
+          "value": 24
+        },
+        {
+          "time": "23:59",
+          "value": 27.5
+        }
+      ],
+      "updated_at": "2025-12-29T20:30:11.328408"
+    }
+  },
+  "saved_at": "2025-12-30T11:45:23.823586Z",
+  "version": 2
+}

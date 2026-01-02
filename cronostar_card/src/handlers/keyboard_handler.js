@@ -1,5 +1,5 @@
 /** * Keyboard input handling for CronoStar Card * Supports Alt+Q (insert), Alt+W (delete) */
-import { Logger, clamp, roundTo } from '../utils.js';
+import { Logger, clamp, roundTo, timeToMinutes, minutesToTime } from '../utils.js';
 
 export class KeyboardHandler {
   constructor(card) {
@@ -150,9 +150,6 @@ export class KeyboardHandler {
       e.preventDefault();
       e.stopPropagation();
       Logger.log('KEYBOARD', '[CronoStar] Save profile triggered via Ctrl+S');
-      if (this.card.hasUnsavedChanges && this.card.profileManager.lastLoadedProfile) {
-        this.card.profileManager.saveProfile();
-      }
       this.focusContainer();
       return;
     }
@@ -246,10 +243,10 @@ export class KeyboardHandler {
     const currentTime = scheduleData[anchorIndex].time;
     const nextTime = scheduleData[anchorIndex + 1].time;
 
-    const currentMin = this.card.stateManager.timeToMinutes(currentTime);
-    const nextMin = this.card.stateManager.timeToMinutes(nextTime);
+    const currentMin = timeToMinutes(currentTime);
+    const nextMin = timeToMinutes(nextTime);
     const midMin = Math.floor((currentMin + nextMin) / 2);
-    const midTime = this.card.stateManager.minutesToTime(midMin);
+    const midTime = minutesToTime(midMin);
 
     // Calculate midpoint value
     const midValue = (scheduleData[anchorIndex].value + scheduleData[anchorIndex + 1].value) / 2;
@@ -322,77 +319,73 @@ export class KeyboardHandler {
       
     } else {
         // Standard Movement
-        let minutesStep = 30; // Default requested by user
-        if (e.ctrlKey || e.metaKey) minutesStep = 1; // Minimum
+        let minutesStep = 1; // Default 1 min
+        if (e.shiftKey) minutesStep = 30; // 30 min with Shift
+        else if (e.ctrlKey || e.metaKey) minutesStep = 5; 
         
-        // Shift -> Snap to Grid (30 min blocks)
         let snapToGrid = e.shiftKey;
-
         const dx = e.key === "ArrowLeft" ? -minutesStep : minutesStep;
 
-        // Build time-sorted list
+        // 1. Build a time-sorted list of ALL points to find true neighbors
         const allByTime = data
           .map((pt, idx) => ({ idx, x: Math.round(Number(pt?.x ?? 0)) }))
           .sort((a, b) => a.x - b.x);
+        
         const selectedSet = new Set(indices);
 
-        // Determine first and last indices by time
-        const firstIdx = allByTime[0]?.idx;
-        const lastIdx = allByTime[allByTime.length - 1]?.idx;
+        // 2. Identify the Hard Limits for the WHOLE selected group
+        let leftLimit = 0;
+        let rightLimit = 1439;
 
-        // Compute bounds per selected point
-        const boundsMap = new Map();
-        indices.forEach((selIdx) => {
-          const entryPos = allByTime.findIndex((e2) => e2.idx === selIdx);
-          let leftBound = 0;
-          let rightBound = 1440;
+        // Find the first non-selected point to the left of our selection
+        const firstSortedSelectedPos = allByTime.findIndex(item => selectedSet.has(item.idx));
+        if (firstSortedSelectedPos > 0) {
+          leftLimit = allByTime[firstSortedSelectedPos - 1].x + 1;
+        }
 
-          // Scan left for nearest non-selected neighbor
-          for (let k = entryPos - 1; k >= 0; k--) {
-            const e2 = allByTime[k];
-            if (!selectedSet.has(e2.idx)) { leftBound = e2.x + 1; break; }
+        // Find the first non-selected point to the right of our selection
+        let lastSortedSelectedPos = -1;
+        for (let i = allByTime.length - 1; i >= 0; i--) {
+          if (selectedSet.has(allByTime[i].idx)) {
+            lastSortedSelectedPos = i;
+            break;
           }
+        }
+        if (lastSortedSelectedPos !== -1 && lastSortedSelectedPos < allByTime.length - 1) {
+          rightLimit = allByTime[lastSortedSelectedPos + 1].x - 1;
+        }
 
-          // Scan right for nearest non-selected neighbor
-          for (let k = entryPos + 1; k < allByTime.length; k++) {
-            const e2 = allByTime[k];
-            if (!selectedSet.has(e2.idx)) { rightBound = e2.x - 1; break; }
-          }
+        // 3. Compute current extent of the selected group
+        const groupMinX = Math.min(...indices.map(i => data[i].x));
+        const groupMaxX = Math.max(...indices.map(i => data[i].x));
 
-          boundsMap.set(selIdx, { left: Math.max(0, leftBound), right: Math.min(1440, rightBound) });
-        });
+        // 4. Calculate actual displacement (clamped by hard limits)
+        let finalDx = dx;
+        if (groupMinX + dx < leftLimit) finalDx = leftLimit - groupMinX;
+        if (groupMaxX + dx > rightLimit) finalDx = rightLimit - groupMaxX;
 
-        // Apply movement
+        // 5. Apply movement
         indices.forEach((i) => {
           const p = data[i];
           if (!p) return;
-          if (i === firstIdx || i === lastIdx) return; // keep anchors fixed
+          if (i === 0 || i === data.length - 1) return; // keep anchors fixed
           
-          const b = boundsMap.get(i) || { left: 0, right: 1440 };
-          let currentX = Math.round(Number(p.x));
-          let desiredX = currentX + dx;
+          let nx = p.x + finalDx;
           
           if (snapToGrid) {
               const gridSize = 30;
-              // Snap desiredX to nearest grid
-              desiredX = Math.round(desiredX / gridSize) * gridSize;
+              nx = Math.round(nx / gridSize) * gridSize;
           }
 
-          desiredX = Math.max(b.left, Math.min(b.right, desiredX));
-          desiredX = Math.max(0, Math.min(1440, desiredX));
-          p.x = desiredX;
+          // Final safety clamp for each point
+          p.x = Math.max(leftLimit, Math.min(rightLimit, nx));
         });
     }
 
     // Persist to state and update chart
     try {
-      // Sort data by X to ensure consistency
-      // Note: We sort the reference array in place if we want chart to reflect it immediately?
-      // Chart.js data is usually an array of objects.
-      // We need to re-sort the DATA array because X values changed.
       dataset.data.sort((a, b) => a.x - b.x);
-      
-      const newData = dataset.data.map((pt) => ({ time: stateMgr.minutesToTime(pt.x), value: Number(pt.y) }));
+      const newData = dataset.data.map((pt) => ({ time: minutesToTime(pt.x), value: Number(pt.y) }));
       stateMgr.setData(newData);
     } catch (e) { /* ignore */ }
 
@@ -461,13 +454,6 @@ export class KeyboardHandler {
 
       stateMgr.updatePoint(i, val);
     });
-
-    if (this.card.selectedProfile) {
-      this.card.profileManager.saveProfile(this.card.selectedProfile)
-        .catch(e => Logger.error('KEYBOARD', 'Save failed:', e));
-    } else {
-      this.card.hasUnsavedChanges = true;
-    }
 
     chartMgr.updatePointStyling(selMgr.selectedPoint, selMgr.selectedPoints);
     chartMgr.update('none');

@@ -11,7 +11,7 @@ export class Step4Automation {
         <div class="step-content">
           <div class="step-header">${this.editor.i18n._t('headers.step4')}</div>
           <div class="warning-box">
-            ${this.editor.i18n._t('step2_msgs.missing_apply')}
+            ${this.editor.i18n._t('ui.missing_apply')}
           </div>
         </div>
       `;

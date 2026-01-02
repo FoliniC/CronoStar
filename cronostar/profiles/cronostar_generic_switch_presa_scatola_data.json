@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "global_prefix": "cronostar_generic_switch_presa_scatola_",
+    "preset_type": "generic_switch",
+    "created_at": "2025-12-28T22:57:47.050149",
+    "updated_at": "2025-12-30T17:29:55.829973",
+    "type": "custom:cronostar-card",
+    "hour_base": {
+      "value": 0,
+      "determined": false
+    },
+    "logging_enabled": true,
+    "target_entity": "switch.presa_luci_natale",
+    "allow_max_value": false,
+    "missing_yaml_style": "named",
+    "title": "CronoStar Generic Switch",
+    "y_axis_label": "State",
+    "unit_of_measurement": "",
+    "min_value": 0,
+    "max_value": 1,
+    "step_value": 1,
+    "is_switch_preset": true
+
+  },
+  "profiles": {
+    "Default": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 1.0
+        },
+        {
+          "time": "23:59",
+          "value": 1.0
+        }
+      ],
+      "updated_at": "2025-12-30T17:29:55.830095"
+    }
+  }
+}

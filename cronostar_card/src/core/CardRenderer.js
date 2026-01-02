@@ -9,35 +9,67 @@ export class CardRenderer {
   render() {
     if (!this.card.config) return html``;
 
+    const localize = (key, search, replace) => this.card.localizationManager.localize(this.card.language, key, search, replace);
+    
+    // ✅ IMPROVED: Dynamic title logic
+    let title = this.card.config?.title;
+    if (!title) {
+      const preset = this.card.selectedPreset || this.card.config?.preset_type || 'thermostat';
+      const presetName = localize(`preset.${preset}`);
+      title = `${localize('ui.title')} ${presetName}`;
+
+      // Append custom part of prefix if present
+      const prefix = this.card.config?.global_prefix || '';
+      const basePrefix = `cronostar_${preset}_`;
+      if (prefix.startsWith(basePrefix) && prefix.length > basePrefix.length) {
+        const suffix = prefix.substring(basePrefix.length).replace(/_+$/, '').replace(/_/g, ' ');
+        if (suffix) {
+          title = `${title} ${suffix}`;
+        }
+      }
+    }
+
+    // ✅ FIX: Fallback if global_prefix is missing (New card state)
+    if (!this.card.config?.global_prefix) {
+      return html`
+        <ha-card @click=${(e) => this.card.eventHandlers.handleCardClick(e)}>
+          <div class="card-header">
+            <div class="header-left">
+              <img src="/cronostar_card/cronostar-logo.png" class="header-logo" alt="CronoStar">
+              <div class="title">${title}</div>
+            </div>
+          </div>
+          <div style="padding: 24px; text-align: center; color: var(--secondary-text-color);">
+            <ha-icon icon="mdi:cog-transfer-outline" style="--mdc-icon-size: 48px; opacity: 0.5; margin-bottom: 16px;"></ha-icon>
+            <p style="font-size: 1.1em; font-weight: 500; margin: 0 0 8px 0; color: var(--primary-text-color);">
+              ${this.card.language === 'it' ? 'Configurazione Incompleta' : 'Configuration Incomplete'}
+            </p>
+            <p style="margin: 0; font-size: 0.9em;">
+              ${this.card.language === 'it' 
+                ? 'Usa l\'editor per impostare il prefisso e l\'entità di destinazione.' 
+                : 'Please use the card editor to set the identification prefix and target entity.'}
+            </p>
+          </div>
+        </ha-card>
+      `;
+    }
+
     // ✅ FIX: Check multiple sources for Step 0
     const isEditor = this.card.cardLifecycle?.isEditorContext() || false;
     const wizardStep = this.card.config?.step;
     const isFromWizard = wizardStep !== undefined && wizardStep !== null;
 
-    // ✅ CRITICAL: ONLY hide in Step 0. This ensures it's visible in Step 1+
-    if (isFromWizard && (wizardStep === 0 || wizardStep === '0')) {
-      console.log('[CardRenderer] Hiding chart for Step 0');
-      return html``;
-    }
-
-    // Also check if explicitly told to hide via preview flag
-    if (isEditor && !isFromWizard && this.card.isPreview === false) {
-      console.log('[CardRenderer] Editor preview disabled, returning empty render');
-      return html``;
-    }
-
     // Picker preview: show static image only
-    const isPickerPreview = !isFromWizard && (
-      this.card.cardLifecycle && this.card.cardLifecycle.isPickerPreviewContext()
-    );
+    const isPickerPreview = this.card.cardLifecycle?.isPickerPreviewContext?.();
 
-    if (isPickerPreview) {
+    if (isPickerPreview && !isFromWizard) {
       const img = this.card.config?.preview_image || '/cronostar_card/cronostar-preview.png';
-      return html`<img alt="CronoStar preview" src="${img}" style="display:block;max-width:100%;height:auto;" />`;
+      return html`
+        <ha-card style="padding: 16px; text-align: center;">
+          <img alt="CronoStar preview" src="${img}" style="display:block;max-width:100%;height:auto;border-radius:12px;box-shadow: var(--ha-card-box-shadow, 0 2px 2px 0 rgba(0,0,0,0.14), 0 1px 5px 0 rgba(0,0,0,0.12), 0 3px 1px -2px rgba(0,0,0,0.2));" />
+        </ha-card>
+      `;
     }
-
-    const localize = (key, search, replace) => this.card.localizationManager.localize(this.card.language, key, search, replace);
-    const title = this.card.config?.title || localize('ui.title');
 
     const enRaised = this.card.language === 'en';
     const itRaised = this.card.language === 'it';
@@ -75,20 +107,25 @@ export class CardRenderer {
               <span style="font-size: 0.8em; opacity: 0.7; margin-left: 8px;">v${VERSION}</span>
             </div>
           </div>
-          <div class="header-right">
             ${isAnyExpanded ? html`
               <ha-icon-button @click=${(e) => {
           e.stopPropagation();
           this.card.isExpandedV = false;
           this.card.isExpandedH = false;
           this.card.requestUpdate();
-          setTimeout(() => {
-            if (this.card.chartManager?.chart) this.card.chartManager.chart.resize();
-          }, 410);
         }} title="Minimize">
                 <ha-icon icon="mdi:arrow-collapse"></ha-icon>
               </ha-icon-button>
-            ` : ''}
+            ` : html`
+              <ha-icon-button @click=${(e) => {
+          e.stopPropagation();
+          this.card.isExpandedV = true;
+          this.card.isExpandedH = true;
+          this.card.requestUpdate();
+        }} title="Expand">
+                <ha-icon icon="mdi:arrow-expand"></ha-icon>
+              </ha-icon-button>
+            `}
             ${this.card.isPaused ? html`<ha-icon icon="mdi:pause-circle" class="pause-indicator" title="Automation Paused"></ha-icon>` : ''}
             <div class="menu-container">
               <button class="menu-button" @click=${(e) => this.card.eventHandlers.toggleMenu(e)}>
@@ -158,7 +195,8 @@ export class CardRenderer {
             ` : ''}
 
             <div class="language-menu">
-              <ha-icon icon="mdi:translate" style="margin-right: 4px; --mdc-icon-size: 16px;"></ha-icon>
+              <span style="font-size: 12px; color: var(--secondary-text-color); margin-right: 4px;">${localize('menu.language')}:</span>
+              <ha-icon icon="mdi:translate" style="margin-right: 8px; --mdc-icon-size: 16px;"></ha-icon>
               <button class="lang-btn ${itRaised ? 'active' : ''}" @click=${() => this.card.eventHandlers.handleLanguageSelect('it')}>IT</button>
               <button class="lang-btn ${enRaised ? 'active' : ''}" @click=${() => this.card.eventHandlers.handleLanguageSelect('en')}>EN</button>
             </div>
@@ -167,10 +205,7 @@ export class CardRenderer {
 
         <div class="card-content">
           <div class="chart-container" 
-               tabindex="0"
-               @pointermove=${(e) => this.card.selectionManager.handlePointerMove(e)}
-               @pointerdown=${(e) => this.card.selectionManager.handlePointerDown(e)}
-               @pointerup=${(e) => this.card.selectionManager.handlePointerUp(e)}>
+               tabindex="0">
             <canvas id="myChart"></canvas>
             <div id="drag-value-display" class="chart-tooltip"></div>
             <div id="hover-value-display" class="chart-tooltip hover-tooltip"></div>

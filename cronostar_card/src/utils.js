@@ -108,6 +108,73 @@ export function isDefined(value) {
 }
 
 /**
+ * Creates a slug from a string
+ */
+export function slugify(str) {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+/**
+ * Convert time string to minutes
+ * @param {string} time - Time in HH:MM format
+ * @returns {number} Minutes since midnight
+ */
+export function timeToMinutes(time) {
+  const parts = String(time || '00:00').split(':');
+  const h = Number(parts[0]) || 0;
+  const m = Number(parts[1]) || 0;
+  return (h % 24) * 60 + (m % 60);
+}
+
+/**
+ * Convert minutes to time string
+ * @param {number} minutes - Minutes since midnight
+ * @returns {string} Time in HH:MM format
+ */
+export function minutesToTime(minutes) {
+  let m = Math.round(minutes);
+  while (m < 0) m += 1440;
+  while (m >= 1440) m -= 1440;
+  const h = Math.floor(m / 60) % 24;
+  const mm = m % 60;
+  return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+/**
+ * Global helper to detect if we are inside a card editor context
+ * @param {HTMLElement} element - The element to check from
+ */
+export function checkIsEditorContext(element) {
+  try {
+    let el = element;
+    while (el) {
+      if (el.tagName) {
+        const tag = el.tagName.toLowerCase();
+        if (tag === 'hui-card-preview' ||
+          tag === 'hui-card-editor' ||
+          tag === 'hui-dialog-edit-card' ||
+          tag === 'ha-dialog' ||
+          tag === 'hui-edit-view' ||
+          tag === 'hui-edit-card' ||
+          tag === 'hui-card-options') {
+          return true;
+        }
+      }
+      el = el.parentElement || el.parentNode || el.host;
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * Logging utility with tags
  */
 let loggingEnabled = false;
@@ -115,19 +182,19 @@ let loggingEnabled = false;
 export const Logger = {
   setEnabled: (enabled) => {
     loggingEnabled = !!enabled;
-    console.log('Logger.setEnabled called, loggingEnabled is now', loggingEnabled);
+    console.log('[CRONOSTAR] [SYSTEM] Logger.setEnabled called, loggingEnabled is now', loggingEnabled);
   },
   log: (tag, ...args) => {
     if (loggingEnabled) {
-      console.log(`[${tag}]`, ...args);
+      console.log(`[CRONOSTAR] [${tag}]`, ...args);
     }
   },
   warn: (tag, ...args) => {
     if (loggingEnabled) {
-      console.warn(`[${tag}]`, ...args);
+      console.warn(`[CRONOSTAR] [${tag}]`, ...args);
     }
   },
-  error: (tag, ...args) => console.error(`[${tag}]`, ...args),
+  error: (tag, ...args) => console.error(`[CRONOSTAR] [${tag}]`, ...args),
   
   state: (...args) => Logger.log('STATE', ...args),
   load: (...args) => Logger.log('LOAD', ...args),
@@ -137,6 +204,7 @@ export const Logger = {
   diff: (...args) => Logger.log('DIFF', ...args),
   key: (...args) => Logger.log('KEY', ...args),
   base: (...args) => Logger.log('BASE', ...args),
+  chart: (...args) => Logger.log('CHART', ...args),
 };
 
 window.Logger = Logger;

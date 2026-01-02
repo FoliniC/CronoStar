@@ -32,9 +32,9 @@ export class Step2Entities {
           <div class="info-box">
             <strong>ℹ️ ${this.editor.i18n._t('ui.automatic_entities_title', 'Automatic Entities')}</strong>
             <p>${this.editor.i18n._t('ui.automatic_entities_desc', {
-              '{entity}': `input_number.${effectivePrefix}current`,
-              '{package}': packageFilename
-            })}</p>
+      '{entity}': `input_number.${effectivePrefix}current`,
+      '{package}': packageFilename
+    })}</p>
           </div>
 
           <div class="field-group" style="background: var(--secondary-background-color); padding: 10px; border-radius: 4px; margin-top: 12px;">
@@ -47,7 +47,7 @@ export class Step2Entities {
             ${hasPause ? html`
               <div style="margin-top: 8px;">
                 ${canRenderPicker
-                  ? html`<ha-entity-picker
+          ? html`<ha-entity-picker
                       .hass=${this.editor.hass}
                       .value=${pauseVal}
                       .label=${"Pause Entity"}
@@ -55,7 +55,7 @@ export class Step2Entities {
                       allow-custom-entity
                       @value-changed=${(e) => this.editor._updateConfig('pause_entity', e.detail.value)}
                     ></ha-entity-picker>`
-                  : this.editor._renderTextInput('pause_entity', pauseVal, 'input_boolean.xxx')}
+          : this.editor._renderTextInput('pause_entity', pauseVal, 'input_boolean.xxx')}
               </div>
             ` : ''}
           </div>
@@ -70,7 +70,7 @@ export class Step2Entities {
             ${hasProfiles ? html`
               <div style="margin-top: 8px;">
                 ${canRenderPicker
-                  ? html`<ha-entity-picker
+          ? html`<ha-entity-picker
                       .hass=${this.editor.hass}
                       .value=${profilesVal}
                       .label=${"Profiles Entity"}
@@ -78,37 +78,37 @@ export class Step2Entities {
                       allow-custom-entity
                       @value-changed=${(e) => this.editor._updateConfig('profiles_select_entity', e.detail.value)}
                     ></ha-entity-picker>`
-                  : this.editor._renderTextInput('profiles_select_entity', profilesVal, 'input_select.xxx')}
+          : this.editor._renderTextInput('profiles_select_entity', profilesVal, 'input_select.xxx')}
               </div>
             ` : ''}
           </div>
         </div>
 
         ${this.editor._deepCheckInProgress
-          ? html`<div class="info-box" style="text-align: center; padding: 16px;">${this.editor.i18n._t('ui.loading_deep_check_results')}</div>`
-          : html`
+        ? html`<div class="info-box" style="text-align: center; padding: 16px;">${this.editor.i18n._t('ui.loading_deep_check_results')}</div>`
+        : html`
               <div>
                 <div class="field-group">
                   <label class="field-label">${this.editor.i18n._t('fields.package_label')}</label>
                   <div class="field-description">${this.editor.i18n._t('fields.package_desc', { '{path}': helpersDisplayPath })}</div>
                   <div class="action-buttons">
                     ${this.editor._renderButton({
-                      label: this.editor.i18n._t('actions.copy_yaml'),
-                      click: () => copyToClipboard(
-                        this.editor._helpersYaml,
-                        this.editor.i18n._t('messages.helpers_yaml_copied') || 'YAML Copied',
-                        this.editor.i18n._t('messages.helpers_yaml_error') || 'Copy Failed'
-                      )
-                    })}
+          label: this.editor.i18n._t('actions.copy_yaml'),
+          click: () => copyToClipboard(
+            this.editor._helpersYaml,
+            this.editor.i18n._t('messages.helpers_yaml_copied') || 'YAML Copied',
+            this.editor.i18n._t('messages.helpers_yaml_error') || 'Copy Failed'
+          )
+        })}
                     ${this.editor._renderButton({
-                      label: this.editor.i18n._t('actions.download_file'),
-                      click: () => downloadFile(
-                        packageFilename,
-                        this.editor._helpersYaml,
-                        this.editor.i18n._t('messages.helpers_yaml_downloaded') || 'Downloaded',
-                        this.editor.i18n._t('messages.file_download_error') || 'Download Failed'
-                      )
-                    })}
+          label: this.editor.i18n._t('actions.download_file'),
+          click: () => downloadFile(
+            packageFilename,
+            this.editor._helpersYaml,
+            this.editor.i18n._t('messages.helpers_yaml_downloaded') || 'Downloaded',
+            this.editor.i18n._t('messages.file_download_error') || 'Download Failed'
+          )
+        })}
                   </div>
 
                   <div class="field-group" style="margin-top: 12px;">

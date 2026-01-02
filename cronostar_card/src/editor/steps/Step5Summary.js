@@ -19,7 +19,7 @@ export class Step5Summary {
 
   async handleSaveAll() {
     try {
-      const result = await handleSaveAll(this.editor.hass, this.editor._config, this.editor._deepReport, this.editor._lang);
+      const result = await handleSaveAll(this.editor.hass, this.editor._config, this.editor._deepReport, this.editor._language);
       this.editor.showToast(result.message);
     } catch (e) {
       this.editor.showToast(e.message);
@@ -30,12 +30,12 @@ export class Step5Summary {
     const inum = this.editor._deepReport?.input_number;
     const autoInfo = this.editor._deepReport?.automation;
     const effectivePrefix = getEffectivePrefix(this.editor._config);
-    const expectedAlias = getAliasWithPrefix(effectivePrefix, this.editor._lang);
+    const expectedAlias = getAliasWithPrefix(effectivePrefix, this.editor._language);
     const expectedId = getExpectedAutomationId(effectivePrefix);
 
     // Verifica configurazione lovelace
     const requiredFields = [
-      'preset', 'target_entity', 'global_prefix',
+      'preset_type', 'target_entity', 'global_prefix',
       'min_value', 'max_value', 'step_value'
     ];
 
@@ -47,7 +47,7 @@ export class Step5Summary {
 
     const proposedConfig = {
       type: 'custom:cronostar-card',
-      preset: this.editor._config.preset,
+      preset_type: this.editor._config.preset_type,
       global_prefix: effectivePrefix,
       target_entity: this.editor._config.target_entity,
       pause_entity: this.editor._config.pause_entity,
@@ -83,7 +83,7 @@ export class Step5Summary {
             <div style="font-family: monospace; color: #fff;">${this.editor._config.target_entity || 'Not set'}</div>
             
             <div style="color: #a0a8c0;">Preset:</div>
-            <div style="font-family: monospace; color: #fff;">${proposedConfig.preset}</div>
+            <div style="font-family: monospace; color: #fff;">${proposedConfig.preset_type}</div>
           </div>
           
           ${!configComplete ? html`
@@ -170,8 +170,16 @@ automation: !include_dir_merge_list automations</code></pre>
             <p style="font-size: 0.9em; margin: 8px 0;">${this.editor.i18n._t('finalmodtext')}</p>
           </div>
           <mwc-button raised @click=${() => this.handleSaveAll()}>
-            💾 ${this.editor._language === 'it' ? 'Salva e Applica File' : 'Save & Apply Files'}
+            💾 ${this.editor._language === 'it' ? 'Crea File e Aggiorna Card' : 'Create Files & Update Card'}
           </mwc-button>
+        </div>
+
+        <div style="margin-top: 24px; padding: 16px; border-radius: 8px; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); text-align: center;">
+          <p style="color: #fff; margin: 0; font-weight: 600;">
+            ${this.editor._language === 'it' 
+              ? 'Tutto pronto! Clicca il pulsante "SALVA" in basso a destra (UI di Home Assistant) per confermare l\'aggiunta della card.' 
+              : 'All set! Click the "SAVE" button at the bottom right (Home Assistant UI) to finalize adding the card.'}
+          </p>
         </div>
       </div>
     `;

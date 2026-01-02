@@ -1,0 +1,40 @@
+task_name: CronoStar Card Files (Expanded - minimal backend Project)
+description: All files for the Home Assistant CronoStar Card component, including recursively found files, generated from the complete project structure.
+output_dir: "."
+base_dir: "."
+output_filename_prefix: "cronostar_card_minimal_backend_project"
+files:
+  - path: cronostar/profiles/cronostar_thermostat_termostato_appartamento_data.json
+  - path: custom_components/cronostar/deep_checks/__init__.py
+  - path: custom_components/cronostar/deep_checks/automation_checker.py
+  - path: custom_components/cronostar/deep_checks/entity_checker.py
+  - path: custom_components/cronostar/deep_checks/file_checker.py
+  - path: custom_components/cronostar/deep_checks/report_builder.py
+  - path: custom_components/cronostar/deep_checks/utils.py
+  - path: custom_components/cronostar/scheduler/auto_updater.py
+  - path: custom_components/cronostar/scheduler/smart_scheduler.py
+  - path: custom_components/cronostar/services/file_service.py
+  - path: custom_components/cronostar/services/interval_service.py
+  - path: custom_components/cronostar/services/profile_service.py
+  - path: custom_components/cronostar/services/scheduler_service.py
+  - path: custom_components/cronostar/setup/__init__.py
+  - path: custom_components/cronostar/setup/events.py
+  - path: custom_components/cronostar/setup/services.py
+  - path: custom_components/cronostar/setup/validators.py
+  - path: custom_components/cronostar/storage/storage_manager.py
+  - path: custom_components/cronostar/translations/en.json
+  - path: custom_components/cronostar/translations/it.json
+  - path: custom_components/cronostar/utils/error_handler.py
+  - path: custom_components/cronostar/utils/filename_builder.py
+  - path: custom_components/cronostar/utils/prefix_normalizer.py
+  - path: custom_components/cronostar/www/cronostar_card/card-picker-metadata.js
+  - path: custom_components/cronostar/__init__.py
+  - path: custom_components/cronostar/config_flow.py
+  - path: custom_components/cronostar/const.py
+  - path: custom_components/cronostar/coordinator.py
+  - path: custom_components/cronostar/manifest.json
+  - path: custom_components/cronostar/pyproject.toml
+  - path: custom_components/cronostar/select.py
+  - path: custom_components/cronostar/sensor.py
+  - path: custom_components/cronostar/services.yaml
+  - path: custom_components/cronostar/switch.py

@@ -11,23 +11,37 @@ export const cardStyles = css`
     display: flex;
     flex-direction: column;
     position: relative;
-    transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
-                width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-                transform 0.4s ease;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform, width, height, top, left;
     overflow: hidden;
   }
 
-  ha-card.expanded-v {
-    height: auto !important;
-    min-height: 600px !important;
-    max-height: 90vh !important;
+  ha-card.expanded-v.expanded-h {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 94vw !important;
+    height: 94vh !important;
+    z-index: 1000 !important;
+    box-shadow: 0 0 50px rgba(0,0,0,0.5);
+    background: var(--card-background-color, white);
+    max-width: none !important;
+    max-height: none !important;
+    transition: none !important; /* Prevent jump during expansion */
   }
 
-  ha-card.expanded-h {
-    width: 95vw !important;
-    margin-left: calc(-47.5vw + 50%);
-    z-index: 100;
-    overflow: visible !important;
+  /* Overlay backdrop when expanded */
+  ha-card.expanded-v.expanded-h::before {
+    content: '';
+    position: fixed;
+    top: -100vh;
+    left: -100vw;
+    right: -100vw;
+    bottom: -100vh;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: -1;
+    pointer-events: all;
   }
 
   .card-header {
@@ -129,6 +143,24 @@ export const cardStyles = css`
     margin: 4px 8px;
     background: var(--card-background-color, white);
     gap: 4px;
+  }
+
+  .lang-btn {
+    background: none;
+    border: 1px solid var(--divider-color);
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--primary-text-color);
+    transition: all 0.2s;
+  }
+
+  .lang-btn.active {
+    background: var(--primary-color, #03a9f4);
+    color: white;
+    border-color: var(--primary-color, #03a9f4);
+    font-weight: bold;
   }
 
   .language-menu mwc-button {
@@ -417,11 +449,11 @@ export const cardStyles = css`
   }
 
   mwc-button {
-    --mdc-theme-primary: var(--primary-color);
+    --mdc-theme-primary: var(--primary-color, #03a9f4);
   }
 
   mwc-button.outlined {
-    --mdc-button-outline-color: var(--primary-color);
+    --mdc-button-outline-color: var(--primary-color, #03a9f4);
   }
 
   .unsaved-indicator {

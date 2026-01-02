@@ -9,13 +9,14 @@ import { SelectionManager } from '../managers/selection_manager.js';
 import { ChartManager } from '../managers/chart_manager.js';
 import { KeyboardHandler } from '../handlers/keyboard_handler.js';
 import { PointerHandler } from '../handlers/pointer_handler.js';
-import { Logger } from '../utils.js';
+import { Logger, checkIsEditorContext } from '../utils.js';
 import { LocalizationManager } from '../managers/localization_manager.js';
 
 import { CardLifecycle } from './CardLifecycle.js';
 import { CardRenderer } from './CardRenderer.js';
 import { CardEventHandlers } from './CardEventHandlers.js';
 import { CardSync } from './CardSync.js';
+import { CardContext } from './CardContext.js';
 
 import '../editor/CronoStarEditor.js';
 
@@ -54,10 +55,6 @@ export class CronoStarCard extends LitElement {
     return cardStyles;
   }
 
-  static getCardType() {
-    return 'custom:cronostar-card';
-  }
-
   static getConfigElement() {
     return document.createElement('cronostar-card-editor');
   }
@@ -65,8 +62,8 @@ export class CronoStarCard extends LitElement {
   static getStubConfig() {
     return {
       type: 'custom:cronostar-card',
-      preset: 'thermostat',
-      global_prefix: 'cronostar_temp_',
+      preset_type: 'thermostat',
+      global_prefix: 'cronostar_thermostat_',
       target_entity: 'climate.climatizzazione_appartamento',
       hour_base: 'auto',
       logging_enabled: true,
@@ -151,11 +148,22 @@ export class CronoStarCard extends LitElement {
     this.modificationCounter = 0;
 
     try {
+      this.cardContext = new CardContext(this);
+
       this.localizationManager = new LocalizationManager(this);
-      this.stateManager = new StateManager(this);
-      this.profileManager = new ProfileManager(this);
-      this.selectionManager = new SelectionManager(this);
-      this.chartManager = new ChartManager(this);
+      
+      this.stateManager = new StateManager(this.cardContext);
+      this.cardContext.registerManager('state', this.stateManager);
+
+      this.profileManager = new ProfileManager(this.cardContext);
+      this.cardContext.registerManager('profile', this.profileManager);
+
+      this.selectionManager = new SelectionManager(this.cardContext);
+      this.cardContext.registerManager('selection', this.selectionManager);
+
+      this.chartManager = new ChartManager(this.cardContext);
+      this.cardContext.registerManager('chart', this.chartManager);
+
       this.keyboardHandler = new KeyboardHandler(this);
       this.pointerHandler = new PointerHandler(this);
 
@@ -283,7 +291,7 @@ export class CronoStarCard extends LitElement {
   }
 
   isEditorContext() {
-    return this.cardLifecycle?.isEditorContext() ?? false;
+    return checkIsEditorContext(this);
   }
 
   // Wrappers for menu handlers

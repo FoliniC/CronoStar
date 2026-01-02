@@ -1,4 +1,5 @@
 /** Configuration management for CronoStar Card with Interval Support */
+import { log } from './utils/logger_utils.js';
 export const VERSION = window.CRONOSTAR_CARD_VERSION || '5.3.0';
 
 export const COLORS = {
@@ -90,7 +91,7 @@ export const CARD_CONFIG_PRESETS = {
 
 export const DEFAULT_CONFIG = {
   type: 'custom:cronostar-card',
-  preset: 'thermostat',
+  preset_type: 'thermostat',
   hour_base: "auto",
   logging_enabled: true,
   pause_entity: null,
@@ -167,8 +168,14 @@ export function normalizeConfigAliases(cfg = {}) {
  * - merges defaults, preset defaults, and user config
  * - ensures alias keys are normalized before merging
  */
-export function validateConfig(config) {
+export function validateConfig(config, isLoggingEnabled = false) {
   const normalized = normalizeConfigAliases(config);
+
+  // Auto-migrate legacy 'preset' to 'preset_type'
+  if (normalized.preset && !normalized.preset_type) {
+    normalized.preset_type = normalized.preset;
+    delete normalized.preset;
+  }
 
   // Explicitly remove legacy aliases from the final object to avoid confusion in logs/ui
   const aliasesToRemove = [
@@ -181,7 +188,18 @@ export function validateConfig(config) {
     delete normalized[alias];
   }
 
-  const presetName = normalized.preset || DEFAULT_CONFIG.preset;
+  // ✅ IMPROVED: Infer preset from global_prefix if preset_type is missing
+  if (!normalized.preset_type && normalized.global_prefix) {
+    const prefix = normalized.global_prefix;
+    for (const key of Object.keys(CARD_CONFIG_PRESETS)) {
+      if (prefix.startsWith(`cronostar_${key}_`)) {
+        normalized.preset_type = key;
+        break;
+      }
+    }
+  }
+
+  const presetName = normalized.preset_type || DEFAULT_CONFIG.preset_type;
   const presetConfig = CARD_CONFIG_PRESETS[presetName] || CARD_CONFIG_PRESETS.thermostat;
   const mergedConfig = { ...DEFAULT_CONFIG, ...presetConfig, ...normalized };
 
@@ -189,7 +207,7 @@ export function validateConfig(config) {
   mergedConfig.type = config.type || DEFAULT_CONFIG.type;
 
   if (!mergedConfig.global_prefix) {
-    throw new Error("Configuration error: global_prefix is required");
+    log('warn', isLoggingEnabled, "Configuration warning: global_prefix is missing. Setup required.");
   }
   mergedConfig.hour_base = normalizeHourBase(mergedConfig.hour_base);
 
@@ -221,8 +239,13 @@ export function getStubConfig() {
  * Prevents metadata pollution from backend responses.
  */
 export function extractCardConfig(src = {}) {
+  if (src.preset) {
+    const prefix = (src.global_prefix || '').replace(/_+$/, '') || 'prefix';
+    const filename = `cronostar_${src.preset}_${prefix}_data.json`;
+    throw new Error(`Configuration error: 'preset' key found in ${filename} metadata, use 'preset_type' instead.`);
+  }
   const validKeys = [
-    'type', 'preset', 'global_prefix', 'target_entity', 'pause_entity',
+    'type', 'preset_type', 'global_prefix', 'target_entity', 'pause_entity',
     'profiles_select_entity', 'min_value', 'max_value', 'step_value',
     'unit_of_measurement', 'y_axis_label', 'allow_max_value',
     'logging_enabled', 'hour_base', 'title', 'missing_yaml_style',
@@ -233,10 +256,6 @@ export function extractCardConfig(src = {}) {
     if (src[key] !== undefined && src[key] !== null) {
       out[key] = src[key];
     }
-  }
-  // Map preset_type (backend) to preset (frontend)
-  if (src.preset_type && !out.preset) {
-    out.preset = src.preset_type;
   }
   // Ensure type is preserved if explicitly passed as preset type or missing
   if (src.type === undefined && out.type === undefined) {

@@ -1,268 +1,205 @@
+// cronostar_card/src/managers/SelectionManager.js
 /**
- * Selection management for CronoStar Card
- * @module selection-manager
+ * Selection management for chart points
+ * Handles single and multi-point selection with history
  */
 
-import { Logger, unique } from '../utils.js';
+import { Logger } from '../utils.js';
+import { Events } from '../core/EventBus.js';
 
 export class SelectionManager {
-  constructor(card) {
-    this.card = card;
-    this.selectedPoint = null;
-    this.selectedPoints = [];
-    this.selectionSnapshot = null;
+  constructor(context) {
+    this.context = context;
+    this._selectedPoints = new Set();
+    this._anchorPoint = null;
+    this._snapshot = null;
+
+    this._setupEventListeners();
   }
 
   /**
-   * Select a single point (alias for compatibility with ChartManager)
-   * @param {number} index - Index to select
+   * Setup event listeners
+   * @private
+   */
+  _setupEventListeners() {
+    // Clear selection when schedule changes
+    this.context.events.on(Events.SCHEDULE_UPDATED, () => {
+      this._validateSelection();
+    });
+  }
+
+  /**
+   * Validate selection after schedule change
+   * @private
+   */
+  _validateSelection() {
+    const stateManager = this.context.getManager('state');
+    if (!stateManager) return;
+
+    const maxIndex = stateManager.getNumPoints() - 1;
+    const toRemove = [];
+
+    this._selectedPoints.forEach(index => {
+      if (index > maxIndex) {
+        toRemove.push(index);
+      }
+    });
+
+    toRemove.forEach(index => this._selectedPoints.delete(index));
+
+    if (this._anchorPoint !== null && this._anchorPoint > maxIndex) {
+      this._anchorPoint = null;
+    }
+  }
+
+  /**
+   * Select a single point
+   * @param {number} index - Point index
    */
   selectPoint(index) {
-    this.selectIndices([index], false);
+    this._selectedPoints.clear();
+    this._selectedPoints.add(index);
+    this._anchorPoint = index;
 
-    // Ensure update is triggered safely
-    if (this.card.chartManager && typeof this.card.chartManager.updatePointStyling === 'function') {
-      this.card.chartManager.updatePointStyling(this.selectedPoint, this.selectedPoints);
-      if (this.card.chartManager.isInitialized()) {
-        this.card.chartManager.getChart()?.update('none'); // Use 'none' to avoid animation glitches
-      }
-    }
-
-    this.card.requestUpdate();
+    this._emitChange();
+    this.logSelection('selectPoint');
   }
 
   /**
-   * Toggle a point (alias for compatibility with ChartManager)
-   * @param {number} index - Index to toggle
+   * Toggle point selection
+   * @param {number} index - Point index
    */
   togglePoint(index) {
-    this.toggleIndexSelection(index);
-
-    if (this.card.chartManager && typeof this.card.chartManager.updatePointStyling === 'function') {
-      this.card.chartManager.updatePointStyling(this.selectedPoint, this.selectedPoints);
-      if (this.card.chartManager.isInitialized()) {
-        this.card.chartManager.getChart()?.update('none');
+    if (this._selectedPoints.has(index)) {
+      this._selectedPoints.delete(index);
+      if (this._anchorPoint === index) {
+        this._anchorPoint = this._selectedPoints.size > 0
+          ? Array.from(this._selectedPoints)[0]
+          : null;
       }
+    } else {
+      this._selectedPoints.add(index);
+      this._anchorPoint = index;
     }
 
-    this.card.requestUpdate();
+    this._emitChange();
+    this.logSelection('togglePoint');
   }
 
   /**
-   * Select a range of points (required by ChartManager)
-   * @param {number} endIndex - End index of the range
+   * Select range from anchor to index
+   * @param {number} endIndex - End index
    */
   selectRange(endIndex) {
-    if (this.selectedPoints.length === 0) {
+    if (this._anchorPoint === null) {
       this.selectPoint(endIndex);
       return;
     }
 
-    const start = Math.min(...this.selectedPoints);
-    const rangeStart = Math.min(start, endIndex);
-    const rangeEnd = Math.max(start, endIndex);
+    const start = Math.min(this._anchorPoint, endIndex);
+    const end = Math.max(this._anchorPoint, endIndex);
 
-    const indices = [];
-    for (let i = rangeStart; i <= rangeEnd; i++) indices.push(i);
-
-    this.selectIndices(indices, false);
-
-    if (this.card.chartManager && typeof this.card.chartManager.updatePointStyling === 'function') {
-      this.card.chartManager.updatePointStyling(this.selectedPoint, this.selectedPoints);
-      if (this.card.chartManager.isInitialized()) {
-        this.card.chartManager.getChart()?.update('none');
-      }
+    this._selectedPoints.clear();
+    for (let i = start; i <= end; i++) {
+      this._selectedPoints.add(i);
     }
 
-    this.card.requestUpdate();
+    this._emitChange();
+    this.logSelection('selectRange');
+  }
+
+  /**
+   * Select multiple indices
+   * @param {Array<number>} indices - Point indices
+   * @param {boolean} preserveAnchor - Keep current anchor
+   */
+  selectIndices(indices, preserveAnchor = false) {
+    this._selectedPoints.clear();
+
+    const validIndices = indices.filter(i =>
+      Number.isInteger(i) && i >= 0
+    );
+
+    validIndices.forEach(i => this._selectedPoints.add(i));
+
+    if (!preserveAnchor || !this._selectedPoints.has(this._anchorPoint)) {
+      this._anchorPoint = validIndices[0] ?? null;
+    }
+
+    this._emitChange();
+    this.logSelection('selectIndices');
   }
 
   /**
    * Select all points
    */
   selectAll() {
-    const count = this.card?.stateManager?.getNumPoints?.() || 24;
-    const allIndices = Array.from({ length: count }, (_, i) => i);
-    this.selectIndices(allIndices, false);
+    const stateManager = this.context.getManager('state');
+    if (!stateManager) return;
 
-    if (this.card.chartManager && typeof this.card.chartManager.updatePointStyling === 'function') {
-      this.card.chartManager.updatePointStyling(this.selectedPoint, this.selectedPoints);
-      if (this.card.chartManager.isInitialized()) {
-        this.card.chartManager.getChart()?.update('none');
-      }
-    }
-  }
+    const count = stateManager.getNumPoints();
+    this._selectedPoints.clear();
 
-  /**
-   * Select exact indices
-   * @param {number[]} indices
-   * @param {boolean} preserveAnchor - whether to keep current anchor if still valid
-   */
-  selectIndices(indices, preserveAnchor = true) {
-    const total = this.card?.stateManager?.getNumPoints?.() || 24;
-    const filtered = unique(Array.isArray(indices) ? indices : [])
-      .map((i) => Number(i))
-      .filter((i) => Number.isInteger(i) && i >= 0 && i < total);
-
-    this.selectedPoints = filtered;
-
-    if (preserveAnchor && this.selectedPoint !== null && this.selectedPoints.includes(this.selectedPoint)) {
-      // Keep existing anchor
-    } else {
-      this.selectedPoint = this.selectedPoints.length > 0 ? this.selectedPoints[0] : null;
+    for (let i = 0; i < count; i++) {
+      this._selectedPoints.add(i);
     }
 
-    // Sync with card property for reactivity
-    this.card.selectedPoints = [...this.selectedPoints];
+    this._anchorPoint = 0;
 
-    this.logSelection('selectIndices');
-  }
-
-  /**
-   * Toggle index selection
-   * @param {number} index - Index to toggle
-   */
-  toggleIndexSelection(index) {
-    const total = this.card?.stateManager?.getNumPoints?.() || 24;
-    if (!Number.isInteger(index) || index < 0 || index >= total) return;
-
-    const set = new Set(this.selectedPoints);
-    if (set.has(index)) {
-      set.delete(index);
-    } else {
-      set.add(index);
-    }
-
-    this.selectedPoints = Array.from(set);
-
-    if (this.selectedPoint === null || !this.selectedPoints.includes(this.selectedPoint)) {
-      this.selectedPoint = this.selectedPoints.length > 0 ? this.selectedPoints[0] : null;
-    }
-
-    // Sync with card property
-    this.card.selectedPoints = [...this.selectedPoints];
-
-    this.logSelection('toggleIndexSelection');
+    this._emitChange();
+    this.logSelection('selectAll');
   }
 
   /**
    * Clear all selections
    */
   clearSelection() {
-    this.selectedPoints = [];
-    this.selectedPoint = null;
-    this.selectionSnapshot = null;
-    this.card.selectedPoints = []; // Sync
+    this._selectedPoints.clear();
+    this._anchorPoint = null;
+    this._snapshot = null;
+
+    this._emitChange();
     Logger.sel('Selection cleared');
   }
 
   /**
-   * Snapshot current selection
+   * Get selected points
+   * @returns {Array<number>} Selected indices
    */
-  snapshotSelection() {
-    const pts = Array.isArray(this.selectedPoints) ? [...this.selectedPoints] : [];
-    if (pts.length > 0) {
-      this.selectionSnapshot = {
-        points: [...pts],
-        anchor: this.selectedPoint
-      };
-      this.logSelection('snapshot before profile change');
-    } else {
-      this.selectionSnapshot = null;
-      Logger.sel('Snapshot: no active selection');
-    }
+  getSelectedPoints() {
+    return Array.from(this._selectedPoints);
   }
 
   /**
-   * Restore selection from snapshot
-   */
-  restoreSelectionFromSnapshot() {
-    if (!this.selectionSnapshot) {
-      Logger.sel('Restore: no snapshot to restore');
-      return;
-    }
-
-    const total = this.card?.stateManager?.getNumPoints?.() || 24;
-
-    const pts = Array.isArray(this.selectionSnapshot.points)
-      ? [...this.selectionSnapshot.points]
-      : [];
-
-    this.selectedPoints = pts
-      .map((i) => Number(i))
-      .filter((i) => Number.isInteger(i) && i >= 0 && i < total);
-
-    if (
-      this.selectionSnapshot.anchor !== null &&
-      this.selectedPoints.includes(this.selectionSnapshot.anchor)
-    ) {
-      this.selectedPoint = this.selectionSnapshot.anchor;
-    } else {
-      this.selectedPoint = this.selectedPoints.length > 0 ? this.selectedPoints[0] : null;
-    }
-
-    this.card.selectedPoints = [...this.selectedPoints]; // Sync
-
-    if (this.card.chartManager && typeof this.card.chartManager.updatePointStyling === 'function') {
-      this.card.chartManager.updatePointStyling(this.selectedPoint, this.selectedPoints);
-    }
-
-    this.logSelection('restore selection after profile change');
-  }
-
-  /**
-   * Log current selection
-   * @param {string} tag - Log tag
-   */
-  logSelection(tag = '') {
-    const anchorLabel =
-      this.selectedPoint !== null && this.card.stateManager
-        ? this.card.stateManager.getPointLabel(this.selectedPoint)
-        : 'n/a';
-
-    Logger.sel(`${tag} - anchor=${this.selectedPoint} (${anchorLabel}) points=${JSON.stringify(this.selectedPoints)}`);
-  }
-
-  /**
-   * Get selected indices or fallback to anchor
+   * Get active indices (selected or anchor)
    * @returns {Array<number>}
    */
   getActiveIndices() {
-    if (Array.isArray(this.selectedPoints) && this.selectedPoints.length > 0) {
-      return [...this.selectedPoints];
+    if (this._selectedPoints.size > 0) {
+      return this.getSelectedPoints();
     }
-    if (this.selectedPoint !== null) {
-      return [this.selectedPoint];
+    if (this._anchorPoint !== null) {
+      return [this._anchorPoint];
     }
     return [];
   }
 
   /**
    * Check if index is selected
-   * @param {number} index - Index to check
+   * @param {number} index - Point index
    * @returns {boolean}
    */
   isSelected(index) {
-    return this.selectedPoints.includes(index);
+    return this._selectedPoints.has(index);
   }
 
   /**
    * Check if index is anchor
-   * @param {number} index - Index to check
+   * @param {number} index - Point index
    * @returns {boolean}
    */
   isAnchor(index) {
-    return this.selectedPoint === index;
-  }
-
-  /**
-   * Set anchor point
-   * @param {number} index - Index to set as anchor
-   */
-  setAnchor(index) {
-    if (this.selectedPoints.includes(index)) {
-      this.selectedPoint = index;
-    }
+    return this._anchorPoint === index;
   }
 
   /**
@@ -270,15 +207,97 @@ export class SelectionManager {
    * @returns {number|null}
    */
   getAnchor() {
-    return this.selectedPoint;
+    return this._anchorPoint;
   }
 
   /**
-   * Get selected points
+   * Set anchor point
+   * @param {number} index - Point index
+   */
+  setAnchor(index) {
+    if (this._selectedPoints.has(index)) {
+      this._anchorPoint = index;
+      this._emitChange();
+    }
+  }
+
+  /**
+   * Snapshot current selection
+   */
+  snapshotSelection() {
+    if (this._selectedPoints.size > 0) {
+      this._snapshot = {
+        points: this.getSelectedPoints(),
+        anchor: this._anchorPoint
+      };
+      this.logSelection('snapshot');
+    } else {
+      this._snapshot = null;
+      Logger.sel('Snapshot: no active selection');
+    }
+  }
+
+  /**
+   * Restore selection from snapshot
+   */
+  restoreSelection() {
+    if (!this._snapshot) {
+      Logger.sel('Restore: no snapshot available');
+      return;
+    }
+
+    this.selectIndices(this._snapshot.points, false);
+
+    if (this._snapshot.anchor !== null &&
+        this._selectedPoints.has(this._snapshot.anchor)) {
+      this._anchorPoint = this._snapshot.anchor;
+    }
+
+    this._emitChange();
+    this.logSelection('restore');
+  }
+
+  /**
+   * Emit selection change event
+   * @private
+   */
+  _emitChange() {
+    this.context.events.emit(Events.SELECTION_CHANGED, {
+      selected: this.getSelectedPoints(),
+      anchor: this._anchorPoint
+    });
+  }
+
+  /**
+   * Log selection state
+   * @param {string} tag - Action tag
+   */
+  logSelection(tag) {
+    const stateManager = this.context.getManager('state');
+    const anchorLabel = this._anchorPoint !== null && stateManager
+      ? stateManager.getPointLabel(this._anchorPoint)
+      : 'n/a';
+
+    Logger.sel(
+      `${tag} - anchor=${this._anchorPoint} (${anchorLabel}) ` +
+      `points=[${Array.from(this._selectedPoints).join(',')}]`
+    );
+  }
+
+  /**
+   * Get current anchor point index
+   * @returns {number|null}
+   */
+  get selectedPoint() {
+    return this._anchorPoint;
+  }
+
+  /**
+   * Get current selected point indices
    * @returns {Array<number>}
    */
-  getSelectedPoints() {
-    return [...this.selectedPoints];
+  get selectedPoints() {
+    return this.getSelectedPoints();
   }
 
   /**
@@ -286,8 +305,8 @@ export class SelectionManager {
    * @param {PointerEvent} e
    */
   handlePointerDown(e) {
-    if (this.card.pointerHandler) {
-      this.card.pointerHandler.onPointerDown(e);
+    if (this.context._card.pointerHandler) {
+      this.context._card.pointerHandler.onPointerDown(e);
     }
   }
 
@@ -296,8 +315,8 @@ export class SelectionManager {
    * @param {PointerEvent} e
    */
   handlePointerMove(e) {
-    if (this.card.pointerHandler) {
-      this.card.pointerHandler.onPointerMove(e);
+    if (this.context._card.pointerHandler) {
+      this.context._card.pointerHandler.onPointerMove(e);
     }
   }
 
@@ -306,8 +325,17 @@ export class SelectionManager {
    * @param {PointerEvent} e
    */
   handlePointerUp(e) {
-    if (this.card.pointerHandler) {
-      this.card.pointerHandler.onPointerUp(e);
+    if (this.context._card.pointerHandler) {
+      this.context._card.pointerHandler.onPointerUp(e);
     }
+  }
+
+  /**
+   * Cleanup
+   */
+  destroy() {
+    this._selectedPoints.clear();
+    this._anchorPoint = null;
+    this._snapshot = null;
   }
 }

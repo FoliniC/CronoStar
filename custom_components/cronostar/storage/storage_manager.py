@@ -1,312 +1,500 @@
+# custom_components/cronostar/storage/storage_manager.py
 """
-CronoStar Storage Manager - Centralizes all profile storage operations.
-Handles atomic saves, concurrent access, and profile versioning.
+Storage Manager - handles profile persistence
+Manages JSON files with caching and backup support
 """
 
 import asyncio
 import json
 import logging
-import time
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
+
+from ..utils.filename_builder import build_profile_filename
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class StorageManager:
-    """Centralized storage management for CronoStar profiles."""
+    """Manages profile storage with caching and backups"""
 
-    def __init__(self, hass: HomeAssistant, profiles_dir: str, enable_backups: bool = False):
-        """Initialize storage manager.
+    def __init__(self, hass: HomeAssistant, profiles_dir: str | Path, enable_backups: bool = False):
+        """
+        Initialize StorageManager
 
         Args:
             hass: Home Assistant instance
-            profiles_dir: Directory for profile storage
-            enable_backups: Enable .bak file creation (default: False)
+            profiles_dir: Directory for profile files
+            enable_backups: Enable automatic backups
         """
         self.hass = hass
         self.profiles_dir = Path(profiles_dir)
-        self.enable_backups = enable_backups  # NUOVO FLAG
-        self._locks: dict[str, asyncio.Lock] = {}
-        self._cache: dict[str, dict[str, Any]] = {}
-        self._cache_timeout = 30
+        self.enable_backups = enable_backups
 
+        # Cache for loaded profiles
+        self._cache = {}
+        self._cache_timestamps = {}
+        self._cache_lock = asyncio.Lock()
+
+        # Ensure directory exists
         self.profiles_dir.mkdir(parents=True, exist_ok=True)
-        _LOGGER.info("StorageManager initialized: %s (backups: %s)", self.profiles_dir, "enabled" if enable_backups else "disabled")
 
-    def _get_lock(self, filename: str) -> asyncio.Lock:
-        """Get or create a lock for a specific file."""
-        if filename not in self._locks:
-            self._locks[filename] = asyncio.Lock()
-        return self._locks[filename]
+        _LOGGER.info(
+            "StorageManager initialized: %s (backups: %s)",
+            self.profiles_dir.as_posix().replace(self.hass.config.path(), "/config"),
+            "enabled" if enable_backups else "disabled",
+        )
 
-    async def save_profile_atomic(
-        self,
-        filename: str,
-        profile_data: dict[str, Any],
-        backup: bool = None,  # None = usa il default dalla config
-    ) -> bool:
-        """Save profile with atomic write and optional backup.
+    async def save_profile(self, profile_name: str, preset_type: str, profile_data: dict, metadata: dict, global_prefix: str = "") -> bool:
+        """
+        Save a profile to storage
 
         Args:
-            filename: Profile filename
-            profile_data: Profile data to save
-            backup: Override backup setting (None = use self.enable_backups)
+            profile_name: Profile name
+            preset_type: Preset type
+            profile_data: Profile data (schedule, etc.)
+            metadata: Metadata dictionary
+            global_prefix: Global prefix for filename
 
         Returns:
-            True if save successful, False otherwise
+            True if successful
         """
-        file_path = self.profiles_dir / filename
-        lock = self._get_lock(filename)
-
-        # Determina se fare il backup
-        should_backup = backup if backup is not None else self.enable_backups
-
-        async with lock:
-            try:
-                # Add metadata
-                now_ts = time.time()
-                profile_data["saved_at"] = datetime.fromtimestamp(now_ts, tz=UTC).isoformat().replace("+00:00", "Z")
-                profile_data["version"] = 2  # Storage format version
-
-                # Create backup SOLO se abilitato
-                if should_backup and file_path.exists():
-                    backup_path = file_path.with_suffix(f".{int(time.time())}.bak")
-                    await self.hass.async_add_executor_job(self._copy_file, file_path, backup_path)
-                    _LOGGER.debug("Backup created: %s", backup_path.name)
-
-                # Atomic write: write to temp file, then rename
-                temp_path = file_path.with_suffix(".tmp")
-                await self.hass.async_add_executor_job(self._write_json, temp_path, profile_data)
-                await self.hass.async_add_executor_job(self._rename_file, temp_path, file_path)
-
-                # Update cache
-                self._cache[filename] = {"data": profile_data, "timestamp": time.time()}
-
-                # Log a concise summary of what was written
-                try:
-                    profiles = profile_data.get("profiles", {}) if isinstance(profile_data, dict) else {}
-                    profile_names = list(profiles.keys())
-                    first_name = profile_names[0] if profile_names else None
-                    sched = profiles.get(first_name, {}).get("schedule", []) if first_name else []
-                    _LOGGER.info(
-                        "[STORAGE] Saved profile container: file=%s, profiles=%d, first_profile=%s, schedule_points=%d (backup=%s)",
-                        filename,
-                        len(profile_names),
-                        first_name,
-                        len(sched),
-                        should_backup,
-                    )
-                except Exception:
-                    _LOGGER.info("Profile saved atomically: %s (backup=%s)", filename, should_backup)
-                return True
-
-            except Exception as e:
-                _LOGGER.error("Failed to save profile %s: %s", filename, e)
-                return False
-
-    async def load_profile_cached(self, filename: str, force_reload: bool = False) -> dict[str, Any] | None:
-        """Load profile with caching support.
-
-        Args:
-            filename: Profile filename
-            force_reload: Force reload from disk, bypassing cache
-
-        Returns:
-            Profile data or None if not found
-        """
-        # Check cache first
-        if not force_reload and filename in self._cache:
-            cache_entry = self._cache[filename]
-            age = time.time() - cache_entry["timestamp"]
-
-            if age < self._cache_timeout:
-                # Minimal log for cache hits to avoid spam
-                _LOGGER.debug("Cache hit: %s", filename)
-                return cache_entry["data"]
-
-        # Load from disk
-        file_path = self.profiles_dir / filename
-
-        if not file_path.exists():
-            _LOGGER.info("[STORAGE] Profile file not found: %s", file_path)
-            return None
-
         try:
-            data = await self.hass.async_add_executor_job(self._read_json, file_path)
+            filename = build_profile_filename(preset_type, global_prefix)
+            filepath = self.profiles_dir / filename
+
+            # Load existing container or create new
+            container = await self._load_container(filepath)
+
+            # Update metadata
+            container["meta"] = {
+                **container.get("meta", {}),
+                **metadata,
+                "preset_type": preset_type,
+                "global_prefix": global_prefix,
+                "updated_at": datetime.now().isoformat(),
+            }
+
+            # Update profile
+            if "profiles" not in container:
+                container["profiles"] = {}
+
+            container["profiles"][profile_name] = {**profile_data, "updated_at": datetime.now().isoformat()}
+
+            # Backup if enabled
+            if self.enable_backups and filepath.exists():
+                await self._create_backup(filepath)
+
+            # Write to disk
+            await self._write_json(filepath, container)
 
             # Update cache
-            self._cache[filename] = {"data": data, "timestamp": time.time()}
+            async with self._cache_lock:
+                self._cache[filename] = container
+                self._cache_timestamps[filename] = datetime.now()
 
-            # Log a concise summary of what was read
-            try:
-                if isinstance(data, dict):
-                    if "profiles" in data:
-                        profiles = data.get("profiles", {})
-                        names = list(profiles.keys())
-                        first_name = names[0] if names else None
-                        sched = profiles.get(first_name, {}).get("schedule", []) if first_name else []
-                        _LOGGER.debug(
-                            "[STORAGE] Loaded container: file=%s, profiles=%d, first_profile=%s, schedule_points=%d",
-                            file_path,
-                            len(names),
-                            first_name,
-                            len(sched),
-                        )
-                    elif "profile_name" in data:
-                        name = data.get("profile_name")
-                        sched = data.get("schedule", [])
-                        _LOGGER.debug(
-                            "[STORAGE] Loaded legacy profile: file=%s, profile=%s, schedule_points=%d",
-                            file_path,
-                            name,
-                            len(sched),
-                        )
-                    else:
-                        _LOGGER.debug("[STORAGE] Loaded JSON file: %s", file_path)
-                else:
-                    _LOGGER.debug("[STORAGE] Loaded non-dict JSON from: %s", file_path)
-            except Exception:
-                _LOGGER.debug("Profile loaded from disk: %s", filename)
-            return data
+            _LOGGER.info("Profile saved: %s/%s (%d points)", filename, profile_name, len(profile_data.get("schedule", [])))
+
+            return True
 
         except Exception as e:
-            _LOGGER.error("Failed to load profile %s: %s", filename, e)
-            return None
+            _LOGGER.error("Error saving profile %s: %s", profile_name, e)
+            return False
 
-    async def delete_profile(self, filename: str) -> bool:
-        """Delete a profile file.
+    async def load_profile_cached(self, filename: str, force_reload: bool = False) -> dict | None:
+        """
+        Load profile container with caching
 
         Args:
-            filename: Profile filename to delete
+            filename: Profile filename
+            force_reload: Bypass cache
 
         Returns:
-            True if deleted successfully
+            Profile container or None
         """
-        file_path = self.profiles_dir / filename
-        lock = self._get_lock(filename)
+        async with self._cache_lock:
+            # Check cache
+            if not force_reload and filename in self._cache:
+                cache_age = (datetime.now() - self._cache_timestamps[filename]).seconds
 
-        async with lock:
-            try:
-                if file_path.exists():
-                    await self.hass.async_add_executor_job(file_path.unlink)
+                # Cache valid for 60 seconds
+                if cache_age < 60:
+                    _LOGGER.debug("Cache hit: %s (age: %ds)", filename, cache_age)
+                    return self._cache[filename]
 
-                    # Clear cache
-                    self._cache.pop(filename, None)
+            # Load from disk
+            filepath = self.profiles_dir / filename
+            container = await self._load_container(filepath)
 
-                    _LOGGER.info("Profile deleted: %s", filename)
-                    return True
-                else:
-                    _LOGGER.warning("Profile not found for deletion: %s", filename)
-                    return False
+            if container:
+                self._cache[filename] = container
+                self._cache_timestamps[filename] = datetime.now()
 
-            except Exception as e:
-                _LOGGER.error("Failed to delete profile %s: %s", filename, e)
+                profiles = container.get("profiles", {})
+                first_profile = next(iter(profiles.keys())) if profiles else "None"
+                points = len(profiles[first_profile].get("schedule", [])) if profiles and first_profile != "None" else 0
+
+                _LOGGER.debug(
+                    "[STORAGE] Loaded container: file=%s, profiles=%d, first_profile=%s, schedule_points=%d",
+                    filepath.as_posix().replace(self.hass.config.path(), "/config"),
+                    len(profiles),
+                    first_profile,
+                    points,
+                )
+
+            return container
+
+    async def delete_profile(self, profile_name: str, preset_type: str, global_prefix: str = "") -> bool:
+        """
+        Delete a profile from storage
+
+        Args:
+            profile_name: Profile name
+            preset_type: Preset type
+            global_prefix: Global prefix
+
+        Returns:
+            True if successful
+        """
+        try:
+            filename = build_profile_filename(preset_type, global_prefix)
+            filepath = self.profiles_dir / filename
+
+            # Load container
+            container = await self._load_container(filepath)
+
+            if not container or "profiles" not in container:
+                _LOGGER.warning("Profile container not found: %s", filename)
                 return False
 
+            # Remove profile
+            if profile_name not in container["profiles"]:
+                _LOGGER.warning("Profile not found: %s in %s", profile_name, filename)
+                return False
+
+            del container["profiles"][profile_name]
+
+            # If empty, delete file
+            if not container["profiles"]:
+                filepath.unlink(missing_ok=True)
+                _LOGGER.info("Deleted empty container: %s", filename)
+
+                # Clear cache
+                async with self._cache_lock:
+                    self._cache.pop(filename, None)
+                    self._cache_timestamps.pop(filename, None)
+            else:
+                # Update file
+                await self._write_json(filepath, container)
+
+                # Update cache
+                async with self._cache_lock:
+                    self._cache[filename] = container
+                    self._cache_timestamps[filename] = datetime.now()
+
+            _LOGGER.info("Profile deleted: %s from %s", profile_name, filename)
+            return True
+
+        except Exception as e:
+            _LOGGER.error("Error deleting profile %s: %s", profile_name, e)
+            return False
+
     async def list_profiles(self, preset_type: str | None = None, prefix: str | None = None) -> list[str]:
-        """List all profile files, optionally filtered.
+        """
+        List profile files
 
         Args:
             preset_type: Filter by preset type
             prefix: Filter by prefix
 
         Returns:
-            List of profile filenames
+            List of filenames
         """
         try:
-            files = await self.hass.async_add_executor_job(lambda: [f.name for f in self.profiles_dir.glob("*.json")])
+            matches: list[str] = []
 
-            # Apply filters
+            # Normalize optional prefix once (ensure trailing underscore when comparing to meta)
+            norm_prefix_meta = None
             if prefix:
-                files = [f for f in files if f.startswith(prefix)]
+                norm_prefix_meta = prefix if prefix.endswith("_") else f"{prefix}_"
 
-            if preset_type:
-                # Load each file to check preset_type
-                filtered = []
-                for filename in files:
-                    data = await self.load_profile_cached(filename)
-                    if not data:
+            for filepath in self.profiles_dir.glob("cronostar_*.json"):
+                filename = filepath.name
+
+                # If no filters, include quickly
+                if not preset_type and not norm_prefix_meta:
+                    matches.append(filename)
+                    continue
+
+                # Load container to reliably filter by meta
+                data = await self.load_profile_cached(filename)
+                if not data:
+                    continue
+
+                meta = data.get("meta", {}) if isinstance(data, dict) else {}
+
+                # Check preset filter (prefer meta.preset_type; fall back to root key if needed)
+                if preset_type:
+                    # Normalize preset types via utility so only 'generic_switch' remains canonical for switch family
+                    file_preset = meta.get("preset_type") or data.get("preset_type")
+                    try:
+                        from ..utils.prefix_normalizer import normalize_preset_type
+
+                        normalized_file_preset = normalize_preset_type(str(file_preset or ""))
+                        normalized_requested = normalize_preset_type(str(preset_type))
+                    except Exception:
+                        normalized_file_preset = str(file_preset or "")
+                        normalized_requested = str(preset_type)
+                    if normalized_file_preset != normalized_requested:
                         continue
-                    # Check both new format (meta) and legacy format (root)
-                    file_preset = data.get("meta", {}).get("preset_type") or data.get("preset_type")
-                    if file_preset == preset_type:
-                        filtered.append(filename)
-                files = filtered
 
-            _LOGGER.debug("Listed %d profiles (preset=%s, prefix=%s)", len(files), preset_type, prefix)
-            return sorted(files)
+                # Check prefix filter (prefer meta.global_prefix)
+                if norm_prefix_meta:
+                    file_prefix = meta.get("global_prefix")
+                    if file_prefix != norm_prefix_meta:
+                        # Fallback to filename-based match only if meta missing
+                        if not file_prefix:
+                            base_noext = filename[:-5] if filename.endswith(".json") else filename
+                            if base_noext.startswith("cronostar_"):
+                                rest = base_noext[len("cronostar_") :]
+                                base_part, sep, _suffix = rest.rpartition("_")
+                                wanted_base = norm_prefix_meta.rstrip("_")
+                                if base_part != wanted_base:
+                                    continue
+                            else:
+                                continue
+                        else:
+                            continue
+
+                matches.append(filename)
+
+            matches.sort()
+            _LOGGER.debug("Listed %d profiles (preset=%s, prefix=%s)", len(matches), preset_type, prefix)
+            return matches
 
         except Exception as e:
-            _LOGGER.error("Failed to list profiles: %s", e)
+            _LOGGER.error("Error listing profiles: %s", e)
             return []
 
-    async def cleanup_old_backups(self, days: int = 7) -> int:
-        """Remove backup files older than specified days.
+    async def get_profile_list(self, preset_type: str, global_prefix: str = "") -> list[str]:
+        """
+        Get list of profile names in a container
 
         Args:
-            days: Maximum age of backups to keep
+            preset_type: Preset type
+            global_prefix: Global prefix
 
         Returns:
-            Number of backups deleted
+            List of profile names
         """
         try:
-            cutoff = time.time() - (days * 86400)
-            backups = await self.hass.async_add_executor_job(lambda: list(self.profiles_dir.glob("*.bak")))
+            filename = build_profile_filename(preset_type, global_prefix)
+            container = await self.load_profile_cached(filename)
 
-            deleted = 0
-            for backup_file in backups:
-                if backup_file.stat().st_mtime < cutoff:
-                    await self.hass.async_add_executor_job(backup_file.unlink)
-                    deleted += 1
+            if not container or "profiles" not in container:
+                return []
 
-            if deleted > 0:
-                _LOGGER.info("Cleaned up %d old backup files", deleted)
-
-            return deleted
+            return list(container["profiles"].keys())
 
         except Exception as e:
-            _LOGGER.error("Failed to cleanup backups: %s", e)
-            return 0
+            _LOGGER.error("Error getting profile list: %s", e)
+            return []
 
-    def clear_cache(self, filename: str | None = None):
-        """Clear profile cache.
+    async def clear_cache(self) -> None:
+        """Clear profile cache"""
+        async with self._cache_lock:
+            self._cache.clear()
+            self._cache_timestamps.clear()
+            _LOGGER.info("Profile cache cleared")
+
+    async def get_cached_containers(
+        self,
+        preset_type: str | None = None,
+        global_prefix: str | None = None,
+    ) -> list[tuple[str, dict]]:
+        """Return cached profile containers filtered by meta.
 
         Args:
-            filename: Specific file to clear, or None for all
+            preset_type: Optional preset type to match exactly against meta.preset_type
+            global_prefix: Optional global prefix to match exactly against meta.global_prefix
+
+        Returns:
+            List of (filename, container) tuples from cache matching the filters.
         """
-        if filename:
-            self._cache.pop(filename, None)
-            _LOGGER.debug("Cache cleared for: %s", filename)
-        else:
-            self._cache.clear()
-            _LOGGER.debug("All cache cleared")
+        norm_prefix = None
+        if global_prefix:
+            norm_prefix = global_prefix if global_prefix.endswith("_") else f"{global_prefix}_"
 
-    # Synchronous helper methods (run in executor)
+        async with self._cache_lock:
+            results: list[tuple[str, dict]] = []
+            for fname, container in self._cache.items():
+                if not isinstance(container, dict):
+                    continue
+                meta = container.get("meta", {}) if isinstance(container, dict) else {}
+                if preset_type and meta.get("preset_type") != preset_type:
+                    continue
+                if norm_prefix and meta.get("global_prefix") != norm_prefix:
+                    continue
+                results.append((fname, container))
 
-    @staticmethod
-    def _write_json(path: Path, data: dict[str, Any]):
-        """Write JSON data to file."""
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            return results
 
-    @staticmethod
-    def _read_json(path: Path) -> dict[str, Any]:
-        """Read JSON data from file."""
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
+    async def _load_container(self, filepath: Path) -> dict:
+        """
+        Load profile container from disk
 
-    @staticmethod
-    def _copy_file(src: Path, dst: Path):
-        """Copy file."""
-        import shutil
+        Args:
+            filepath: File path
 
-        shutil.copy2(src, dst)
+        Returns:
+            Profile container or empty dict
+        """
+        if not filepath.exists():
+            return {}
 
-    @staticmethod
-    def _rename_file(src: Path, dst: Path):
-        """Rename/move file (atomic on POSIX)."""
-        src.replace(dst)
+        try:
+            content = await self.hass.async_add_executor_job(filepath.read_text, "utf-8")
+            data = json.loads(content)
+
+            # Validate structure
+            if not isinstance(data, dict):
+                _LOGGER.warning("Invalid container format in %s", filepath.name)
+                return {}
+
+            return data
+
+        except json.JSONDecodeError as e:
+            _LOGGER.error("JSON decode error in %s: %s", filepath.name, e)
+            return {}
+        except Exception as e:
+            _LOGGER.error("Error loading %s: %s", filepath.name, e)
+            return {}
+
+    async def _write_json(self, filepath: Path, data: dict) -> None:
+        """
+        Write JSON data to disk
+
+        Args:
+            filepath: File path
+            data: Data to write
+        """
+        try:
+            json_str = json.dumps(data, indent=2, ensure_ascii=False)
+            await self.hass.async_add_executor_job(filepath.write_text, json_str, "utf-8")
+        except Exception as e:
+            _LOGGER.error("Error writing %s: %s", filepath.name, e)
+            raise
+
+    async def _create_backup(self, filepath: Path) -> None:
+        """
+        Create backup of existing file
+
+        Args:
+            filepath: File to backup
+        """
+        try:
+            timestamp = dt_util.now().strftime("%Y%m%d_%H%M%S")
+            backup_name = f"{filepath.stem}_backup_{timestamp}{filepath.suffix}"
+            backup_path = filepath.parent / "backups" / backup_name
+
+            backup_path.parent.mkdir(exist_ok=True)
+
+            await self.hass.async_add_executor_job(lambda: backup_path.write_bytes(filepath.read_bytes()))
+
+            _LOGGER.debug("Backup created: %s", backup_name)
+
+            # Clean old backups (keep last 10)
+            await self._cleanup_old_backups(filepath.stem)
+
+        except Exception as e:
+            _LOGGER.warning("Backup creation failed: %s", e)
+
+    async def _cleanup_old_backups(self, stem: str) -> None:
+        """
+        Remove old backup files
+
+        Args:
+            stem: File stem to match
+        """
+        try:
+            backup_dir = self.profiles_dir / "backups"
+
+            if not backup_dir.exists():
+                return
+
+            # Find matching backups
+            backups = list(backup_dir.glob(f"{stem}_backup_*.json"))
+            backups.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+            # Keep only last 10
+            for old_backup in backups[10:]:
+                await self.hass.async_add_executor_job(old_backup.unlink, True)
+                _LOGGER.debug("Removed old backup: %s", old_backup.name)
+
+        except Exception as e:
+            _LOGGER.warning("Backup cleanup failed: %s", e)
+
+    async def load_all_profiles(self) -> dict[str, dict]:
+        """
+
+        Load all profiles from the profiles directory and perform data quality checks.
+
+
+
+        Returns:
+
+            A dictionary where keys are filenames and values are the loaded profile data,
+
+            including a 'validation_results' key with the outcome of the FileChecker.
+
+        """
+
+        _LOGGER.info("Loading all profiles from %s", self.profiles_dir)
+
+        from ..deep_checks.file_checker import FileChecker
+
+        file_checker = FileChecker(self.hass)
+
+        all_profiles_data: dict[str, dict] = {}
+
+        try:
+            # List all cronostar profile JSON files
+
+            for filepath in self.profiles_dir.glob("cronostar_*.json"):
+                filename = filepath.name
+
+                # Load the container data
+
+                container_data = await self._load_container(filepath)
+
+                # Perform data quality check for the file
+
+                # Note: FileChecker.check_files expects global_prefix and preset_type.
+
+                # We need to extract these from the filename or the loaded meta data.
+
+                # For now, let's just use _validate_profile_file directly as it's more generic.
+
+                validation_results = await file_checker._validate_profile_file(filepath)
+
+                if container_data:
+                    container_data["validation_results"] = validation_results
+
+                    all_profiles_data[filename] = container_data
+
+                    _LOGGER.debug("Loaded profile file: %s (valid: %s)", filename, validation_results.get("valid"))
+
+                else:
+                    _LOGGER.warning("Failed to load profile file: %s", filename)
+
+                    all_profiles_data[filename] = {"validation_results": validation_results}  # Store validation even if load failed
+
+        except Exception as e:
+            _LOGGER.error("Error loading all profiles: %s", e)
+
+        _LOGGER.info("Finished loading all profiles. Found %d files.", len(all_profiles_data))
+
+        return all_profiles_data

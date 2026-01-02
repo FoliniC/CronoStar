@@ -5,13 +5,13 @@ import { normalizePrefix } from './prefix_utils.js';
 import { slugify } from './editor_utils.js';
 
 /**
- * Builds the profile filename using the correct prefix
+ * Builds the profile filename using the correct prefix and preset
+ * Standard: cronostar_<preset>_<prefix>data.json
  */
-export function buildProfileFilename(profileName, prefix) {
+export function buildProfileFilename(preset, prefix) {
   const normalizedPrefix = normalizePrefix(prefix);
-
-  const profileSlug = slugify(profileName);
-  return `${normalizedPrefix.replace(/_+$/, '')}_${profileSlug}.json`;
+  const cleanPrefix = normalizedPrefix.replace(/_+$/, '');
+  return `cronostar_${preset}_${cleanPrefix}_data.json`;
 }
 
 /**

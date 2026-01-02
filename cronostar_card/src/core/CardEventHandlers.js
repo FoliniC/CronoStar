@@ -1,7 +1,8 @@
 import { CARD_CONFIG_PRESETS, validateConfig, VERSION } from '../config.js';
-import { Logger } from '../utils.js';
+import { Logger, timeToMinutes } from '../utils.js';
 import { getEffectivePrefix, getAliasWithPrefix } from '../utils/prefix_utils.js';
 import { buildHelpersFilename } from '../utils/filename_utils.js';
+import { copyToClipboard } from '../editor/services/service_handlers.js';
 
 export class CardEventHandlers {
     constructor(card) {
@@ -159,26 +160,30 @@ export class CardEventHandlers {
     handleDeleteSelected() {
         const selMgr = this.card.selectionManager;
         const indices = [...selMgr.getSelectedPoints()].sort((a, b) => b - a);
-        
+
         if (indices.length === 0) {
             this._closeContextMenu();
             return;
         }
 
-        // Don't delete anchors if they are the only points
-        const allByTime = this.card.chartManager?.chart?.data?.datasets[0]?.data
-            .map((pt, i) => ({ i, x: pt.x }))
-            .sort((a, b) => a.x - b.x) || [];
-        
-        const firstIdx = allByTime[0]?.i;
-        const lastIdx = allByTime[allByTime.length - 1]?.i;
+        const stateMgr = this.card.stateManager;
+        const numPoints = stateMgr.getNumPoints();
 
+        // Protective logic: don't delete if we only have boundaries or if point is a boundary
+        // Boundaries are index 0 and index (length-1)
         indices.forEach(idx => {
-            if (idx === firstIdx || idx === lastIdx) return;
-            this.card.stateManager.removePoint(idx);
+            if (idx === 0 || idx === numPoints - 1) {
+                Logger.warn('UI', `Skipping deletion of boundary point at index ${idx}`);
+                return;
+            }
+            stateMgr.removePoint(idx);
         });
 
-        this.card.chartManager.updateData(this.card.stateManager.getData());
+        // Sync chart
+        if (this.card.chartManager?.isInitialized()) {
+            this.card.chartManager.updateData(stateMgr.getData());
+        }
+
         selMgr.clearSelection();
         this._closeContextMenu();
         this.card.requestUpdate();
@@ -223,7 +228,7 @@ export class CardEventHandlers {
             const rawData = this.card.stateManager.getData() || [];
             const scheduleData = rawData
                 .map((p) => ({
-                    minutes: this.card.stateManager.timeToMinutes(p.time),
+                    minutes: timeToMinutes(p.time),
                     time: String(p.time),
                     value: Number(p.value)
                 }))
@@ -470,14 +475,14 @@ export class CardEventHandlers {
 
         // Current Configuration Info
         const cardId = this.card.cardId || 'Not registered';
-        const preset = this.card.config?.preset || 'thermostat';
+        const preset = this.card.config?.preset_type || this.card.config?.preset || "thermostat";
         const prefix = getEffectivePrefix(this.card.config);
         const targetEntity = this.card.config?.target_entity || 'Not configured';
         const profileEntity = this.card.config?.profiles_select_entity || 'Not configured';
         const pauseEntity = this.card.config?.pause_entity || 'Not configured';
         const currentProfile = this.card.selectedProfile || 'No profile selected';
         const automationAlias = getAliasWithPrefix(prefix, this.card.language);
-        
+
         // Entity States (from registration)
         const states = this.card.entityStates || {};
         const stTarget = states.target ? ` (${states.target})` : '';
@@ -490,10 +495,10 @@ export class CardEventHandlers {
         const currentEntity = `input_number.${prefix}current`;
         const packageFile = buildHelpersFilename(prefix);
         const packagePath = `config/packages/${packageFile}`;
-        
+
         // Dynamic info
         const actualPoints = this.card.stateManager?.getNumPoints() || 0;
-        
+
         const configInfoTechnical = this.card.language === 'it'
             ? `=== Configurazione Attuale ===
 Card ID: ${cardId}
@@ -510,13 +515,11 @@ Selettore Profili: ${profileEntity}${stSelector}
 Entità Pausa: ${pauseEntity}${stPause}
 
 === Configurazione ===
-File Package: /config/packages/${packageFile}
 Intervallo: Dinamico (Time-based)
 Punti nel Profilo: ${actualPoints}
 
 === File di Configurazione ===
-1. Package: /${packagePath}
-2. Profili: /config/cronostar/profiles/${prefixBase}_data.json`
+1. Profili: /config/cronostar/profiles/${prefixBase}_data.json`
             : `=== Current Configuration ===
 Card ID: ${cardId}
 Version: ${VERSION}
@@ -532,13 +535,11 @@ Profiles Selector: ${profileEntity}${stSelector}
 Pause Entity: ${pauseEntity}${stPause}
 
 === Configuration ===
-Package File: /config/packages/${packageFile}
 Interval: Dynamic (Time-based)
 Points in Profile: ${actualPoints}
 
 === Configuration Files ===
-1. Package: /${packagePath}
-2. Profiles: /config/cronostar/profiles/${prefixBase}_data.json`;
+1. Profiles: /config/cronostar/profiles/${prefixBase}_data.json`;
 
         // Create custom dialog overlay
         const overlay = document.createElement('div');
@@ -568,7 +569,7 @@ Points in Profile: ${actualPoints}
         const titleEl = document.createElement('h2');
         titleEl.textContent = title;
         titleEl.style.cssText = `margin: 0; color: var(--primary-color);`;
-        
+
         const closeBtn = document.createElement('button');
         closeBtn.textContent = '✕';
         closeBtn.style.cssText = `
@@ -628,14 +629,14 @@ Points in Profile: ${actualPoints}
       cursor: pointer; font-size: 14px; font-weight: bold;
     `;
         copyBtn.onclick = async () => {
-            try {
-                await navigator.clipboard.writeText(configInfoTechnical);
-                copyBtn.textContent = this.card.language === 'it' ? '(Copied!) Copiato!' : '(Copied!) Copied!';
+            const successMsg = this.card.language === 'it' ? '(Copied!) Copiato!' : '(Copied!) Copied!';
+            const errorMsg = this.card.language === 'it' ? 'Errore copia' : 'Copy Error';
+            const result = await copyToClipboard(configInfoTechnical, successMsg, errorMsg);
+            if (result.success) {
+                copyBtn.textContent = result.message;
                 setTimeout(() => {
                     copyBtn.textContent = this.card.language === 'it' ? '📋 Copia dettagli tecnici' : '📋 Copy technical details';
                 }, 2000);
-            } catch (e) {
-                Logger.warn('HELP', 'Failed to copy to clipboard:', e);
             }
         };
         dialog.appendChild(document.createElement('br'));

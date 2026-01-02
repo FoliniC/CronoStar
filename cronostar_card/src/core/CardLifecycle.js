@@ -1,4 +1,4 @@
-import { Logger } from '../utils.js';
+import { Logger, checkIsEditorContext } from '../utils.js';
 import { validateConfig, VERSION, extractCardConfig } from '../config.js';
 
 export class CardLifecycle {
@@ -33,7 +33,7 @@ export class CardLifecycle {
       Logger.setEnabled(this.card.loggingEnabled);
       Logger.log('LOG', 'CronoStar Logging enabled:', this.card.loggingEnabled);
 
-      this.card.selectedPreset = this.card.config.preset;
+      this.card.selectedPreset = this.card.config.preset_type || this.card.config.preset;
 
       // Honor preview hints in config
       if (config && (config.preview === true || config.isPreview === true)) {
@@ -110,7 +110,7 @@ export class CardLifecycle {
         Logger.log('LANG', 'CronoStar Language initialized to:', card.language);
       }
 
-      if (this.isEditorContext()) return;
+      const inEditor = this.isEditorContext();
 
       if (!card.cronostarReady) {
         if (hass.services?.cronostar?.apply_now || hass.services?.cronostar?.applynow) {
@@ -182,16 +182,18 @@ export class CardLifecycle {
         }
       }
 
-      card.cardSync?.updateAutomationSync?.(hass);
-      if (!card.syncCheckTimer) {
-        card.syncCheckTimer = setInterval(() => {
-          if (!card._cardConnected) return;
-          card.cardSync?.updateAutomationSync?.(hass);
+      if (!inEditor) {
+        card.cardSync?.updateAutomationSync?.(hass);
+        if (!card.syncCheckTimer) {
+          card.syncCheckTimer = setInterval(() => {
+            if (!card._cardConnected) return;
+            card.cardSync?.updateAutomationSync?.(hass);
 
-          if (card.chartManager?.isInitialized()) {
-            card.chartManager.update('none');
-          }
-        }, 5000);
+            if (card.chartManager?.isInitialized()) {
+              card.chartManager.update('none');
+            }
+          }, 5000);
+        }
       }
     } catch (err) {
       Logger.error('HASS', 'CronoStar Error in setHass:', err);
@@ -298,28 +300,7 @@ export class CardLifecycle {
   }
 
   isEditorContext() {
-    try {
-      let el = this.card;
-      while (el) {
-        if (el.tagName) {
-          const tag = el.tagName.toLowerCase();
-          if (tag === 'hui-card-preview' ||
-            tag === 'hui-card-editor' ||
-            tag === 'hui-dialog-edit-card' ||
-            tag === 'ha-dialog' ||
-            tag === 'hui-edit-view' ||
-            tag === 'hui-edit-card' ||
-            tag === 'hui-card-options') {
-            return true;
-          }
-        }
-        el = el.parentElement || el.parentNode || el.host;
-      }
-      return false;
-    } catch (e) {
-      Logger.error('LIFECYCLE', 'CronoStar Error in isEditorContext:', e);
-      return false;
-    }
+    return checkIsEditorContext(this.card);
   }
 
   isPickerPreviewContext() {
@@ -328,11 +309,13 @@ export class CardLifecycle {
       while (el) {
         if (el.tagName) {
           const tag = el.tagName.toLowerCase();
-          if (tag === 'hui-card-picker') {
+          // Home Assistant Picker containers
+          if (tag === 'hui-card-picker' || tag === 'hui-section-card-picker') {
             return true;
           }
-          if (tag === 'hui-card-preview' || tag === 'hui-card-editor') {
-            return false; 
+          // If we found the editor or a standard preview, we are NOT in the picker list
+          if (tag === 'hui-card-preview' || tag === 'hui-card-editor' || tag === 'hui-dialog-edit-card') {
+            return false;
           }
         }
         el = el.parentElement || el.parentNode || el.host;
@@ -402,7 +385,12 @@ export class CardLifecycle {
   }
 
   async registerCard(hass) {
-    if (this.card.isPreview || this.card.preview === true || this.card._preview === true || !this.card.config?.global_prefix) return;
+    if (this.card.isPreview || this.card.preview === true || this.card._preview === true || !this.card.config?.global_prefix) {
+      if (!this.card.config?.global_prefix) {
+        Logger.log('LOAD', 'CronoStar attempting registration but global_prefix is missing; skipping for now.');
+      }
+      return;
+    }
     try {
       const cardId = this.card.cardId || `cronostar-${this.card.config.global_prefix.replace(/_+$/, '')}`;
       this.card.cardId = cardId;
@@ -411,10 +399,12 @@ export class CardLifecycle {
       const serviceData = {
         card_id: cardId,
         version: VERSION,
-        preset: cfg.preset || 'thermostat',
+        preset: cfg.preset_type || 'thermostat',
         global_prefix: cfg.global_prefix,
         selected_profile: this.card.selectedProfile
       };
+
+      Logger.log('LOAD', 'CronoStar registering card with service data:', serviceData);
 
       const result = (await hass.callWS({
         type: 'call_service',
@@ -508,7 +498,7 @@ export class CardLifecycle {
 
       if (shouldHide) {
         Logger.log('PREVIEW', `[LIFECYCLE] Hiding preview for Step ${step}`);
-        
+
         if (!styleEl) {
           styleEl = document.createElement('style');
           styleEl.id = 'cronostar-editor-style';

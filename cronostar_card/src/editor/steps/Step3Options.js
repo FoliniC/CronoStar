@@ -70,8 +70,12 @@ export class Step3Options {
         </div>
 
         <div class="field-group">
-          <ha-formfield .label=${this.editor.i18n._t('fields.logginglabel')}>
-            <ha-switch .checked=${!!this.editor._config.logging_enabled} @change=${(e) => this.editor._updateConfig('logging_enabled', e.target.checked)}></ha-switch>
+          <ha-formfield .label=${this.editor.i18n._t('fields.enable_logging_label')}>
+            <span slot="secondary">${this.editor.i18n._t('fields.enable_logging_desc')}</span>
+            <ha-switch
+              .checked=${!!this.editor._config.logging_enabled}
+              @change=${(e) => this.editor._handleLocalUpdate('logging_enabled', e.target.checked)}
+            ></ha-switch>
           </ha-formfield>
         </div>
       </div>

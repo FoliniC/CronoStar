@@ -1,9 +1,9 @@
 {
   "meta": {
-    "global_prefix": "cronostar_switch_presa_balcone_",
+    "global_prefix": "cronostar_generic_switch_presa_balcone_",
     "preset_type": "generic_switch",
     "created_at": "2025-12-21T01:35:46.499569",
-    "updated_at": "2025-12-25T00:08:01.254700",
+    "updated_at": "2025-12-29T17:13:05.306417",
     "preset": "generic_switch",
     "hour_base": {
       "value": 0,
@@ -33,35 +33,11 @@
           "value": 0
         },
         {
-          "time": "06:45",
-          "value": 0
-        },
-        {
-          "time": "06:46",
-          "value": 1
-        },
-        {
-          "time": "08:05",
-          "value": 1
-        },
-        {
-          "time": "08:06",
-          "value": 0
-        },
-        {
-          "time": "16:42",
-          "value": 0
-        },
-        {
-          "time": "16:43",
-          "value": 1
-        },
-        {
           "time": "23:59",
-          "value": 1
+          "value": 0
         }
       ],
-      "updated_at": "2025-12-25T00:08:01.255119"
+      "updated_at": "2025-12-29T17:13:05.306467"
     },
     "Default": {
       "schedule": [
@@ -98,12 +74,9 @@
           "value": 1
         }
       ],
-      "updated_at": "2025-12-21T21:12:17.516343",
-      "global_prefix": "cronostar_switch_presa_balcone_",
-      "profile_name": "Default"
+      "updated_at": "2025-12-21T21:12:17.516343"
     }
   },
-  "saved_at": 1766617681.2551618,
-  "saved_at_iso": "2025-12-24T23:08:01.255162Z",
+  "saved_at": "2025-12-29T16:13:05.306518Z",
   "version": 2
 }

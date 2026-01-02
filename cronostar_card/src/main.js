@@ -5,6 +5,7 @@ console.log('[CronoStar] main.js file loaded by browser');
 import { CronoStarCard } from './core/CronoStar.js';
 import { CronoStarEditor } from './editor/CronoStarEditor.js';
 import { VERSION, CARD_CONFIG_PRESETS } from './config.js';
+import { checkIsEditorContext } from './utils.js';
 
 // Espone preset globali (se servono ad altri script)
 globalThis.PRESETS = CARD_CONFIG_PRESETS;
@@ -51,7 +52,9 @@ function registerInRegistry(registry, name, constructor, context = 'global') {
 // 1) Registrazione nel registry globale
 console.log('CRONOSTAR: Inizio registrazione globale...');
 registerInRegistry(customElements, 'cronostar-card', CronoStarCard, 'global');
+registerInRegistry(customElements, 'custom:cronostar-card', CronoStarCard, 'global-fallback');
 registerInRegistry(customElements, 'cronostar-card-editor', CronoStarEditor, 'global');
+registerInRegistry(customElements, 'custom:cronostar-card-editor', CronoStarEditor, 'global-editor-fallback');
 
 // 2) Supporto per Scoped CustomElementRegistry (usato dal card picker)
 if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
@@ -80,7 +83,9 @@ if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
       if (registry && registry !== customElements) {
         console.log('CRONOSTAR:   registry scoped diverso dal globale, registrazione elementi...');
         registerInRegistry(registry, 'cronostar-card', CronoStarCard, `${ctx} / card`);
+        registerInRegistry(registry, 'custom:cronostar-card', CronoStarCard, `${ctx} / card-fallback`);
         registerInRegistry(registry, 'cronostar-card-editor', CronoStarEditor, `${ctx} / editor`);
+        registerInRegistry(registry, 'custom:cronostar-card-editor', CronoStarEditor, `${ctx} / editor-fallback`);
 
         // Assicurati che i componenti HA essenziali siano disponibili nel registry scoped
         try {
@@ -128,13 +133,13 @@ const cardType = 'cronostar-card'; // ✅ Senza prefisso "custom:"
 const existingCardIndex = window.customCards.findIndex((c) => c.type === cardType || c.type === 'custom:cronostar-card');
 
 const cardMetadata = {
-  type: cardType, // ✅ Home Assistant aggiunge automaticamente "custom:"
+  type: 'cronostar-card', // ✅ Standard tag name
   name: '🌟 CronoStar Card',
   description: 'Visual hourly schedule editor with drag-and-drop control',
-  // Enable live preview in card picker (we will swap content to an image at runtime when in preview)
+  // Enable live preview so CardRenderer can show the image or live chart
   preview: true,
-  // Use the project logo as thumbnail in the picker
-  preview_image: '/cronostar_card/cronostar-logo.png',
+  // Use the project logo as thumbnail and screenshot for preview in the picker
+  preview_image: '/cronostar_card/cronostar-preview.png',
   thumbnail: '/cronostar_card/cronostar-logo.png',
   documentationURL: 'https://github.com/FoliniC/cronostar_card'
 };

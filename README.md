@@ -67,6 +67,58 @@ Easily add time-based schedules to any entity. The integration can automatically
   - **Esc**: Deselect all.
   - **Enter**: (If configured) Apply changes immediately.
 
+## 📁 New Structure
+
+### Backend (`custom_components/cronostar/`)
+```
+├── __init__.py                 # Main entry point
+├── manifest.json               # Integration metadata
+├── services.yaml               # Service definitions
+│
+├── setup/                      # Setup modules
+│   ├── __init__.py            # Main setup orchestrator
+│   ├── services.py            # Service registration
+│   ├── events.py              # Event handlers
+│   └── validators.py          # Environment validation
+│
+├── services/                   # Service handlers
+│   ├── profile_service.py     # Profile CRUD operations
+│   └── file_service.py        # File operations
+│
+├── scheduler/                  # Scheduling logic
+│   └── smart_scheduler.py     # Auto-apply schedules
+│
+├── storage/                    # Storage management
+│   └── storage_manager.py     # Profile persistence
+│
+├── utils/                      # Utilities
+│   ├── prefix_normalizer.py  # Prefix handling
+│   └── error_handler.py       # Error management
+│
+└── deep_checks/               # Diagnostics
+    ├── __init__.py            # Check registration
+    ├── entity_checker.py      # Entity validation
+    ├── file_checker.py        # File validation
+    ├── automation_checker.py  # Automation validation
+    └── report_builder.py      # Report generation
+```
+
+### Frontend (`www/cronostar_card/src/`)
+```
+├── CronoStar.js               # Main card component
+├── utils.js                   # Utility functions
+│
+├── core/                      # Core modules
+│   ├── EventBus.js           # Event system
+│   └── CardContext.js        # Dependency injection
+│
+└── managers/                  # Feature managers
+    ├── StateManager.js        # Schedule state
+    ├── SelectionManager.js    # Point selection
+    ├── ProfileManager.js      # Profile operations
+    └── ChartManager.js        # Chart visualization
+```
+
 ## 🚀 Installation
 
 ### Via HACS (Recommended)
