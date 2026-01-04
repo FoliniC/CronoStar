@@ -8,7 +8,12 @@ import logging
 from pathlib import Path
 
 from homeassistant.components.frontend import add_extra_js_url
-from homeassistant.components.http import StaticPathConfig
+try:
+    from homeassistant.components.http import StaticPathConfig
+    HAS_STATIC_PATH_CONFIG = True
+except ImportError:
+    HAS_STATIC_PATH_CONFIG = False
+
 from homeassistant.core import HomeAssistant
 from homeassistant.loader import async_get_integration
 
@@ -101,18 +106,29 @@ async def _setup_static_resources(hass: HomeAssistant) -> bool:
             _LOGGER.error("Frontend resources not found at %s", www_path)
             return False
 
-        # Register static path for card files
-        await hass.http.async_register_static_paths([StaticPathConfig(url_path="/cronostar_card", path=www_path)])
+        # Register static path for card files (compatibility check)
+        # Check if http component is loaded
+        if "http" in hass.config.components:
+            if HAS_STATIC_PATH_CONFIG:
+                await hass.http.async_register_static_paths([StaticPathConfig(url_path="/cronostar_card", path=www_path)])
+            else:
+                # Fallback for Home Assistant versions < 2024.11
+                hass.http.async_register_static_path(url_path="/cronostar_card", path=str(www_path))
+        else:
+            _LOGGER.debug("HTTP component not loaded, skipping static path registration")
 
         # Get integration version for cache busting
         integration = await async_get_integration(hass, "cronostar")
         version = integration.version
 
         # Add JS modules to frontend
-        add_extra_js_url(hass, f"/cronostar_card/cronostar-card.js?v={version}")
-        add_extra_js_url(hass, f"/cronostar_card/card-picker-metadata.js?v={version}")
+        if "frontend" in hass.config.components:
+            add_extra_js_url(hass, f"/cronostar_card/cronostar-card.js?v={version}")
+            add_extra_js_url(hass, f"/cronostar_card/card-picker-metadata.js?v={version}")
+            _LOGGER.info("✅ Lovelace card registered: /cronostar_card/cronostar-card.js")
+        else:
+            _LOGGER.debug("Frontend component not loaded, skipping extra JS URLs")
 
-        _LOGGER.info("✅ Lovelace card registered: /cronostar_card/cronostar-card.js")
         return True
 
     except Exception as e:

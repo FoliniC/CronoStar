@@ -9,11 +9,11 @@ export class Step2Entities {
   render() {
     const effectivePrefix = getEffectivePrefix(this.editor._config);
 
-    const hasPause = !!this.editor._config.pause_entity;
-    const pauseVal = this.editor._config.pause_entity || `input_boolean.${effectivePrefix}paused`;
+    const hasEnabled = !!this.editor._config.enabled_entity;
+    const enabledVal = this.editor._config.enabled_entity || `switch.${effectivePrefix}enabled`;
 
     const hasProfiles = !!this.editor._config.profiles_select_entity;
-    const profilesVal = this.editor._config.profiles_select_entity || `input_select.${effectivePrefix}profiles`;
+    const profilesVal = this.editor._config.profiles_select_entity || `select.${effectivePrefix}current_profile`;
 
     const isPickerDefined = !!customElements.get('ha-entity-picker');
     const canRenderPicker = isPickerDefined || this.editor._pickerLoaded;
@@ -28,22 +28,25 @@ export class Step2Entities {
           <div class="field-group" style="background: var(--secondary-background-color); padding: 10px; border-radius: 4px; margin-top: 12px;">
             <ha-formfield .label=${this.editor.i18n._t('fields.enable_pause_label')}>
               <ha-switch
-                .checked=${hasPause}
-                @change=${(e) => this._toggleFeature('pause_entity', e.target.checked, `input_boolean.${effectivePrefix}paused`)}
+                .checked=${hasEnabled}
+                @change=${(e) => this._toggleFeature('enabled_entity', e.target.checked, `switch.${effectivePrefix}enabled`)}
               ></ha-switch>
             </ha-formfield>
-            ${hasPause ? html`
+            <div class="field-value-info" style="font-size: 0.85rem; opacity: 0.7; margin: 4px 0 8px 4px;">
+              ${this.editor.i18n._t('ui.current_entity')}: <code style="background: rgba(0,0,0,0.1); padding: 2px 4px; border-radius: 3px;">${this.editor._config.enabled_entity || this.editor.i18n._t('ui.not_set')}</code>
+            </div>
+            ${hasEnabled ? html`
               <div style="margin-top: 8px;">
                 ${canRenderPicker
           ? html`<ha-entity-picker
                       .hass=${this.editor.hass}
-                      .value=${pauseVal}
-                      .label=${"Pause Entity"}
-                      .includeDomains=${['input_boolean', 'switch']}
+                      .value=${enabledVal}
+                      .label=${"Enabled Entity"}
+                      .includeDomains=${['switch', 'input_boolean']}
                       allow-custom-entity
-                      @value-changed=${(e) => this.editor._updateConfig('pause_entity', e.detail.value)}
+                      @value-changed=${(e) => this.editor._updateConfig('enabled_entity', e.detail.value)}
                     ></ha-entity-picker>`
-          : this.editor._renderTextInput('pause_entity', pauseVal, 'input_boolean.xxx')}
+          : this.editor._renderTextInput('enabled_entity', enabledVal, 'switch.xxx')}
               </div>
             ` : ''}
           </div>
@@ -52,21 +55,24 @@ export class Step2Entities {
             <ha-formfield .label=${this.editor.i18n._t('fields.enable_profiles_label')}>
               <ha-switch
                 .checked=${hasProfiles}
-                @change=${(e) => this._toggleFeature('profiles_select_entity', e.target.checked, `input_select.${effectivePrefix}profiles`)}
+                @change=${(e) => this._toggleFeature('profiles_select_entity', e.target.checked, `select.${effectivePrefix}current_profile`)}
               ></ha-switch>
             </ha-formfield>
+            <div class="field-value-info" style="font-size: 0.85rem; opacity: 0.7; margin: 4px 0 8px 4px;">
+              ${this.editor.i18n._t('ui.current_entity')}: <code style="background: rgba(0,0,0,0.1); padding: 2px 4px; border-radius: 3px;">${this.editor._config.profiles_select_entity || this.editor.i18n._t('ui.not_set')}</code>
+            </div>
             ${hasProfiles ? html`
               <div style="margin-top: 8px;">
                 ${canRenderPicker
           ? html`<ha-entity-picker
                       .hass=${this.editor.hass}
                       .value=${profilesVal}
-                      .label=${"Profiles Entity"}
-                      .includeDomains=${['input_select']}
+                      .label=${"Current Profile"}
+                      .includeDomains=${['select', 'input_select']}
                       allow-custom-entity
                       @value-changed=${(e) => this.editor._updateConfig('profiles_select_entity', e.detail.value)}
                     ></ha-entity-picker>`
-          : this.editor._renderTextInput('profiles_select_entity', profilesVal, 'input_select.xxx')}
+          : this.editor._renderTextInput('profiles_select_entity', profilesVal, 'select.xxx')}
               </div>
             ` : ''}
           </div>

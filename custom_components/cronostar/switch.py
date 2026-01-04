@@ -14,22 +14,22 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up CronoStar switch entities from config entry."""
     coordinator = entry.runtime_data
-    async_add_entities([CronoStarPauseSwitch(coordinator)])
+    async_add_entities([CronoStarEnabledSwitch(coordinator)])
 
 
-class CronoStarPauseSwitch(CoordinatorEntity, SwitchEntity):
-    """Switch to pause/resume schedule application."""
+class CronoStarEnabledSwitch(CoordinatorEntity, SwitchEntity):
+    """Switch to enable/disable schedule application."""
 
-    _attr_translation_key = "pause"
+    _attr_translation_key = "enabled"
     _attr_has_entity_name = False
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator):
-        """Initialize pause switch."""
+        """Initialize enabled switch."""
         super().__init__(coordinator)
-        # Naming requirement: global_prefix + "paused"
-        self._attr_name = f"{coordinator.prefix}paused"
-        self._attr_unique_id = f"{coordinator.prefix}paused"
+        # Naming requirement: global_prefix + "enabled"
+        self._attr_name = f"{coordinator.prefix}enabled"
+        self._attr_unique_id = f"{coordinator.prefix}enabled"
 
         # Device info for grouping
         self._attr_device_info = {
@@ -42,22 +42,22 @@ class CronoStarPauseSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        """Return true if schedule is paused."""
-        return self.coordinator.data.get("is_paused", False)
+        """Return true if schedule is enabled."""
+        return self.coordinator.data.get("is_enabled", True)
 
     async def async_turn_on(self, **kwargs) -> None:
-        """Pause the schedule."""
+        """Enable the schedule."""
         if self.coordinator.logging_enabled:
-            _LOGGER.info("Pausing controller '%s'", self.coordinator.name)
+            _LOGGER.info("Enabling controller '%s'", self.coordinator.name)
 
-        await self.coordinator.set_paused(True)
+        await self.coordinator.set_enabled(True)
 
     async def async_turn_off(self, **kwargs) -> None:
-        """Resume the schedule."""
+        """Disable the schedule."""
         if self.coordinator.logging_enabled:
-            _LOGGER.info("Resuming controller '%s'", self.coordinator.name)
+            _LOGGER.info("Disabling controller '%s'", self.coordinator.name)
 
-        await self.coordinator.set_paused(False)
+        await self.coordinator.set_enabled(False)
 
     @property
     def available(self) -> bool:

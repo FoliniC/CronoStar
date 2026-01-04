@@ -1,6 +1,6 @@
 // editor/CronoStarEditor.js
 import { LitElement, html, css } from 'lit';
-import { CARD_CONFIG_PRESETS, DEFAULT_CONFIG, validateConfig } from '../config.js';
+import { CARD_CONFIG_PRESETS, DEFAULT_CONFIG, validateConfig, extractCardConfig } from '../config.js';
 import { log } from '../utils/logger_utils.js';
 import { normalizePrefix, isValidPrefix, getEffectivePrefix } from '../utils/prefix_utils.js';
 import { debounce, Logger } from '../utils.js';
@@ -864,6 +864,44 @@ export class CronoStarEditor extends LitElement {
     return Promise.resolve();
   }
 
+  async _saveMetadata() {
+    if (!this.hass || !this._config.global_prefix) return;
+
+    try {
+      const cardEl = this.shadowRoot?.querySelector('cronostar-card') || document.querySelector('cronostar-card');
+      const profileName = cardEl?.selectedProfile || 'Default';
+      const presetType = this._selectedPreset || this._config.preset_type || 'thermostat';
+      const prefix = this._config.global_prefix;
+
+      // Fetch current schedule to avoid losing data
+      const scheduleData = cardEl?.stateManager?.getData()?.map(p => ({ time: p.time, value: p.value })) || [];
+
+      // Build meta with entities list, using extractCardConfig for sanitization
+      const sanitizedConfig = extractCardConfig(this._config);
+      
+      const meta = { ...sanitizedConfig };
+      meta.entities = [
+        sanitizedConfig.target_entity,
+        sanitizedConfig.enabled_entity,
+        sanitizedConfig.profiles_select_entity
+      ].filter(e => !!e);
+
+      Logger.log('EDITOR', `[CronoStar] Saving full profile data for '${profileName}'...`);
+
+      await this.hass.callService('cronostar', 'save_profile', {
+        profile_name: profileName,
+        preset_type: presetType,
+        schedule: scheduleData,
+        global_prefix: prefix,
+        meta: meta
+      });
+
+      Logger.log('EDITOR', `[CronoStar] Profile data saved successfully for '${profileName}'`);
+    } catch (e) {
+      Logger.error('EDITOR', 'Error saving profile data:', e);
+    }
+  }
+
   showToast(message) {
     const event = new CustomEvent('hass-notification', {
       detail: { message, duration: 3000 },
@@ -911,6 +949,10 @@ export class CronoStarEditor extends LitElement {
     // Immediately notify HA editor so the standard Save button persists latest values
     this._dispatchConfigChanged(true);
     this.requestUpdate();
+
+    if (key === 'enabled_entity' || key === 'profiles_select_entity') {
+      this._saveMetadata();
+    }
   }
 
   _renderEntityPicker(key, value, label = "Entity") {
@@ -993,6 +1035,10 @@ export class CronoStarEditor extends LitElement {
     this._config = newConfig;
     this._syncConfigAliases();
     this._dispatchConfigChanged(immediate);
+
+    if (key === 'enabled_entity' || key === 'profiles_select_entity') {
+      this._saveMetadata();
+    }
   }
 
   _handleNextClick() {

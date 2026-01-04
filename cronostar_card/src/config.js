@@ -21,7 +21,7 @@ export const CARD_CONFIG_PRESETS = {
     min_value: 15,
     max_value: 30,
     step_value: 0.5,
-    pause_entity: null,
+    enabled_entity: null,
     profiles_select_entity: null,
     target_entity: "climate.climatizzazione_appartamento",
     is_switch_preset: false,
@@ -34,7 +34,7 @@ export const CARD_CONFIG_PRESETS = {
     min_value: 0,
     max_value: 8.0,
     step_value: 0.5,
-    pause_entity: null,
+    enabled_entity: null,
     profiles_select_entity: null,
     target_entity: "number.your_ev_charger_power",
     is_switch_preset: false,
@@ -47,7 +47,7 @@ export const CARD_CONFIG_PRESETS = {
     min_value: 0,
     max_value: 7,
     step_value: 0.5,
-    pause_entity: null,
+    enabled_entity: null,
     profiles_select_entity: null,
     target_entity: null,
     is_switch_preset: false,
@@ -60,7 +60,7 @@ export const CARD_CONFIG_PRESETS = {
     min_value: 0,
     max_value: 40,
     step_value: 0.5,
-    pause_entity: null,
+    enabled_entity: null,
     profiles_select_entity: null,
     target_entity: null,
     is_switch_preset: false,
@@ -73,7 +73,7 @@ export const CARD_CONFIG_PRESETS = {
     min_value: 0,
     max_value: 1,
     step_value: 1,
-    pause_entity: null,
+    enabled_entity: null,
     profiles_select_entity: null,
     target_entity: "switch.your_generic_switch",
     is_switch_preset: true,
@@ -86,7 +86,7 @@ export const DEFAULT_CONFIG = {
   preset_type: 'thermostat',
   hour_base: "auto",
   logging_enabled: true,
-  pause_entity: null,
+  enabled_entity: null,
   profiles_select_entity: null,
   target_entity: null,
   allow_max_value: false
@@ -169,8 +169,8 @@ export function validateConfig(config, isLoggingEnabled = false) {
   }
 
   if (!config.not_configured) {
-    if (!mergedConfig.pause_entity) {
-      mergedConfig.pause_entity = `switch.${mergedConfig.global_prefix}paused`;
+    if (!mergedConfig.enabled_entity) {
+      mergedConfig.enabled_entity = `switch.${mergedConfig.global_prefix}enabled`;
     }
     if (!mergedConfig.profiles_select_entity) {
       mergedConfig.profiles_select_entity = `select.${mergedConfig.global_prefix}current_profile`;
@@ -213,7 +213,7 @@ export function extractCardConfig(src = {}) {
     throw new Error(`Configuration error: 'preset' key found in ${filename} metadata, use 'preset_type' instead.`);
   }
   const validKeys = [
-    'type', 'preset_type', 'global_prefix', 'target_entity', 'pause_entity',
+    'type', 'preset_type', 'global_prefix', 'target_entity', 'enabled_entity',
     'profiles_select_entity', 'min_value', 'max_value', 'step_value',
     'unit_of_measurement', 'y_axis_label', 'allow_max_value',
     'logging_enabled', 'hour_base', 'title', 'step',

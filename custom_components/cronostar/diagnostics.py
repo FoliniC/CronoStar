@@ -35,7 +35,7 @@ async def async_get_config_entry_diagnostics(
             "preset": coordinator.preset,
             "target_entity": coordinator.target_entity,
             "selected_profile": coordinator.selected_profile,
-            "is_paused": coordinator.is_paused,
+            "is_enabled": coordinator.is_enabled,
             "current_value": coordinator.current_value,
             "available_profiles": coordinator.available_profiles,
         }

@@ -201,7 +201,8 @@ export class ProfileManager {
     const selectorEntity = this.context.config?.profiles_select_entity;
 
     if (selectorEntity) {
-      this.context.hass.callService('input_select', 'select_option', {
+      const domain = selectorEntity.split('.')[0] || 'input_select';
+      this.context.hass.callService(domain, 'select_option', {
         entity_id: selectorEntity,
         option: profileName
       }).catch(() => {
@@ -269,10 +270,21 @@ export class ProfileManager {
       'max_value',
       'step_value',
       'allow_max_value',
-      'drag_snap'
+      'drag_snap',
+      'enabled_entity',
+      'profiles_select_entity',
+      'target_entity'
     ];
     const chartMeta = {};
     chartKeys.forEach(k => { if (config[k] !== undefined) chartMeta[k] = config[k]; });
+    
+    // Add entities list as requested
+    chartMeta.entities = [
+      config.target_entity,
+      config.enabled_entity,
+      config.profiles_select_entity
+    ].filter(e => !!e);
+
     Object.assign(meta, chartMeta);
 
     return meta;
@@ -290,14 +302,20 @@ export class ProfileManager {
     const cardKeys = [
       'title', 'y_axis_label', 'unit_of_measurement',
       'min_value', 'max_value', 'step_value',
-      'allow_max_value', 'target_entity', 'drag_snap'
+      'allow_max_value', 'target_entity', 'drag_snap',
+      'enabled_entity', 'profiles_select_entity'
     ];
 
+    const updates = {};
     cardKeys.forEach(key => {
       if (meta[key] !== undefined) {
-        this.context._card.config[key] = meta[key];
+        updates[key] = meta[key];
       }
     });
+
+    if (Object.keys(updates).length > 0) {
+      this.context._card.config = { ...this.context._card.config, ...updates };
+    }
 
     // Apply language from meta to card and config
     if (meta.language) {

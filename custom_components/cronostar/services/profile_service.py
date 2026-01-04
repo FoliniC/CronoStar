@@ -42,7 +42,7 @@ class ProfileService:
         Expected data:
             - profile_name: str
             - preset_type: str
-            - schedule: list
+            - schedule: list (optional)
             - global_prefix: str (optional)
             - meta: dict (optional)
         """
@@ -51,7 +51,7 @@ class ProfileService:
             # Extract parameters
             profile_name = call.data.get("profile_name")
             preset_type = call.data.get("preset_type", "thermostat")
-            schedule = call.data.get("schedule", [])
+            schedule = call.data.get("schedule")
             global_prefix = call.data.get("global_prefix", "")
             meta = call.data.get("meta", {})
 
@@ -62,21 +62,30 @@ class ProfileService:
             canonical_preset = normalize_preset_type(preset_type)
             effective_prefix = get_effective_prefix(global_prefix, meta)
 
-            # Validate schedule
-            min_val = meta.get("min_value")
-            max_val = meta.get("max_value")
-            validated_schedule = self._validate_schedule(schedule, min_val, max_val)
-
-            # Build profile data
-            profile_data = {"schedule": validated_schedule, "updated_at": datetime.now().isoformat()}
-
             # Build metadata
             metadata = self._build_metadata(canonical_preset, effective_prefix, meta)
 
-            _LOGGER.info("Saving profile: name=%s, preset=%s, prefix=%s, points=%d", profile_name, canonical_preset, effective_prefix, len(schedule))
-            _LOGGER.debug("[SAVE_PROFILE] Data - Meta: %s, Profile: %s", metadata, profile_data)
+            # 1. Prepare profile data
+            if schedule is not None:
+                # Validate schedule
+                min_val = meta.get("min_value")
+                max_val = meta.get("max_value")
+                validated_schedule = self._validate_schedule(schedule, min_val, max_val)
+                profile_data = {"schedule": validated_schedule, "updated_at": datetime.now().isoformat()}
+            else:
+                # Metadata update only: fetch existing profile data to preserve schedule
+                existing = await self.get_profile_data(profile_name, canonical_preset, effective_prefix)
+                if "error" in existing:
+                    _LOGGER.info("Metadata update for new/missing profile '%s', using empty schedule", profile_name)
+                    profile_data = {"schedule": [], "updated_at": datetime.now().isoformat()}
+                else:
+                    _LOGGER.debug("Metadata update for existing profile '%s', preserving schedule", profile_name)
+                    profile_data = {"schedule": existing.get("schedule", []), "updated_at": datetime.now().isoformat()}
 
-            # 1. Save to storage FIRST so that if a controller is created, it finds the file
+            _LOGGER.info("Saving profile: name=%s, preset=%s, prefix=%s, points=%d", 
+                         profile_name, canonical_preset, effective_prefix, len(profile_data.get("schedule", [])))
+
+            # 2. Save to storage
             await self.storage.save_profile(
                 profile_name=profile_name, preset_type=canonical_preset, profile_data=profile_data, metadata=metadata, global_prefix=effective_prefix
             )
@@ -84,9 +93,26 @@ class ProfileService:
             # 2. Ensure controller entities exist
             await self._ensure_controller_exists(effective_prefix, canonical_preset, meta)
 
-            # 3. Notify any existing coordinators to refresh their profiles
+            # 3. Update existing Config Entry if metadata has changed (e.g. target_entity)
             for entry in self.hass.config_entries.async_entries("cronostar"):
                 if entry.data.get("global_prefix") == effective_prefix:
+                    # Update entry data if important fields changed
+                    new_data = {**entry.data}
+                    changed = False
+                    
+                    if "target_entity" in meta and entry.data.get("target_entity") != meta["target_entity"]:
+                        new_data["target_entity"] = meta["target_entity"]
+                        changed = True
+                    
+                    if "preset_type" in meta and entry.data.get("preset_type") != meta["preset_type"]:
+                        new_data["preset_type"] = meta["preset_type"]
+                        changed = True
+
+                    if changed:
+                        _LOGGER.info("Updating Config Entry for '%s' with new metadata", effective_prefix)
+                        self.hass.config_entries.async_update_entry(entry, data=new_data)
+
+                    # Notify coordinator to refresh
                     if hasattr(entry, 'runtime_data') and entry.runtime_data:
                         _LOGGER.debug("Notifying coordinator for '%s' to refresh profiles", effective_prefix)
                         await entry.runtime_data.async_refresh_profiles()
@@ -226,10 +252,17 @@ class ProfileService:
                         max_val=meta.get("max_value")
                     )
                     
+                    # Merge per-profile entity overrides into meta for frontend restoration
+                    res_meta = {**meta}
+                    if "enabled_entity" in content:
+                        res_meta["enabled_entity"] = content["enabled_entity"]
+                    if "profiles_select_entity" in content:
+                        res_meta["profiles_select_entity"] = content["profiles_select_entity"]
+
                     res = {
                         "profile_name": key,
                         "schedule": validated_sched,
-                        "meta": meta,
+                        "meta": res_meta,
                         "updated_at": content.get("updated_at"),
                     }
                     _LOGGER.info("[GET_PROFILE] Profile found, returning data to frontend: %s", key)
@@ -253,10 +286,17 @@ class ProfileService:
                         max_val=meta.get("max_value")
                     )
                     
+                    # Merge per-profile entity overrides into meta for frontend restoration
+                    res_meta = {**meta}
+                    if "enabled_entity" in content:
+                        res_meta["enabled_entity"] = content["enabled_entity"]
+                    if "profiles_select_entity" in content:
+                        res_meta["profiles_select_entity"] = content["profiles_select_entity"]
+
                     res = {
                         "profile_name": candidate,
                         "schedule": validated_sched,
-                        "meta": meta,
+                        "meta": res_meta,
                         "updated_at": content.get("updated_at"),
                     }
                     _LOGGER.info("[GET_PROFILE] Default/Comfort found, returning data to frontend: %s", candidate)
@@ -394,10 +434,10 @@ class ProfileService:
             sel_state = self.hass.states.get(native_selector) or self.hass.states.get(f"input_select.{base}_profiles")
             response["entity_states"]["selector"] = sel_state.state if sel_state else "unknown"
             
-            # Pause switch (native switch.xxx_paused or legacy input_boolean.xxx_paused)
-            pause_ent = f"switch.{prefix_with_underscore}paused"
-            p_state = self.hass.states.get(pause_ent) or self.hass.states.get(f"input_boolean.{prefix_with_underscore}paused")
-            response["entity_states"]["pause"] = p_state.state if p_state else "unknown"
+            # Enabled switch (native switch.xxx_enabled or legacy input_boolean.xxx_paused)
+            enabled_ent = f"switch.{prefix_with_underscore}enabled"
+            e_state = self.hass.states.get(enabled_ent) or self.hass.states.get(f"input_boolean.{prefix_with_underscore}paused")
+            response["entity_states"]["enabled"] = e_state.state if e_state else "unknown"
             
         except Exception as e:
             _LOGGER.debug("[REGISTER] Failed to populate entity_states: %s", e)
@@ -536,7 +576,7 @@ class ProfileService:
         Returns:
             Complete metadata
         """
-        allowed_keys = ["title", "y_axis_label", "unit_of_measurement", "min_value", "max_value", "step_value", "allow_max_value", "target_entity", "language"]
+        allowed_keys = ["title", "y_axis_label", "unit_of_measurement", "min_value", "max_value", "step_value", "allow_max_value", "target_entity", "language", "enabled_entity", "profiles_select_entity", "entities"]
 
         # Initialize metadata with allowed keys from user_meta
         metadata = {key: user_meta[key] for key in allowed_keys if key in user_meta}

@@ -134,15 +134,15 @@ export class Step1Preset {
     this.editor._updateConfig('global_prefix', newPrefix);
 
     const config = this.editor._config;
-    // Standard checks for pause and select entities
-    // Improved isStandard to handle full entity IDs (e.g. switch.cronostar_..._paused)
+    // Standard checks for enabled and select entities
+    // Improved isStandard to handle full entity IDs (e.g. switch.cronostar_..._enabled)
     const isStandard = (val, suffix) => {
       if (!val) return true;
       return val.includes('cronostar_') && (val.endsWith(suffix) || val.endsWith(suffix.replace('d', '')));
     };
 
-    if (isStandard(config.pause_entity, 'paused')) {
-      this.editor._updateConfig('pause_entity', `switch.${newPrefix}paused`);
+    if (isStandard(config.enabled_entity, 'enabled')) {
+      this.editor._updateConfig('enabled_entity', `switch.${newPrefix}enabled`);
     }
     if (isStandard(config.profiles_select_entity, 'current_profile') || isStandard(config.profiles_select_entity, 'profiles')) {
       this.editor._updateConfig('profiles_select_entity', `select.${newPrefix}current_profile`);
@@ -182,14 +182,14 @@ export class Step1Preset {
     if (!newTitle) newTitle = baseTitle;
     newConfig.title = newTitle;
     
-    // Update pause and select entities if they look like defaults
+    // Update enabled and select entities if they look like defaults
     const isStandard = (val, suffix) => {
       if (!val) return true;
       return val.includes('cronostar_') && (val.endsWith(suffix) || val.endsWith(suffix.replace('d', '')));
     };
 
-    if (isStandard(newConfig.pause_entity, 'paused')) {
-      newConfig.pause_entity = `switch.${normalizedValue}paused`;
+    if (isStandard(newConfig.enabled_entity, 'enabled')) {
+      newConfig.enabled_entity = `switch.${normalizedValue}enabled`;
     }
     if (isStandard(newConfig.profiles_select_entity, 'current_profile') || isStandard(newConfig.profiles_select_entity, 'profiles')) {
       newConfig.profiles_select_entity = `select.${normalizedValue}current_profile`;

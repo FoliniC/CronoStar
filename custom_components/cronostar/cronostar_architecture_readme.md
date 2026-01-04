@@ -374,7 +374,7 @@ preset: thermostat
 target_entity: climate.living_room
 global_prefix: cronostar_living_
 profiles_select_entity: input_select.living_profile  # Optional
-pause_entity: input_boolean.living_pause            # Optional
+enabled_entity: switch.living_enabled            # Optional
 ```
 
 ### Card State Management

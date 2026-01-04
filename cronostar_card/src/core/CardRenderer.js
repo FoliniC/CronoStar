@@ -126,7 +126,7 @@ export class CardRenderer {
                 <ha-icon icon="mdi:arrow-expand"></ha-icon>
               </ha-icon-button>
             `}
-            ${this.card.isPaused ? html`<ha-icon icon="mdi:pause-circle" class="pause-indicator" title="Automation Paused"></ha-icon>` : ''}
+            ${!this.card.isEnabled ? html`<ha-icon icon="mdi:pause-circle" class="pause-indicator" title="Automation Disabled"></ha-icon>` : ''}
             <div class="menu-container">
               <button class="menu-button" @click=${(e) => this.card.eventHandlers.toggleMenu(e)}>
                 <ha-icon icon="mdi:menu"></ha-icon>
@@ -248,11 +248,11 @@ export class CardRenderer {
           </div>
 
           <div class="controls">
-            ${this.card.config?.pause_entity ? html`
+            ${this.card.config?.enabled_entity ? html`
               <div class="control-group">
                 <ha-switch
-                  .checked=${!this.card.isPaused}
-                  @change=${(e) => this.card.eventHandlers.togglePause(e)}
+                  .checked=${this.card.isEnabled}
+                  @change=${(e) => this.card.eventHandlers.toggleEnabled(e)}
                 ></ha-switch>
                 <label>${localize('ui.automation_enabled')}</label>
               </div>

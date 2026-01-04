@@ -149,7 +149,7 @@ type: custom:cronostar-card
 | Option | Default | Description |
 |--------|---------|-------------|
 | `title` | preset name | Custom card title. |
-| `pause_entity` | null | `switch` or `input_boolean` to pause the schedule. |
+| `enabled_entity` | null | `switch` or `input_boolean` to enable/disable the schedule application. |
 | `profiles_select_entity` | null | `select` or `input_select` to switch between profiles. |
 | `min_value` | preset default | Minimum chart value. |
 | `max_value` | preset default | Maximum chart value. |

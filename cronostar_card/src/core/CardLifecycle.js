@@ -156,21 +156,21 @@ export class CardLifecycle {
           .finally(() => { this._isRegistering = false; });
       }
 
-      if (card.config?.pause_entity && !card.config.not_configured) {
-        const pauseId = card.config.pause_entity;
-        const pauseStateObj = hass.states[pauseId];
-        if (pauseStateObj) {
-          card.isPaused = pauseStateObj.state === 'on';
+      if (card.config?.enabled_entity && !card.config.not_configured) {
+        const enabledId = card.config.enabled_entity;
+        const enabledStateObj = hass.states[enabledId];
+        if (enabledStateObj) {
+          card.isEnabled = enabledStateObj.state === 'on';
           this.loggedPauseEntityMissing = false;
         } else {
           let alreadyWarnedGlobally = false;
           if (typeof window !== 'undefined' && window.cronostarpausewarned instanceof Set) {
-            alreadyWarnedGlobally = window.cronostarpausewarned.has(pauseId);
+            alreadyWarnedGlobally = window.cronostarpausewarned.has(enabledId);
           }
           if (!this.loggedPauseEntityMissing && !alreadyWarnedGlobally) {
-            Logger.warn('HASS', 'CronoStar Pause entity not found:', pauseId);
+            Logger.warn('HASS', 'CronoStar Enabled entity not found:', enabledId);
             if (typeof window !== 'undefined' && window.cronostarpausewarned instanceof Set) {
-              window.cronostarpausewarned.add(pauseId);
+              window.cronostarpausewarned.add(enabledId);
             }
             this.loggedPauseEntityMissing = true;
           }

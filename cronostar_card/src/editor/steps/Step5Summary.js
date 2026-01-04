@@ -33,8 +33,8 @@ export class Step5Summary {
 
     // Build YAML string for card config - include only non-default or specifically set values
     const cleanConfig = { type: 'custom:cronostar-card' };
-    const validKeys = [
-      'preset_type', 'global_prefix', 'target_entity', 'pause_entity',
+    const keys = [
+      'preset_type', 'global_prefix', 'target_entity', 'enabled_entity',
       'profiles_select_entity', 'min_value', 'max_value', 'step_value',
       'unit_of_measurement', 'y_axis_label', 'allow_max_value',
       'logging_enabled', 'title', 'interval_minutes'

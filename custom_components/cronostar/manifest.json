@@ -6,12 +6,14 @@
   ],
   "config_flow": true,
   "dependencies": [
-    "http",
-    "frontend",
     "input_number",
     "input_select",
     "input_boolean",
     "input_text"
+  ],
+  "after_dependencies": [
+    "http",
+    "frontend"
   ],
   "documentation": "https://github.com/FoliniC/CronoStar",
   "iot_class": "local_polling",

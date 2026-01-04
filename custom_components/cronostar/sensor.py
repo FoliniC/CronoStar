@@ -74,7 +74,7 @@ class CronoStarCurrentSensor(CoordinatorEntity, SensorEntity):
         """Return additional state attributes."""
         return {
             "active_profile": self.coordinator.data.get("selected_profile"),
-            "is_paused": self.coordinator.data.get("is_paused", False),
+            "is_enabled": self.coordinator.data.get("is_enabled", True),
             "target_entity": self.coordinator.target_entity,
         }
 

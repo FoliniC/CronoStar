@@ -483,10 +483,12 @@ export class CardEventHandlers {
                 this.card.selectedProfile = profileName;
                 await this.card.profileManager.loadProfile(profileName);
 
-                // If we have an input_select entity, set the option there too
-                if (this.card.config.profiles_select_entity) {
-                    this.card.hass.callService('input_select', 'select_option', {
-                        entity_id: this.card.config.profiles_select_entity,
+                // If we have a selector entity, set the option there too
+                const selectorEntity = this.card.config.profiles_select_entity;
+                if (selectorEntity) {
+                    const domain = selectorEntity.split('.')[0] || 'input_select';
+                    this.card.hass.callService(domain, 'select_option', {
+                        entity_id: selectorEntity,
                         option: profileName
                     }).catch(() => { /* ignore */ });
                 }
@@ -689,9 +691,11 @@ export class CardEventHandlers {
 
                 if (next) {
                     await this.card.profileManager.loadProfile(next);
-                    if (this.card.config.profiles_select_entity) {
-                        this.card.hass.callService('input_select', 'select_option', {
-                            entity_id: this.card.config.profiles_select_entity,
+                    const selectorEntity = this.card.config.profiles_select_entity;
+                    if (selectorEntity) {
+                        const domain = selectorEntity.split('.')[0] || 'input_select';
+                        this.card.hass.callService(domain, 'select_option', {
+                            entity_id: selectorEntity,
                             option: next
                         }).catch(() => { /* ignore */ });
                     }
@@ -739,7 +743,7 @@ export class CardEventHandlers {
         const prefix = getEffectivePrefix(this.card.config);
         const targetEntity = this.card.config?.target_entity || 'Not configured';
         const profileEntity = this.card.config?.profiles_select_entity || 'Not configured';
-        const pauseEntity = this.card.config?.pause_entity || 'Not configured';
+        const enabledEntity = this.card.config?.enabled_entity || 'Not configured';
         const currentProfile = this.card.selectedProfile || 'No profile selected';
         const automationAlias = getAliasWithPrefix(prefix, this.card.language);
 
@@ -748,7 +752,7 @@ export class CardEventHandlers {
         const stTarget = states.target ? ` (${states.target})` : '';
         const stHelper = states.current_helper ? ` (${states.current_helper})` : '';
         const stSelector = states.selector ? ` (${states.selector})` : '';
-        const stPause = states.pause ? ` (${states.pause})` : '';
+        const stEnabled = states.enabled ? ` (${states.enabled})` : '';
 
         // Expected entities
         const prefixBase = prefix.replace(/_+$/, '');
@@ -771,7 +775,7 @@ Automazione: ${automationAlias}
 Entità Destinazione: ${targetEntity}${stTarget}
 Entità Valore Corrente: ${currentEntity}${stHelper}
 Selettore Profili: ${profileEntity}${stSelector}
-Entità Pausa: ${pauseEntity}${stPause}
+Entità Abilitazione: ${enabledEntity}${stEnabled}
 
 === Configurazione ===
 Intervallo: Dinamico (Time-based)
@@ -791,7 +795,7 @@ Automation: ${automationAlias}
 Target Entity: ${targetEntity}${stTarget}
 Current Value Entity: ${currentEntity}${stHelper}
 Profiles Selector: ${profileEntity}${stSelector}
-Pause Entity: ${pauseEntity}${stPause}
+Enabled Entity: ${enabledEntity}${stEnabled}
 
 === Configuration ===
 Interval: Dynamic (Time-based)
@@ -904,16 +908,22 @@ Points in Profile: ${actualPoints}
         overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
         document.body.appendChild(overlay);
     } // Missing closing brace added here
-    async togglePause(e) {
+    async toggleEnabled(e) {
         try {
             const checked = e?.target?.checked === true;
-            const entityId = this.card.config?.pause_entity;
+            const entityId = this.card.config?.enabled_entity;
             if (!entityId || !this.card.hass) return;
-            await this.card.hass.callService('input_boolean', checked ? 'turn_on' : 'turn_off', { entity_id: entityId });
-            this.card.isPaused = checked;
+
+            const domain = entityId.split('.')[0] || 'switch';
+            const service = checked ? 'turn_on' : 'turn_off';
+
+            Logger.log('UI', `[CronoStar] toggleEnabled: calling ${domain}.${service} on ${entityId}`);
+            await this.card.hass.callService(domain, service, { entity_id: entityId });
+
+            this.card.isEnabled = checked;
             this.card.requestUpdate();
         } catch (err) {
-            Logger.warn('UI', '[CronoStar] togglePause error:', err);
+            Logger.warn('UI', '[CronoStar] toggleEnabled error:', err);
         }
     }
 

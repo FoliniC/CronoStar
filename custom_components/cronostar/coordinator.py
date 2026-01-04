@@ -29,10 +29,12 @@ class CronoStarCoordinator(DataUpdateCoordinator):
 
         # Get logging preference (Global setting overrides/defaults, fallback to entry for legacy)
         global_logging = hass.data.get(DOMAIN, {}).get("logging_enabled", False)
-        self.logging_enabled = global_logging or entry.data.get(CONF_LOGGING_ENABLED, False)
+        # Check both options and data for the logging flag
+        entry_logging = entry.options.get(CONF_LOGGING_ENABLED, entry.data.get(CONF_LOGGING_ENABLED, False))
+        self.logging_enabled = global_logging or entry_logging
 
         if self.logging_enabled:
-            _LOGGER.info("CronoStarCoordinator initialized for '%s' (entry_id: %s)", entry.title, entry.entry_id)
+            _LOGGER.info("CronoStarCoordinator initialized for '%s' (entry_id: %s, logging=%s)", entry.title, entry.entry_id, self.logging_enabled)
 
         # Controller configuration from entry
         self.name = entry.data.get(CONF_NAME, entry.title)
@@ -41,7 +43,7 @@ class CronoStarCoordinator(DataUpdateCoordinator):
 
         # Controller state
         self.selected_profile = "Default"
-        self.is_paused = False
+        self.is_enabled = True
         self.current_value = 0.0
         self.available_profiles = ["Default"]
 
@@ -74,7 +76,7 @@ class CronoStarCoordinator(DataUpdateCoordinator):
                 _LOGGER.debug("Target entity '%s' not found in states; skipping update", self.target_entity)
             return {
                 "selected_profile": self.selected_profile,
-                "is_paused": self.is_paused,
+                "is_enabled": self.is_enabled,
                 "current_value": self.current_value,
                 "available_profiles": self.available_profiles,
             }
@@ -87,7 +89,7 @@ class CronoStarCoordinator(DataUpdateCoordinator):
         # Return current state for entities
         return {
             "selected_profile": self.selected_profile,
-            "is_paused": self.is_paused,
+            "is_enabled": self.is_enabled,
             "current_value": self.current_value,
             "available_profiles": self.available_profiles,
         }
@@ -168,19 +170,19 @@ class CronoStarCoordinator(DataUpdateCoordinator):
         self.selected_profile = profile_name
         await self.async_refresh()
 
-    async def set_paused(self, paused: bool):
-        """Set paused state."""
+    async def set_enabled(self, enabled: bool):
+        """Set enabled state."""
         if self.logging_enabled:
-            _LOGGER.info("Setting paused=%s for '%s'", paused, self.name)
+            _LOGGER.info("Setting enabled=%s for '%s'", enabled, self.name)
 
-        self.is_paused = paused
+        self.is_enabled = enabled
         await self.async_refresh()
 
     async def apply_schedule(self):
         """Calculate and apply the current scheduled value to target entity."""
-        if self.is_paused:
+        if not self.is_enabled:
             if self.logging_enabled:
-                _LOGGER.debug("Controller '%s' is paused, skipping schedule application", self.name)
+                _LOGGER.debug("Controller '%s' is disabled, skipping schedule application", self.name)
             return
 
         # If target entity is unknown/unavailable, do not try to call services
@@ -222,9 +224,6 @@ class CronoStarCoordinator(DataUpdateCoordinator):
             # Compute next change time based on current schedule and value
             next_change = self._get_next_change(schedule, value)
 
-            if self.logging_enabled:
-                _LOGGER.info("Applying scheduled value %.2f to '%s' (%s)", value, self.name, self.target_entity)
-
             await self._update_target_entity(value, next_change)
         else:
             if self.logging_enabled:
@@ -259,11 +258,15 @@ class CronoStarCoordinator(DataUpdateCoordinator):
                 if self.logging_enabled:
                     _LOGGER.warning("Unsupported domain '%s' for target entity '%s'", domain, entity_id)
 
-            if success and self.logging_enabled:
+            if success:
+                status = "ON" if (domain in ["switch", "light", "fan"] and value > 0) else "OFF" if (domain in ["switch", "light", "fan"]) else str(value)
+                
+                # Always log the application if it was successful, using INFO level
                 _LOGGER.info(
-                    "[COORDINATOR] '%s' applied value %.2f to '%s' (Profile: %s, Service: %s)",
-                    self.name, value, entity_id, self.selected_profile, service_called
+                    "🔷 [COORDINATOR] Applied '%s' to '%s' (Profile: %s, Status: %s, Service: %s)",
+                    value, entity_id, self.selected_profile, status, service_called
                 )
+                
                 # Highlighted log line with profile and next scheduled change
                 if next_change:
                     next_time_str, minutes_until = next_change
@@ -271,7 +274,13 @@ class CronoStarCoordinator(DataUpdateCoordinator):
                         "🔶⏱️ Next scheduled change for profile '%s' on %s at %s (in %d min)",
                         self.selected_profile, entity_id, next_time_str, minutes_until
                     )
-                log_operation("Apply scheduled value", True, name=self.name, entity=entity_id, value=value, service=service_called)
+                else:
+                    _LOGGER.info(
+                        "🔶⏱️ No further changes scheduled for profile '%s' on %s",
+                        self.selected_profile, entity_id
+                    )
+                
+                log_operation("Apply scheduled value", True, name=self.name, entity=entity_id, value=value, service=service_called, profile=self.selected_profile)
 
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Failed to update target entity '%s': %s", entity_id, e)

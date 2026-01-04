@@ -97,7 +97,7 @@ export class CardSync {
         }
         // Removed cronostarReady check related to entities
         
-        if (this.card.isPaused) {
+        if (!this.card.isEnabled) {
             this.card.awaitingAutomation = false;
             this.card.outOfSyncDetails = "";
             return;

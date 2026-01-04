@@ -78,11 +78,25 @@ class StorageManager:
                 "updated_at": datetime.now().isoformat(),
             }
 
-            # Update profile
-            if "profiles" not in container:
-                container["profiles"] = {}
+            # Add entity info to profile data as requested
+            profile_entry = {**profile_data, "updated_at": datetime.now().isoformat()}
+            if "enabled_entity" in metadata:
+                profile_entry["enabled_entity"] = metadata["enabled_entity"]
+            if "profiles_select_entity" in metadata:
+                profile_entry["profiles_select_entity"] = metadata["profiles_select_entity"]
+            if "target_entity" in metadata:
+                profile_entry["target_entity"] = metadata["target_entity"]
+            
+            # Consolidated entities list for easy discovery
+            profile_entry["entities"] = [
+                metadata.get("target_entity"),
+                metadata.get("enabled_entity"),
+                metadata.get("profiles_select_entity")
+            ]
+            # Filter out None values
+            profile_entry["entities"] = [e for e in profile_entry["entities"] if e]
 
-            container["profiles"][profile_name] = {**profile_data, "updated_at": datetime.now().isoformat()}
+            container["profiles"][profile_name] = profile_entry
 
             # Backup if enabled
             if self.enable_backups and filepath.exists():

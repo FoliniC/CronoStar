@@ -26,7 +26,7 @@ export class CronoStarCard extends LitElement {
     return {
       hass: { type: Object },
       config: { type: Object },
-      isPaused: { type: Boolean },
+      isEnabled: { type: Boolean },
       selectedProfile: { type: String },
       profileOptions: { type: Array },
       hasUnsavedChanges: { type: Boolean },
@@ -108,7 +108,7 @@ export class CronoStarCard extends LitElement {
     this.config = null;
     this.hourBase = 0;
     this.hourBaseDetermined = false;
-    this.isPaused = false;
+    this.isEnabled = true;
     this.showUnsavedChangesDialog = false;
     this.pendingProfileChange = null;
     this.profileOptions = [];

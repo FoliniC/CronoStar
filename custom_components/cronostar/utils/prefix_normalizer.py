@@ -27,7 +27,7 @@ PRESETS_CONFIG = {
     "ev_charging": {"title": "CronoStar EV Charging", "unit": "kW", "global_prefix": "cronostar_ev_"},
     "generic_kwh": {"title": "CronoStar Generic kWh", "unit": "kWh", "global_prefix": "cronostar_kwh_"},
     "generic_temperature": {"title": "CronoStar Generic Temperature", "unit": "°C", "global_prefix": "cronostar_gentemp_"},
-    "generic_switch": {"title": "CronoStar Generic Switch", "unit": "", "global_prefix": "cronostar_switch_"},
+    "generic_switch": {"title": "CronoStar Generic Switch", "unit": "", "global_prefix": "cronostar_generic_switch_"},
 }
 
 # Reverse lookup for normalization

@@ -3,8 +3,7 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
-DOMAIN = "cronostar"
-CONF_LOGGING_ENABLED = "logging_enabled"
+from custom_components.cronostar.const import DOMAIN, CONF_LOGGING_ENABLED
 
 async def test_component_install_flow(hass: HomeAssistant) -> None:
     """Test installing the global component."""
