@@ -407,15 +407,22 @@ export const cardStyles = css`
   .chart-tooltip {
     position: absolute;
     background: var(--card-background-color, white);
-    border: 1px solid var(--divider-color, #e0e0e0);
+    border: 1px solid var(--primary-color, #03a9f4);
+    color: var(--primary-text-color, black);
     padding: 4px 8px;
     border-radius: 4px;
     display: none;
-    z-index: 100;
+    z-index: 9999;
     font-size: 12px;
-    font-weight: 500;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .hover-tooltip {
+    background: var(--primary-background-color, #f5f5f5);
+    border-color: var(--primary-color);
   }
 
   .drag-value-display {

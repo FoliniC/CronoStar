@@ -20,33 +20,40 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class CronoStarProfileSelect(CoordinatorEntity, SelectEntity):
     """Select entity to choose active schedule profile."""
 
+    _attr_translation_key = "profile"
+    _attr_has_entity_name = False
+    _attr_entity_category = EntityCategory.CONFIG
+
     def __init__(self, coordinator):
         """Initialize profile selector."""
         super().__init__(coordinator)
-        self._attr_name = f"{coordinator.name} Profile"
-        self._attr_unique_id = f"{coordinator.entry.entry_id}_profile"
-        self._attr_icon = "mdi:calendar-clock"
-        self._attr_entity_category = EntityCategory.CONFIG
-        self._attr_has_entity_name = True
+        # Naming requirement: global_prefix + "current_profile"
+        self._attr_name = f"{coordinator.prefix}current_profile"
+        self._attr_unique_id = f"{coordinator.prefix}current_profile"
 
         # Device info for grouping
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, coordinator.entry.entry_id)},
-            "name": coordinator.name,
-            "manufacturer": "CronoStar",
-            "model": f"{coordinator.preset.capitalize()} Controller",
-            "sw_version": coordinator.hass.data[DOMAIN].get("version", "unknown"),
-        }
+            try:
+                preset = getattr(coordinator, "preset_type", None) or "controller"
+                model_name = f"{preset.replace('_', ' ').title()} Controller"
+            except Exception:
+                model_name = "Controller"
+            self._attr_device_info = {
+                "identifiers": {(DOMAIN, coordinator.entry.entry_id)},
+                "name": coordinator.name,
+                "manufacturer": "CronoStar",
+                "model": model_name,
+                "sw_version": coordinator.hass.data[DOMAIN].get("version", "unknown"),
+            }
 
     @property
     def options(self) -> list[str]:
         """Return available profile options."""
-        return self.coordinator.data.get("available_profiles", ["Comfort", "Default"])
+        return self.coordinator.data.get("available_profiles", ["Default"])
 
     @property
     def current_option(self) -> str | None:
         """Return currently selected profile."""
-        return self.coordinator.data.get("selected_profile")
+        return self.coordinator.data.get("selected_profile") or "Default"
 
     async def async_select_option(self, option: str) -> None:
         """Handle profile selection."""

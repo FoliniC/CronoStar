@@ -85,26 +85,48 @@ export class Step0Dashboard {
 
     const oldName = this.editor._dashboardSelectedProfile;
     const newName = (this.editor._dashboardEditName || "").trim();
-    
+
     if (!newName) {
       this.editor.showToast("Profile name cannot be empty", "error");
       return;
     }
 
     const presetType = this.editor._dashboardSelectedPreset;
-    
+
     // Recupera i dati aggiornati dalla card (se accessibile) o usa quelli correnti
     const cardEl = this.editor.shadowRoot?.querySelector('cronostar-card');
     let schedule = detailData.schedule;
-    
+
     if (cardEl && cardEl.stateManager) {
-      schedule = cardEl.stateManager.getData().map(p => ({
+      const isSwitchPreset = presetType === 'generic_switch' || cardEl?.config?.is_switch_preset;
+      const dataToUse = isSwitchPreset && typeof cardEl.stateManager.getDataWithChangePoints === 'function'
+        ? cardEl.stateManager.getDataWithChangePoints()
+        : cardEl.stateManager.getData();
+      schedule = dataToUse.map(p => ({
         time: p.time,
         value: p.value
       }));
     }
 
-    const meta = detailData.meta || {};
+    // Merge meta with actual chart config values from the live card
+    let meta = detailData.meta || {};
+    if (cardEl && cardEl.config) {
+      const cfg = cardEl.config;
+      const chartMetaKeys = [
+        'y_axis_label',
+        'unit_of_measurement',
+        'min_value',
+        'max_value',
+        'step_value',
+        'allow_max_value',
+        'drag_snap'
+      ];
+      const chartMeta = {};
+      chartMetaKeys.forEach((k) => {
+        if (cfg[k] !== undefined) chartMeta[k] = cfg[k];
+      });
+      meta = { ...meta, ...chartMeta };
+    }
     const globalPrefix = meta.global_prefix || detailData.global_prefix;
 
     try {
@@ -127,15 +149,15 @@ export class Step0Dashboard {
       }
 
       this.editor.showToast(`Profile '${newName}' saved successfully`, 'success');
-      
+
       // Aggiorna lo stato locale per riflettere il nuovo nome/dati senza chiudere il modal
       this.editor._dashboardSelectedProfile = newName;
       this.editor._dashboardEditName = newName;
       this.editor._dashboardIsEditingName = false;
-      
+
       // Ricarica tutto per aggiornare la dashboard sotto
       await this._loadAllProfiles();
-      
+
       // Ricarica i dettagli per essere allineati al backend
       const updatedDetail = await this._loadProfileDetail(presetType, newName, globalPrefix);
       this.editor._dashboardDetailData = updatedDetail;
@@ -216,7 +238,7 @@ export class Step0Dashboard {
     // 2. Schedule modificato (verificando la card figlia se presente)
     const cardEl = this.editor.shadowRoot?.querySelector('cronostar-card');
     const isScheduleChanged = cardEl?.hasUnsavedChanges === true;
-    
+
     const showSaveButton = isNameChanged || isScheduleChanged;
 
     return html`
@@ -225,7 +247,7 @@ export class Step0Dashboard {
           <div class="modal-header">
             <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-height: 56px;">
               ${this.editor._dashboardIsEditingName
-                ? html`
+        ? html`
                     <ha-textfield
                       label="Profile Name"
                       .value=${this.editor._dashboardEditName}
@@ -234,13 +256,13 @@ export class Step0Dashboard {
                       style="flex: 1; max-width: 300px;"
                     ></ha-textfield>
                   `
-                : html`
+        : html`
                     <h2 @click=${() => { this.editor._dashboardIsEditingName = true; this.editor.requestUpdate(); }} style="cursor: pointer; display: flex; align-items: center; gap: 8px; margin: 0;">
                       📊 ${profileName}
                       <ha-icon icon="mdi:pencil" style="--mdc-icon-size: 18px; color: var(--secondary-text-color); opacity: 0.6;"></ha-icon>
                     </h2>
                   `
-              }
+      }
             </div>
             <div style="display: flex; gap: 8px;">
               ${showSaveButton ? html`
@@ -285,12 +307,12 @@ export class Step0Dashboard {
                   </thead>
                   <tbody>
                     ${schedule.map((point, index) => html`
-                      <tr style="${index % 2 === 0 ? '' : 'background: rgba(255,255,255,0.02);'}">
-                        <td style="padding: 8px 15px; font-family: monospace;">${point.time}</td>
-                        <td style="padding: 8px 15px; font-family: monospace; color: #0ea5e9; font-weight: bold;">
-                          ${this.editor._selectedPreset === 'generic_switch' ? (point.value >= 0.5 ? 'ON' : 'OFF') : point.value}
-                        </td>
-                      </tr>
+                                            <tr style="${index % 2 === 0 ? '' : 'background: rgba(255, 255, 255, 0.02);'}">
+                                              <td style="padding: 8px 15px; font-family: monospace;">${point.time}</td>
+                                              <td style="padding: 8px 15px; font-family: monospace; color: #0ea5e9; font-weight: bold;">
+                                                ${presetType === 'generic_switch' ? (point.value >= 0.5 ? 'ON' : 'OFF') : point.value}
+                                              </td>
+                                            </tr>
                     `)}
                   </tbody>
                 </table>
@@ -307,16 +329,16 @@ export class Step0Dashboard {
 
     // Aggregazione intelligente per evitare mis-categorizzazioni
     const categorizedData = {};
-    
+
     Object.keys(this.editor._dashboardProfilesData).forEach(presetType => {
       const presetData = this.editor._dashboardProfilesData[presetType];
       const files = presetData.files || [];
-      
+
       files.forEach(fileInfo => {
         // Determina il preset REALE del file
         let realPreset = presetType;
         const filename = fileInfo.filename.toLowerCase();
-        
+
         // Se un file contiene 'switch' nel nome ma è finito in thermostat, correggilo
         if (filename.includes('_switch_')) realPreset = 'generic_switch';
         else if (filename.includes('_temp_')) realPreset = 'thermostat';
@@ -325,7 +347,7 @@ export class Step0Dashboard {
         else if (filename.includes('_gentemp_')) realPreset = 'generic_temperature';
 
         if (!categorizedData[realPreset]) categorizedData[realPreset] = { files: [] };
-        
+
         // Evita duplicati se il file è già stato aggiunto (per sicurezza)
         if (!categorizedData[realPreset].files.find(f => f.filename === fileInfo.filename)) {
           categorizedData[realPreset].files.push(fileInfo);
@@ -351,10 +373,10 @@ export class Step0Dashboard {
           </mwc-button>
         </div>
         ${presets.map(presetKey => {
-          const presetData = categorizedData[presetKey];
-          const files = presetData.files || [];
+      const presetData = categorizedData[presetKey];
+      const files = presetData.files || [];
 
-          return html`
+      return html`
             <div class="preset-section">
               <div class="preset-header">
                 <h3>${this.editor.i18n._t(`presetNames.${presetKey}`) || presetKey}</h3>
@@ -398,7 +420,7 @@ export class Step0Dashboard {
               `)}
             </div>
           `;
-        })}
+    })}
       </div>
     `;
   }

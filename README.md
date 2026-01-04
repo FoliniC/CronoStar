@@ -4,17 +4,16 @@
 [![GitHub Release](https://img.shields.io/github/release/FoliniC/cronostar.svg)](https://github.com/FoliniC/cronostar/releases)
 [![License](https://img.shields.io/github/license/FoliniC/cronostar.svg)](LICENSE)
 
-Easily add time-based schedules to any entity. The integration can automatically create the required helpers and automations, stores its settings in editable JSON files, and provides an intuitive visual interface to manage all your time profiles. 
+Easily add time-based schedules to any entity. The integration uses standard Home Assistant entities and coordinators, stores its settings in editable JSON files, and provides an intuitive visual interface to manage all your time profiles. 
 
 ![CronoStar](custom_components/cronostar/www/cronostar_card/cronostar-logo.png)
 
-## 🎯 What's New in v5.2
+## 🎯 What's New in v5.3
 
-### 🪄 Interactive Setup Wizard
-- **Step-by-step configuration**: From preset selection to automation creation.
-- **Environment Analysis**: Detects if your `configuration.yaml` is ready for packages and automations.
-- **Automatic File Generation**: One-click creation of YAML packages and automations.
-- **Component Dashboard**: View and manage all existing profiles and presets from a central hub.
+### 🪄 Refactored Architecture
+- **Native Entity Integration**: Now uses standard Config Entries and Data Update Coordinators.
+- **No More YAML Generation**: Automatic management of schedules without external packages or automations.
+- **Component Dashboard**: View and manage all existing profiles and presets from a central hub in the card editor.
 
 ### 🔧 Dynamic Point Management & History
 - **Undo/Redo Support**: Easily revert or re-apply changes (Ctrl+Z / Ctrl+Y).
@@ -25,11 +24,10 @@ Easily add time-based schedules to any entity. The integration can automatically
 ## ✨ Features
 
 ### 🔧 Integration (Backend)
-- **Automatic Setup**: Handles folder creation and configuration patching.
-- **Multiple Preset Types**: Thermostat, EV Charging, Generic Switch, Temperature, Power.
+- **Automatic Setup**: Handles folder creation and internal configuration.
+- **Multiple Preset Types**: Thermostat, EV Charging, Generic Switch, Temperature, Power, Cover.
 - **Unified Storage**: Profiles stored in `/config/cronostar/profiles/` as structured JSON.
-- **Service-Based Logic**: `cronostar.apply_now` service for immediate or automated execution.
-- **Deep Verification**: Real-time checks to ensure your setup is consistent and healthy.
+- **Real-time Synchronization**: Changes in the UI are immediately reflected in the backend entities.
 
 ### 🎨 Lovelace Card (Frontend)
 - **Visual Editor**: Interactive chart with drag-and-drop support.
@@ -67,7 +65,7 @@ Easily add time-based schedules to any entity. The integration can automatically
   - **Esc**: Deselect all.
   - **Enter**: (If configured) Apply changes immediately.
 
-## 📁 New Structure
+## 📁 Structure
 
 ### Backend (`custom_components/cronostar/`)
 ```
@@ -78,39 +76,27 @@ Easily add time-based schedules to any entity. The integration can automatically
 ├── setup/                      # Setup modules
 │   ├── __init__.py            # Main setup orchestrator
 │   ├── services.py            # Service registration
-│   ├── events.py              # Event handlers
 │   └── validators.py          # Environment validation
 │
 ├── services/                   # Service handlers
-│   ├── profile_service.py     # Profile CRUD operations
-│   └── file_service.py        # File operations
-│
-├── scheduler/                  # Scheduling logic
-│   └── smart_scheduler.py     # Auto-apply schedules
+│   └── profile_service.py     # Profile CRUD operations
 │
 ├── storage/                    # Storage management
-│   └── storage_manager.py     # Profile persistence
+│   ├── storage_manager.py     # Profile persistence
+│   └── settings_manager.py    # Global settings
 │
-├── utils/                      # Utilities
-│   ├── prefix_normalizer.py  # Prefix handling
-│   └── error_handler.py       # Error management
-│
-└── deep_checks/               # Diagnostics
-    ├── __init__.py            # Check registration
-    ├── entity_checker.py      # Entity validation
-    ├── file_checker.py        # File validation
-    ├── automation_checker.py  # Automation validation
-    └── report_builder.py      # Report generation
+└── utils/                      # Utilities
+    ├── prefix_normalizer.py  # Prefix handling
+    ├── filename_builder.py   # Filename conventions
+    └── error_handler.py       # Error management
 ```
 
 ### Frontend (`www/cronostar_card/src/`)
 ```
-├── CronoStar.js               # Main card component
-├── utils.js                   # Utility functions
-│
 ├── core/                      # Core modules
+│   ├── CronoStar.js          # Main card component
 │   ├── EventBus.js           # Event system
-│   └── CardContext.js        # Dependency injection
+│   └── CardLifecycle.js      # Component lifecycle
 │
 └── managers/                  # Feature managers
     ├── StateManager.js        # Schedule state
@@ -129,21 +115,18 @@ Easily add time-based schedules to any entity. The integration can automatically
 4. Category: **Integration**.
 5. Download and **Restart Home Assistant**.
 6. Go to Settings → Devices & Services → Add Integration → search for "**CronoStar**".
-7. Follow the on-screen instructions to prepare your environment.
+7. Click Submit to install the global component.
 
 ## 🎯 Quick Start Guide
 
-### 1. Configure via UI
-After installing the integration, CronoStar will analyze your `configuration.yaml`. If you use manual includes, it will suggest the correct lines to add for **packages** and **automations**.
-
-### 2. Add the Card
+### 1. Add the Card
 Add the card to any dashboard and use the **Visual Wizard**:
 ```yaml
 type: custom:cronostar-card
 ```
 *The wizard will guide you through selecting a preset, setting a `global_prefix`, and choosing a `target_entity`.*
 
-### 3. Choose Your Preset
+### 2. Choose Your Preset
 | Preset | Use Case | Range | Unit |
 |--------|----------|-------|------|
 | 🌡️ **Thermostat** | Climate control | 15-30 | °C |
@@ -151,6 +134,7 @@ type: custom:cronostar-card
 | ⚡ **Generic kWh** | Energy limits | 0-7 | kWh |
 | 🌡️ **Generic Temperature** | General sensors | 0-40 | °C |
 | 💡 **Generic Switch** | On/Off scheduling | 0-1 | - |
+| 🪟 **Cover** | Blind/Shutter control | 0-100 | % |
 
 ## 📖 Configuration
 
@@ -159,14 +143,14 @@ type: custom:cronostar-card
 |--------|-------------|
 | `preset` | Type of scheduler (e.g., `thermostat`). |
 | `global_prefix` | Unique prefix for helpers (e.g., `cronostar_living_`). |
-| `target_entity` | The entity to control (climate, number, switch). |
+| `target_entity` | The entity to control (climate, number, switch, cover). |
 
 ### Optional Parameters
 | Option | Default | Description |
 |--------|---------|-------------|
 | `title` | preset name | Custom card title. |
-| `pause_entity` | null | `input_boolean` to pause the automation. |
-| `profiles_select_entity` | null | `input_select` to switch between profiles. |
+| `pause_entity` | null | `switch` or `input_boolean` to pause the schedule. |
+| `profiles_select_entity` | null | `select` or `input_select` to switch between profiles. |
 | `min_value` | preset default | Minimum chart value. |
 | `max_value` | preset default | Maximum chart value. |
 | `step_value` | preset default | Increment step. |
@@ -178,13 +162,30 @@ type: custom:cronostar-card
 - `cronostar.save_profile`: Save schedule to JSON with metadata.
 - `cronostar.load_profile`: Retrieve profile data from storage.
 - `cronostar.add_profile` / `delete_profile`: Manage profile files.
-- `cronostar.check_setup`: Run deep verification of your configuration.
 
 ## 📂 File Storage
 
 - **Profiles**: `/config/cronostar/profiles/` (JSON)
-- **Helper Packages**: `/config/packages/` (YAML)
-- **Automations**: `/config/automations/` (YAML)
+- **Settings**: `/config/cronostar/settings.json` (JSON)
+
+
+## 🗑️ Removal
+
+1. **Remove from Devices & Services**:
+   - Go to **Settings** → **Devices & Services**.
+   - Select the **CronoStar** integration.
+   - Click the three dots (⋮) next to the integration entry and select **Delete**.
+   - Repeat for all CronoStar entries (Component and Controllers).
+
+2. **Remove from HACS**:
+   - Go to **HACS** → **Integrations**.
+   - Find **CronoStar**.
+   - Click the three dots (⋮) and select **Remove**.
+   - Restart Home Assistant.
+
+3. **Cleanup (Optional)**:
+   - You can manually delete the storage folder if you want to remove all saved profiles:
+     `/config/cronostar/`
 
 ## 💬 Support
 

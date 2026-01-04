@@ -1,8 +1,8 @@
 {
     "config": {
         "step": {
-            "user": {
-                "title": "Installa Componente CronoStar",
+            "install_component": {
+                "title": "Installa CronoStar",
                 "description": "⏰ **CronoStar** - Programmazione Oraria Avanzata per Home Assistant\n\n🚀 **Cosa verrà installato:**\n- Sistema di archiviazione profili globale\n- Servizi per la gestione dei profili (salva, carica, elimina)\n- Scheda Lovelace CronoStar per creare controller\n\n📝 **Dopo l'installazione:**\n- Aggiungi schede CronoStar alle tue dashboard\n- Ogni scheda crea un nuovo controller (Termostato, Interruttore, ecc.)\n- Configura le programmazioni direttamente nell'interfaccia della scheda\n\nClicca **Invia** per installare il componente."
             }
         },
@@ -13,9 +13,11 @@
     "options": {
         "step": {
             "init": {
-                "title": "Opzioni Componente CronoStar",
-                "description": "Impostazioni globali del componente.\n\n**Nota:** La configurazione dei controller viene effettuata tramite le schede Lovelace, non qui.",
-                "data": {}
+                "title": "Opzioni CronoStar",
+                "description": "Impostazioni globali del componente.",
+                "data": {
+                    "logging_enabled": "Abilita Log di Debug"
+                }
             }
         }
     }

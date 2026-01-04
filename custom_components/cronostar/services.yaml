@@ -7,9 +7,9 @@ save_profile:
   fields:
     profile_name:
       name: Profile Name
-      description: "The name of the profile to save (e.g., Comfort)."
+      description: "The name of the profile to save (e.g., Default)."
       required: true
-      example: "Comfort"
+      example: "Default"
       selector:
         text:
     preset_type:
@@ -125,6 +125,18 @@ delete_profile:
       selector:
         text:
 
+list_all_profiles:
+  name: List All Profiles
+  description: Lists all available CronoStar schedule profiles across all preset types.
+  fields:
+    force_reload:
+      name: Force Reload
+      description: Force reload profiles from disk, bypassing cache.
+      required: false
+      default: false
+      selector:
+        boolean:
+
 apply_now:
   name: Apply current value
   description: Force apply the current scheduled value to the target entity.
@@ -146,3 +158,18 @@ apply_now:
       required: false
       selector:
         text:
+
+save_settings:
+  name: Save Global Settings
+  description: Saves global integration settings (keyboard modifiers, etc.) to settings.json.
+  fields:
+    settings:
+      name: Settings Object
+      description: The dictionary containing all global settings.
+      required: true
+      selector:
+        object:
+
+load_settings:
+  name: Load Global Settings
+  description: Loads and returns the global integration settings from settings.json.

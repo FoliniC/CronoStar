@@ -2,7 +2,6 @@
  * Utility functions for building filenames in CronoStar Editor
  */
 import { normalizePrefix } from './prefix_utils.js';
-import { slugify } from './editor_utils.js';
 
 /**
  * Builds the profile filename using the correct prefix and preset

@@ -1,6 +1,6 @@
-/** Configuration management for CronoStar Card with Interval Support */
+/** Configuration management for CronoStar Card */
 import { log } from './utils/logger_utils.js';
-export const VERSION = window.CRONOSTAR_CARD_VERSION || '5.3.0';
+export const VERSION = window.CRONOSTAR_CARD_VERSION || '5.3.2';
 
 export const COLORS = {
   primary: "#03a9f4",
@@ -13,9 +13,6 @@ export const COLORS = {
   max_value_border: "#daa520"
 };
 
-// Interval options (minutes)
-// Sparse mode: remove interval options
-
 export const CARD_CONFIG_PRESETS = {
   thermostat: {
     title: "CronoStar Thermostat",
@@ -24,12 +21,11 @@ export const CARD_CONFIG_PRESETS = {
     min_value: 15,
     max_value: 30,
     step_value: 0.5,
-    pause_entity: "input_boolean.cronostar_temp_paused",
-    profiles_select_entity: "input_select.cronostar_temp_profiles",
+    pause_entity: null,
+    profiles_select_entity: null,
     target_entity: "climate.climatizzazione_appartamento",
     is_switch_preset: false,
-    allow_max_value: false,
-    // sparse mode: no interval
+    allow_max_value: false
   },
   ev_charging: {
     title: "CronoStar EV Charging",
@@ -38,12 +34,11 @@ export const CARD_CONFIG_PRESETS = {
     min_value: 0,
     max_value: 8.0,
     step_value: 0.5,
-    pause_entity: "input_boolean.cronostar_ev_paused",
-    profiles_select_entity: "input_select.cronostar_ev_profiles",
+    pause_entity: null,
+    profiles_select_entity: null,
     target_entity: "number.your_ev_charger_power",
     is_switch_preset: false,
-    allow_max_value: true,
-    // sparse mode: no interval
+    allow_max_value: true
   },
   generic_kwh: {
     title: "CronoStar Generic kWh",
@@ -52,12 +47,11 @@ export const CARD_CONFIG_PRESETS = {
     min_value: 0,
     max_value: 7,
     step_value: 0.5,
-    pause_entity: "input_boolean.cronostar_kwh_paused",
-    profiles_select_entity: "input_select.cronostar_kwh_profiles",
+    pause_entity: null,
+    profiles_select_entity: null,
     target_entity: null,
     is_switch_preset: false,
-    allow_max_value: false,
-    // sparse mode: no interval
+    allow_max_value: false
   },
   generic_temperature: {
     title: "CronoStar Generic Temperature",
@@ -66,12 +60,11 @@ export const CARD_CONFIG_PRESETS = {
     min_value: 0,
     max_value: 40,
     step_value: 0.5,
-    pause_entity: "input_boolean.cronostar_gentemp_paused",
-    profiles_select_entity: "input_select.cronostar_gentemp_profiles",
+    pause_entity: null,
+    profiles_select_entity: null,
     target_entity: null,
     is_switch_preset: false,
-    allow_max_value: false,
-    // sparse mode: no interval
+    allow_max_value: false
   },
   generic_switch: {
     title: "CronoStar Generic Switch",
@@ -80,12 +73,11 @@ export const CARD_CONFIG_PRESETS = {
     min_value: 0,
     max_value: 1,
     step_value: 1,
-    pause_entity: "input_boolean.cronostar_switch_paused",
-    profiles_select_entity: "input_select.cronostar_switch_profiles",
+    pause_entity: null,
+    profiles_select_entity: null,
     target_entity: "switch.your_generic_switch",
     is_switch_preset: true,
-    allow_max_value: false,
-    // sparse mode: no interval
+    allow_max_value: false
   }
 };
 
@@ -97,8 +89,7 @@ export const DEFAULT_CONFIG = {
   pause_entity: null,
   profiles_select_entity: null,
   target_entity: null,
-  allow_max_value: false,
-  missing_yaml_style: 'named'
+  allow_max_value: false
 };
 
 export const CHART_DEFAULTS = {
@@ -128,64 +119,16 @@ export const TIMEOUTS = {
 };
 
 /**
- * Normalize alias keys used in Lovelace YAML (no-underscore) to the canonical
- * underscore-based keys expected by the card/editor/backend.
- */
-export function normalizeConfigAliases(cfg = {}) {
-  const out = { ...cfg };
-  const pairs = [
-    ['global_prefix', 'globalprefix'],
-    ['target_entity', 'targetentity'],
-    ['target_entity', 'apply_entity'],
-    ['target_entity', 'applyentity'],
-    ['pause_entity', 'pauseentity'],
-    ['profiles_select_entity', 'profilesselectentity'],
-    ['min_value', 'minvalue'],
-    ['max_value', 'maxvalue'],
-    ['step_value', 'stepvalue'],
-    ['unit_of_measurement', 'unitofmeasurement'],
-    ['y_axis_label', 'yaxislabel'],
-    ['allow_max_value', 'allowmaxvalue'],
-    ['logging_enabled', 'loggingenabled'],
-    ['missing_yaml_style', 'missingyamlstyle']
-  ];
-  for (const [canonical, alias] of pairs) {
-    const a = out[alias];
-    const c = out[canonical];
-    if ((a !== undefined && a !== null && a !== '') && (c === undefined || c === null || c === '')) {
-      out[canonical] = a;
-    }
-  }
-  return out;
-}
-
-// Sparse mode: getPointsCount removed
-
-// Sparse mode: getIntervalConfig removed
-
-/**
- * Validate configuration with interval support
+ * Validate configuration
  * - merges defaults, preset defaults, and user config
- * - ensures alias keys are normalized before merging
  */
 export function validateConfig(config, isLoggingEnabled = false) {
-  const normalized = normalizeConfigAliases(config);
+  const normalized = { ...config };
 
   // Auto-migrate legacy 'preset' to 'preset_type'
   if (normalized.preset && !normalized.preset_type) {
     normalized.preset_type = normalized.preset;
     delete normalized.preset;
-  }
-
-  // Explicitly remove legacy aliases from the final object to avoid confusion in logs/ui
-  const aliasesToRemove = [
-    'globalprefix', 'targetentity', 'apply_entity', 'applyentity',
-    'pauseentity', 'profilesselectentity', 'minvalue', 'maxvalue',
-    'stepvalue', 'unitofmeasurement', 'yaxislabel', 'allowmaxvalue',
-    'loggingenabled', 'missingyamlstyle'
-  ];
-  for (const alias of aliasesToRemove) {
-    delete normalized[alias];
   }
 
   // ✅ IMPROVED: Infer preset from global_prefix if preset_type is missing
@@ -206,9 +149,29 @@ export function validateConfig(config, isLoggingEnabled = false) {
   // CRITICAL: Ensure card type is always correct and stable
   mergedConfig.type = config.type || DEFAULT_CONFIG.type;
 
+  // Ensure global_prefix is present
   if (!mergedConfig.global_prefix) {
-    log('warn', isLoggingEnabled, "Configuration warning: global_prefix is missing. Setup required.");
+    const tags = {
+      'thermostat': 'thermostat',
+      'ev_charging': 'ev_charging',
+      'generic_kwh': 'generic_kwh',
+      'generic_temperature': 'generic_temperature',
+      'generic_switch': 'generic_switch'
+    };
+    const tag = tags[presetName] || presetName;
+    mergedConfig.global_prefix = `cronostar_${tag}_`;
+    log('info', isLoggingEnabled, "Configuration: missing global_prefix initialized to " + mergedConfig.global_prefix);
   }
+
+  if (!config.not_configured) {
+    if (!mergedConfig.pause_entity) {
+      mergedConfig.pause_entity = `switch.${mergedConfig.global_prefix}paused`;
+    }
+    if (!mergedConfig.profiles_select_entity) {
+      mergedConfig.profiles_select_entity = `select.${mergedConfig.global_prefix}current_profile`;
+    }
+  }
+
   mergedConfig.hour_base = normalizeHourBase(mergedConfig.hour_base);
 
   return mergedConfig;
@@ -248,8 +211,8 @@ export function extractCardConfig(src = {}) {
     'type', 'preset_type', 'global_prefix', 'target_entity', 'pause_entity',
     'profiles_select_entity', 'min_value', 'max_value', 'step_value',
     'unit_of_measurement', 'y_axis_label', 'allow_max_value',
-    'logging_enabled', 'hour_base', 'title', 'missing_yaml_style',
-    'interval_minutes', 'step'
+    'logging_enabled', 'hour_base', 'title', 'step',
+    'kb_ctrl_h', 'kb_ctrl_v', 'kb_shift_h', 'kb_shift_v', 'kb_alt_h'
   ];
   const out = {};
   for (const key of validKeys) {
@@ -257,7 +220,6 @@ export function extractCardConfig(src = {}) {
       out[key] = src[key];
     }
   }
-  // Ensure type is preserved if explicitly passed as preset type or missing
   if (src.type === undefined && out.type === undefined) {
     out.type = 'custom:cronostar-card';
   }

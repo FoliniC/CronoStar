@@ -249,7 +249,7 @@ All services are registered once when component is installed:
 ```javascript
 // In cronostar-card.js
 await hass.callService('cronostar', 'save_profile', {
-  profile_name: 'Comfort',
+  profile_name: 'Default',
   preset_type: 'thermostat',
   global_prefix: 'cronostar_living_',
   schedule: [
@@ -268,7 +268,7 @@ await hass.callService('cronostar', 'save_profile', {
 ```javascript
 // In cronostar-card.js
 const result = await hass.callService('cronostar', 'load_profile', {
-  profile_name: 'Comfort',
+  profile_name: 'Default',
   preset_type: 'thermostat',
   global_prefix: 'cronostar_living_'
 }, {return_response: true});
@@ -283,7 +283,7 @@ data:
   target_entity: climate.living_room
   preset_type: thermostat
   global_prefix: cronostar_living_
-  profile_name: Comfort
+  profile_name: Default
 ```
 
 ## Storage Format
@@ -299,7 +299,7 @@ Profiles are stored in JSON containers (unchanged):
     "updated_at": "2026-01-01T10:00:00"
   },
   "profiles": {
-    "Comfort": {
+    "Default": {
       "schedule": [
         {"time": "00:00", "value": 18.0},
         {"time": "06:00", "value": 21.0}

@@ -11,6 +11,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
 from homeassistant.exceptions import HomeAssistantError
 
+from ..utils.error_handler import log_operation
 from ..utils.prefix_normalizer import get_effective_prefix, normalize_preset_type
 
 _LOGGER = logging.getLogger(__name__)
@@ -19,18 +20,18 @@ _LOGGER = logging.getLogger(__name__)
 class ProfileService:
     """Service for managing CronoStar profiles"""
 
-    def __init__(self, hass: HomeAssistant, file_service, storage_manager):
+    def __init__(self, hass: HomeAssistant, storage_manager, settings_manager):
         """
         Initialize ProfileService
 
         Args:
             hass: Home Assistant instance
-            file_service: File operations service
             storage_manager: Storage manager instance
+            settings_manager: Settings manager instance
         """
         self.hass = hass
-        self.file_service = file_service
         self.storage = storage_manager
+        self.settings = settings_manager
 
     async def save_profile(self, call: ServiceCall) -> None:
         """
@@ -58,10 +59,10 @@ class ProfileService:
             canonical_preset = normalize_preset_type(preset_type)
             effective_prefix = get_effective_prefix(global_prefix, meta)
 
-            _LOGGER.info("Saving profile: name=%s, preset=%s, prefix=%s, points=%d", profile_name, canonical_preset, effective_prefix, len(schedule))
-
             # Validate schedule
-            validated_schedule = self._validate_schedule(schedule)
+            min_val = meta.get("min_value")
+            max_val = meta.get("max_value")
+            validated_schedule = self._validate_schedule(schedule, min_val, max_val)
 
             # Build profile data
             profile_data = {"schedule": validated_schedule, "updated_at": datetime.now().isoformat()}
@@ -69,16 +70,70 @@ class ProfileService:
             # Build metadata
             metadata = self._build_metadata(canonical_preset, effective_prefix, meta)
 
-            # Save to storage
+            _LOGGER.info("Saving profile: name=%s, preset=%s, prefix=%s, points=%d", profile_name, canonical_preset, effective_prefix, len(schedule))
+            _LOGGER.debug("[SAVE_PROFILE] Data - Meta: %s, Profile: %s", metadata, profile_data)
+
+            # 1. Save to storage FIRST so that if a controller is created, it finds the file
             await self.storage.save_profile(
                 profile_name=profile_name, preset_type=canonical_preset, profile_data=profile_data, metadata=metadata, global_prefix=effective_prefix
             )
 
-            _LOGGER.info("Profile saved successfully: %s", profile_name)
+            # 2. Ensure controller entities exist
+            await self._ensure_controller_exists(effective_prefix, canonical_preset, meta)
+
+            # 3. Notify any existing coordinators to refresh their profiles
+            for entry in self.hass.config_entries.async_entries("cronostar"):
+                if entry.data.get("global_prefix") == effective_prefix:
+                    if hasattr(entry, 'runtime_data') and entry.runtime_data:
+                        _LOGGER.debug("Notifying coordinator for '%s' to refresh profiles", effective_prefix)
+                        await entry.runtime_data.async_refresh_profiles()
+
+            # 4. Update profile selectors (input_select entities)
+            await self.async_update_profile_selectors()
+
+            log_operation("Save profile", True, profile=profile_name, preset=canonical_preset, points=len(schedule))
 
         except Exception as e:
+            log_operation("Save profile", False, profile=profile_name, error=str(e))
             _LOGGER.error("Error saving profile: %s", e)
             raise HomeAssistantError(f"Failed to save profile: {e}") from e
+
+    async def _ensure_controller_exists(self, prefix: str, preset: str, meta: dict) -> None:
+        """Verify that controller entities exist for this prefix, create if missing."""
+        if not prefix:
+            return
+
+        # Check existing entries
+        for entry in self.hass.config_entries.async_entries("cronostar"):
+            if entry.data.get("global_prefix") == prefix:
+                return  # Controller already exists
+
+        # Derive name from prefix
+        # e.g. cronostar_thermostat_kitchen_ -> Kitchen
+        name = prefix
+        base_marker = f"cronostar_{preset}_"
+        if name.startswith(base_marker):
+            name = name[len(base_marker):]
+        
+        name = name.rstrip("_").replace("_", " ").strip().title()
+        if not name:
+            name = f"Controller {prefix}"
+
+        target_entity = meta.get("target_entity", "")
+
+        _LOGGER.info("Verifying entities... Creating controller for prefix '%s' (Name: '%s')", prefix, name)
+        
+        # Create entry via flow
+        await self.hass.config_entries.flow.async_init(
+            "cronostar",
+            context={"source": "create_controller"},
+            data={
+                "name": name,
+                "preset": preset,
+                "target_entity": target_entity,
+                "global_prefix": prefix
+            }
+        )
 
     async def load_profile(self, call: ServiceCall) -> ServiceResponse:
         """
@@ -116,7 +171,8 @@ class ProfileService:
 
     async def get_profile_data(self, profile_name: str, preset_type: str, global_prefix: str = "") -> dict[str, Any]:
         """
-        Get profile data without service call wrapper
+        Get profile data without service call wrapper.
+        Strict matching with detailed error reporting on failure.
 
         Args:
             profile_name: Profile name
@@ -124,125 +180,225 @@ class ProfileService:
             global_prefix: Global prefix
 
         Returns:
-            Profile data dictionary
+            Profile data dictionary or error dictionary with diagnostics
         """
         canonical_preset = normalize_preset_type(preset_type)
         prefix_with_underscore = global_prefix if global_prefix.endswith("_") else f"{global_prefix}_"
 
-        # Only use cached JSON containers; do not rely on filenames
-        # Be tolerant of legacy container meta where preset_type may be 'generic_switch'
+        # Check if the prefix is a generic default
+        is_generic_prefix = global_prefix in [
+            "cronostar_thermostat_", "cronostar_ev_charging_", 
+            "cronostar_generic_switch_", "cronostar_generic_kwh_",
+            "cronostar_generic_temperature_", "cronostar_", "_", "", None
+        ]
+
+        # Use the specific prefix if provided and not generic, otherwise allow matching any container for this preset
+        lookup_prefix = prefix_with_underscore if not is_generic_prefix else None
+
+        _LOGGER.debug("[GET_PROFILE] Searching: name=%s, preset=%s, lookup_prefix=%s", profile_name, canonical_preset, lookup_prefix)
+
+        # 1. Try exact cached lookup
         cached = await self.storage.get_cached_containers(
             preset_type=canonical_preset,
-            global_prefix=prefix_with_underscore,
+            global_prefix=lookup_prefix,
         )
 
         requested_lower = (profile_name or "").lower()
 
-        # Search requested profile first (case-insensitive)
+        # Phase 1: Search requested profile (case-insensitive)
         for _fname, container in cached:
             profiles = container.get("profiles", {})
             if not isinstance(profiles, dict) or not profiles:
                 continue
             for key, content in profiles.items():
                 if key.lower() == requested_lower:
-                    return {
+                    meta = container.get("meta", {})
+                    # Validate schedule on load to catch and correct out-of-range values
+                    sched = content.get("schedule", [])
+                    validated_sched = self._validate_schedule(
+                        sched, 
+                        min_val=meta.get("min_value"), 
+                        max_val=meta.get("max_value")
+                    )
+                    
+                    res = {
                         "profile_name": key,
-                        "schedule": content.get("schedule", []),
-                        "meta": container.get("meta", {}),
+                        "schedule": validated_sched,
+                        "meta": meta,
                         "updated_at": content.get("updated_at"),
                     }
+                    _LOGGER.info("[GET_PROFILE] Profile found, returning data to frontend: %s", key)
+                    _LOGGER.debug("[GET_PROFILE] Found Data - Meta: %s, Profile: %s", res["meta"], res["schedule"])
+                    return res
 
-        # Fallback to Default/Comfort within cached containers
+        # Phase 2: Fallback to well-known defaults within matched containers
         for _fname, container in cached:
             profiles = container.get("profiles", {})
             if not isinstance(profiles, dict) or not profiles:
                 continue
-            for candidate in ("Default", "default", "Comfort"):
+            for candidate in ("Default", "default", "Comfort", "comfort"):
                 if candidate in profiles:
                     content = profiles[candidate]
-                    return {
+                    meta = container.get("meta", {})
+                    # Validate on load
+                    sched = content.get("schedule", [])
+                    validated_sched = self._validate_schedule(
+                        sched, 
+                        min_val=meta.get("min_value"), 
+                        max_val=meta.get("max_value")
+                    )
+                    
+                    res = {
                         "profile_name": candidate,
-                        "schedule": content.get("schedule", []),
-                        "meta": container.get("meta", {}),
+                        "schedule": validated_sched,
+                        "meta": meta,
                         "updated_at": content.get("updated_at"),
                     }
+                    _LOGGER.info("[GET_PROFILE] Default/Comfort found, returning data to frontend: %s", candidate)
+                    _LOGGER.debug("[GET_PROFILE] Found Data - Meta: %s, Profile: %s", res["meta"], res["schedule"])
+                    return res
 
-        return {"error": f"Profile '{profile_name}' not found in cache for preset '{canonical_preset}' and prefix '{prefix_with_underscore}'"}
+        # Match failed - prepare diagnostics
+        diagnostics = {
+            "error": "Profile not found",
+            "searched": {
+                "profile_name": profile_name,
+                "preset_type": canonical_preset,
+                "global_prefix": prefix_with_underscore,
+                "is_generic_prefix": is_generic_prefix
+            },
+            "available_in_storage": []
+        }
 
-    async def add_profile(self, call: ServiceCall) -> None:
+        # Collect what is actually in storage for this preset or all
+        all_containers = await self.storage.get_cached_containers()
+        for fname, container in all_containers:
+            meta = container.get("meta", {})
+            diagnostics["available_in_storage"].append({
+                "filename": fname,
+                "preset": meta.get("preset_type"),
+                "prefix": meta.get("global_prefix"),
+                "profiles": list(container.get("profiles", {}).keys())
+            })
+
+        _LOGGER.warning("[GET_PROFILE] Match failed. Diagnostics: %s", diagnostics)
+        return diagnostics
+
+    async def register_card(self, call: ServiceCall) -> ServiceResponse:
         """
-        Add a new empty profile
+        Register a frontend card and return active profile and entity states.
+        Strict matching version with diagnostic info on failure.
 
         Expected data:
-            - profile_name: str
-            - preset_type: str
-            - global_prefix: str (optional)
+            - card_id: str
+            - preset: str
+            - global_prefix: str
+            - selected_profile: str (optional)
         """
+        card_id = call.data.get("card_id")
+        preset = call.data.get("preset", "thermostat")
+        global_prefix = call.data.get("global_prefix", "")
+        requested_profile = call.data.get("selected_profile")
+
+        _LOGGER.debug("[REGISTER] Lovelace Card Connected: ID=%s, Preset=%s, Prefix=%s", card_id, preset, global_prefix)
+
+        # 1. Load global settings
+        global_settings = await self.settings.load_settings()
+
+        # 2. Load preset-specific defaults (Reference: User Request)
+        # Location: /config/cronostar/presets/<preset>_defaults.json
+        preset_defaults = {}
         try:
-            profile_name = call.data.get("profile_name")
-            preset_type = call.data.get("preset_type", "thermostat")
-            global_prefix = call.data.get("global_prefix", "")
-
-            if not profile_name:
-                raise HomeAssistantError("profile_name is required")
-
-            canonical_preset = normalize_preset_type(preset_type)
-            effective_prefix = get_effective_prefix(global_prefix, {})
-
-            _LOGGER.info("Adding new profile: name=%s, preset=%s", profile_name, canonical_preset)
-
-            # Create default schedule (boundary points only)
-            default_schedule = [{"time": "00:00", "value": 20.0}, {"time": "23:59", "value": 20.0}]
-
-            # Save profile
-            await self.storage.save_profile(
-                profile_name=profile_name,
-                preset_type=canonical_preset,
-                profile_data={"schedule": default_schedule, "updated_at": datetime.now().isoformat()},
-                metadata=self._build_metadata(canonical_preset, effective_prefix, {}),
-                global_prefix=effective_prefix,
-            )
-
-            _LOGGER.info("Profile added successfully: %s", profile_name)
-
+            presets_dir = Path(self.hass.config.path("cronostar/presets"))
+            presets_dir.mkdir(parents=True, exist_ok=True)
+            
+            preset_file = presets_dir / f"{preset}_defaults.json"
+            if preset_file.exists():
+                content = await self.hass.async_add_executor_job(preset_file.read_text, "utf-8")
+                preset_defaults = json.loads(content)
+                _LOGGER.debug("[REGISTER] Loaded preset defaults for '%s': %s", preset, preset_defaults)
         except Exception as e:
-            _LOGGER.error("Error adding profile: %s", e)
-            raise HomeAssistantError(f"Failed to add profile: {e}") from e
+            _LOGGER.warning("[REGISTER] Error loading preset defaults for '%s': %s", preset, e)
 
-    async def delete_profile(self, call: ServiceCall) -> None:
-        """
-        Delete a profile
+        response = {
+            "success": True, 
+            "profile_data": None, 
+            "entity_states": {}, 
+            "diagnostics": None,
+            "settings": global_settings,
+            "preset_defaults": preset_defaults
+        }
 
-        Expected data:
-            - profile_name: str
-            - preset_type: str
-            - global_prefix: str (optional)
-        """
+        # Normalize prefix for state lookups
+        prefix_with_underscore = global_prefix if global_prefix.endswith("_") else f"{global_prefix}_"
+        base = prefix_with_underscore.rstrip("_")
+        
+        # 1. Determine active profile by checking various entity selectors
+        profile_to_load = None
+        
+        # Priority 1: Native Select entity (select.{prefix}current_profile)
+        native_selector = f"select.{prefix_with_underscore}current_profile"
+        st = self.hass.states.get(native_selector)
+        if st and st.state not in ("unknown", "unavailable"):
+            profile_to_load = st.state
+            _LOGGER.debug("[REGISTER] Found active profile '%s' via native select", profile_to_load)
+        
+        # Priority 2: Legacy input_select (input_select.{base}_profiles)
+        if not profile_to_load:
+            legacy_selector = f"input_select.{base}_profiles"
+            st_legacy = self.hass.states.get(legacy_selector)
+            if st_legacy and st_legacy.state not in ("unknown", "unavailable"):
+                profile_to_load = st_legacy.state
+                _LOGGER.debug("[REGISTER] Found active profile '%s' via legacy input_select", profile_to_load)
+        
+        # Priority 3: Frontend requested profile
+        if not profile_to_load:
+            profile_to_load = requested_profile
+            _LOGGER.debug("[REGISTER] Fallback to requested profile: %s", profile_to_load)
+
+        # 2. Fetch profile data (STRICT)
         try:
-            profile_name = call.data.get("profile_name")
-            preset_type = call.data.get("preset_type", "thermostat")
-            global_prefix = call.data.get("global_prefix", "")
-
-            if not profile_name:
-                raise HomeAssistantError("profile_name is required")
-
-            canonical_preset = normalize_preset_type(preset_type)
-            prefix_with_underscore = global_prefix if global_prefix.endswith("_") else f"{global_prefix}_"
-
-            _LOGGER.info("Deleting profile: name=%s, preset=%s", profile_name, canonical_preset)
-
-            # Delete from storage
-            success = await self.storage.delete_profile(profile_name=profile_name, preset_type=canonical_preset, global_prefix=prefix_with_underscore)
-
-            if success:
-                _LOGGER.info("Profile deleted successfully: %s", profile_name)
-                await self.async_update_profile_selectors()
+            data = await self.get_profile_data(profile_to_load or "Default", preset, global_prefix)
+            
+            if "error" not in data:
+                response["profile_data"] = data
             else:
-                _LOGGER.warning("Profile not found for deletion: %s", profile_name)
-
+                # Store diagnostic info if strict match failed
+                response["diagnostics"] = data
+                _LOGGER.info("[REGISTER] No exact profile match found for prefix '%s'", global_prefix)
         except Exception as e:
-            _LOGGER.error("Error deleting profile: %s", e)
-            raise HomeAssistantError(f"Failed to delete profile: {e}") from e
+            _LOGGER.error("[REGISTER] Critical error loading profile: %s", e)
+
+        # 3. Populate entity states for card status indicators (even if profile data missing)
+        try:
+            # Target entity (try config meta first, then fallback to common pattern)
+            target_ent = None
+            if response["profile_data"] and "meta" in response["profile_data"]:
+                target_ent = response["profile_data"]["meta"].get("target_entity")
+            
+            if target_ent:
+                t_state = self.hass.states.get(target_ent)
+                response["entity_states"]["target"] = t_state.state if t_state else "unknown"
+            
+            # Helper for current value
+            helper_ent = f"input_number.{prefix_with_underscore}current"
+            h_state = self.hass.states.get(helper_ent)
+            response["entity_states"]["current_helper"] = h_state.state if h_state else "unknown"
+            
+            # Active selector state
+            sel_state = self.hass.states.get(native_selector) or self.hass.states.get(f"input_select.{base}_profiles")
+            response["entity_states"]["selector"] = sel_state.state if sel_state else "unknown"
+            
+            # Pause switch (native switch.xxx_pause or legacy input_boolean.xxx_paused)
+            pause_ent = f"switch.{prefix_with_underscore}pause"
+            p_state = self.hass.states.get(pause_ent) or self.hass.states.get(f"input_boolean.{prefix_with_underscore}paused")
+            response["entity_states"]["pause"] = p_state.state if p_state else "unknown"
+            
+        except Exception as e:
+            _LOGGER.debug("[REGISTER] Failed to populate entity_states: %s", e)
+
+        return response
+
 
     async def async_update_profile_selectors(self, all_files: list[str] | None = None):
         """Scan profiles and update input_select entities."""
@@ -300,12 +456,15 @@ class ProfileService:
                     else:
                         _LOGGER.debug("Profiles for %s are already up to date", state.entity_id)
 
-    def _validate_schedule(self, schedule: list) -> list:
+    def _validate_schedule(self, schedule: list, min_val: float | None = None, max_val: float | None = None) -> list:
         """
-        Validate and normalize schedule data
+        Validate and normalize schedule data.
+        Ensures values are within [min_val, max_val] range.
 
         Args:
             schedule: Raw schedule list
+            min_val: Minimum allowed value
+            max_val: Maximum allowed value
 
         Returns:
             Validated schedule list
@@ -338,6 +497,20 @@ class ProfileService:
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid value: %s", value)
                 continue
+
+            # Range validation
+            if min_val is not None and numeric_value < float(min_val):
+                _LOGGER.error(
+                    "Value %.2f at %s is below minimum %.2f. Resetting to minimum.",
+                    numeric_value, time_str, float(min_val)
+                )
+                numeric_value = float(min_val)
+            elif max_val is not None and numeric_value > float(max_val):
+                _LOGGER.error(
+                    "Value %.2f at %s is above maximum %.2f. Resetting to minimum.",
+                    numeric_value, time_str, float(max_val)
+                )
+                numeric_value = float(min_val) if min_val is not None else 0.0
 
             validated.append({"time": time_str, "value": numeric_value})
 

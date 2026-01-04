@@ -23,7 +23,7 @@ PRESET_ALIASES = {
 
 # Backend configuration for presets (mirrors frontend CARD_CONFIG_PRESETS where needed)
 PRESETS_CONFIG = {
-    "thermostat": {"title": "CronoStar Thermostat", "unit": "°C", "global_prefix": "cronostar_temp_"},
+    "thermostat": {"title": "CronoStar Thermostat", "unit": "°C", "global_prefix": "cronostar_thermostat_"},
     "ev_charging": {"title": "CronoStar EV Charging", "unit": "kW", "global_prefix": "cronostar_ev_"},
     "generic_kwh": {"title": "CronoStar Generic kWh", "unit": "kWh", "global_prefix": "cronostar_kwh_"},
     "generic_temperature": {"title": "CronoStar Generic Temperature", "unit": "°C", "global_prefix": "cronostar_gentemp_"},

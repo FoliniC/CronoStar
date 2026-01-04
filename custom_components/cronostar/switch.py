@@ -20,21 +20,23 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class CronoStarPauseSwitch(CoordinatorEntity, SwitchEntity):
     """Switch to pause/resume schedule application."""
 
+    _attr_translation_key = "pause"
+    _attr_has_entity_name = False
+    _attr_entity_category = EntityCategory.CONFIG
+
     def __init__(self, coordinator):
         """Initialize pause switch."""
         super().__init__(coordinator)
-        self._attr_name = f"{coordinator.name} Pause"
-        self._attr_unique_id = f"{coordinator.entry.entry_id}_pause"
-        self._attr_icon = "mdi:pause"
-        self._attr_entity_category = EntityCategory.CONFIG
-        self._attr_has_entity_name = True
+        # Naming requirement: global_prefix + "paused"
+        self._attr_name = f"{coordinator.prefix}paused"
+        self._attr_unique_id = f"{coordinator.prefix}paused"
 
         # Device info for grouping
         self._attr_device_info = {
             "identifiers": {(DOMAIN, coordinator.entry.entry_id)},
             "name": coordinator.name,
             "manufacturer": "CronoStar",
-            "model": f"{coordinator.preset.capitalize()} Controller",
+            "model": f"{coordinator.preset_type.capitalize()} Controller",
             "sw_version": coordinator.hass.data[DOMAIN].get("version", "unknown"),
         }
 
@@ -42,11 +44,6 @@ class CronoStarPauseSwitch(CoordinatorEntity, SwitchEntity):
     def is_on(self) -> bool:
         """Return true if schedule is paused."""
         return self.coordinator.data.get("is_paused", False)
-
-    @property
-    def icon(self) -> str:
-        """Return icon based on state."""
-        return "mdi:play" if self.is_on else "mdi:pause"
 
     async def async_turn_on(self, **kwargs) -> None:
         """Pause the schedule."""

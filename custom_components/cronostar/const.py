@@ -12,9 +12,11 @@ PLATFORMS: list[Platform] = [
     Platform.SELECT,
 ]
 
+PARALLEL_UPDATES = 0
+
 # Configuration keys (used by config flow/services)
 CONF_NAME = "name"
-CONF_PRESET = "preset"
+CONF_PRESET_TYPE = "preset_type"
 CONF_TARGET_ENTITY = "target_entity"
 CONF_GLOBAL_PREFIX = "global_prefix"
 CONF_PROFILE_NAME = "profile_name"
@@ -35,4 +37,4 @@ STORAGE_DIR = "cronostar/profiles"
 
 # Defaults
 DEFAULT_NAME = "CronoStar Controller"
-DEFAULT_PRESET = "thermostat"
+DEFAULT_PRESET_TYPE = "thermostat"

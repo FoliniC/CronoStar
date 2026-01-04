@@ -2,16 +2,11 @@
 
 default_config:
 
-automation: !include_dir_merge_list automations
-homeassistant:
-  packages: !include_dir_named packages
-
+# Enable the CronoStar integration
+#cronostar:
 
 lovelace:
   mode: yaml
   resources:
-    #- url: /local/cronostar_card/cronostar-card.js
-     # type: module
-
-# Enable the CronoStar backend
-#cronostar:
+    - url: /cronostar_card/cronostar-card.js
+      type: module

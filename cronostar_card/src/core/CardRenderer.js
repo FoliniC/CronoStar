@@ -205,7 +205,10 @@ export class CardRenderer {
 
         <div class="card-content">
           <div class="chart-container" 
-               tabindex="0">
+               tabindex="0"
+               @pointermove=${(e) => this.card.selectionManager.handlePointerMove(e)}
+               @pointerdown=${(e) => this.card.selectionManager.handlePointerDown(e)}
+               @pointerup=${(e) => this.card.selectionManager.handlePointerUp(e)}>
             <canvas id="myChart"></canvas>
             <div id="drag-value-display" class="chart-tooltip"></div>
             <div id="hover-value-display" class="chart-tooltip hover-tooltip"></div>

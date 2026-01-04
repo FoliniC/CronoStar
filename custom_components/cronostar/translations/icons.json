@@ -1,0 +1,32 @@
+{
+    "entity": {
+        "sensor": {
+            "current_value": {
+                "default": "mdi:gauge"
+            },
+            "current_value_temp": {
+                "default": "mdi:thermometer"
+            },
+            "current_value_power": {
+                "default": "mdi:flash"
+            },
+            "current_value_cover": {
+                "default": "mdi:window-shutter"
+            }
+        },
+        "switch": {
+            "pause": {
+                "default": "mdi:pause",
+                "state": {
+                    "on": "mdi:play",
+                    "off": "mdi:pause"
+                }
+            }
+        },
+        "select": {
+            "profile": {
+                "default": "mdi:calendar-clock"
+            }
+        }
+    }
+}

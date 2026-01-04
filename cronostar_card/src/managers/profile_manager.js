@@ -253,6 +253,20 @@ export class ProfileManager {
       meta.global_prefix = getEffectivePrefix(config);
     }
 
+    // Persist actual chart-used values so other cards can tailor theirs when loading this profile
+    const chartKeys = [
+      'y_axis_label',
+      'unit_of_measurement',
+      'min_value',
+      'max_value',
+      'step_value',
+      'allow_max_value',
+      'drag_snap'
+    ];
+    const chartMeta = {};
+    chartKeys.forEach(k => { if (config[k] !== undefined) chartMeta[k] = config[k]; });
+    Object.assign(meta, chartMeta);
+
     return meta;
   }
 
@@ -268,7 +282,7 @@ export class ProfileManager {
     const cardKeys = [
       'title', 'y_axis_label', 'unit_of_measurement',
       'min_value', 'max_value', 'step_value',
-      'allow_max_value', 'target_entity'
+      'allow_max_value', 'target_entity', 'drag_snap'
     ];
 
     cardKeys.forEach(key => {

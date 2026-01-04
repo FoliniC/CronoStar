@@ -93,7 +93,7 @@ def _check_profiles_directory(hass: HomeAssistant) -> bool:
 
 def _check_required_components(hass: HomeAssistant) -> bool:
     """Check if required HA components are available"""
-    required = ["input_number", "input_select", "input_boolean", "input_text"]
+    required = ["input_number", "input_select", "input_boolean"]
 
     missing = []
 

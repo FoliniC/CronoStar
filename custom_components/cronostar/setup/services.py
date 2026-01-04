@@ -1,20 +1,17 @@
-# custom_components/cronostar/setup/services.py
-"""
-Service registration for CronoStar
-Registers global services for profile management and schedule application
-"""
-
 import logging
 
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
 
 from ..const import DOMAIN
 from ..services.profile_service import ProfileService
+from ..storage.storage_manager import StorageManager
+from ..storage.settings_manager import SettingsManager
+from ..utils.error_handler import log_operation
 
 _LOGGER = logging.getLogger(__name__)
 
 
-async def setup_services(hass: HomeAssistant, storage_manager) -> None:
+async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -> None:
     """
     Register all CronoStar global services.
 
@@ -27,8 +24,11 @@ async def setup_services(hass: HomeAssistant, storage_manager) -> None:
     """
     _LOGGER.info("🔧 Registering CronoStar services...")
 
+    # Get settings manager
+    settings_manager: SettingsManager = hass.data[DOMAIN]["settings_manager"]
+
     # Initialize profile service (handles save/load/delete profiles)
-    profile_service = ProfileService(hass, None, storage_manager)
+    profile_service = ProfileService(hass, storage_manager, settings_manager)
 
     # Store reference for potential internal use
     hass.data[DOMAIN]["profile_service"] = profile_service
@@ -36,51 +36,58 @@ async def setup_services(hass: HomeAssistant, storage_manager) -> None:
     # === Profile Management Services ===
 
     async def save_profile_handler(call: ServiceCall):
-        """Handle save_profile service call.
-
-        Called by Lovelace cards when user saves a schedule.
-        """
+        """Handle save_profile service call."""
         await profile_service.save_profile(call)
         _LOGGER.info("Profile saved: %s", call.data.get("profile_name"))
 
     hass.services.async_register(DOMAIN, "save_profile", save_profile_handler)
 
     async def load_profile_handler(call: ServiceCall) -> ServiceResponse:
-        """Handle load_profile service call (returns data).
-
-        Called by Lovelace cards to load schedule data.
-        """
+        """Handle load_profile service call."""
         return await profile_service.load_profile(call)
 
     hass.services.async_register(DOMAIN, "load_profile", load_profile_handler, supports_response=True)
 
     async def add_profile_handler(call: ServiceCall):
-        """Handle add_profile service call.
-
-        Creates a new empty profile.
-        """
+        """Handle add_profile service call."""
         await profile_service.add_profile(call)
         _LOGGER.info("Profile added: %s", call.data.get("profile_name"))
 
     hass.services.async_register(DOMAIN, "add_profile", add_profile_handler)
 
     async def delete_profile_handler(call: ServiceCall):
-        """Handle delete_profile service call.
-
-        Removes a profile from storage.
-        """
+        """Handle delete_profile service call."""
         await profile_service.delete_profile(call)
         _LOGGER.info("Profile deleted: %s", call.data.get("profile_name"))
 
     hass.services.async_register(DOMAIN, "delete_profile", delete_profile_handler)
 
+    async def register_card_handler(call: ServiceCall) -> ServiceResponse:
+        """Handle register_card service call."""
+        return await profile_service.register_card(call)
+
+    hass.services.async_register(DOMAIN, "register_card", register_card_handler, supports_response=True)
+
+    # === Settings Services ===
+
+    async def save_settings_handler(call: ServiceCall):
+        """Handle save_settings service call."""
+        settings = call.data.get("settings", {})
+        if settings:
+            await settings_manager.save_settings(settings)
+            _LOGGER.info("Global settings saved")
+
+    hass.services.async_register(DOMAIN, "save_settings", save_settings_handler)
+
+    async def load_settings_handler(call: ServiceCall) -> ServiceResponse:
+        """Handle load_settings service call."""
+        return await settings_manager.load_settings()
+
+    hass.services.async_register(DOMAIN, "load_settings", load_settings_handler, supports_response=True)
+
     # === Utility Services ===
 
     async def list_all_profiles_handler(call: ServiceCall) -> ServiceResponse:
-        """List all profiles across all preset types.
-
-        Used by dashboards and debugging.
-        """
         storage = storage_manager
         try:
             force_reload = call.data.get("force_reload", False)
@@ -115,13 +122,13 @@ async def setup_services(hass: HomeAssistant, storage_manager) -> None:
                     profiles_by_preset[preset_type]["files"].append(file_info)
 
                 except Exception as e:
-                    _LOGGER.warning("Error processing file %s: %s", filename, e)
+                    _LOGGER.warning("Error processing file %s: %s", filename, e, exc_info=True)
                     continue
 
             return profiles_by_preset
 
         except Exception as e:
-            _LOGGER.error("Error listing profiles: %s", e)
+            _LOGGER.error("Error listing profiles: %s", e, exc_info=True)
             return {"error": str(e)}
 
     hass.services.async_register(DOMAIN, "list_all_profiles", list_all_profiles_handler, supports_response=True)
@@ -129,14 +136,6 @@ async def setup_services(hass: HomeAssistant, storage_manager) -> None:
     # === Schedule Application Service ===
 
     async def apply_now_handler(call: ServiceCall):
-        """Apply current schedule value immediately.
-
-        This service is called by automations or manually to force
-        application of the current scheduled value to a target entity.
-
-        Since controllers are managed by Lovelace cards (not coordinators),
-        this service handles the interpolation and entity update directly.
-        """
         target_entity = call.data.get("target_entity")
         preset_type = call.data.get("preset_type")
         global_prefix = call.data.get("global_prefix", "")
@@ -170,54 +169,109 @@ async def setup_services(hass: HomeAssistant, storage_manager) -> None:
             now = datetime.now()
             current_minutes = now.hour * 60 + now.minute
 
-            # Simple interpolation logic (can be extracted to utility)
-            value = None
+            def _minutes_to_time(total: int) -> str:
+                total %= 1440
+                h = (total // 60) % 24
+                m = total % 60
+                return f"{h:02d}:{m:02d}"
+
+            # Parse schedule into (minutes, value)
+            points = []
             for item in schedule:
-                time_str = item.get("time")
-                item_value = item.get("value")
-
-                if not time_str or item_value is None:
-                    continue
-
                 try:
-                    hours, minutes = map(int, time_str.split(":"))
-                    item_minutes = hours * 60 + minutes
-
-                    if item_minutes <= current_minutes:
-                        value = float(item_value)
-                    else:
-                        break
-                except (ValueError, AttributeError):
+                    t = item.get("time")
+                    v = item.get("value")
+                    if not t or v is None:
+                        continue
+                    h, m = map(int, str(t).split(":"))
+                    points.append((h * 60 + m, float(v)))
+                except Exception:
                     continue
 
-            if value is None and schedule:
+            points.sort(key=lambda x: x[0])
+
+            # Simple stepped interpolation: pick last point at or before now
+            value = None
+            for minute, v in points:
+                if minute <= current_minutes:
+                    value = v
+                else:
+                    break
+
+            if value is None and points:
                 # Use last value if no match found
-                value = float(schedule[-1].get("value", 0))
+                value = points[-1][1]
 
             if value is None:
                 _LOGGER.warning("apply_now: Could not interpolate value")
                 return
 
+            current_time_str = _minutes_to_time(current_minutes)
+
+            # Compute next change time (next point with different value)
+            next_time_str = None
+            next_in_minutes = None
+            if points:
+                # Find next differing point ahead
+                next_candidate = None
+                for minute, v in points:
+                    if minute > current_minutes and v != value:
+                        next_candidate = (minute, v)
+                        break
+                # Wrap-around
+                if next_candidate is None:
+                    for minute, v in points:
+                        if v != value:
+                            next_candidate = (minute, v)
+                            break
+                if next_candidate:
+                    nm, nv = next_candidate
+                    next_time_str = _minutes_to_time(nm)
+                    next_in_minutes = (nm - current_minutes) if nm > current_minutes else (1440 - current_minutes + nm)
+
             # Apply to target entity
             domain = target_entity.split(".")[0]
+            service_called = "none"
 
             if domain == "climate":
+                service_called = "climate.set_temperature"
                 await hass.services.async_call("climate", "set_temperature", {"entity_id": target_entity, "temperature": value}, blocking=False)
             elif domain in ["switch", "light", "fan"]:
                 service = "turn_on" if value > 0 else "turn_off"
+                service_called = f"{domain}.{service}"
                 await hass.services.async_call(domain, service, {"entity_id": target_entity}, blocking=False)
             elif domain == "input_number":
+                service_called = "input_number.set_value"
                 await hass.services.async_call("input_number", "set_value", {"entity_id": target_entity, "value": value}, blocking=False)
             elif domain == "cover":
+                service_called = "cover.set_cover_position"
                 await hass.services.async_call("cover", "set_cover_position", {"entity_id": target_entity, "position": int(value)}, blocking=False)
             else:
                 _LOGGER.warning("apply_now: Unsupported domain '%s'", domain)
                 return
 
-            _LOGGER.info("apply_now: Applied value %.2f to %s", value, target_entity)
+            # Highlighted info line for quick discovery
+            if next_time_str is not None and next_in_minutes is not None:
+                _LOGGER.info(
+                    "🔷⏱️ Manual apply for profile '%s' on %s at %s (graph) → next change at %s (in %d min)",
+                    profile_name, target_entity, current_time_str, next_time_str, next_in_minutes
+                )
+
+            log_operation(
+                "Manual apply value",
+                True,
+                entity=target_entity,
+                value=value,
+                service=service_called,
+                profile=profile_name,
+                graph_time=current_time_str,
+                next_change=next_time_str if next_time_str is not None else "none",
+                next_in_minutes=next_in_minutes if next_in_minutes is not None else -1,
+            )
 
         except Exception as e:
-            _LOGGER.error("apply_now failed: %s", e)
+            _LOGGER.error("apply_now failed: %s", e, exc_info=True)
+            log_operation("Manual apply value", False, entity=target_entity, error=str(e), profile=profile_name)
 
     hass.services.async_register(DOMAIN, "apply_now", apply_now_handler)
 
@@ -226,5 +280,21 @@ async def setup_services(hass: HomeAssistant, storage_manager) -> None:
     _LOGGER.info("   - load_profile")
     _LOGGER.info("   - add_profile")
     _LOGGER.info("   - delete_profile")
+    _LOGGER.info("   - register_card")
     _LOGGER.info("   - list_all_profiles")
     _LOGGER.info("   - apply_now")
+
+
+async def async_unload_services(hass: HomeAssistant) -> None:
+    """
+    Unregister all CronoStar global services.
+    """
+    _LOGGER.info("🗑️ Unregistering CronoStar services...")
+    hass.services.async_remove(DOMAIN, "save_profile")
+    hass.services.async_remove(DOMAIN, "load_profile")
+    hass.services.async_remove(DOMAIN, "add_profile")
+    hass.services.async_remove(DOMAIN, "delete_profile")
+    hass.services.async_remove(DOMAIN, "register_card")
+    hass.services.async_remove(DOMAIN, "list_all_profiles")
+    hass.services.async_remove(DOMAIN, "apply_now")
+    _LOGGER.info("✅ CronoStar services unregistered.")

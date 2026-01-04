@@ -7,7 +7,11 @@
   "config_flow": true,
   "dependencies": [
     "http",
-    "frontend"
+    "frontend",
+    "input_number",
+    "input_select",
+    "input_boolean",
+    "input_text"
   ],
   "documentation": "https://github.com/FoliniC/CronoStar",
   "iot_class": "local_polling",
@@ -16,10 +20,6 @@
     "custom_components.cronostar"
   ],
   "requirements": [],
-  "iot_class": "local_polling",
-  "loggers": [
-    "custom_components.cronostar"
-  ],
-  "quality_scale": "bronze",
+  "quality_scale": "gold",
   "version": "5.3.0"
 }

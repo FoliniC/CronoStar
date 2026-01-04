@@ -5,12 +5,9 @@ import { getEffectivePrefix, isValidPrefix } from '../../utils/prefix_utils.js';
 export class Step1Preset {
   constructor(editor) {
     this.editor = editor;
-    this._debugLoggedOnce = false;
   }
 
   render() {
-    // Note: use CARD_CONFIG_PRESETS for titles and keep icons local to this step.
-    // EditorI18n currently doesn't provide a `presets.*` structure.
     const list = [
       { id: 'thermostat', icon: '🌡️', title: 'Thermostat', desc: 'Schedule hourly temperatures for heating/cooling' },
       { id: 'ev_charging', icon: '🔌', title: 'EV Charging', desc: 'Schedule EV charging power' },
@@ -22,49 +19,11 @@ export class Step1Preset {
     const currentPrefix = this.editor._config.global_prefix || getEffectivePrefix(this.editor._config);
     const prefixValid = isValidPrefix(currentPrefix);
     const applyEntity = this.editor._config.target_entity || '';
-    const applyExists = !!(applyEntity && this.editor.hass?.states?.[applyEntity]);
     const minimalConfigComplete = prefixValid && !!applyEntity;
 
     const domains = this.getApplyIncludeDomains();
-    // Prefer ha-selector (HA core) instead of ha-entity-picker (often not registered globally in scoped contexts)
-    const localRegistry = this.editor.renderRoot?.customElements;
-    const localHasGet = !!(localRegistry && typeof localRegistry.get === 'function');
-    const localSelectorCtor = localHasGet ? localRegistry.get('ha-selector') : undefined;
     const globalSelectorCtor = customElements.get('ha-selector');
-    const canRenderSelector = !!(localSelectorCtor || globalSelectorCtor);
-
-    // LOG diagnostici (una volta per apertura step)
-    if (!this._debugLoggedOnce) {
-      this._debugLoggedOnce = true;
-      try {
-        console.log('[WIZARD-STEP1] target_entity UI debug', {
-          hass: !!this.editor.hass,
-          hassStatesCount: this.editor.hass?.states ? Object.keys(this.editor.hass.states).length : 0,
-          preset: this.editor._selectedPreset,
-          includeDomains: domains,
-          applyEntity,
-          applyExists,
-          minimalConfigComplete,
-          // registry / element availability
-          hasRenderRoot: !!this.editor.renderRoot,
-          hasLocalRegistry: !!localRegistry,
-          localHasGet,
-          localSelectorDefined: !!localSelectorCtor,
-          globalSelectorDefined: !!globalSelectorCtor,
-          canRenderSelector,
-          // DOM context hints
-          editorTag: this.editor.tagName,
-        });
-      } catch (e) {
-        console.log('[WIZARD-STEP1] target_entity UI debug (failed to serialize)', e);
-      }
-    }
-    if (!canRenderSelector && customElements.whenDefined) {
-      // Pianifica un aggiornamento quando il selector sarà definito globalmente
-      customElements.whenDefined('ha-selector').then(() => {
-        try { this.editor.requestUpdate(); } catch (_) { /* ignore */ }
-      });
-    }
+    const canRenderSelector = !!globalSelectorCtor;
 
     const headerKey = this.editor._isEditing ? 'headers.step1_edit' : 'headers.step1';
 
@@ -121,7 +80,13 @@ export class Step1Preset {
           <div class="field-description">
             ${this.editor.i18n._t('ui.prefix_description')}
           </div>
-          ${this.editor._renderTextInput('global_prefix', currentPrefix, `input_number.${currentPrefix}...`)}
+          <ha-textfield
+            .label=${`input_number.${currentPrefix}...`}
+            .value=${currentPrefix || ''}
+            @input=${(e) => this._handlePrefixChange(e.target.value, e)}
+            @change=${() => this.editor._dispatchConfigChanged(true)}
+            style="width: 100%;"
+          ></ha-textfield>
         </div>
 
         <div style="margin-bottom: 12px;">
@@ -134,14 +99,12 @@ export class Step1Preset {
         ${minimalConfigComplete ? html`
           <div class="success-box" style="margin: 20px 0; border: 1px solid var(--success-color); padding: 16px; border-radius: 8px; background: rgba(0, 255, 0, 0.05);">
             <strong>✅ ${this.editor.i18n._t('ui.minimal_config_complete')}</strong>
-            <div style="margin-top: 8px;">
-              ${this.editor.i18n._t('ui.minimal_config_info_no_package', {
-        '{entity}': `input_number.${currentPrefix}current`
-      })}
-            </div>
             <div style="margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
-              <mwc-button raised @click=${() => this._handleSaveAndContinue()}>
-                💾 ${this.editor.i18n._t('actions.save')} & ${this.editor.i18n._t('actions.next')}
+              <mwc-button raised @click=${() => this._handleSaveAndClose()}>
+                💾 ${this.editor.i18n._t('actions.save_and_close')}
+              </mwc-button>
+              <mwc-button outlined @click=${() => this._handleAdvancedConfig()}>
+                ⚙️ ${this.editor.i18n._t('actions.advanced_config')}
               </mwc-button>
             </div>
           </div>
@@ -164,31 +127,98 @@ export class Step1Preset {
       'generic_temperature': 'generic_temperature',
       'generic_switch': 'generic_switch'
     };
-    const newPrefix = `cronostar_${tags[presetId] || presetId}_`;
+    const tag = tags[presetId] || presetId;
+    const newPrefix = `cronostar_${tag}_`;
 
     this.editor._updateConfig('preset_type', presetId);
     this.editor._updateConfig('global_prefix', newPrefix);
 
-    const presetConfig = CARD_CONFIG_PRESETS[presetId];
-    if (presetConfig) {
-      Object.assign(this.editor._config, presetConfig);
+    const config = this.editor._config;
+    const isStandard = (val, suffix) => !val || val === '' || val.startsWith('cronostar_') && val.endsWith(suffix);
+
+    if (isStandard(config.pause_entity, 'paused')) {
+      this.editor._updateConfig('pause_entity', `input_boolean.${newPrefix}paused`);
+    }
+    if (isStandard(config.profiles_select_entity, 'profiles')) {
+      this.editor._updateConfig('profiles_select_entity', `input_select.${newPrefix}profiles`);
     }
 
     this.editor._dispatchConfigChanged(true);
     this.editor.requestUpdate();
   }
 
-  async _handleSaveAndContinue() {
-    this.editor._dispatchConfigChanged(true);
+  _handlePrefixChange(value, event) {
+    const editor = this.editor;
+    const target = event.target;
+    let start = target.selectionStart;
+    let end = target.selectionEnd;
+    
+    let normalizedValue = value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (normalizedValue.length > 0 && !normalizedValue.endsWith('_')) {
+      normalizedValue += '_';
+    }
+    
+    let newConfig = { ...editor._config, global_prefix: normalizedValue };
+    const presetId = editor._selectedPreset || 'thermostat';
+    const presetConfig = CARD_CONFIG_PRESETS[presetId];
+    const baseTitle = presetConfig ? presetConfig.title : 'CronoStar Schedule';
+    const tags = {
+      'thermostat': 'thermostat',
+      'ev_charging': 'ev_charging',
+      'generic_kwh': 'generic_kwh',
+      'generic_temperature': 'generic_temperature',
+      'generic_switch': 'generic_switch'
+    };
+    const tag = tags[presetId] || presetId;
+    const basePrefix = `cronostar_${tag}_`;
+    
+    // Use the full prefix as title, replacing underscores with spaces
+    let newTitle = normalizedValue.replace(/_/g, ' ').trim();
+    if (!newTitle) newTitle = baseTitle;
+    newConfig.title = newTitle;
+    
+    const isStandard = (val, suffix) => !val || val === '' || val.startsWith('cronostar_') && val.endsWith(suffix);
+    if (isStandard(newConfig.pause_entity, 'paused')) {
+      newConfig.pause_entity = `input_boolean.${normalizedValue}paused`;
+    }
+    if (isStandard(newConfig.profiles_select_entity, 'profiles')) {
+      newConfig.profiles_select_entity = `input_select.${normalizedValue}profiles`;
+    }
+
+    editor._config = newConfig;
+    target.value = normalizedValue;
+    try {
+      target.setSelectionRange(start, end);
+    } catch (e) {}
+    editor.requestUpdate();
+  }
+
+  async _handleSaveAndClose() {
+    const currentPrefix = this.editor._config.global_prefix || getEffectivePrefix(this.editor._config);
+    this.editor._updateConfig('global_prefix', currentPrefix, true);
+    await this.editor.updateComplete;
     if (this.editor.hass) {
       try {
-        // Save files on server
         await this.editor._handleFinishClick({ force: true });
-        // Move to Step 2
-        this.editor.wizard._nextStep();
       } catch (e) {
-        console.error("Save & Continue failed:", e);
-        this.editor.wizard._nextStep();
+        console.error("Save & Close failed:", e);
+      }
+    }
+  }
+
+  async _handleAdvancedConfig() {
+    const currentPrefix = this.editor._config.global_prefix || getEffectivePrefix(this.editor._config);
+    this.editor._updateConfig('global_prefix', currentPrefix, true);
+    await this.editor.updateComplete;
+    if (this.editor.hass) {
+      try {
+        await this.editor._handleFinishClick({ force: true });
+        this.editor._step = 2;
+        this.editor.requestUpdate();
+      } catch (e) {
+        console.error("Advanced Config failed:", e);
+        this.editor._step = 2;
+        this.editor.requestUpdate();
       }
     }
   }

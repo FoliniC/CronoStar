@@ -301,86 +301,99 @@ export class KeyboardHandler {
     const dataset = chartMgr.chart.data.datasets[0];
     const data = dataset.data;
     
-    // Alt + Left/Right Arrow: Align Functionality
-    if (e.altKey) {
-      if (indices.length < 2) return; // Need multiple points to align
-      
-      const selectedX = indices.map(i => data[i]?.x).filter(x => x !== undefined);
-      if (selectedX.length === 0) return;
+    const config = this.card.config || {};
+    const kbGlobal = this.card.globalSettings?.keyboard || {
+      ctrl: { horizontal: 1, vertical: 0.1 },
+      shift: { horizontal: 30, vertical: 1.0 },
+      alt: { horizontal: 60, vertical: 5.0 }
+    };
 
-      // Align Left (Min X) or Right (Max X)
-      const targetX = e.key === "ArrowLeft" ? Math.min(...selectedX) : Math.max(...selectedX);
-      
-      indices.forEach(i => {
-         if (i === 0 || i === data.length - 1) return; // Skip anchors
-         const p = data[i];
-         if (p) p.x = targetX;
-      });
-      
-    } else {
-        // Standard Movement
-        let minutesStep = 1; // Default 1 min
-        if (e.shiftKey) minutesStep = 30; // 30 min with Shift
-        else if (e.ctrlKey || e.metaKey) minutesStep = 5; 
-        
-        let snapToGrid = e.shiftKey;
-        const dx = e.key === "ArrowLeft" ? -minutesStep : minutesStep;
+    // Extract movement settings (Priority: Card Config > Global Settings)
+    const settings = {
+      ctrl: { 
+        h: config.kb_ctrl_h !== undefined ? config.kb_ctrl_h : kbGlobal.ctrl.horizontal,
+        v: config.kb_ctrl_v !== undefined ? config.kb_ctrl_v : kbGlobal.ctrl.vertical
+      },
+      shift: { 
+        h: config.kb_shift_h !== undefined ? config.kb_shift_h : kbGlobal.shift.horizontal,
+        v: config.kb_shift_v !== undefined ? config.kb_shift_v : kbGlobal.shift.vertical
+      },
+      alt: { 
+        h: config.kb_alt_h !== undefined ? config.kb_alt_h : kbGlobal.alt.horizontal,
+        v: 0 // Explicitly disabled per request
+      }
+    };
 
-        // 1. Build a time-sorted list of ALL points to find true neighbors
-        const allByTime = data
-          .map((pt, idx) => ({ idx, x: Math.round(Number(pt?.x ?? 0)) }))
-          .sort((a, b) => a.x - b.x);
-        
-        const selectedSet = new Set(indices);
+    // Movement logic
+    let minutesStep = 1; // Default
+    let snapToGrid = false;
 
-        // 2. Identify the Hard Limits for the WHOLE selected group
-        let leftLimit = 0;
-        let rightLimit = 1439;
-
-        // Find the first non-selected point to the left of our selection
-        const firstSortedSelectedPos = allByTime.findIndex(item => selectedSet.has(item.idx));
-        if (firstSortedSelectedPos > 0) {
-          leftLimit = allByTime[firstSortedSelectedPos - 1].x + 1;
-        }
-
-        // Find the first non-selected point to the right of our selection
-        let lastSortedSelectedPos = -1;
-        for (let i = allByTime.length - 1; i >= 0; i--) {
-          if (selectedSet.has(allByTime[i].idx)) {
-            lastSortedSelectedPos = i;
-            break;
-          }
-        }
-        if (lastSortedSelectedPos !== -1 && lastSortedSelectedPos < allByTime.length - 1) {
-          rightLimit = allByTime[lastSortedSelectedPos + 1].x - 1;
-        }
-
-        // 3. Compute current extent of the selected group
-        const groupMinX = Math.min(...indices.map(i => data[i].x));
-        const groupMaxX = Math.max(...indices.map(i => data[i].x));
-
-        // 4. Calculate actual displacement (clamped by hard limits)
-        let finalDx = dx;
-        if (groupMinX + dx < leftLimit) finalDx = leftLimit - groupMinX;
-        if (groupMaxX + dx > rightLimit) finalDx = rightLimit - groupMaxX;
-
-        // 5. Apply movement
-        indices.forEach((i) => {
-          const p = data[i];
-          if (!p) return;
-          if (i === 0 || i === data.length - 1) return; // keep anchors fixed
-          
-          let nx = p.x + finalDx;
-          
-          if (snapToGrid) {
-              const gridSize = 30;
-              nx = Math.round(nx / gridSize) * gridSize;
-          }
-
-          // Final safety clamp for each point
-          p.x = Math.max(leftLimit, Math.min(rightLimit, nx));
-        });
+    if (e.ctrlKey || e.metaKey) {
+      minutesStep = settings.ctrl.h;
+    } else if (e.shiftKey) {
+      minutesStep = settings.shift.h;
+      snapToGrid = true;
+    } else if (e.altKey) {
+      minutesStep = settings.alt.h;
+      snapToGrid = true;
     }
+
+    const dx = e.key === "ArrowLeft" ? -minutesStep : minutesStep;
+
+    // 1. Build a time-sorted list of ALL points to find true neighbors
+    const allByTime = data
+      .map((pt, idx) => ({ idx, x: Math.round(Number(pt?.x ?? 0)) }))
+      .sort((a, b) => a.x - b.x);
+    
+    const selectedSet = new Set(indices);
+
+    // 2. Identify the Hard Limits for the WHOLE selected group
+    let leftLimit = 0;
+    let rightLimit = 1439;
+
+    // Find the first non-selected point to the left of our selection
+    const firstSortedSelectedPos = allByTime.findIndex(item => selectedSet.has(item.idx));
+    if (firstSortedSelectedPos > 0) {
+      leftLimit = allByTime[firstSortedSelectedPos - 1].x + 1;
+    }
+
+    // Find the first non-selected point to the right of our selection
+    let lastSortedSelectedPos = -1;
+    for (let i = allByTime.length - 1; i >= 0; i--) {
+      if (selectedSet.has(allByTime[i].idx)) {
+        lastSortedSelectedPos = i;
+        break;
+      }
+    }
+    if (lastSortedSelectedPos !== -1 && lastSortedSelectedPos < allByTime.length - 1) {
+      rightLimit = allByTime[lastSortedSelectedPos + 1].x - 1;
+    }
+
+    // 3. Compute current extent of the selected group
+    const groupMinX = Math.min(...indices.map(i => data[i].x));
+    const groupMaxX = Math.max(...indices.map(i => data[i].x));
+
+    // 4. Calculate actual displacement (clamped by hard limits)
+    let finalDx = dx;
+    if (groupMinX + dx < leftLimit) finalDx = leftLimit - groupMinX;
+    if (groupMaxX + dx > rightLimit) finalDx = rightLimit - groupMaxX;
+
+    // 5. Apply movement
+    indices.forEach((i) => {
+      const p = data[i];
+      if (!p) return;
+      if (i === 0 || i === data.length - 1) return; // keep anchors fixed
+      
+      let nx = p.x + finalDx;
+      
+      if (snapToGrid) {
+          const gridSize = minutesStep;
+          nx = Math.round(nx / gridSize) * gridSize;
+      }
+
+      // Final safety clamp for each point
+      p.x = Math.max(leftLimit, Math.min(rightLimit, nx));
+    });
 
     // Persist to state and update chart
     try {
@@ -392,22 +405,40 @@ export class KeyboardHandler {
     chartMgr.updatePointStyling(this.card.selectionManager.selectedPoint, this.card.selectionManager.selectedPoints);
     chartMgr.update('none');
     
-    // Show tooltip for the first selected point
+    // Show tooltip for the first selected point with updated values
     if (indices.length > 0) {
-        const firstI = indices[0];
-        const p = data[firstI];
-        if (p) chartMgr.showDragValueDisplay(p.y, p.x);
+        const firstIdx = indices[0];
+        const p = dataset.data[firstIdx]; // Use dataset.data directly
+        if (p) {
+          chartMgr.showDragValueDisplay(p.y, p.x);
+        }
     }
   }
 
   handleArrowUpDown(e, indices) {
+    // Disable vertical movement with Alt key
+    if (e.altKey) return;
+
     const isSwitch = !!this.card.config?.is_switch_preset;
+    const config = this.card.config || {};
+    const kbGlobal = this.card.globalSettings?.keyboard || {
+      ctrl: { horizontal: 1, vertical: 0.1 },
+      shift: { horizontal: 30, vertical: 1.0 },
+      alt: { horizontal: 60, vertical: 5.0 }
+    };
+
+    // Extract movement settings
+    const settings = {
+      ctrl: config.kb_ctrl_v !== undefined ? config.kb_ctrl_v : kbGlobal.ctrl.vertical,
+      shift: config.kb_shift_v !== undefined ? config.kb_shift_v : kbGlobal.shift.vertical
+    };
+
     let step = isSwitch ? 1 : this.card.config.step_value;
     
-    // Modifiers
     if (e.ctrlKey || e.metaKey) {
-        step = isSwitch ? 1 : (this.card.config.step_value / 5); // Reduce step
-        if (step < 0.1) step = 0.1;
+      step = isSwitch ? 1 : settings.ctrl;
+    } else if (e.shiftKey) {
+      step = isSwitch ? 1 : settings.shift;
     }
     
     const delta = e.key === "ArrowUp" ? step : -step;
@@ -438,12 +469,9 @@ export class KeyboardHandler {
       } else {
         val = clamp(val, this.card.config.min_value, upperClamp);
         
-        if (e.shiftKey && !isSwitch) {
-             // Snap to integer
-             val = Math.round(val);
-        } else {
-             val = roundTo(val, 1);
-        }
+        // Snapping logic if needed, for now we just use the step
+        const decimals = step < 1 ? 1 : 0;
+        val = roundTo(val, decimals);
       }
 
       if (typeof dataset.data[i] === 'object' && dataset.data[i] !== null) {
@@ -459,9 +487,11 @@ export class KeyboardHandler {
     chartMgr.update('none');
     
     if (indices.length > 0) {
-        const firstI = indices[0];
-        const p = dataset.data[firstI];
-        if (p) chartMgr.showDragValueDisplay(p.y, p.x);
+        const firstIdx = indices[0];
+        const p = dataset.data[firstIdx];
+        if (p) {
+          chartMgr.showDragValueDisplay(p.y, p.x);
+        }
     }
   }
 

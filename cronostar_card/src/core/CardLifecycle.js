@@ -132,7 +132,7 @@ export class CardLifecycle {
           .finally(() => { this._isRegistering = false; });
       }
 
-      if (card.config?.pause_entity) {
+      if (card.config?.pause_entity && !card.config.not_configured) {
         const pauseId = card.config.pause_entity;
         const pauseStateObj = hass.states[pauseId];
         if (pauseStateObj) {
@@ -153,7 +153,7 @@ export class CardLifecycle {
         }
       }
 
-      if (card.config?.profiles_select_entity) {
+      if (card.config?.profiles_select_entity && !card.config.not_configured) {
         const selId = card.config.profiles_select_entity;
         const selObj = hass.states[selId];
         if (selObj) {
@@ -415,9 +415,39 @@ export class CardLifecycle {
       })) || {};
 
       const response = result?.response ?? result;
-      Logger.log('LOAD', 'CronoStar register_card response:', response);
+      Logger.log('LOAD', '1111CronoStar register_card response:', response);
+
+      // Capture global settings
+      if (response?.settings) {
+        this.card.globalSettings = response.settings;
+        Logger.log('LOAD', '[CronoStar] Global settings updated:', this.card.globalSettings);
+      }
+
+      // Capture preset defaults and apply if not configured
+      if (response?.preset_defaults && this.card.config?.not_configured) {
+        Logger.log('LOAD', '[CronoStar] Applying preset defaults:', response.preset_defaults);
+        this.card.config = { ...this.card.config, ...response.preset_defaults };
+      }
 
       const profileData = response?.profile_data;
+      
+      // Robust profile name extraction
+      let returnedProfileName = profileData?.profile_name || response?.profile_name;
+      
+      if (returnedProfileName) {
+        Logger.log('LOAD', `[CronoStar] Profile name detected in response: "${returnedProfileName}"`);
+        this.card.selectedProfile = returnedProfileName;
+        if (this.card.profileManager) {
+          this.card.profileManager.lastLoadedProfile = returnedProfileName;
+        }
+      } else if (this.card.selectedProfile) {
+        returnedProfileName = this.card.selectedProfile;
+        Logger.log('LOAD', `[CronoStar] No profile name in response, retaining current: "${returnedProfileName}"`);
+      } else {
+        returnedProfileName = 'Default';
+        this.card.selectedProfile = 'Default';
+        Logger.log('LOAD', '[CronoStar] No profile name found anywhere, defaulting to "Default"');
+      }
 
       if (profileData?.meta) {
         const cleanMeta = extractCardConfig(profileData.meta);
@@ -434,26 +464,18 @@ export class CardLifecycle {
         const sample = scheduleValues.slice(0, 5);
         Logger.log('LOAD', `CronoStar (Chart) Parsed schedule: length=${scheduleValues.length}, sample=${JSON.stringify(sample)}`);
 
-        Logger.log('LOAD', `CronoStar (Success) Profile data processed for '${this.card.selectedProfile}'. Points: ${scheduleValues.length}`);
+        Logger.log('LOAD', `CronoStar (Success) Profile data processed for '${returnedProfileName}'. Points: ${scheduleValues.length}`);
       } else {
         try {
           const isSwitch = !!(this.card.config?.is_switch_preset || this.card.selectedPreset?.includes('switch'));
           const hasNoData = !Array.isArray(this.card.stateManager?.scheduleData) || this.card.stateManager.scheduleData.length === 0;
           if (isSwitch && hasNoData && this.card.profileManager?.loadProfile) {
-            const candidates = [
-              this.card.selectedProfile,
-              this.card.profileManager?.lastLoadedProfile,
-              'Default',
-              'Comfort'
-            ].filter(Boolean);
-            const name = candidates[0];
-            if (name) {
-              Logger.log('LOAD', `[CronoStar] Fallback load_profile for switch: '${name}'`);
-              try {
-                await this.card.profileManager.loadProfile(name);
-              } catch (e) {
-                Logger.warn('LOAD', `Fallback load_profile failed for '${name}':`, e);
-              }
+            const name = returnedProfileName || 'Default';
+            Logger.log('LOAD', `[CronoStar] Fallback load_profile for switch: '${name}'`);
+            try {
+              await this.card.profileManager.loadProfile(name);
+            } catch (e) {
+              Logger.warn('LOAD', `Fallback load_profile failed for '${name}':`, e);
             }
           }
         } catch (e) { /* ignore */ }
@@ -466,10 +488,7 @@ export class CardLifecycle {
       }
 
       this.card.hasUnsavedChanges = false;
-      if (this.card.profileManager) {
-        this.card.profileManager.lastLoadedProfile = this.card.selectedProfile;
-      }
-      Logger.load(`CronoStar ✅ Profile '${this.card.selectedProfile}' loaded to memory successfully.`);
+      Logger.load(`CronoStar ✅ Profile '${returnedProfileName}' loaded to memory successfully.`);
       Logger.load("[CronoStar] === LOAD PROFILE END ===");
 
       this.card.initialLoadComplete = true;

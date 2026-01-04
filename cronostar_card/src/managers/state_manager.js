@@ -59,6 +59,44 @@ export class StateManager {
   }
 
   /**
+   * Get schedule data with explicit change markers for switch presets.
+   * For every change of state (value differs between consecutive points),
+   * add an extra point one minute after the previous point with the new value.
+   * This makes JSON representation align with the visual step change.
+   * @returns {Array} Clarified schedule
+   */
+  getDataWithChangePoints() {
+    const isSwitch = !!this.context.config?.is_switch_preset;
+    const data = this.getData();
+    if (!isSwitch || data.length === 0) return data;
+
+    const clarified = [];
+
+    for (let i = 0; i < data.length; i++) {
+      const cur = data[i];
+      clarified.push({ time: cur.time, value: cur.value });
+
+      const next = data[i + 1];
+      if (!next) continue;
+
+      // If there is a state change, insert a marker point at prevTime + 1 minute with the new state
+      if (Number(cur.value) !== Number(next.value)) {
+        const curMin = timeToMinutes(cur.time);
+        const nextMin = timeToMinutes(next.time);
+        const markerMin = curMin + 1;
+
+        // Only insert if it falls strictly before the next point and within the same day range
+        if (markerMin < nextMin && markerMin >= 0 && markerMin < 1440) {
+          clarified.push({ time: minutesToTime(markerMin), value: Number(next.value) });
+        }
+      }
+    }
+
+    // Normalize to dedupe and sort
+    return this._normalizeSchedule(clarified);
+  }
+
+  /**
    * Set schedule data with normalization
    * @param {Array} newData - Schedule data
    * @param {boolean} skipHistory - Skip history tracking
@@ -133,7 +171,9 @@ export class StateManager {
     const minutes = this.scheduleData.map(p => timeToMinutes(p.time));
 
     if (!minutes.includes(0)) {
-      const firstValue = this.scheduleData[0]?.value ?? this.context.config?.min_value ?? 0;
+      // For switches, default start to 0 (OFF) if missing, otherwise extend first value
+      const isSwitch = this.context.config?.is_switch_preset;
+      const firstValue = isSwitch ? 0 : (this.scheduleData[0]?.value ?? this.context.config?.min_value ?? 0);
       this.scheduleData.unshift({ time: '00:00', value: firstValue });
     }
 
@@ -191,6 +231,14 @@ export class StateManager {
    */
   removePoint(index) {
     if (index < 0 || index >= this.scheduleData.length) {
+      return false;
+    }
+
+    // Prevent removing start/end points
+    const point = this.scheduleData[index];
+    const minutes = timeToMinutes(point.time);
+    if (minutes === 0 || minutes === 1439 || minutes === 1440) {
+      Logger.warn('STATE', 'Cannot remove start/end point');
       return false;
     }
 
@@ -348,7 +396,7 @@ export class StateManager {
 
     // Don't push if same as last
     if (this._undoStack.length > 0 &&
-        this._undoStack[this._undoStack.length - 1] === snapshot) {
+      this._undoStack[this._undoStack.length - 1] === snapshot) {
       return;
     }
 

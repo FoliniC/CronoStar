@@ -1,6 +1,5 @@
 import { html } from 'lit';
 import { getEffectivePrefix } from '../../utils/prefix_utils.js';
-import { buildHelpersFilename } from '../../utils/filename_utils.js';
 
 export class Step2Entities {
   constructor(editor) {
@@ -20,23 +19,12 @@ export class Step2Entities {
     const canRenderPicker = isPickerDefined || this.editor._pickerLoaded;
     console.log(`[WIZARD-STEP2] Rendering check: pickerDefined=${isPickerDefined}, pickerLoaded=${this.editor._pickerLoaded}, hassAvailable=${!!this.editor.hass}`);
 
-    const packageFilename = buildHelpersFilename(effectivePrefix);
-    const helpersDisplayPath = `config/packages/${packageFilename}`;
-
     return html`
       <div class="step-content">
         <div class="step-header">${this.editor.i18n._t('headers.step2')}</div>
         <div class="step-description">${this.editor.i18n._t('descriptions.step2')}</div>
 
         <div style="border-bottom: 1px solid var(--divider-color); padding-bottom: 20px; margin-bottom: 20px;">
-          <div class="info-box">
-            <strong>ℹ️ ${this.editor.i18n._t('ui.automatic_entities_title', 'Automatic Entities')}</strong>
-            <p>${this.editor.i18n._t('ui.automatic_entities_desc', {
-      '{entity}': `input_number.${effectivePrefix}current`,
-      '{package}': packageFilename
-    })}</p>
-          </div>
-
           <div class="field-group" style="background: var(--secondary-background-color); padding: 10px; border-radius: 4px; margin-top: 12px;">
             <ha-formfield .label=${this.editor.i18n._t('fields.enable_pause_label')}>
               <ha-switch
@@ -83,60 +71,18 @@ export class Step2Entities {
             ` : ''}
           </div>
         </div>
-
-        ${this.editor._deepCheckInProgress
-        ? html`<div class="info-box" style="text-align: center; padding: 16px;">${this.editor.i18n._t('ui.loading_deep_check_results')}</div>`
-        : html`
-              <div>
-                <div class="field-group">
-                  <label class="field-label">${this.editor.i18n._t('fields.package_label')}</label>
-                  <div class="field-description">${this.editor.i18n._t('fields.package_desc', { '{path}': helpersDisplayPath })}</div>
-                  <div class="action-buttons">
-                    ${this.editor._renderButton({
-          label: this.editor.i18n._t('actions.copy_yaml'),
-          click: () => copyToClipboard(
-            this.editor._helpersYaml,
-            this.editor.i18n._t('messages.helpers_yaml_copied') || 'YAML Copied',
-            this.editor.i18n._t('messages.helpers_yaml_error') || 'Copy Failed'
-          )
-        })}
-                    ${this.editor._renderButton({
-          label: this.editor.i18n._t('actions.download_file'),
-          click: () => downloadFile(
-            packageFilename,
-            this.editor._helpersYaml,
-            this.editor.i18n._t('messages.helpers_yaml_downloaded') || 'Downloaded',
-            this.editor.i18n._t('messages.file_download_error') || 'Download Failed'
-          )
-        })}
-                  </div>
-
-                  <div class="field-group" style="margin-top: 12px;">
-                    <ha-formfield .label=${this.editor.i18n._t('actions.show_preview')}>
-                      <ha-switch
-                        .checked=${this.editor._showHelpersPreview}
-                        @change=${(e) => { this.editor._showHelpersPreview = e.target.checked; this.editor.requestUpdate(); }}
-                      ></ha-switch>
-                    </ha-formfield>
-                  </div>
-                  ${this.editor._showHelpersPreview ? html`
-                    <div class="automation-preview">
-                      <pre>${this.editor._helpersYaml}</pre>
-                    </div>
-                  ` : ''}
-                </div>
-              </div>
-            `}
       </div>
     `;
   }
 
   _toggleFeature(configKey, isEnabled, defaultValue) {
     if (isEnabled) {
+      // Use current config value if it exists, otherwise use provided default
       const current = this.editor._config[configKey];
-      if (!current) this.editor._updateConfig(configKey, defaultValue);
+      const val = (current && current !== '') ? current : defaultValue;
+      this.editor._updateConfig(configKey, val, true);
     } else {
-      this.editor._updateConfig(configKey, null);
+      this.editor._updateConfig(configKey, '', true);
     }
   }
 
@@ -151,7 +97,3 @@ export class Step2Entities {
     }
   }
 }
-
-// Helper functions (duplicated locally if not imported from service_handlers to avoid scope issues)
-// In a real module system, ensure these are imported correctly at the top
-import { copyToClipboard, downloadFile } from '../services/service_handlers.js';

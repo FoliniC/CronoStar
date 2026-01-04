@@ -149,7 +149,7 @@ If you have existing controller config entries:
              target_entity: climate.living_room
              preset_type: thermostat
              global_prefix: cronostar_living_
-             profile_name: Comfort
+             profile_name: Default
    ```
 
 6. **Profiles preserved**: Your existing schedule data in `/config/cronostar/profiles/` is unchanged and will work with the new system.

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "global_prefix": "cronostar_termostato_appartamento_",
+    "global_prefix": "cronostar_thermostat_appartamento_",
     "preset_type": "thermostat",
     "created_at": "2025-12-25T20:37:38.131478",
     "updated_at": "2025-12-30T12:45:23.823470",
@@ -11,11 +11,11 @@
     },
     "logging_enabled": true,
     "pause_entity": "input_boolean.cronostar_termostato_appartamento_paused",
-    "profiles_select_entity": "input_select.cronostar_termostato_appartamento_profiles",
+    "profiles_select_entity": "input_select.cronostar_thermostat_appartament_appartamento_profiles",
     "target_entity": "climate.climatizzazione_appartamento",
     "allow_max_value": false,
     "missing_yaml_style": "named",
-    "title": "CronoStar Thermostat",
+    "title": "CronoStar Thermostat appartamento",
     "y_axis_label": "Temperature",
     "unit_of_measurement": "°C",
     "min_value": 15,

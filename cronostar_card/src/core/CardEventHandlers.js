@@ -1,7 +1,6 @@
 import { CARD_CONFIG_PRESETS, validateConfig, VERSION } from '../config.js';
 import { Logger, timeToMinutes } from '../utils.js';
 import { getEffectivePrefix, getAliasWithPrefix } from '../utils/prefix_utils.js';
-import { buildHelpersFilename } from '../utils/filename_utils.js';
 import { copyToClipboard } from '../editor/services/service_handlers.js';
 
 export class CardEventHandlers {
@@ -97,6 +96,13 @@ export class CardEventHandlers {
         this.card.config = validateConfig(this.card.config);
 
         this.card.stateManager.setData(new Array(24).fill(null));
+        // Ensure default drag snap configuration exists if not provided
+        this.card.config.drag_snap = {
+            default: this.card.config.drag_snap?.default ?? 5,
+            shift: this.card.config.drag_snap?.shift ?? 30,
+            ctrl: this.card.config.drag_snap?.ctrl ?? 1,
+            alt: this.card.config.drag_snap?.alt ?? 15,
+        };
         this.card.awaitingAutomation = false;
         this.card.outOfSyncDetails = "";
         this.card.cardLifecycle.updateReadyFlag({ quiet: true });
@@ -236,7 +242,7 @@ export class CardEventHandlers {
                 .sort((a, b) => a.minutes - b.minutes)
                 .map(({ time, value }) => ({ time, value }));
 
-            const profileName = this.card.selectedProfile || this.card.profileManager.lastLoadedProfile || 'Comfort';
+            const profileName = this.card.selectedProfile || this.card.profileManager.lastLoadedProfile || 'Default';
 
             // Persist profile explicitly like the wizard
             const safeMeta = (() => {
@@ -246,6 +252,8 @@ export class CardEventHandlers {
                 if (!rest.global_prefix && effectivePrefix) rest.global_prefix = effectivePrefix;
                 // Ensure scheduler can apply immediately by persisting the canonical target entity in profile meta
                 if (!rest.target_entity && targetEntity) rest.target_entity = targetEntity;
+                // Persist drag snap config for frontend reference only (not used by backend schedule)
+                if (this.card.config?.drag_snap) rest.drag_snap = this.card.config.drag_snap;
                 return rest;
             })();
 
@@ -324,14 +332,9 @@ export class CardEventHandlers {
                 this.showNotification(localize('notify.add_profile_error', { '{error}': 'HA not connected' }), 'error');
                 return;
             }
-
-            const name = (typeof window !== 'undefined')
-                ? window.prompt(localize('prompt.add_profile_name'))
-                : null;
-            const profileName = (name || '').trim();
-            if (!profileName) {
-                return; // user cancelled
-            }
+            // Open interactive dialog with suggestions from other cards sharing the same preset type
+            const profileName = await this._openAddProfileDialog();
+            if (!profileName) return; // user cancelled
 
             // Optional: avoid duplicates client-side
             if (Array.isArray(this.card.profileOptions) && this.card.profileOptions.includes(profileName)) {
@@ -384,6 +387,140 @@ export class CardEventHandlers {
             }
             this.card.requestUpdate();
         }
+    }
+
+    async _fetchProfileNameSuggestions(presetType) {
+        try {
+            const result = await this.card.hass.callWS({
+                type: 'call_service',
+                domain: 'cronostar',
+                service: 'list_all_profiles',
+                service_data: { force_reload: true },
+                return_response: true
+            });
+            const data = result?.response || {};
+            const section = data?.[presetType] || {};
+            const files = Array.isArray(section.files) ? section.files : [];
+
+            const existing = new Set(Array.isArray(this.card.profileOptions) ? this.card.profileOptions : []);
+            const currentPrefix = (this.card.config?.global_prefix || '').replace(/_+$/, '');
+            const names = new Set();
+
+            files.forEach(f => {
+                const fname = String(f?.filename || '');
+                // Exclude this card's container by matching prefix in filename if present
+                if (currentPrefix && fname.includes(currentPrefix)) return;
+                const profs = Array.isArray(f?.profiles) ? f.profiles : (Array.isArray(f?.profile_names) ? f.profile_names : []);
+                profs.forEach(n => { const name = String(n || '').trim(); if (name && !existing.has(name)) names.add(name); });
+            });
+
+            return Array.from(names).sort();
+        } catch (e) {
+            Logger.warn('PROFILE', 'Failed to fetch profile suggestions:', e);
+            return [];
+        }
+    }
+
+    async _openAddProfileDialog() {
+        const localize = (key, search, replace) =>
+            this.card.localizationManager.localize(this.card.language, key, search, replace);
+        // Safe localize with fallback: if localization returns the key or empty, use fallback
+        const t = (key, fallback) => {
+            try {
+                const s = this.card.localizationManager.localize(this.card.language, key);
+                return (s && s !== key) ? s : fallback;
+            } catch (_) {
+                return fallback;
+            }
+        };
+
+        const presetType = this.card.selectedPreset || this.card.config?.preset_type || 'thermostat';
+        const suggestions = await this._fetchProfileNameSuggestions(presetType);
+
+        return new Promise((resolve) => {
+            // Overlay
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+                display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 20px;`;
+            const dialog = document.createElement('div');
+            dialog.style.cssText = `
+                background: var(--card-background-color, #fff);
+                border-radius: 12px; padding: 20px; width: 420px; max-width: 95vw; color: var(--primary-text-color);
+                box-shadow: 0 8px 24px rgba(0,0,0,0.4); border: 1px solid var(--divider-color);`;
+
+            const title = document.createElement('h3');
+            title.textContent = t('prompt.add_profile_title', 'Add Profile');
+            title.style.margin = '0 0 12px 0';
+            title.style.color = 'var(--primary-color)';
+
+            const inputLabel = document.createElement('label');
+            inputLabel.textContent = t('prompt.add_profile_name', 'Profile name');
+            inputLabel.style.display = 'block';
+            inputLabel.style.margin = '10px 0 6px 0';
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = t('prompt.add_profile_placeholder', 'Enter profile name');
+            input.style.cssText = 'width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--divider-color); box-sizing: border-box;';
+
+            const suggTitle = document.createElement('div');
+            suggTitle.textContent = t('prompt.add_profile_suggestions', 'Suggestions from other cards');
+            suggTitle.style.cssText = 'margin: 14px 0 8px 0; font-weight: 600; opacity: 0.8;';
+
+            const suggWrap = document.createElement('div');
+            suggWrap.style.cssText = 'display: flex; flex-wrap: wrap; gap: 8px;';
+
+            if (suggestions.length === 0) {
+                const none = document.createElement('div');
+                none.textContent = t('prompt.no_suggestions', 'No suggestions available');
+                none.style.cssText = 'opacity: 0.7; font-size: 13px;';
+                suggWrap.appendChild(none);
+            } else {
+                suggestions.forEach(name => {
+                    const chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.textContent = name;
+                    chip.style.cssText = `
+                        padding: 6px 10px; border-radius: 999px; border: 1px solid var(--divider-color);
+                        background: var(--secondary-background-color, #f5f5f5); cursor: pointer; font-size: 13px;`;
+                    chip.onclick = () => { input.value = name; input.focus(); };
+                    suggWrap.appendChild(chip);
+                });
+            }
+
+            const btnRow = document.createElement('div');
+            btnRow.style.cssText = 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.textContent = t('prompt.cancel', 'Cancel');
+            cancelBtn.style.cssText = 'padding: 8px 12px; border-radius: 8px; border: 1px solid var(--divider-color); background: transparent; cursor: pointer;';
+            const okBtn = document.createElement('button');
+            okBtn.type = 'button';
+            okBtn.textContent = t('prompt.create', 'Create');
+            okBtn.style.cssText = 'padding: 8px 12px; border-radius: 8px; border: none; background: var(--primary-color); color: white; cursor: pointer;';
+
+            const close = (val) => { overlay.remove(); resolve(val); };
+            cancelBtn.onclick = () => close(null);
+            okBtn.onclick = () => {
+                const val = (input.value || '').trim();
+                if (!val) return;
+                close(val);
+            };
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
+
+            dialog.appendChild(title);
+            dialog.appendChild(inputLabel);
+            dialog.appendChild(input);
+            dialog.appendChild(suggTitle);
+            dialog.appendChild(suggWrap);
+            btnRow.appendChild(cancelBtn);
+            btnRow.appendChild(okBtn);
+            dialog.appendChild(btnRow);
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+            input.focus();
+        });
     }
 
     async handleDeleteProfile() {
@@ -493,8 +630,7 @@ export class CardEventHandlers {
         // Expected entities
         const prefixBase = prefix.replace(/_+$/, '');
         const currentEntity = `input_number.${prefix}current`;
-        const packageFile = buildHelpersFilename(prefix);
-        const packagePath = `config/packages/${packageFile}`;
+
 
         // Dynamic info
         const actualPoints = this.card.stateManager?.getNumPoints() || 0;

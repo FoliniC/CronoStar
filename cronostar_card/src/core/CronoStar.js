@@ -48,6 +48,7 @@ export class CronoStarCard extends LitElement {
       isExpandedH: { type: Boolean },
       contextMenu: { type: Object },
       modificationCounter: { type: Number },
+      globalSettings: { type: Object },
     };
   }
 
@@ -67,6 +68,7 @@ export class CronoStarCard extends LitElement {
       target_entity: 'climate.climatizzazione_appartamento',
       hour_base: 'auto',
       logging_enabled: true,
+      not_configured: true,
     };
   }
 
@@ -146,6 +148,13 @@ export class CronoStarCard extends LitElement {
     this.isExpandedH = false;
     this.contextMenu = { show: false, x: 0, y: 0 };
     this.modificationCounter = 0;
+    this.globalSettings = {
+      keyboard: {
+        ctrl: { horizontal: 1, vertical: 0.1 },
+        shift: { horizontal: 30, vertical: 1.0 },
+        alt: { horizontal: 60, vertical: 5.0 }
+      }
+    };
 
     try {
       this.cardContext = new CardContext(this);

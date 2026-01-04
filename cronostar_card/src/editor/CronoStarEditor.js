@@ -3,7 +3,6 @@ import { LitElement, html, css } from 'lit';
 import { CARD_CONFIG_PRESETS, DEFAULT_CONFIG, validateConfig } from '../config.js';
 import { log } from '../utils/logger_utils.js';
 import { normalizePrefix, isValidPrefix, getEffectivePrefix } from '../utils/prefix_utils.js';
-import { buildHelpersFilename, buildAutomationFilename } from '../utils/filename_utils.js';
 import { debounce, Logger } from '../utils.js';
 import { EditorI18n } from './EditorI18n.js';
 import { EditorWizard } from './EditorWizard.js';
@@ -16,14 +15,9 @@ import { Step5Summary } from './steps/Step5Summary.js';
 import {
   copyToClipboard,
   downloadFile,
-  handleCreateHelpersYaml,
-  handleCreateAutomationYaml,
-  handleCreateAndReloadAutomation,
-  runDeepChecks,
-  handleInitializeData,
-  handleSaveAll
+  handleInitializeData
 } from './services/service_handlers.js';
-import { buildAutomationYaml, buildInputNumbersYaml } from './yaml/yaml_generators.js';
+import { buildAutomationTemplate } from './yaml/yaml_generators.js';
 
 export class CronoStarEditor extends LitElement {
   static get properties() {
@@ -33,19 +27,8 @@ export class CronoStarEditor extends LitElement {
       _step: { type: Number },
       _selectedPreset: { type: String },
       _automationYaml: { type: String },
-      _showAutomationPreview: { type: Boolean },
-      _helpersYaml: { type: String },
-      _showHelpersPreview: { type: Boolean },
       _language: { type: String },
-      _quickCheck: { type: Object },
-      _deepReport: { type: Object },
-      _deepCheckRanForStep1: { type: Boolean },
-      _deepCheckRanForStep5: { type: Boolean },
-      _deepCheckSubscribed: { type: Boolean },
-      _calculatedHelpersFilename: { type: String },
-      _calculatedAutomationFilename: { type: String },
       _creatingAutomation: { type: Boolean },
-      _deepCheckInProgress: { type: Boolean },
       _showStepError: { type: Boolean },
       // NUOVO: Proprietà reattive per Step 0 Dashboard
       _dashboardProfilesData: { type: Object },
@@ -517,6 +500,8 @@ export class CronoStarEditor extends LitElement {
     // Forza il rendering del picker: la definizione può arrivare dal registry scoped (patch in main.js)
     this._pickerLoaded = true;
 
+    this._showStepError = false;
+
     // Debounce config-changed to avoid constant card recreations while typing
     this._debouncedDispatch = debounce(() => {
       this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: { ...this._config, step: this._step } } }));
@@ -531,123 +516,42 @@ export class CronoStarEditor extends LitElement {
     this.serviceHandlers = {
       copyToClipboard,
       downloadFile,
-      handleCreateHelpersYaml,
-      handleCreateAutomationYaml,
-      handleCreateAndReloadAutomation,
-      runDeepChecks,
       handleInitializeData,
-      handleSaveAll
+      saveGlobalSettings: (settings) => this._saveGlobalSettings(settings)
     };
+  }
+
+  async _saveGlobalSettings(settings) {
+    if (!this.hass) return;
+    try {
+      await this.hass.callService('cronostar', 'save_settings', {
+        settings: settings
+      });
+      this.showToast(this._language === 'it' ? 'Impostazioni globali salvate' : 'Global settings saved');
+      
+      // Update local card instance if possible
+      const cardEl = this.getRootNode().host;
+      if (cardEl && 'globalSettings' in cardEl) {
+        cardEl.globalSettings = settings;
+      }
+    } catch (e) {
+      log('error', this._config.logging_enabled, 'Error saving global settings:', e);
+      this.showToast(`✗ ${e.message}`);
+    }
   }
 
 
 
   handleShowHelp() {
     const lang = this._language || 'en';
-    const title = this.i18n._t('help.title');
-    const introText = this.i18n._t('help.text');
-    const mouseManual = this.i18n._t('help.mouse_manual');
-    const keyboardManual = this.i18n._t('help.keyboard_manual');
-
-    // Create custom dialog overlay
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.85); display: flex; align-items: center;
-      justify-content: center; z-index: 10000; padding: 20px;
-      backdrop-filter: blur(5px);
-    `;
-    const dialog = document.createElement('div');
-    dialog.style.cssText = `
-      background: #1a1f2e; border-radius: 16px; padding: 32px;
-      max-width: 850px; width: 100%; max-height: 90vh;
-      overflow-y: auto; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: #e8eaf0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    `;
-    const headerDiv = document.createElement('div');
-    headerDiv.style.cssText = `
-      display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      padding-bottom: 16px;
-    `;
-    const titleEl = document.createElement('h2');
-    titleEl.textContent = title;
-    titleEl.style.cssText = `margin: 0; color: #0ea5e9; font-size: 1.8rem;`;
-
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '✕';
-    closeBtn.style.cssText = `
-      background: none; border: none; font-size: 28px; cursor: pointer;
-      color: #a0a8c0; padding: 4px; transition: color 0.2s;
-    `;
-    closeBtn.onmouseover = () => closeBtn.style.color = '#fff';
-    closeBtn.onmouseout = () => closeBtn.style.color = '#a0a8c0';
-    closeBtn.onclick = () => overlay.remove();
-    headerDiv.appendChild(titleEl);
-    headerDiv.appendChild(closeBtn);
-    dialog.appendChild(headerDiv);
-
-    const sections = [
-      { title: '', text: introText },
-      { title: lang === 'it' ? '🖱️ Utilizzo Mouse' : '🖱️ Mouse Usage', text: mouseManual },
-      { title: lang === 'it' ? '⌨️ Utilizzo Tastiera' : '⌨️ Keyboard Usage', text: keyboardManual }
-    ];
-
-    sections.forEach(s => {
-      if (s.title) {
-        const h3 = document.createElement('h3');
-        h3.textContent = s.title;
-        h3.style.cssText = 'margin: 24px 0 12px 0; color: #fff; border-left: 4px solid #0ea5e9; padding-left: 12px;';
-        dialog.appendChild(h3);
-      }
-      const p = document.createElement('div');
-      p.style.cssText = 'white-space: pre-wrap; margin-bottom: 20px; line-height: 1.6; font-size: 15px; color: #cbd3e8;';
-      p.textContent = s.text;
-      dialog.appendChild(p);
-    });
-
-    overlay.appendChild(dialog);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-    document.body.appendChild(overlay);
   }
 
   connectedCallback() {
     super.connectedCallback();
-    this._deepCheckRanForStep1 = false;
-    this._deepCheckRanForStep5 = false;
-    this._deepCheckSubscribed = false;
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    if (this._unsubscribeDeep) {
-      try { this._unsubscribeDeep(); } catch (e) { /* ignore */ }
-      this._unsubscribeDeep = null;
-    }
-    this._deepCheckSubscribed = false;
-  }
-
-  firstUpdated() {
-    // Ensure card in preview knows the initial step (0)
-    this._dispatchConfigChanged(true);
-  }
-
-  async _ensureDeepCheckSubscription() {
-    if (this.hass?.connection && !this._deepCheckSubscribed) {
-      try {
-        this._unsubscribeDeep = await this.hass.connection.subscribeEvents((ev) => {
-          const data = ev?.event?.data ?? ev?.data ?? ev;
-          if (data) {
-            this._deepReport = data;
-            this.requestUpdate();
-          }
-        }, 'cronostar_setup_report');
-        this._deepCheckSubscribed = true;
-      } catch (e) {
-        log('warn', this._config.logging_enabled, 'Failed to subscribe to deep check reports:', e);
-      }
-    }
   }
 
   updated(changedProps) {
@@ -656,34 +560,57 @@ export class CronoStarEditor extends LitElement {
       if (this.hass) {
         log('info', this._config.logging_enabled, 'HASS object received/updated');
       }
-      this._ensureDeepCheckSubscription();
-      if (this.hass && this._step === 1 && !this._deepCheckRanForStep1) {
-        this._deepCheckRanForStep1 = true;
-        this._runDeepChecks();
-      }
-      if (this.hass && this._step === 5 && !this._deepCheckRanForStep5) {
-        this._deepCheckRanForStep5 = true;
-        this._runDeepChecks();
-      }
     }
     if (changedProps.has('_step')) {
       // ✅ FIX: Dispatch immediately on step change so preview is updated
-      this._dispatchConfigChanged(true);
-
-      if (this._step === 1 && this.hass && !this._deepCheckRanForStep1) {
-        this._deepCheckRanForStep1 = true;
-        this._runDeepChecks();
+      // Only dispatch if NOT in Step 0 (Dashboard), to prevent loading the preview card there
+      if (this._step !== 0) {
+        this._dispatchConfigChanged(true);
       }
-      if (this._step === 5 && this.hass && !this._deepCheckRanForStep5) {
-        this._deepCheckRanForStep5 = true;
-        this._runDeepChecks();
-      }
-      if (this._step !== 1) this._deepCheckRanForStep1 = false;
-      if (this._step !== 5) this._deepCheckRanForStep5 = false;
     }
 
     // Hide preview in Step 0
     this._updatePreviewVisibility();
+    
+    // Manage standard HA SAVE button visibility
+    this._updateSaveButtonVisibility();
+  }
+
+  _updateSaveButtonVisibility() {
+    try {
+      const shouldHide = (this._step >= 0 && this._step <= 3);
+      const root = document.head;
+      let styleEl = document.getElementById('cronostar-editor-save-button-hide');
+
+      if (shouldHide) {
+        if (!styleEl) {
+          styleEl = document.createElement('style');
+          styleEl.id = 'cronostar-editor-save-button-hide';
+          root.appendChild(styleEl);
+        }
+        styleEl.textContent = `
+          /* CronoStar: Aggressively hide standard HA Save button in wizard steps 0-3 */
+          mwc-button[slot="primaryAction"],
+          ha-button[slot="primaryAction"],
+          ha-dialog mwc-button[slot="primaryAction"],
+          ha-dialog ha-button[slot="primaryAction"],
+          .mdc-dialog__actions mwc-button[slot="primaryAction"],
+          .mdc-dialog__actions ha-button[slot="primaryAction"],
+          hui-dialog-edit-card mwc-button[slot="primaryAction"],
+          hui-dialog-edit-card ha-button[slot="primaryAction"],
+          ha-dialog ha-button,
+          .primary-action {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+          }
+        `;
+      } else if (styleEl) {
+        styleEl.textContent = '';
+      }
+    } catch (e) {
+      log('warn', this._config.logging_enabled, '[SAVE-BUTTON] Visibility update failed:', e);
+    }
   }
 
   _updatePreviewVisibility() {
@@ -793,20 +720,15 @@ export class CronoStarEditor extends LitElement {
   setConfig(config) {
     try {
       this._config = validateConfig(config, config.logging_enabled);
-      // Determine if this is likely a brand-new (stub) configuration provided by the card/editor.
-      // In that case we should show "New configuration" instead of "Edit configuration".
-      const isLikelyStub = (
-        // Empty or minimal config
-        !config || Object.keys(config).length === 0 ||
-        // Known stub from getStubConfig()
-        (config.global_prefix === 'cronostar_thermostat_' &&
-          config.target_entity === 'climate.climatizzazione_appartamento')
-      );
-
-      // If we have a meaningful saved config (not stub), show Edit; otherwise show New.
-      this._isEditing = !!(config?.global_prefix && config?.target_entity) &&
-        config.global_prefix !== 'cronostar_temp_' &&
-        !isLikelyStub;
+      
+      // IMPROVED: Check the normalized configuration
+      this._isEditing = this._config && !config.not_configured && !!this._config.global_prefix && !!this._config.target_entity;
+      
+      Logger.log('CONFIG', `[Editor] setConfig - isEditing: ${this._isEditing}`, { 
+        not_configured: config?.not_configured,
+        has_prefix: !!this._config.global_prefix,
+        has_target: !!this._config.target_entity 
+      });
     } catch (e) {
       log('warn', this._config.logging_enabled, "Config validation warning:", e);
       this._config = { ...DEFAULT_CONFIG, ...config };
@@ -822,7 +744,6 @@ export class CronoStarEditor extends LitElement {
 
     this._syncConfigAliases();
     this._updateAutomationYaml();
-    this._updateHelpersYaml();
   }
 
   _isElDefined(tag) {
@@ -830,17 +751,11 @@ export class CronoStarEditor extends LitElement {
   }
 
   _syncConfigAliases() {
-    const p = normalizePrefix(this._config.global_prefix);
-    this._calculatedHelpersFilename = buildHelpersFilename(p);
-    this._calculatedAutomationFilename = buildAutomationFilename(p);
+    // No-op - removed calculated filenames
   }
 
   _updateAutomationYaml() {
-    this._automationYaml = buildAutomationYaml(this._config, 'list');
-  }
-
-  _updateHelpersYaml() {
-    this._helpersYaml = buildInputNumbersYaml(this._config, false);
+    this._automationYaml = buildAutomationTemplate(this._config);
   }
 
   // Ensure dispatched/saved config contains required fields and omits nulls
@@ -848,14 +763,14 @@ export class CronoStarEditor extends LitElement {
     const out = { ...cfg };
     // Ensure type
     if (!out.type) out.type = 'custom:cronostar-card';
-    // Normalize global_prefix only if provided; avoid defaulting to 'cronostar_'
-    if (out.global_prefix) {
-      out.global_prefix = normalizePrefix(out.global_prefix);
-    }
+    
+    // Always remove not_configured once we are in the editor and about to persist
+    delete out.not_configured;
+
     // Remove null/undefined/empty-string values
     for (const key of Object.keys(out)) {
       const val = out[key];
-      if (val === null || val === undefined || (typeof val === 'string' && val.trim() === '')) {
+      if (val === null || val === undefined || val === '') {
         delete out[key];
       }
     }
@@ -906,23 +821,6 @@ export class CronoStarEditor extends LitElement {
     }
   }
 
-  // Implementation of _runDeepChecks called by Wizard
-  async _runDeepChecks() {
-    if (!this.hass) return;
-    this._deepCheckInProgress = true;
-    this.requestUpdate();
-
-    try {
-      await runDeepChecks(this.hass, this._config, this._language);
-      // The actual report will arrive via the 'cronostar_setup_report' event subscription.
-    } catch (e) {
-      log('warn', this._config.logging_enabled, "Deep check failed:", e);
-    } finally {
-      this._deepCheckInProgress = false;
-      this.requestUpdate();
-    }
-  }
-
   _renderStepContent() {
     switch (this._step) {
       case 0: return new Step0Dashboard(this).render();
@@ -943,7 +841,6 @@ export class CronoStarEditor extends LitElement {
 
     this._syncConfigAliases();
     this._updateAutomationYaml();
-    this._updateHelpersYaml();
     // Immediately notify HA editor so the standard Save button persists latest values
     this._dispatchConfigChanged(true);
     this.requestUpdate();
@@ -1004,7 +901,7 @@ export class CronoStarEditor extends LitElement {
     return html`<mwc-button raised ?disabled=${disabled} @click=${click}>${label}</mwc-button>`;
   }
 
-  _updateConfig(key, value) {
+  _updateConfig(key, value, immediate = false) {
     const newConfig = { ...this._config, [key]: value };
 
     // Explicitly enforce stable type to avoid reconstruction
@@ -1021,11 +918,14 @@ export class CronoStarEditor extends LitElement {
       }
     }
 
+    // Ensure global_prefix is present
+    if (!newConfig.global_prefix) {
+      newConfig.global_prefix = getEffectivePrefix(newConfig);
+    }
+
     this._config = newConfig;
     this._syncConfigAliases();
-    this._updateAutomationYaml();
-    this._updateHelpersYaml();
-    this._dispatchConfigChanged();
+    this._dispatchConfigChanged(immediate);
   }
 
   _handleNextClick() {
@@ -1048,6 +948,9 @@ export class CronoStarEditor extends LitElement {
       let finalConfig = { ...this._config };
       delete finalConfig.step;
 
+      // Ensure global_prefix is present and normalized on final save
+      finalConfig.global_prefix = normalizePrefix(finalConfig.global_prefix || getEffectivePrefix(finalConfig));
+
       // Sanitize before dispatch/save
       finalConfig = this._sanitizeConfig(finalConfig);
 
@@ -1060,8 +963,8 @@ export class CronoStarEditor extends LitElement {
       }));
 
       try {
-        // 2. Perform backend operations (file creation, etc.)
-        const result = await handleSaveAll(this.hass, finalConfig, this._deepReport, this._language);
+        // 2. Perform backend operations (data analysis/initialization)
+        const result = await handleInitializeData(this.hass, finalConfig, this._language);
         this.showToast(result.message);
 
         // 3. Update local state to show 'Finished' state if needed, 
@@ -1144,11 +1047,9 @@ export class CronoStarEditor extends LitElement {
           ${this._step > 1 ? html`<mwc-button outlined @click=${() => { this._dispatchConfigChanged(true); this.wizard._prevStep(); }}>${this.i18n._t('actions.back')}</mwc-button>` : html``}
         </div>
         <div>
-          ${this._step === 5
-        ? html`<mwc-button raised @click=${() => this._handleFinishClick({ force: false })}>
-                 ${this._language === 'it' ? 'Fine' : 'Finish'}
-               </mwc-button>`
-        : html`<mwc-button raised @click=${() => this._handleNextClick()}>${this.i18n._t('actions.next')}</mwc-button>`}
+          ${this._step > 0 && this._step < 5
+        ? html`<mwc-button raised @click=${() => this._handleNextClick()}>${this.i18n._t('actions.next')}</mwc-button>`
+        : html``}
         </div>
       </div>
     `;

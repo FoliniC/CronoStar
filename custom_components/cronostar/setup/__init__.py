@@ -10,8 +10,12 @@ from pathlib import Path
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
+from homeassistant.loader import async_get_integration
 
+from ..storage.storage_manager import StorageManager
+from ..storage.settings_manager import SettingsManager
 from .services import setup_services
+from .events import setup_event_handlers
 from .validators import validate_environment
 
 _LOGGER = logging.getLogger(__name__)
@@ -24,10 +28,9 @@ async def async_setup_integration(hass: HomeAssistant, config: dict) -> bool:
     This function:
     1. Validates the environment
     2. Sets up static frontend resources (Lovelace card)
-    3. Initializes global storage manager
-    4. Registers global services
+    3. Initializes global services (Storage, Profile, Settings)
 
-    Controllers are configured via Lovelace cards, not here.
+    Controllers are configured via Lovelace cards.
 
     Args:
         hass: Home Assistant instance
@@ -48,26 +51,32 @@ async def async_setup_integration(hass: HomeAssistant, config: dict) -> bool:
         _LOGGER.error("❌ Failed to register Lovelace card")
         return False
 
-    # 3. Initialize global storage manager
-    from ..storage.storage_manager import StorageManager
-
+    # 3. Initialize global managers
+    cronostar_dir = hass.config.path("cronostar")
     profiles_dir = hass.config.path("cronostar/profiles")
     enable_backups = config.get("enable_backups", False)
 
-    storage_manager = StorageManager(hass, profiles_dir, enable_backups=enable_backups)
+    storage_manager: StorageManager = StorageManager(hass, profiles_dir, enable_backups=enable_backups)
+    settings_manager: SettingsManager = SettingsManager(hass, cronostar_dir)
 
     # Store in hass.data for access by services and frontend
     hass.data.setdefault("cronostar", {})
     hass.data["cronostar"]["storage_manager"] = storage_manager
+    hass.data["cronostar"]["settings_manager"] = settings_manager
     hass.data["cronostar"]["version"] = config.get("version", "unknown")
+    hass.data["cronostar"]["logging_enabled"] = config.get("logging_enabled", False)
 
     _LOGGER.info("📦 Storage manager initialized: %s", profiles_dir)
+    _LOGGER.info("⚙️ Settings manager initialized: %s", cronostar_dir)
 
     # Preload existing profile containers into cache for immediate availability
     await _preload_profile_cache(hass, storage_manager)
 
     # 4. Register global services
     await setup_services(hass, storage_manager)
+
+    # 5. Register event handlers
+    await setup_event_handlers(hass, storage_manager)
 
     _LOGGER.info("✅ CronoStar component setup completed")
     _LOGGER.info("📝 Add CronoStar cards to dashboards to create controllers")
@@ -95,19 +104,23 @@ async def _setup_static_resources(hass: HomeAssistant) -> bool:
         # Register static path for card files
         await hass.http.async_register_static_paths([StaticPathConfig(url_path="/cronostar_card", path=www_path)])
 
+        # Get integration version for cache busting
+        integration = await async_get_integration(hass, "cronostar")
+        version = integration.version
+
         # Add JS modules to frontend
-        add_extra_js_url(hass, "/cronostar_card/cronostar-card.js?v=5")
-        add_extra_js_url(hass, "/cronostar_card/card-picker-metadata.js?v=5")
+        add_extra_js_url(hass, f"/cronostar_card/cronostar-card.js?v={version}")
+        add_extra_js_url(hass, f"/cronostar_card/card-picker-metadata.js?v={version}")
 
         _LOGGER.info("✅ Lovelace card registered: /cronostar_card/cronostar-card.js")
         return True
 
-    except Exception as e:  # noqa: BLE001
-        _LOGGER.error("Failed to setup static resources: %s", e)
+    except Exception as e:
+        _LOGGER.error("Failed to setup static resources: %s", e, exc_info=True)
         return False
 
 
-async def _preload_profile_cache(hass: HomeAssistant, storage_manager) -> None:
+async def _preload_profile_cache(hass: HomeAssistant, storage_manager: StorageManager) -> None:
     """
     Preload all existing profile containers into the storage cache.
 
@@ -126,8 +139,8 @@ async def _preload_profile_cache(hass: HomeAssistant, storage_manager) -> None:
                 data = await storage_manager.load_profile_cached(filename, force_reload=True)
                 if data:
                     loaded += 1
-            except Exception as e:  # noqa: BLE001
-                _LOGGER.warning("Failed to preload %s: %s", filename, e)
+            except Exception as e:
+                _LOGGER.warning("Failed to preload %s: %s", filename, e, exc_info=True)
 
         # Summarize cached content
         cached = await storage_manager.get_cached_containers()
@@ -150,5 +163,5 @@ async def _preload_profile_cache(hass: HomeAssistant, storage_manager) -> None:
             total_profiles,
             ", ".join(sorted(prefixes)) or "none",
         )
-    except Exception as e:  # noqa: BLE001
-        _LOGGER.warning("Preload of profile cache encountered an error: %s", e)
+    except Exception as e:
+        _LOGGER.warning("Preload of profile cache encountered an error: %s", e, exc_info=True)

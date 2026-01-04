@@ -1,21 +1,23 @@
 {
     "config": {
-        "step": {
-            "user": {
-                "title": "Install CronoStar Component",
-                "description": "⏰ **CronoStar** - Advanced Time-Based Scheduling for Home Assistant\n\n🚀 **What will be installed:**\n- Global profile storage system\n- Services for profile management (save, load, delete)\n- CronoStar Lovelace card for creating controllers\n\n📝 **After installation:**\n- Add CronoStar cards to your dashboards\n- Each card creates a new controller (Thermostat, Switch, etc.)\n- Configure schedules directly in the card UI\n\nClick **Submit** to install the component."
-            }
-        },
         "abort": {
-            "single_instance_allowed": "CronoStar component is already installed. Only one instance is allowed."
+            "single_instance_allowed": "The CronoStar global component is already installed."
+        },
+        "step": {
+            "install_component": {
+                "description": "This will install the CronoStar component and register the global services and Lovelace card resource.",
+                "title": "Install CronoStar"
+            }
         }
     },
     "options": {
         "step": {
             "init": {
-                "title": "CronoStar Component Options",
-                "description": "Global component settings.\n\n**Note:** Controller configuration is done via Lovelace cards, not here.",
-                "data": {}
+                "data": {
+                    "logging_enabled": "Enable Debug Logging"
+                },
+                "description": "Global component settings.",
+                "title": "CronoStar Options"
             }
         }
     }

@@ -101,7 +101,7 @@ class StorageManager:
             return True
 
         except Exception as e:
-            _LOGGER.error("Error saving profile %s: %s", profile_name, e)
+            _LOGGER.error("Error saving profile %s: %s", profile_name, e, exc_info=True)
             return False
 
     async def load_profile_cached(self, filename: str, force_reload: bool = False) -> dict | None:
@@ -122,7 +122,6 @@ class StorageManager:
 
                 # Cache valid for 60 seconds
                 if cache_age < 60:
-                    _LOGGER.debug("Cache hit: %s (age: %ds)", filename, cache_age)
                     return self._cache[filename]
 
             # Load from disk
@@ -132,18 +131,6 @@ class StorageManager:
             if container:
                 self._cache[filename] = container
                 self._cache_timestamps[filename] = datetime.now()
-
-                profiles = container.get("profiles", {})
-                first_profile = next(iter(profiles.keys())) if profiles else "None"
-                points = len(profiles[first_profile].get("schedule", [])) if profiles and first_profile != "None" else 0
-
-                _LOGGER.debug(
-                    "[STORAGE] Loaded container: file=%s, profiles=%d, first_profile=%s, schedule_points=%d",
-                    filepath.as_posix().replace(self.hass.config.path(), "/config"),
-                    len(profiles),
-                    first_profile,
-                    points,
-                )
 
             return container
 
@@ -199,7 +186,7 @@ class StorageManager:
             return True
 
         except Exception as e:
-            _LOGGER.error("Error deleting profile %s: %s", profile_name, e)
+            _LOGGER.error("Error deleting profile %s: %s", profile_name, e, exc_info=True)
             return False
 
     async def list_profiles(self, preset_type: str | None = None, prefix: str | None = None) -> list[str]:
@@ -272,11 +259,10 @@ class StorageManager:
                 matches.append(filename)
 
             matches.sort()
-            _LOGGER.debug("Listed %d profiles (preset=%s, prefix=%s)", len(matches), preset_type, prefix)
             return matches
 
         except Exception as e:
-            _LOGGER.error("Error listing profiles: %s", e)
+            _LOGGER.error("Error listing profiles: %s", e, exc_info=True)
             return []
 
     async def get_profile_list(self, preset_type: str, global_prefix: str = "") -> list[str]:
@@ -300,7 +286,7 @@ class StorageManager:
             return list(container["profiles"].keys())
 
         except Exception as e:
-            _LOGGER.error("Error getting profile list: %s", e)
+            _LOGGER.error("Error getting profile list: %s", e, exc_info=True)
             return []
 
     async def clear_cache(self) -> None:
@@ -370,7 +356,7 @@ class StorageManager:
             _LOGGER.error("JSON decode error in %s: %s", filepath.name, e)
             return {}
         except Exception as e:
-            _LOGGER.error("Error loading %s: %s", filepath.name, e)
+            _LOGGER.error("Error loading %s: %s", filepath.name, e, exc_info=True)
             return {}
 
     async def _write_json(self, filepath: Path, data: dict) -> None:
@@ -385,7 +371,7 @@ class StorageManager:
             json_str = json.dumps(data, indent=2, ensure_ascii=False)
             await self.hass.async_add_executor_job(filepath.write_text, json_str, "utf-8")
         except Exception as e:
-            _LOGGER.error("Error writing %s: %s", filepath.name, e)
+            _LOGGER.error("Error writing %s: %s", filepath.name, e, exc_info=True)
             raise
 
     async def _create_backup(self, filepath: Path) -> None:
@@ -410,7 +396,7 @@ class StorageManager:
             await self._cleanup_old_backups(filepath.stem)
 
         except Exception as e:
-            _LOGGER.warning("Backup creation failed: %s", e)
+            _LOGGER.warning("Backup creation failed: %s", e, exc_info=True)
 
     async def _cleanup_old_backups(self, stem: str) -> None:
         """
@@ -435,7 +421,7 @@ class StorageManager:
                 _LOGGER.debug("Removed old backup: %s", old_backup.name)
 
         except Exception as e:
-            _LOGGER.warning("Backup cleanup failed: %s", e)
+            _LOGGER.warning("Backup cleanup failed: %s", e, exc_info=True)
 
     async def load_all_profiles(self) -> dict[str, dict]:
         """
@@ -493,7 +479,7 @@ class StorageManager:
                     all_profiles_data[filename] = {"validation_results": validation_results}  # Store validation even if load failed
 
         except Exception as e:
-            _LOGGER.error("Error loading all profiles: %s", e)
+            _LOGGER.error("Error loading all profiles: %s", e, exc_info=True)
 
         _LOGGER.info("Finished loading all profiles. Found %d files.", len(all_profiles_data))
 

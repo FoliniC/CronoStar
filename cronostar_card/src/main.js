@@ -5,7 +5,6 @@ console.log('[CronoStar] main.js file loaded by browser');
 import { CronoStarCard } from './core/CronoStar.js';
 import { CronoStarEditor } from './editor/CronoStarEditor.js';
 import { VERSION, CARD_CONFIG_PRESETS } from './config.js';
-import { checkIsEditorContext } from './utils.js';
 
 // Espone preset globali (se servono ad altri script)
 globalThis.PRESETS = CARD_CONFIG_PRESETS;
