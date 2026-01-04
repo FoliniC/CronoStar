@@ -29,6 +29,6 @@ jobs:
           pip install pytest pytest-cov pytest-homeassistant-custom-component
       - name: Run tests
         env:
-          PYTHONPATH: .
+          PYTHONPATH: ${{ github.workspace }}
         run: |
-          pytest -q --cov=custom_components/cronostar --cov-report=xml
+          pytest -v --cov=custom_components/cronostar --cov-report=xml

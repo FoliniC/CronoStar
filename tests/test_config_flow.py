@@ -1,6 +1,7 @@
 import pytest
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
+from homeassistant.setup import async_setup_component
 
 DOMAIN = "cronostar"
 CONF_LOGGING_ENABLED = "logging_enabled"
