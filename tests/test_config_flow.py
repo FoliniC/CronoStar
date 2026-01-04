@@ -5,8 +5,7 @@ from homeassistant.core import HomeAssistant
 DOMAIN = "cronostar"
 CONF_LOGGING_ENABLED = "logging_enabled"
 
-@pytest.mark.asyncio
-async def test_component_install_flow(hass: HomeAssistant) -> None:
+async def test_component_install_flow(hass: HomeAssistant, enable_custom_integrations) -> None:
     """Test installing the global component."""
     flow = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     assert flow["type"] == "form"
@@ -21,8 +20,7 @@ async def test_component_install_flow(hass: HomeAssistant) -> None:
     assert result["data"]["component_installed"] is True
     assert result["data"][CONF_LOGGING_ENABLED] is True
 
-@pytest.mark.asyncio
-async def test_single_instance_only(hass: HomeAssistant) -> None:
+async def test_single_instance_only(hass: HomeAssistant, enable_custom_integrations) -> None:
     """Test that we cannot add a second instance (previously controller)."""
     # 1. Install component
     comp_flow = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})

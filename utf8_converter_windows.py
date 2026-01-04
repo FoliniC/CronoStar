@@ -4,17 +4,21 @@ from tkinter import ttk, scrolledtext, messagebox, filedialog
 import threading
 import chardet
 import shutil
+import argparse
+import sys
 from datetime import datetime
 
 class UTF8ConverterApp:
-    def __init__(self, root):
+    def __init__(self, root, args=None):
         self.root = root
+        self.args = args
+        self.auto_mode = args.auto if args else False
         self.root.title("UTF-8 File Converter - Ricorsivo")
         self.root.geometry("1100x800")
         self.root.resizable(True, True)
         
         # Variabili
-        self.current_dir = os.getcwd()
+        self.current_dir = args.dir if args and args.dir else os.getcwd()
         self.scanning = False
         self.converting = False
         self.results = []
@@ -28,6 +32,17 @@ class UTF8ConverterApp:
         style.configure('Stat.TFrame', relief='solid', borderwidth=1)
         
         self.setup_ui()
+
+        # Applica parametri da riga di comando
+        if args:
+            if args.no_backup:
+                self.backup_var.set(False)
+            if args.newline:
+                self.newline_mode.set(args.newline)
+            
+            if args.auto:
+                self.log("🤖 Modalità automatica attivata. Avvio scansione tra 1 secondo...", 'info')
+                self.root.after(1000, self.start_scan)
         
     def setup_ui(self):
         # Frame principale
@@ -594,12 +609,49 @@ class UTF8ConverterApp:
         finally:
             self.scanning = False
             self.scan_button.config(state='normal')
+            
+            if self.auto_mode:
+                self.root.after(500, self.auto_run_conversion)
     
     def start_scan(self):
         if not self.scanning:
             thread = threading.Thread(target=self.scan_directory, daemon=True)
             thread.start()
     
+    def auto_run_conversion(self):
+        """Avvia la conversione automaticamente senza chiedere conferma"""
+        if self.converting:
+            return
+
+        newline_mode = self.newline_mode.get()
+        convertible_count = 0
+        
+        for r in self.results:
+            include = False
+            if r['status'] in ['convertible', 'convertible_nl']:
+                include = True
+            if r['newline_status'] == 'mixed' and newline_mode != 'none':
+                include = True
+            if newline_mode != 'none':
+                nl_type = r.get('newline_type', '')
+                if newline_mode == 'windows' and nl_type in ['unix', 'mac']:
+                    include = True
+                elif newline_mode == 'unix' and nl_type in ['windows', 'mac']:
+                    include = True
+                elif newline_mode == 'auto' and nl_type in ['unix', 'mac', 'mixed']:
+                    include = True
+            
+            if include:
+                convertible_count += 1
+        
+        if convertible_count > 0:
+            self.log(f"🤖 Modalità automatica: avvio conversione di {convertible_count} file...", 'info')
+            thread = threading.Thread(target=self.convert_all_files, daemon=True)
+            thread.start()
+        else:
+            self.log("🤖 Modalità automatica: nulla da convertire.", 'info')
+            self.auto_mode = False
+
     def convert_file(self, file_info):
         file_path = file_info['path']
         encoding = file_info['encoding']
@@ -794,7 +846,7 @@ class UTF8ConverterApp:
         self.log(f"✅ Conversione completata: {converted} convertiti, {failed} falliti", 'info')
         self.log("=" * 80)
         
-        if converted > 0:
+        if converted > 0 and not self.auto_mode:
             messagebox.showinfo("Completato", 
                                f"Conversione completata!\n\n"
                                f"✓ Convertiti: {converted}\n"
@@ -802,6 +854,10 @@ class UTF8ConverterApp:
                                f"Opzione newline: {newline_text}\n\n"
                                f"{'I file originali sono stati salvati con estensione .backup' if self.backup_var.get() else ''}")
         
+        if self.auto_mode:
+            self.auto_mode = False # Disabilita dopo il completamento
+            self.log("🤖 Modalità automatica: procedura completata.", 'info')
+
         self.converting = False
         self.scan_button.config(state='normal')
         if len([r for r in self.results if r['status'] in ['convertible', 'convertible_nl']]) > 0:
@@ -854,8 +910,15 @@ class UTF8ConverterApp:
         print("DEBUG: Bottone forzatamente attivato")
 
 def main():
+    parser = argparse.ArgumentParser(description="UTF-8 File Converter")
+    parser.add_argument("--dir", help="Directory iniziale", default=os.getcwd())
+    parser.add_argument("--no-backup", action="store_true", help="Non creare file .backup")
+    parser.add_argument("--newline", choices=["none", "windows", "unix", "auto"], default="none", help="Modalità newline")
+    parser.add_argument("--auto", action="store_true", help="Scansione e conversione automatica")
+    args = parser.parse_args()
+
     root = tk.Tk()
-    UTF8ConverterApp(root)
+    UTF8ConverterApp(root, args)
     root.mainloop()
 
 if __name__ == "__main__":
