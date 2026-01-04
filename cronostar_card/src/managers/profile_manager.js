@@ -253,6 +253,14 @@ export class ProfileManager {
       meta.global_prefix = getEffectivePrefix(config);
     }
 
+    // Include language preference from card/config if available
+    try {
+      const lang = this.context._card?.language || this.context.config?.meta?.language || this.context.config?.language;
+      if (lang) {
+        meta.language = lang;
+      }
+    } catch { /* ignore */ }
+
     // Persist actual chart-used values so other cards can tailor theirs when loading this profile
     const chartKeys = [
       'y_axis_label',
@@ -290,6 +298,20 @@ export class ProfileManager {
         this.context._card.config[key] = meta[key];
       }
     });
+
+    // Apply language from meta to card and config
+    if (meta.language) {
+      try {
+        this.context._card.language = meta.language;
+        // Guard against hass overriding language on next setHass
+        this.context._card.languageInitialized = true;
+        if (!this.context._card.config.meta) this.context._card.config.meta = {};
+        this.context._card.config.meta.language = meta.language;
+        Logger.log('LANG', `Applied language from profile meta: ${meta.language}`);
+      } catch (e) {
+        Logger.warn('LANG', 'Failed to apply language from meta:', e);
+      }
+    }
   }
 
   /**

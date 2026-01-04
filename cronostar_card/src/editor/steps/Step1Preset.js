@@ -81,7 +81,7 @@ export class Step1Preset {
             ${this.editor.i18n._t('ui.prefix_description')}
           </div>
           <ha-textfield
-            .label=${`input_number.${currentPrefix}...`}
+            .label=${`sensor.${currentPrefix}...`}
             .value=${currentPrefix || ''}
             @input=${(e) => this._handlePrefixChange(e.target.value, e)}
             @change=${() => this.editor._dispatchConfigChanged(true)}
@@ -134,13 +134,18 @@ export class Step1Preset {
     this.editor._updateConfig('global_prefix', newPrefix);
 
     const config = this.editor._config;
-    const isStandard = (val, suffix) => !val || val === '' || val.startsWith('cronostar_') && val.endsWith(suffix);
+    // Standard checks for pause and select entities
+    // Improved isStandard to handle full entity IDs (e.g. switch.cronostar_..._paused)
+    const isStandard = (val, suffix) => {
+      if (!val) return true;
+      return val.includes('cronostar_') && (val.endsWith(suffix) || val.endsWith(suffix.replace('d', '')));
+    };
 
     if (isStandard(config.pause_entity, 'paused')) {
-      this.editor._updateConfig('pause_entity', `input_boolean.${newPrefix}paused`);
+      this.editor._updateConfig('pause_entity', `switch.${newPrefix}paused`);
     }
-    if (isStandard(config.profiles_select_entity, 'profiles')) {
-      this.editor._updateConfig('profiles_select_entity', `input_select.${newPrefix}profiles`);
+    if (isStandard(config.profiles_select_entity, 'current_profile') || isStandard(config.profiles_select_entity, 'profiles')) {
+      this.editor._updateConfig('profiles_select_entity', `select.${newPrefix}current_profile`);
     }
 
     this.editor._dispatchConfigChanged(true);
@@ -170,19 +175,24 @@ export class Step1Preset {
       'generic_switch': 'generic_switch'
     };
     const tag = tags[presetId] || presetId;
-    const basePrefix = `cronostar_${tag}_`;
+    // const basePrefix = `cronostar_${tag}_`; // Not used
     
     // Use the full prefix as title, replacing underscores with spaces
     let newTitle = normalizedValue.replace(/_/g, ' ').trim();
     if (!newTitle) newTitle = baseTitle;
     newConfig.title = newTitle;
     
-    const isStandard = (val, suffix) => !val || val === '' || val.startsWith('cronostar_') && val.endsWith(suffix);
+    // Update pause and select entities if they look like defaults
+    const isStandard = (val, suffix) => {
+      if (!val) return true;
+      return val.includes('cronostar_') && (val.endsWith(suffix) || val.endsWith(suffix.replace('d', '')));
+    };
+
     if (isStandard(newConfig.pause_entity, 'paused')) {
-      newConfig.pause_entity = `input_boolean.${normalizedValue}paused`;
+      newConfig.pause_entity = `switch.${normalizedValue}paused`;
     }
-    if (isStandard(newConfig.profiles_select_entity, 'profiles')) {
-      newConfig.profiles_select_entity = `input_select.${normalizedValue}profiles`;
+    if (isStandard(newConfig.profiles_select_entity, 'current_profile') || isStandard(newConfig.profiles_select_entity, 'profiles')) {
+      newConfig.profiles_select_entity = `select.${normalizedValue}current_profile`;
     }
 
     editor._config = newConfig;
@@ -194,15 +204,20 @@ export class Step1Preset {
   }
 
   async _handleSaveAndClose() {
+    console.log('[Step1] Save & Close clicked');
     const currentPrefix = this.editor._config.global_prefix || getEffectivePrefix(this.editor._config);
     this.editor._updateConfig('global_prefix', currentPrefix, true);
     await this.editor.updateComplete;
     if (this.editor.hass) {
       try {
+        console.log('[Step1] Triggering finish click');
         await this.editor._handleFinishClick({ force: true });
+        console.log('[Step1] Finish click completed');
       } catch (e) {
         console.error("Save & Close failed:", e);
       }
+    } else {
+      console.warn('[Step1] Hass not available');
     }
   }
 

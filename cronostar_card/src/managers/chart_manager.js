@@ -90,7 +90,8 @@ export class ChartManager {
         if (origX === undefined) return;
         const bounds = this.dragBounds?.[i] || { left: 0, right: 1440 };
         let newX = Math.max(bounds.left, Math.min(bounds.right, Math.round(origX + dxMinutes)));
-        p.x = Math.max(0, Math.min(1440, newX));
+        // Clamp to end-of-day boundary at 23:59 (1439 minutes) to avoid 00:00 wrap
+        p.x = Math.max(0, Math.min(1439, newX));
       });
 
       this.chart.update('none');
@@ -113,10 +114,18 @@ export class ChartManager {
       if (dataset?.data?.length) {
         const sortedData = [...dataset.data].sort((a, b) => a.x - b.x);
         const newData = sortedData.map((p) => ({
-          time: minutesToTime(Math.max(0, Math.min(1440, Number(p.x)))),
+          // Clamp to 23:59 (1439) to prevent 24:00 -> 00:00 wrap on save
+          time: minutesToTime(Math.max(0, Math.min(1439, Number(p.x)))),
           value: p.y
         }));
-        this.context.getManager('state').setData(newData);
+        const stateManager = this.context.getManager('state');
+        stateManager.setData(newData);
+        // Expand corners immediately for switch preset
+        const cfg = this.context.config || {};
+        if (cfg.is_switch_preset && typeof stateManager.getDataWithChangePoints === 'function') {
+          const expanded = stateManager.getDataWithChangePoints();
+          stateManager.setData(expanded, true);
+        }
       }
       this.context._card.isDragging = false;
       this._isDragging = false;
@@ -147,9 +156,11 @@ export class ChartManager {
       if (!this.chart || this.context._card.pointerSelecting || e.button !== 0) return;
 
       const points = this.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
-      if (!points.length) return;
+      // Only act on hits from the main dataset (index 0); ignore corner markers dataset
+      const mainHit = points.find(p => p.datasetIndex === 0);
+      if (!mainHit) return;
 
-      const idx = points[0].index;
+      const idx = mainHit.index;
       const selectionManager = this.context.getManager('selection');
 
       if (selectionManager && !selectionManager.isSelected(idx)) {
@@ -244,31 +255,65 @@ export class ChartManager {
   _buildChartData(schedule) {
     const config = this.context.config || {};
     const points = schedule.map(point => ({
-      x: timeToMinutes(point.time),
+      x: Math.max(0, Math.min(1439, timeToMinutes(point.time))),
       y: point.value
     }));
-
-    return {
-      datasets: [{
-        label: config.y_axis_label || 'Value',
-        data: points,
-        borderColor: COLORS.primary,
-        backgroundColor: COLORS.primaryLight || 'rgba(3, 169, 244, 0.1)',
-        borderWidth: 2,
-        // Prevent points at chart borders (00:00, 23:59, min/max values) from being clipped.
-        // This makes the full point visible even when it extends beyond the chart area.
-        clip: false,
-        fill: true,
-        tension: 0,
-        stepped: config.is_switch_preset ? 'after' : false,
-        pointRadius: 6,
-        pointHoverRadius: 8,
-        pointBackgroundColor: COLORS.primary,
+    // Build optional corner markers for switch preset
+    let cornerDataset = null;
+    if (config.is_switch_preset) {
+      const sorted = [...points].sort((a, b) => a.x - b.x);
+      const byMinute = new Set();
+      const corners = [];
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1];
+        const cur = sorted[i];
+        if (Number(prev.y) === Number(cur.y)) continue;
+        const cornerMin = Math.max(0, Math.min(1439, Math.round(cur.x - 1)));
+        if (cornerMin > Math.round(prev.x)) {
+          const key = `${cornerMin}`;
+          if (!byMinute.has(key)) {
+            byMinute.add(key);
+            corners.push({ x: cornerMin, y: Number(prev.y) });
+          }
+        }
+      }
+      cornerDataset = {
+        type: 'scatter',
+        label: 'Corners',
+        data: corners,
+        showLine: false,
+        pointRadius: 4,
+        pointHoverRadius: 5,
+        pointBackgroundColor: COLORS.accent || '#ff9800',
         pointBorderColor: '#fff',
         pointBorderWidth: 2,
-        spanGaps: true
-      }]
+        clip: false,
+        // Disable dragging on corner markers
+        dragData: false
+      };
+    }
+
+    const mainDataset = {
+      label: config.y_axis_label || 'Value',
+      data: points,
+      borderColor: COLORS.primary,
+      backgroundColor: COLORS.primaryLight || 'rgba(3, 169, 244, 0.1)',
+      borderWidth: 2,
+      clip: false,
+      fill: true,
+      tension: 0,
+      stepped: config.is_switch_preset ? 'after' : false,
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      pointBackgroundColor: COLORS.primary,
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+      spanGaps: true
     };
+
+    const datasets = [mainDataset];
+    if (cornerDataset) datasets.push(cornerDataset);
+    return { datasets };
   }
 
   _buildChartOptions() {
@@ -462,6 +507,13 @@ export class ChartManager {
                 value: p.y
               }));
               stateManager.setData(schedule);
+              // Immediately expand corners for switch preset so left corners appear without reload
+              const cfg = this.context.config || {};
+              if (cfg.is_switch_preset && typeof stateManager.getDataWithChangePoints === 'function') {
+                const expanded = stateManager.getDataWithChangePoints();
+                Logger.log('SWITCH', `[Chart] DragEnd corner expansion: from ${schedule.length} to ${expanded.length} points`);
+                stateManager.setData(expanded, true);
+              }
             }
           }
         }
@@ -582,9 +634,11 @@ export class ChartManager {
     }
 
     const hitElements = this.chart.getElementsAtEventForMode(event, 'nearest', { intersect: true }, false);
+    // Prefer hits from the main dataset (index 0); ignore corner markers dataset
+    const mainHit = hitElements.find(el => el.datasetIndex === 0);
 
-    if (hitElements.length > 0) {
-      const index = hitElements[0].index;
+    if (mainHit) {
+      const index = mainHit.index;
       if (event.native.shiftKey) selectionManager.selectRange(index);
       else if (event.native.ctrlKey || event.native.metaKey) selectionManager.togglePoint(index);
       else selectionManager.selectPoint(index);
@@ -621,6 +675,7 @@ export class ChartManager {
               }
 
               const newIndex = stateManager.insertPoint(time, value);
+              Logger.log('SWITCH', `[Chart] Click inserted point at ${time} = ${value} (index=${newIndex})`);
               selectionManager.selectPoint(newIndex);
             } else {
               selectionManager.clearSelection();
@@ -644,11 +699,59 @@ export class ChartManager {
     const stateManager = this.context.getManager('state');
     if (!stateManager) return;
     const schedule = stateManager.getData();
+    const config = this.context.config || {};
     const points = schedule.map(point => ({
-      x: timeToMinutes(point.time),
+      x: Math.max(0, Math.min(1439, timeToMinutes(point.time))),
       y: point.value
     }));
     this.chart.data.datasets[0].data = points;
+    // Update or build corner markers dataset when using switch preset
+    if (config.is_switch_preset) {
+      const sorted = [...points].sort((a, b) => a.x - b.x);
+      const byMinute = new Set();
+      const corners = [];
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1];
+        const cur = sorted[i];
+        if (Number(prev.y) === Number(cur.y)) continue;
+        // Left corner T-1
+        const leftCorner = Math.max(0, Math.min(1439, Math.round(cur.x - 1)));
+        if (leftCorner > Math.round(prev.x)) {
+          const keyL = `${leftCorner}`;
+          if (!byMinute.has(keyL)) { byMinute.add(keyL); corners.push({ x: leftCorner, y: Number(prev.y) }); }
+        }
+        // Right corner T+1 (only if before next change/end)
+        const next = sorted[i + 1];
+        const nextMin = Number.isFinite(next?.x) ? Math.round(next.x) : 1440;
+        const rightCorner = Math.max(0, Math.min(1439, Math.round(cur.x + 1)));
+        if (rightCorner < nextMin) {
+          const keyR = `${rightCorner}`;
+          if (!byMinute.has(keyR)) { byMinute.add(keyR); corners.push({ x: rightCorner, y: Number(cur.y) }); }
+        }
+      }
+      if (this.chart.data.datasets[1]) {
+        this.chart.data.datasets[1].data = corners;
+      } else {
+        this.chart.data.datasets.push({
+          type: 'scatter',
+          label: 'Corners',
+          data: corners,
+          showLine: false,
+          pointRadius: 4,
+          pointHoverRadius: 5,
+          pointBackgroundColor: COLORS.accent || '#ff9800',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          clip: false,
+          dragData: false
+        });
+      }
+    } else {
+      // Remove corner dataset if preset no longer switch
+      if (this.chart.data.datasets.length > 1) {
+        this.chart.data.datasets = [this.chart.data.datasets[0]];
+      }
+    }
     this.chart.update('none');
   }
 
@@ -717,8 +820,10 @@ export class ChartManager {
   deletePointAtEvent(e) {
     if (!this.chart) return false;
     const elements = this.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false);
-    if (elements.length > 0) {
-      this.context.getManager('state')?.removePoint(elements[0].index);
+    // Only delete when clicking on main dataset points
+    const mainEl = elements.find(el => el.datasetIndex === 0);
+    if (mainEl) {
+      this.context.getManager('state')?.removePoint(mainEl.index);
       return true;
     }
     return false;

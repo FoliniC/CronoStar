@@ -18,7 +18,7 @@ export const I18N = {
       step5: 'Summary & verification'
     },
     descriptions: {
-      step0: 'Choose an action: configure a new preset or analyze existing profiles.',
+      step0: 'Choose an action2222: configure a new preset or analyze existing profiles.',
       step1: 'Configure the essential elements: target entity and identification prefix.',
       step2: 'Optional: configure additional entities (pause, profiles).',
       step3: 'Customize the card appearance and value ranges.',
@@ -58,7 +58,9 @@ export const I18N = {
       shift_label: 'Shift (Snap)',
       alt_label: 'Alt (Fast)',
       horizontal_step: 'Horizontal (min)',
-      vertical_step: 'Vertical (unit)'
+      vertical_step: 'Vertical (unit)',
+      language_label: 'Editor Language',
+      language_desc: 'Select the language for the editor UI.'
     },
     actions: {
       back: 'Back',
@@ -68,12 +70,19 @@ export const I18N = {
       advanced_config: 'Advanced configuration',
       show_preview: 'Show preview',
       edit_config: 'Edit configuration',
+      edit_config_desc: 'Modify the current parameters of this card',
       new_config: 'New configuration',
+      new_config_desc: 'Create a configuration from scratch for this card',
       analyze_status: 'Analyze status',
+      analyze_status_desc: 'View all existing files and profiles',
       component_info: 'Component Info'
     },
     prompts: {
       reset_confirm: 'Are you sure you want to reset this card? All current settings will be lost.'
+    },
+    notify: {
+      language_saved: 'Language preference saved!',
+      language_save_error: 'Error saving language preference: {error}'
     },
     ui: {
       card_config_complete: 'Card configuration complete',
@@ -149,7 +158,9 @@ export const I18N = {
       shift_label: 'Shift (Snap)',
       alt_label: 'Alt (Veloce)',
       horizontal_step: 'Orizzontale (min)',
-      vertical_step: 'Verticale (unità)'
+      vertical_step: 'Verticale (unità)',
+      language_label: 'Lingua Editor',
+      language_desc: 'Seleziona la lingua per l\'interfaccia dell\'editor.'
     },
     actions: {
       back: 'Indietro',
@@ -159,12 +170,19 @@ export const I18N = {
       advanced_config: 'Configurazione avanzata',
       show_preview: 'Mostra anteprima',
       edit_config: 'Modifica configurazione',
+      edit_config_desc: 'Modifica i parametri attuali di questa card',
       new_config: 'Nuova configurazione',
+      new_config_desc: 'Crea una configurazione da zero per questa card',
       analyze_status: 'Analizza stato',
+      analyze_status_desc: 'Visualizza tutti i file e i profili esistenti',
       component_info: 'Info Componente'
     },
     prompts: {
       reset_confirm: 'Sei sicuro di voler resettare questa card? Tutte le impostazioni correnti andranno perse.'
+    },
+    notify: {
+      language_saved: 'Preferenza lingua salvata!',
+      language_save_error: 'Errore nel salvataggio della lingua: {error}'
     },
     ui: {
       card_config_complete: 'Configurazione card completa',

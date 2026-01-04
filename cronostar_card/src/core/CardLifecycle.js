@@ -50,6 +50,18 @@ export class CardLifecycle {
         this.card.hourBase = 0;
         this.card.hourBaseDetermined = true;
       }
+
+      // Apply language from config.meta.language if present
+      try {
+        const cfgLang = this.card.config?.meta?.language || config?.meta?.language;
+        if (cfgLang && this.card.language !== cfgLang) {
+          this.card.language = cfgLang;
+          this.card.languageInitialized = true;
+          Logger.log('LANG', `CronoStar setConfig applied language from meta: ${cfgLang}`);
+        }
+      } catch (e) {
+        Logger.warn('LANG', 'CronoStar setConfig language application failed:', e);
+      }
     } catch (e) {
       Logger.error('CONFIG', 'CronoStar Error in setConfig:', e);
       this.card.eventHandlers?.showNotification?.(
@@ -108,6 +120,18 @@ export class CardLifecycle {
         card.language = hass.language;
         card.languageInitialized = true;
         Logger.log('LANG', 'CronoStar Language initialized to:', card.language);
+      }
+
+      // If meta.language exists, prefer it over hass.language
+      try {
+        const metaLang = card.config?.meta?.language;
+        if (metaLang && card.language !== metaLang) {
+          card.language = metaLang;
+          card.languageInitialized = true;
+          Logger.log('LANG', `CronoStar setHass applied language from config meta: ${metaLang}`);
+        }
+      } catch (e) {
+        Logger.warn('LANG', 'CronoStar setHass meta language application failed:', e);
       }
 
       const inEditor = this.isEditorContext();
@@ -415,7 +439,7 @@ export class CardLifecycle {
       })) || {};
 
       const response = result?.response ?? result;
-      Logger.log('LOAD', '1111CronoStar register_card response:', response);
+      Logger.log('LOAD', 'CronoStar register_card response:', response);
 
       // Capture global settings
       if (response?.settings) {
@@ -430,10 +454,10 @@ export class CardLifecycle {
       }
 
       const profileData = response?.profile_data;
-      
+
       // Robust profile name extraction
       let returnedProfileName = profileData?.profile_name || response?.profile_name;
-      
+
       if (returnedProfileName) {
         Logger.log('LOAD', `[CronoStar] Profile name detected in response: "${returnedProfileName}"`);
         this.card.selectedProfile = returnedProfileName;
@@ -453,6 +477,20 @@ export class CardLifecycle {
         const cleanMeta = extractCardConfig(profileData.meta);
         this.card.config = { ...this.card.config, ...cleanMeta };
         Logger.log('LOAD', 'CronoStar updated card config from register_card metadata');
+
+        // Explicitly apply language from profile meta
+        try {
+          const lang = profileData.meta.language;
+          if (lang) {
+            this.card.language = lang;
+            this.card.languageInitialized = true;
+            if (!this.card.config.meta) this.card.config.meta = {};
+            this.card.config.meta.language = lang;
+            Logger.log('LANG', `[CronoStar] register_card applied language from profile meta: ${lang}`);
+          }
+        } catch (e) {
+          Logger.warn('LANG', 'CronoStar failed to apply language from register_card meta:', e);
+        }
       }
 
       const rawSchedule = profileData?.schedule;

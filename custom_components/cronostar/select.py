@@ -32,18 +32,18 @@ class CronoStarProfileSelect(CoordinatorEntity, SelectEntity):
         self._attr_unique_id = f"{coordinator.prefix}current_profile"
 
         # Device info for grouping
-            try:
-                preset = getattr(coordinator, "preset_type", None) or "controller"
-                model_name = f"{preset.replace('_', ' ').title()} Controller"
-            except Exception:
-                model_name = "Controller"
-            self._attr_device_info = {
-                "identifiers": {(DOMAIN, coordinator.entry.entry_id)},
-                "name": coordinator.name,
-                "manufacturer": "CronoStar",
-                "model": model_name,
-                "sw_version": coordinator.hass.data[DOMAIN].get("version", "unknown"),
-            }
+        try:
+            preset = getattr(coordinator, "preset_type", None) or "controller"
+            model_name = f"{preset.replace('_', ' ').title()} Controller"
+        except Exception:
+            model_name = "Controller"
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, coordinator.entry.entry_id)},
+            "name": coordinator.name,
+            "manufacturer": "CronoStar",
+            "model": model_name,
+            "sw_version": coordinator.hass.data[DOMAIN].get("version", "unknown"),
+        }
 
     @property
     def options(self) -> list[str]:

@@ -4,8 +4,10 @@ Profile service - simplified and modular
 Handles profile CRUD operations
 """
 
+import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
@@ -44,6 +46,7 @@ class ProfileService:
             - global_prefix: str (optional)
             - meta: dict (optional)
         """
+        _LOGGER.debug("[SAVE_PROFILE] Service called with data: %s", call.data)
         try:
             # Extract parameters
             profile_name = call.data.get("profile_name")
@@ -106,6 +109,7 @@ class ProfileService:
         # Check existing entries
         for entry in self.hass.config_entries.async_entries("cronostar"):
             if entry.data.get("global_prefix") == prefix:
+                _LOGGER.info("Entities check: Controller already exists for prefix '%s' - All good.", prefix)
                 return  # Controller already exists
 
         # Derive name from prefix
@@ -122,6 +126,7 @@ class ProfileService:
         target_entity = meta.get("target_entity", "")
 
         _LOGGER.info("Verifying entities... Creating controller for prefix '%s' (Name: '%s')", prefix, name)
+        log_operation("Create controller", True, prefix=prefix, name=name, reason="missing_entities")
         
         # Create entry via flow
         await self.hass.config_entries.flow.async_init(
@@ -380,8 +385,8 @@ class ProfileService:
                 t_state = self.hass.states.get(target_ent)
                 response["entity_states"]["target"] = t_state.state if t_state else "unknown"
             
-            # Helper for current value
-            helper_ent = f"input_number.{prefix_with_underscore}current"
+            # Helper for current value (using sensor in new architecture)
+            helper_ent = f"sensor.{prefix_with_underscore}current"
             h_state = self.hass.states.get(helper_ent)
             response["entity_states"]["current_helper"] = h_state.state if h_state else "unknown"
             
@@ -389,8 +394,8 @@ class ProfileService:
             sel_state = self.hass.states.get(native_selector) or self.hass.states.get(f"input_select.{base}_profiles")
             response["entity_states"]["selector"] = sel_state.state if sel_state else "unknown"
             
-            # Pause switch (native switch.xxx_pause or legacy input_boolean.xxx_paused)
-            pause_ent = f"switch.{prefix_with_underscore}pause"
+            # Pause switch (native switch.xxx_paused or legacy input_boolean.xxx_paused)
+            pause_ent = f"switch.{prefix_with_underscore}paused"
             p_state = self.hass.states.get(pause_ent) or self.hass.states.get(f"input_boolean.{prefix_with_underscore}paused")
             response["entity_states"]["pause"] = p_state.state if p_state else "unknown"
             
@@ -531,16 +536,17 @@ class ProfileService:
         Returns:
             Complete metadata
         """
-        metadata = {"preset_type": preset_type, "global_prefix": global_prefix, "updated_at": datetime.now().isoformat()}
+        allowed_keys = ["title", "y_axis_label", "unit_of_measurement", "min_value", "max_value", "step_value", "allow_max_value", "target_entity", "language"]
 
-        # Merge user metadata (preserve card config)
-        allowed_keys = ["title", "y_axis_label", "unit_of_measurement", "min_value", "max_value", "step_value", "allow_max_value", "target_entity"]
+        # Initialize metadata with allowed keys from user_meta
+        metadata = {key: user_meta[key] for key in allowed_keys if key in user_meta}
 
-        for key in allowed_keys:
-            if key in user_meta:
-                metadata[key] = user_meta[key]
+        # Explicitly set/override core metadata fields
+        metadata["preset_type"] = preset_type
+        metadata["global_prefix"] = global_prefix
+        metadata["updated_at"] = datetime.now().isoformat()
 
-        # Explicitly remove redundant 'preset' key if it exists in user_meta
+        # Explicitly remove redundant 'preset' key if it exists in user_meta (now in metadata)
         if "preset" in metadata:
             del metadata["preset"]
 

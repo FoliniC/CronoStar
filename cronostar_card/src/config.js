@@ -146,6 +146,11 @@ export function validateConfig(config, isLoggingEnabled = false) {
   const presetConfig = CARD_CONFIG_PRESETS[presetName] || CARD_CONFIG_PRESETS.thermostat;
   const mergedConfig = { ...DEFAULT_CONFIG, ...presetConfig, ...normalized };
 
+  // Preserve meta object if provided (including language preference)
+  if (config && typeof config.meta === 'object') {
+    mergedConfig.meta = { ...config.meta };
+  }
+
   // CRITICAL: Ensure card type is always correct and stable
   mergedConfig.type = config.type || DEFAULT_CONFIG.type;
 

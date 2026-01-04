@@ -90,9 +90,9 @@ export class CronoStarCard extends LitElement {
       let el = this;
       while (el) {
         const tag = el.tagName?.toLowerCase();
-        if (tag === 'state-history-chart-timeline' || 
-            tag === 'ha-chart-base' ||
-            tag === 'hui-history-graph-card') {
+        if (tag === 'state-history-chart-timeline' ||
+          tag === 'ha-chart-base' ||
+          tag === 'hui-history-graph-card') {
           return true;
         }
         el = el.parentElement || el.parentNode || el.host;
@@ -160,7 +160,7 @@ export class CronoStarCard extends LitElement {
       this.cardContext = new CardContext(this);
 
       this.localizationManager = new LocalizationManager(this);
-      
+
       this.stateManager = new StateManager(this.cardContext);
       this.cardContext.registerManager('state', this.stateManager);
 
@@ -253,6 +253,12 @@ export class CronoStarCard extends LitElement {
       if (isFullObject && meta) {
         const cleanMeta = extractCardConfig(meta);
         this.config = { ...this.config, ...cleanMeta };
+        // Apply language from meta if provided in preview
+        if (meta.language) {
+          this.language = meta.language;
+          this.languageInitialized = true;
+          Logger.log('LANG', `[CronoStar] previewData applied language: ${meta.language}`);
+        }
       }
 
       if (this.chartManager && this.chartManager.isInitialized()) {

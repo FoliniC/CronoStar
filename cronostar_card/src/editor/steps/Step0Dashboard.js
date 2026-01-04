@@ -4,6 +4,36 @@ export class Step0Dashboard {
   constructor(editor) {
     this.editor = editor;
     this._chartJsLoaded = false;
+    // Debug: verify console.log and Step 0 constructor invocation
+    try {
+      console.log('[DASHBOARD] Step0Dashboard constructor invoked', {
+        lang: this.editor?._language,
+        step: this.editor?._step,
+        view: this.editor?._dashboardView
+      });
+      // Attempt early language sync from live card (priority over editor config)
+      const cardEl = this.editor.shadowRoot?.querySelector('cronostar-card') || document.querySelector('cronostar-card');
+      const cardLang = cardEl?.language;
+      if (cardLang && this.editor._language !== cardLang) {
+        this.editor._language = cardLang;
+        this.editor.i18n = new this.editor.EditorI18n(this.editor);
+        console.log(`[DASHBOARD] Adopted language from card (constructor): ${cardLang}`);
+      }
+      // Attempt prime from backend profile metadata using current config
+      setTimeout(() => { this._primeLanguageFromCurrentProfile(); }, 0);
+    } catch (e) { /* ignore */ }
+  }
+
+  _syncLanguageFromCard() {
+    try {
+      const cardEl = this.editor.shadowRoot?.querySelector('cronostar-card') || document.querySelector('cronostar-card');
+      const cardLang = cardEl?.language;
+      if (cardLang && this.editor._language !== cardLang) {
+        this.editor._language = cardLang;
+        this.editor.i18n = new this.editor.EditorI18n(this.editor);
+        console.log(`[DASHBOARD] Adopted language from card: ${cardLang}`);
+      }
+    } catch (e) { /* ignore */ }
   }
 
   async _ensureChartJs() {
@@ -35,6 +65,9 @@ export class Step0Dashboard {
     this.editor._dashboardLoading = true;
     this.editor.requestUpdate();
 
+    // Debug: entry log for Step 0 profiles loading
+    try { console.log('[DASHBOARD] _loadAllProfiles called'); } catch (e) { /* ignore */ }
+
     try {
       const result = await this.editor.hass.callWS({
         type: 'call_service',
@@ -49,6 +82,19 @@ export class Step0Dashboard {
       this.editor._dashboardProfilesData = result?.response || {};
       console.log('[DASHBOARD] Loaded profiles:', this.editor._dashboardProfilesData);
 
+      // If any profile has a meta.language, adopt it for the editor dashboard immediately
+      try {
+        const firstPresetKey = Object.keys(this.editor._dashboardProfilesData || {})[0];
+        const firstFile = this.editor._dashboardProfilesData?.[firstPresetKey]?.files?.[0];
+        const metaLang = firstFile?.meta?.language || this.editor._dashboardProfilesData?.[firstPresetKey]?.meta?.language;
+        console.log(`[DASHBOARD] 55555Adopted language from profiles list: ${metaLang}`);
+        if (metaLang && this.editor._language !== metaLang) {
+          this.editor._language = metaLang;
+          this.editor.i18n = new this.editor.EditorI18n(this.editor);
+          console.log(`[DASHBOARD] Adopted language from profiles list: ${metaLang}`);
+        }
+      } catch { /* ignore */ }
+
     } catch (e) {
       console.warn('Failed to load profiles:', e);
       this.editor._dashboardProfilesData = {};
@@ -56,6 +102,37 @@ export class Step0Dashboard {
 
     this.editor._dashboardLoading = false;
     this.editor.requestUpdate();
+  }
+
+  async _primeLanguageFromCurrentProfile() {
+    try {
+      if (!this.editor?.hass) return;
+      const presetType = this.editor._config?.preset_type || 'thermostat';
+      const globalPrefix = this.editor._config?.global_prefix;
+      if (!globalPrefix) return;
+      const result = await this.editor.hass.callWS({
+        type: 'call_service',
+        domain: 'cronostar',
+        service: 'load_profile',
+        service_data: {
+          profile_name: 'Default',
+          preset_type: presetType,
+          global_prefix: globalPrefix,
+          force_reload: false
+        },
+        return_response: true
+      });
+      const loadedProfile = result?.response || {};
+      const metaLang = loadedProfile?.meta?.language;
+      if (metaLang && this.editor._language !== metaLang) {
+        this.editor._language = metaLang;
+        this.editor.i18n = new this.editor.EditorI18n(this.editor);
+        console.log(`[DASHBOARD] Adopted language from backend profile: ${metaLang}`);
+        // No explicit requestUpdate; Lit will re-render based on reactive change
+      }
+    } catch (e) {
+      // Silent; this is a best-effort prime
+    }
   }
 
   async _handleDeleteProfile(presetType, profileName, globalPrefix) {
@@ -185,7 +262,17 @@ export class Step0Dashboard {
         return_response: true
       });
 
-      return result?.response || {};
+      const loadedProfile = result?.response || {};
+      const loadedLanguage = loadedProfile?.meta?.language || 'N/A';
+      console.log(`[DASHBOARD] Loaded profile detail for '${profileName}'. Language: ${loadedLanguage}`);
+
+      // Ensure editor language matches the loaded profile if specified
+      if (loadedProfile?.meta?.language && this.editor._language !== loadedProfile.meta.language) {
+        this.editor._language = loadedProfile.meta.language;
+        this.editor.i18n = new this.editor.EditorI18n(this.editor);
+        console.log(`[DASHBOARD] Synchronized editor language to loaded profile: ${loadedProfile.meta.language}`);
+      }
+      return loadedProfile;
     } catch (e) {
       console.error('Failed to load profile detail:', e);
       return { error: e.message };
@@ -201,6 +288,14 @@ export class Step0Dashboard {
 
     const profileData = await this._loadProfileDetail(presetType, profileName, globalPrefix);
     this.editor._dashboardDetailData = profileData;
+
+    // Aggiorna la lingua dell'editor se presente nel profilo caricato
+    const loadedLanguage = profileData?.meta?.language;
+    if (loadedLanguage && this.editor._language !== loadedLanguage) {
+      this.editor._language = loadedLanguage;
+      this.editor.i18n = new this.editor.EditorI18n(this.editor); // Re-initialize i18n with the new language
+      console.log(`[DASHBOARD] Editor language updated to: ${loadedLanguage}`);
+    }
 
     this.editor.requestUpdate();
   }
@@ -426,6 +521,14 @@ export class Step0Dashboard {
   }
 
   render() {
+    // Debug: verify console.log and Step 0 render invocation
+    try {
+      console.log('[DASHBOARD] Step0Dashboard.render invoked', {
+        lang: this.editor?._language,
+        step: this.editor?._step,
+        view: this.editor?._dashboardView
+      });
+    } catch (e) { /* ignore */ }
     const showChoice = this.editor._dashboardView === 'choice';
 
     return html`
@@ -573,20 +676,20 @@ export class Step0Dashboard {
               <div class="choice-button" @click=${() => { this.editor._step = 1; this.editor.requestUpdate(); }}>
                 <div class="choice-button-icon">⚙️</div>
                 <div class="choice-button-title">${this.editor.i18n._t('actions.edit_config')}</div>
-                <div class="choice-button-desc">${this.editor._language === 'it' ? 'Modifica i parametri attuali di questa card' : 'Modify the current parameters of this card'}</div>
+                <div class="choice-button-desc">${this.editor.i18n._t('actions.edit_config_desc')}</div>
               </div>
             ` : html`
               <div class="choice-button" @click=${() => this.editor._handleResetConfig()}>
                 <div class="choice-button-icon">🆕</div>
                 <div class="choice-button-title">${this.editor.i18n._t('actions.new_config')}</div>
-                <div class="choice-button-desc">${this.editor._language === 'it' ? 'Crea una configurazione da zero per questa card' : 'Create a configuration from scratch for this card'}</div>
+                <div class="choice-button-desc">${this.editor.i18n._t('actions.new_config_desc')}</div>
               </div>
             `}
 
             <div class="choice-button" @click=${() => this._loadAllProfiles()}>
               <div class="choice-button-icon">📊</div>
               <div class="choice-button-title">${this.editor.i18n._t('actions.analyze_status')}</div>
-              <div class="choice-button-desc">${this.editor._language === 'it' ? 'Visualizza tutti i file e i profili esistenti' : 'View all existing files and profiles'}</div>
+              <div class="choice-button-desc">${this.editor.i18n._t('actions.analyze_status_desc')}</div>
             </div>
           </div>
         ` : ''}

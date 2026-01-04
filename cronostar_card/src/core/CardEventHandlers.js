@@ -3,6 +3,90 @@ import { Logger, timeToMinutes } from '../utils.js';
 import { getEffectivePrefix, getAliasWithPrefix } from '../utils/prefix_utils.js';
 import { copyToClipboard } from '../editor/services/service_handlers.js';
 
+function _buildCornerSwitchSchedule(schedulePoints) {
+    // For switch presets, persist only the "corner" points needed to make the
+    // step chart unambiguous when read from JSON.
+    //
+    // Rule:
+    // - Always keep each original point.
+    // - For every value change at time T (from prevValue -> nextValue), ensure there is
+    //   a point at (T - 1 minute) with prevValue (if valid and not already present).
+    // This encodes the horizontal segment ending right before the vertical jump.
+
+    if (!Array.isArray(schedulePoints) || schedulePoints.length === 0) {
+        Logger.log('SWITCH', '[CronoStar] Corner schedule: no points provided');
+        return [];
+    }
+
+    const pts = schedulePoints
+        .map((p) => ({
+            minutes: timeToMinutes(p?.time),
+            time: String(p?.time),
+            value: Number(p?.value)
+        }))
+        .filter((pt) => Number.isFinite(pt.minutes) && Number.isFinite(pt.value) && /^\d{2}:\d{2}$/.test(pt.time))
+        .sort((a, b) => a.minutes - b.minutes);
+
+    if (pts.length === 0) {
+        Logger.log('SWITCH', '[CronoStar] Corner schedule: no valid points after normalization');
+        return [];
+    }
+
+    const byMinute = new Map();
+    pts.forEach((p) => byMinute.set(p.minutes, Number(p.value)));
+
+    let inserted = 0;
+
+    for (let i = 1; i < pts.length; i++) {
+        const prev = pts[i - 1];
+        const cur = pts[i];
+        if (Number(prev.value) === Number(cur.value)) continue;
+
+        // Insert right-side corners to encode the box clearly
+        const prevRight = prev.minutes + 1;
+        if (prevRight < cur.minutes && prevRight >= 0 && prevRight <= 1439) {
+            byMinute.set(prevRight, Number(cur.value));
+            inserted++;
+            Logger.log(
+                'SWITCH',
+                `[CronoStar] Corner schedule: inserted RIGHT-of-prev at ${String(Math.floor(prevRight / 60)).padStart(2, '0')}:${String(prevRight % 60).padStart(2, '0')} value=${Number(cur.value)} (change at ${cur.time} ${Number(prev.value)}->${Number(cur.value)})`
+            );
+        }
+
+        const nextMin = pts[i + 1] ? pts[i + 1].minutes : 1440;
+        const curRight = cur.minutes + 1;
+        if (curRight < nextMin && curRight >= 0 && curRight <= 1439) {
+            byMinute.set(curRight, Number(cur.value));
+            inserted++;
+            Logger.log(
+                'SWITCH',
+                `[CronoStar] Corner schedule: inserted RIGHT-of-cur at ${String(Math.floor(curRight / 60)).padStart(2, '0')}:${String(curRight % 60).padStart(2, '0')} value=${Number(cur.value)} (change at ${cur.time} ${Number(prev.value)}->${Number(cur.value)})`
+            );
+        }
+    }
+
+    Logger.log('SWITCH', `[CronoStar] Corner schedule: input=${pts.length} output=${byMinute.size} inserted=${inserted}`);
+
+    const expanded = Array.from(byMinute.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([minutes, value]) => ({
+            time: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`,
+            value
+        }));
+
+    // Compress consecutive points with identical values
+    const compressed = [];
+    for (let i = 0; i < expanded.length; i++) {
+        const cur = expanded[i];
+        const last = compressed[compressed.length - 1];
+        if (!last || Number(last.value) !== Number(cur.value)) {
+            compressed.push(cur);
+        }
+    }
+    Logger.log('SWITCH', `[CronoStar] Corner schedule compressed: ${compressed.length} points (from ${expanded.length})`);
+    return compressed;
+}
+
 export class CardEventHandlers {
     constructor(card) {
         this.card = card;
@@ -39,9 +123,45 @@ export class CardEventHandlers {
         this.card.requestUpdate();
     }
 
-    handleLanguageSelect(lang) {
+    async handleLanguageSelect(lang) {
         Logger.log('LANG', `[CronoStar] handleLanguageSelect: ${lang}`);
+
+        // 1. Update the card's language property for immediate UI change
         this.card.language = lang;
+
+        // 2. Update the config.meta.language for persistence
+        if (!this.card.config.meta) {
+            this.card.config.meta = {};
+        }
+        this.card.config.meta.language = lang;
+
+        // 3. Attempt to save the updated config (with new language in meta) via cronostar.save_profile service
+        try {
+            const profileName = this.card.selectedProfile || this.card.profileManager.lastLoadedProfile || 'Default';
+            const presetType = this.card.selectedPreset || this.card.config.preset_type || 'thermostat'; // Fallback to config or default
+            const globalPrefix = this.card.config.global_prefix || ''; // Ensure it's never undefined
+
+            if (this.card.hass && profileName && presetType && globalPrefix) {
+                // Ensure to pass the current schedule, as save_profile requires it
+                const scheduleData = this.card.stateManager.getData().map(p => ({ time: p.time, value: p.value }));
+
+                Logger.log('LANG', `[CronoStar] Calling save_profile with: profileName='${profileName}', presetType='${presetType}', globalPrefix='${globalPrefix}', meta=`, { ...this.card.config.meta });
+                await this.card.hass.callService('cronostar', 'save_profile', {
+                    profile_name: profileName,
+                    preset_type: presetType,
+                    schedule: scheduleData,
+                    global_prefix: globalPrefix,
+                    meta: { ...this.card.config.meta }, // Send a direct copy of the card's meta object
+                });
+                this.showNotification(this.card.localizationManager.localize(this.card.language, 'notify.language_saved'), 'success');
+            } else {
+                Logger.warn('LANG', 'Not enough info to save language preference (profileName, presetType, globalPrefix, or hass missing)');
+            }
+        } catch (e) {
+            Logger.error('LANG', 'Failed to save language preference to profile:', e);
+            this.showNotification(this.card.localizationManager.localize(this.card.language, 'notify.language_save_error', { '{error}': e.message }), 'error');
+        }
+
         this.card.isMenuOpen = false;
         this.card.keyboardHandler.enable();
         this.card.chartManager.updateChartLabels();
@@ -230,9 +350,9 @@ export class CardEventHandlers {
         try {
             const effectivePrefix = getEffectivePrefix(this.card.config);
 
-            // Build sparse schedule payload for persistence
+            // Build schedule payload for persistence
             const rawData = this.card.stateManager.getData() || [];
-            const scheduleData = rawData
+            const sparseScheduleData = rawData
                 .map((p) => ({
                     minutes: timeToMinutes(p.time),
                     time: String(p.time),
@@ -241,6 +361,9 @@ export class CardEventHandlers {
                 .filter((pt) => Number.isFinite(pt.value) && /^\d{2}:\d{2}$/.test(pt.time))
                 .sort((a, b) => a.minutes - b.minutes)
                 .map(({ time, value }) => ({ time, value }));
+
+            const isSwitchPreset = this.card.config?.is_switch_preset === true || String(this.card.selectedPreset || '').includes('switch');
+            const scheduleData = isSwitchPreset ? _buildCornerSwitchSchedule(sparseScheduleData) : sparseScheduleData;
 
             const profileName = this.card.selectedProfile || this.card.profileManager.lastLoadedProfile || 'Default';
 
@@ -629,7 +752,7 @@ export class CardEventHandlers {
 
         // Expected entities
         const prefixBase = prefix.replace(/_+$/, '');
-        const currentEntity = `input_number.${prefix}current`;
+        const currentEntity = `sensor.${prefix}current`;
 
 
         // Dynamic info

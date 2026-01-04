@@ -482,7 +482,7 @@ export class CronoStarEditor extends LitElement {
     this._config = { ...DEFAULT_CONFIG };
     // Initialize logging preference for the editor
     this._config.logging_enabled = DEFAULT_CONFIG.logging_enabled;
-    this._language = 'en';
+    this._language = this._config.meta?.language || (this.hass?.language ? this.hass.language.split('-')[0] : 'en');
     this.i18n = new EditorI18n(this);
     this.wizard = new EditorWizard(this);
 
@@ -519,6 +519,24 @@ export class CronoStarEditor extends LitElement {
       handleInitializeData,
       saveGlobalSettings: (settings) => this._saveGlobalSettings(settings)
     };
+
+    // Cache Step 0 instance to avoid re-creation on each render
+    this._step0Dashboard = null;
+
+    // Stabilize language at startup by adopting card language once if available
+    setTimeout(() => {
+      try {
+        const cardEl = this.shadowRoot?.querySelector('cronostar-card') || document.querySelector('cronostar-card');
+        const cardLang = cardEl?.language;
+        if (cardLang && this._language !== cardLang) {
+          this._language = cardLang;
+          this.i18n = new EditorI18n(this);
+          // Persist to config.meta to avoid future flips
+          this._config.meta = { ...(this._config.meta || {}), language: this._language };
+          Logger.log('LANG', `[Editor] Startup adopted language from card: ${cardLang}`);
+        }
+      } catch { /* ignore */ }
+    }, 0);
   }
 
   async _saveGlobalSettings(settings) {
@@ -528,7 +546,7 @@ export class CronoStarEditor extends LitElement {
         settings: settings
       });
       this.showToast(this._language === 'it' ? 'Impostazioni globali salvate' : 'Global settings saved');
-      
+
       // Update local card instance if possible
       const cardEl = this.getRootNode().host;
       if (cardEl && 'globalSettings' in cardEl) {
@@ -558,6 +576,25 @@ export class CronoStarEditor extends LitElement {
     super.updated?.(changedProps);
     if (changedProps.has('hass')) {
       if (this.hass) {
+        // Only update from HASS language if no language is explicitly set in config.meta
+        if (!this._config.meta?.language) {
+          // Prefer card element language if available (synchronized from profile meta). If present, do not fall back to hass.
+          const cardEl = this.shadowRoot?.querySelector('cronostar-card') || document.querySelector('cronostar-card');
+          const cardLang = cardEl?.language;
+          if (cardLang && this._language !== cardLang) {
+            this._language = cardLang;
+            this.i18n = new EditorI18n(this);
+            console.log(`[DASHBOARD] Adopted language from card: ${cardLang}`);
+          } else if (!cardLang) {
+            const currentLang = this.hass.language ? this.hass.language.split('-')[0] : 'en';
+            if (this._language !== currentLang) {
+              this._language = currentLang;
+              this.i18n = new EditorI18n(this);
+            }
+          }
+          // Persist to config.meta to avoid future flips
+          this._config.meta = { ...(this._config.meta || {}), language: this._language };
+        }
         log('info', this._config.logging_enabled, 'HASS object received/updated');
       }
     }
@@ -571,7 +608,7 @@ export class CronoStarEditor extends LitElement {
 
     // Hide preview in Step 0
     this._updatePreviewVisibility();
-    
+
     // Manage standard HA SAVE button visibility
     this._updateSaveButtonVisibility();
   }
@@ -720,14 +757,14 @@ export class CronoStarEditor extends LitElement {
   setConfig(config) {
     try {
       this._config = validateConfig(config, config.logging_enabled);
-      
+
       // IMPROVED: Check the normalized configuration
       this._isEditing = this._config && !config.not_configured && !!this._config.global_prefix && !!this._config.target_entity;
-      
-      Logger.log('CONFIG', `[Editor] setConfig - isEditing: ${this._isEditing}`, { 
+
+      Logger.log('CONFIG', `[Editor] setConfig - isEditing: ${this._isEditing}`, {
         not_configured: config?.not_configured,
         has_prefix: !!this._config.global_prefix,
-        has_target: !!this._config.target_entity 
+        has_target: !!this._config.target_entity
       });
     } catch (e) {
       log('warn', this._config.logging_enabled, "Config validation warning:", e);
@@ -737,10 +774,34 @@ export class CronoStarEditor extends LitElement {
 
     if (this._config.preset_type) this._selectedPreset = this._config.preset_type;
 
-    if (this.hass && this.hass.language) {
-      this._language = this.hass.language.split('-')[0];
-      this.i18n = new EditorI18n(this);
+    // Language resolution for editor: prefer stored meta.language, else keep current,
+    // and only fall back to hass.language if we have nothing else.
+    const storedLanguage = this._config.meta?.language;
+    if (storedLanguage) {
+      if (this._language !== storedLanguage) {
+        this._language = storedLanguage;
+      }
+    } else {
+      // Try to adopt live card language (profile meta) before hass
+      try {
+        const cardEl = this.shadowRoot?.querySelector('cronostar-card') || document.querySelector('cronostar-card');
+        const cardLang = cardEl?.language;
+        if (cardLang && this._language !== cardLang) {
+          this._language = cardLang;
+        }
+      } catch { /* ignore */ }
+
+      if (this.hass) {
+        const hassLanguage = this.hass.language ? this.hass.language.split('-')[0] : 'en';
+        if (!this._language) {
+          this._language = hassLanguage;
+        }
+      }
     }
+
+    // Persist whatever we decided into config meta to prevent flips
+    this._config.meta = { ...(this._config.meta || {}), language: this._language || 'en' };
+    this.i18n = new EditorI18n(this);
 
     this._syncConfigAliases();
     this._updateAutomationYaml();
@@ -763,7 +824,7 @@ export class CronoStarEditor extends LitElement {
     const out = { ...cfg };
     // Ensure type
     if (!out.type) out.type = 'custom:cronostar-card';
-    
+
     // Always remove not_configured once we are in the editor and about to persist
     delete out.not_configured;
 
@@ -782,6 +843,8 @@ export class CronoStarEditor extends LitElement {
       if (this._debounceTimer) clearTimeout(this._debounceTimer);
       // Ensure type is present and correct, and pass current step
       const configToDispatch = { ...this._sanitizeConfig(this._config), step: this._step };
+      // Ensure language persists through HA editor cycles
+      configToDispatch.meta = { ...(configToDispatch.meta || {}), language: this._language };
 
       // Log the exact payload intended for YAML persistence via standard Save using CronoStar Logger
       Logger.log('CONFIG', '[EDITOR] YAML save intent (standard Save):', configToDispatch);
@@ -823,7 +886,11 @@ export class CronoStarEditor extends LitElement {
 
   _renderStepContent() {
     switch (this._step) {
-      case 0: return new Step0Dashboard(this).render();
+      case 0:
+        if (!this._step0Dashboard) {
+          this._step0Dashboard = new Step0Dashboard(this);
+        }
+        return this._step0Dashboard.render();
       case 1: return new Step1Preset(this).render();
       case 2: return new Step2Entities(this).render();
       case 3: return new Step3Options(this).render();

@@ -127,13 +127,20 @@ export async function handleInitializeData(hass, config, language) {
     return rest;
   })();
 
-  await hass.callService('cronostar', 'save_profile', {
-    profile_name: profileName,
-    preset_type: preset,
-    schedule: schedule,
-    global_prefix: prefix,
-    meta: safeMeta,
+  await hass.callWS({
+    type: 'call_service',
+    domain: 'cronostar',
+    service: 'save_profile',
+    service_data: {
+      profile_name: profileName,
+      preset_type: preset,
+      schedule: schedule,
+      global_prefix: prefix,
+      meta: safeMeta,
+    }
   });
+
+  Logger.log('INIT', `Profile '${profileName}' saved/initialized successfully`);
 
   return { 
     success: true, 

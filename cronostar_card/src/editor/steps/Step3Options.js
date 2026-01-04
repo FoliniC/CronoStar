@@ -64,6 +64,30 @@ export class Step3Options {
           </ha-formfield>
         </div>
 
+        <div class="field-group">
+          <label class="field-label">${this.editor.i18n._t('fields.language_label')}</label>
+          <div class="field-description">${this.editor.i18n._t('fields.language_desc')}</div>
+          <ha-select
+            .label=${this.editor.i18n._t('fields.language_label')}
+            .value=${this.editor._config.meta?.language || this.editor._language}
+            @selected=${(e) => {
+              // Ensure meta object exists
+              if (!this.editor._config.meta) {
+                this.editor._config.meta = {};
+              }
+              this.editor._config.meta.language = e.target.value;
+              this.editor._language = e.target.value; // Update editor's active language immediately
+              this.editor.i18n = new EditorI18n(this.editor); // Re-initialize i18n with new language
+              this.editor.requestUpdate(); // Force editor to re-render with new language
+              this.editor._dispatchConfigChanged(true); // Save config
+            }}
+            fixedMenuPosition
+          >
+            <mwc-list-item value="en" .activated=${(this.editor._config.meta?.language || this.editor._language) === 'en'}>English</mwc-list-item>
+            <mwc-list-item value="it" .activated=${(this.editor._config.meta?.language || this.editor._language) === 'it'}>Italiano</mwc-list-item>
+          </ha-select>
+        </div>
+
         <!-- Keyboard Modifiers Section -->
         <div class="field-group" style="border-top: 1px solid var(--divider-color); margin-top: 32px; padding-top: 24px;">
           <h3 style="margin-top: 0; color: var(--primary-color);">${this.editor.i18n._t('fields.keyboard_modifiers_title')}</h3>

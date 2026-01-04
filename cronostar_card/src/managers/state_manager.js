@@ -69,31 +69,61 @@ export class StateManager {
     const isSwitch = !!this.context.config?.is_switch_preset;
     const data = this.getData();
     if (!isSwitch || data.length === 0) return data;
+    // Normalize and sort to ensure chronological order
+    const sorted = this._normalizeSchedule(data);
 
-    const clarified = [];
+    // Build corner-expanded schedule consistent with UI expectations:
+    // For each change at time T (prev -> next), insert a corner at (T - 1 minute)
+    // with the previous value. This encodes the horizontal segment right up to the jump.
+    const byMinute = new Map();
+    sorted.forEach((p) => byMinute.set(timeToMinutes(p.time), Number(p.value)));
 
-    for (let i = 0; i < data.length; i++) {
-      const cur = data[i];
-      clarified.push({ time: cur.time, value: cur.value });
+    let inserted = 0;
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const cur = sorted[i];
+      const prevMin = timeToMinutes(prev.time);
+      const curMin = timeToMinutes(cur.time);
+      if (Number(prev.value) === Number(cur.value)) continue;
 
-      const next = data[i + 1];
-      if (!next) continue;
+      // Insert two RIGHT corners encoding the box:
+      // 1) prevMin + 1 with the NEXT value (cur.value)
+      // 2) curMin + 1 with the NEXT value (cur.value)
+      const prevRight = prevMin + 1;
+      if (prevRight < curMin && prevRight >= 0 && prevRight <= 1439) {
+        byMinute.set(prevRight, Number(cur.value));
+        inserted++;
+        Logger.log('SWITCH', `[State] Inserted RIGHT-of-prev at ${minutesToTime(prevRight)} value=${Number(cur.value)} (change at ${cur.time} ${Number(prev.value)}->${Number(cur.value)})`);
+      }
 
-      // If there is a state change, insert a marker point at prevTime + 1 minute with the new state
-      if (Number(cur.value) !== Number(next.value)) {
-        const curMin = timeToMinutes(cur.time);
-        const nextMin = timeToMinutes(next.time);
-        const markerMin = curMin + 1;
-
-        // Only insert if it falls strictly before the next point and within the same day range
-        if (markerMin < nextMin && markerMin >= 0 && markerMin < 1440) {
-          clarified.push({ time: minutesToTime(markerMin), value: Number(next.value) });
-        }
+      const nextPoint = sorted[i + 1];
+      const nextMin = nextPoint ? timeToMinutes(nextPoint.time) : 1440;
+      const curRight = curMin + 1;
+      if (curRight < nextMin && curRight >= 0 && curRight <= 1439) {
+        byMinute.set(curRight, Number(cur.value));
+        inserted++;
+        Logger.log('SWITCH', `[State] Inserted RIGHT-of-cur at ${minutesToTime(curRight)} value=${Number(cur.value)} (change at ${cur.time} ${Number(prev.value)}->${Number(cur.value)})`);
       }
     }
 
-    // Normalize to dedupe and sort
-    return this._normalizeSchedule(clarified);
+    const expanded = Array.from(byMinute.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([minute, value]) => ({ time: minutesToTime(minute), value }));
+
+    // Compress consecutive points with the same value to avoid redundant duplicates
+    const compressed = [];
+    for (let i = 0; i < expanded.length; i++) {
+      const cur = expanded[i];
+      const last = compressed[compressed.length - 1];
+      if (!last || Number(last.value) !== Number(cur.value)) {
+        compressed.push(cur);
+      } else {
+        // Skip duplicate value point
+      }
+    }
+
+    Logger.state(`getDataWithChangePoints: input=${sorted.length} output=${expanded.length} inserted=${inserted} compressed=${compressed.length}`);
+    return compressed;
   }
 
   /**
@@ -112,7 +142,13 @@ export class StateManager {
     }
 
     // Normalize and validate
-    this.scheduleData = this._normalizeSchedule(newData);
+    let normalized = this._normalizeSchedule(newData);
+
+    // Keep schedule as-is on UI updates; do not insert corners here.
+    // Corner expansion is provided via getDataWithChangePoints() for save/persist flows,
+    // avoiding off-by-one or right-shift issues during drag-release.
+
+    this.scheduleData = normalized;
 
     // Ensure boundaries exist
     this._ensureBoundaries();
@@ -193,6 +229,7 @@ export class StateManager {
     this._pushHistory();
 
     const minutes = timeToMinutes(time);
+    Logger.log('STATE', `InsertPoint requested at ${time} (${minutes}) = ${value}`);
 
     // Check if point already exists nearby
     const existingIndex = this.scheduleData.findIndex(p =>
@@ -201,6 +238,7 @@ export class StateManager {
 
     if (existingIndex !== -1) {
       this.scheduleData[existingIndex].value = value;
+      Logger.log('STATE', `Updated existing point at index ${existingIndex} -> ${this.scheduleData[existingIndex].time} = ${value}`);
       this.context.hasUnsavedChanges = true;
       this.context.events.emit(Events.POINT_UPDATED, { index: existingIndex, value });
       return existingIndex;
@@ -216,6 +254,7 @@ export class StateManager {
     }
 
     this.scheduleData.splice(insertIndex, 0, { time, value });
+    Logger.log('STATE', `Inserted new point at index ${insertIndex} -> ${time} = ${value}`);
     this.context.hasUnsavedChanges = true;
     this.context.events.emit(Events.POINT_ADDED, { index: insertIndex, time, value });
     this.context.events.emit(Events.SCHEDULE_UPDATED, this.scheduleData);
