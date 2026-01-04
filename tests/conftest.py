@@ -1,9 +1,4 @@
 import pytest
-import os
-import sys
-
-# Ensure the root directory is in sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 
