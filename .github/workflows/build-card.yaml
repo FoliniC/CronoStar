@@ -23,6 +23,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          token: ${{ secrets.PAT_TOKEN }}
+          persist-credentials: true
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -41,6 +43,7 @@ jobs:
       - name: Copy card to custom_components
         run: |
           mkdir -p custom_components/cronostar/www/cronostar_card
+          cp cronostar_card/dist/cronostar-card.js custom_components/cronostar/www/cronostar_card/cronostar-card.js
 
       - name: Commit built card if changed
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -49,4 +52,4 @@ jobs:
           git config --local user.name "github-actions-bot"
           git add custom_components/cronostar/www/cronostar_card/cronostar-card.js
           git diff --staged --quiet || git commit -m "Auto-build: Update cronostar-card.js"
-          git push 
+          git push
