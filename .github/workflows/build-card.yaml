@@ -45,4 +45,4 @@ jobs:
           git config --local user.name "github-actions-bot"
           git add custom_components/cronostar/www/cronostar_card/cronostar-card.js
           git diff --staged --quiet || git commit -m "Auto-build: Update cronostar-card.js"
-          git push
+          git push "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:${{ github.ref }}
