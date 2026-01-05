@@ -1,6 +1,10 @@
 {
   "domain": "cronostar",
   "name": "CronoStar Backend",
+  "after_dependencies": [
+    "http",
+    "frontend"
+  ],
   "codeowners": [
     "@FoliniC"
   ],
@@ -10,10 +14,6 @@
     "input_select",
     "input_boolean",
     "input_text"
-  ],
-  "after_dependencies": [
-    "http",
-    "frontend"
   ],
   "documentation": "https://github.com/FoliniC/CronoStar",
   "iot_class": "local_polling",
