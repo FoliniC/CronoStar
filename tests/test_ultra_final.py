@@ -8,10 +8,12 @@ from custom_components.cronostar.setup.services import setup_services, async_unl
 from pathlib import Path
 
 @pytest.fixture
-def mock_hass():
+def mock_hass(tmp_path):
     hass = MagicMock()
     hass.data = {DOMAIN: {"settings_manager": MagicMock()}}
-    hass.config.path = MagicMock(side_effect=lambda x=None: f"/config/{x}" if x else "/config")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
     async def mock_executor(target, *args, **kwargs):
         if hasattr(target, "__call__"):
             return target(*args, **kwargs)
@@ -26,7 +28,7 @@ async def test_unload_services(mock_hass):
 
 async def test_storage_list_profiles_complex_prefix(mock_hass):
     """Test list_profiles with complex prefix fallback logic."""
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     
     p1 = MagicMock(spec=Path)
     p1.name = "cronostar_myprefix_thermostat_data.json"
@@ -42,7 +44,7 @@ async def test_storage_list_profiles_complex_prefix(mock_hass):
 
 async def test_storage_load_all_profiles_exception(mock_hass):
     """Test load_all_profiles with a file that causes exception."""
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     
     # Mock FileChecker module manually
     mock_checker_mod = MagicMock()
@@ -79,14 +81,14 @@ async def test_apply_now_handler_unsupported_domain(mock_hass):
 
 async def test_storage_list_profiles_exception(mock_hass):
     """Test list_profiles exception path."""
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     with patch("pathlib.Path.glob", side_effect=Exception("Glob error")):
         res = await manager.list_profiles()
         assert res == []
 
 async def test_storage_get_profile_list_exception(mock_hass):
     """Test get_profile_list exception path."""
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     with patch("custom_components.cronostar.storage.storage_manager.build_profile_filename", side_effect=Exception("Error")):
         res = await manager.get_profile_list("thermostat", "p1")
         assert res == []

@@ -8,10 +8,12 @@ from custom_components.cronostar.const import DOMAIN, CONF_TARGET_ENTITY, CONF_L
 from pathlib import Path
 
 @pytest.fixture
-def mock_hass():
+def mock_hass(tmp_path):
     hass = MagicMock()
     hass.data = {DOMAIN: {}}
-    hass.config.path = MagicMock(side_effect=lambda x=None: f"/config/{x}" if x else "/config")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
     async def mock_executor(target, *args, **kwargs):
         if hasattr(target, "__call__"):
             return target(*args, **kwargs)
@@ -47,24 +49,25 @@ async def test_coordinator_interpolate_debug(mock_hass):
 async def test_storage_backups_enabled_logs(mock_hass):
     """Trigger logging when backups enabled."""
     with patch("pathlib.Path.mkdir"):
-        manager = StorageManager(mock_hass, "/config/cronostar/profiles", enable_backups=True)
+        manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"), enable_backups=True)
 
 async def test_storage_load_cache_lock(mock_hass):
     """Hit the cache age logic in load_profile_cached."""
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     from datetime import datetime
     
     manager._cache["f1.json"] = {"data": 1}
-    manager._cache_timestamps["f1.json"] = datetime.now()
+    manager._cache_mtimes["f1.json"] = 1000 # Use mtimes instead of timestamps
     
-    await manager.load_profile_cached("f1.json")
+    with patch("custom_components.cronostar.storage.storage_manager.os.path.getmtime", return_value=500):
+        await manager.load_profile_cached("f1.json")
     
     with patch("pathlib.Path.exists", return_value=False):
         await manager.load_profile_cached("f1.json", force_reload=True)
 
 async def test_storage_list_profiles_load_fail(mock_hass):
     """Hit line 249-251 in list_profiles."""
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     p1 = MagicMock(spec=Path)
     p1.name = "cronostar_f1.json"
     with patch("pathlib.Path.glob", return_value=[p1]):
@@ -73,7 +76,7 @@ async def test_storage_list_profiles_load_fail(mock_hass):
 
 async def test_storage_json_errors(mock_hass):
     """Hit various JSON and IO error paths."""
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     path = Path("test.json")
     
     # JSON decode error

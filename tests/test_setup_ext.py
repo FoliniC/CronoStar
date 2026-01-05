@@ -6,9 +6,11 @@ from custom_components.cronostar.setup.validators import validate_environment, _
 from pathlib import Path
 
 @pytest.fixture
-def mock_hass():
+def mock_hass(tmp_path):
     hass = MagicMock()
-    hass.config.path = MagicMock(side_effect=lambda x=None: f"/config/{x}" if x else "/config")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
     hass.config.components = ["http", "frontend", "input_number", "input_select", "input_boolean"]
     hass.data = {"cronostar": {}}
     

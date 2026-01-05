@@ -7,9 +7,11 @@ from pathlib import Path
 from custom_components.cronostar.storage.storage_manager import StorageManager
 
 @pytest.fixture
-def mock_hass():
+def mock_hass(tmp_path):
     hass = MagicMock()
-    hass.config.path = MagicMock(side_effect=lambda x=None: f"/config/{x}" if x else "/config")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
     
     async def mock_executor(target, *args, **kwargs):
         if hasattr(target, "__call__"):
@@ -26,7 +28,7 @@ async def test_storage_list_profiles(mock_hass):
         p1.name = "cronostar_test.json"
         mock_glob.return_value = [p1]
         
-        manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+        manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
         manager.load_profile_cached = AsyncMock(return_value={"meta": {"preset_type": "thermostat"}})
         
         files = await manager.list_profiles()
@@ -34,7 +36,7 @@ async def test_storage_list_profiles(mock_hass):
 
 async def test_storage_load_profile(mock_hass):
     """Test loading profile."""
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     mock_data = '{"meta": {"test": 1}, "profiles": {}}'
     
     with patch("pathlib.Path.exists", return_value=True), \
@@ -45,7 +47,7 @@ async def test_storage_load_profile(mock_hass):
 
 async def test_storage_save_profile(mock_hass):
     """Test saving profile."""
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     manager._load_container = AsyncMock(return_value={"profiles": {}})
     
     with patch("pathlib.Path.write_text") as mock_write:
@@ -61,7 +63,7 @@ async def test_storage_save_profile(mock_hass):
 
 async def test_storage_delete_profile(mock_hass):
     """Test deleting profile."""
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     manager._load_container = AsyncMock(return_value={
         "profiles": {"P1": {}, "P2": {}}
     })
@@ -73,12 +75,12 @@ async def test_storage_delete_profile(mock_hass):
 
 async def test_storage_backups(mock_hass):
     """Test backup creation."""
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles", enable_backups=True)
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"), enable_backups=True)
     filepath = MagicMock(spec=Path)
     filepath.exists.return_value = True
     filepath.stem = "test"
     filepath.suffix = ".json"
-    filepath.parent = Path("/config/cronostar/profiles")
+    filepath.parent = Path(mock_hass.config.path("cronostar/profiles"))
     
     with patch("pathlib.Path.mkdir"), \
          patch("pathlib.Path.write_bytes"), \
@@ -92,7 +94,7 @@ async def test_storage_backups(mock_hass):
 
 async def test_storage_cleanup_old_backups(mock_hass):
     """Test cleanup of old backups."""
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     
     with patch("pathlib.Path.exists", return_value=True), \
          patch("pathlib.Path.glob") as mock_glob:
@@ -113,7 +115,7 @@ async def test_storage_cleanup_old_backups(mock_hass):
 
 async def test_load_all_profiles(mock_hass):
     """Test load_all_profiles."""
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     
     with patch("pathlib.Path.glob") as mock_glob:
         p1 = MagicMock(spec=Path)

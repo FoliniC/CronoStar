@@ -11,10 +11,12 @@ from custom_components.cronostar.setup.validators import (
 from pathlib import Path
 
 @pytest.fixture
-def mock_hass():
+def mock_hass(tmp_path):
     hass = MagicMock()
     hass.data = {DOMAIN: {"settings_manager": MagicMock()}}
-    hass.config.path = MagicMock(side_effect=lambda x=None: f"/config/{x}" if x else "/config")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
     async def mock_executor(target, *args, **kwargs):
         if hasattr(target, "__call__"):
             return target(*args, **kwargs)
@@ -89,7 +91,7 @@ async def test_validate_environment_failure_path(mock_hass):
 async def test_storage_clear_cache(mock_hass):
     """Test clear_cache in StorageManager."""
     from custom_components.cronostar.storage.storage_manager import StorageManager
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     manager._cache = {"test": 1}
     await manager.clear_cache()
     assert len(manager._cache) == 0
@@ -97,7 +99,7 @@ async def test_storage_clear_cache(mock_hass):
 async def test_storage_list_profiles_filtering(mock_hass):
     """Test list_profiles with filters hitting meta branches."""
     from custom_components.cronostar.storage.storage_manager import StorageManager
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     
     p1 = MagicMock(spec=Path)
     p1.name = "cronostar_bad.json"
@@ -111,7 +113,7 @@ async def test_storage_list_profiles_filtering(mock_hass):
 async def test_storage_delete_empty_container(mock_hass):
     """Test delete_profile when container becomes empty."""
     from custom_components.cronostar.storage.storage_manager import StorageManager
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     manager._load_container = AsyncMock(return_value={"profiles": {"P1": {}}})
     
     with patch("pathlib.Path.unlink") as mock_unlink:

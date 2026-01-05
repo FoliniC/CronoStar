@@ -6,10 +6,12 @@ from custom_components.cronostar.coordinator import CronoStarCoordinator
 from pathlib import Path
 
 @pytest.fixture
-def mock_hass():
+def mock_hass(tmp_path):
     hass = MagicMock()
     hass.data = {DOMAIN: {"settings_manager": MagicMock(), "profile_service": MagicMock()}}
-    hass.config.path = MagicMock(side_effect=lambda x=None: f"/config/{x}" if x else "/config")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
     async def mock_executor(target, *args, **kwargs):
         if hasattr(target, "__call__"):
             return target(*args, **kwargs)
@@ -65,7 +67,7 @@ async def test_service_handlers_errors(mock_hass):
 async def test_storage_list_profiles_more_branches(mock_hass):
     """Test list_profiles with more branches."""
     from custom_components.cronostar.storage.storage_manager import StorageManager
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     
     p1 = MagicMock(spec=Path)
     p1.name = "cronostar_p1.json"
@@ -86,7 +88,7 @@ async def test_storage_list_profiles_more_branches(mock_hass):
 async def test_storage_write_json_fail(mock_hass):
     """Test write_json failure."""
     from custom_components.cronostar.storage.storage_manager import StorageManager
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     mock_hass.async_add_executor_job.side_effect = Exception("Write failed")
     
     with pytest.raises(Exception):

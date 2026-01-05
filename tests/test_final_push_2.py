@@ -6,10 +6,12 @@ from custom_components.cronostar.coordinator import CronoStarCoordinator
 from custom_components.cronostar.setup.services import setup_services
 
 @pytest.fixture
-def mock_hass():
+def mock_hass(tmp_path):
     hass = MagicMock()
     hass.data = {DOMAIN: {"settings_manager": MagicMock(), "profile_service": MagicMock()}}
-    hass.config.path = MagicMock(side_effect=lambda x=None: f"/config/{x}" if x else "/config")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
     async def mock_executor(target, *args, **kwargs):
         if hasattr(target, "__call__"):
             return target(*args, **kwargs)

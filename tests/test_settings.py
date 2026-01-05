@@ -5,8 +5,11 @@ import json
 from custom_components.cronostar.storage.settings_manager import SettingsManager, DEFAULT_SETTINGS
 
 @pytest.fixture
-def mock_hass():
+def mock_hass(tmp_path):
     hass = MagicMock()
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
     async def mock_executor(target, *args, **kwargs):
         if hasattr(target, "__call__"):
             return target(*args, **kwargs)
@@ -20,7 +23,7 @@ async def test_load_settings_default(mock_hass):
          patch("pathlib.Path.mkdir"), \
          patch("pathlib.Path.write_text"):
         
-        manager = SettingsManager(mock_hass, "/config/cronostar")
+        manager = SettingsManager(mock_hass, mock_hass.config.path("cronostar"))
         settings = await manager.load_settings()
         assert settings == DEFAULT_SETTINGS
 
@@ -33,7 +36,7 @@ async def test_load_settings_existing(mock_hass):
          patch("pathlib.Path.read_text", return_value=mock_data), \
          patch("pathlib.Path.mkdir"):
         
-        manager = SettingsManager(mock_hass, "/config/cronostar")
+        manager = SettingsManager(mock_hass, mock_hass.config.path("cronostar"))
         settings = await manager.load_settings()
         assert settings["keyboard"]["ctrl"]["horizontal"] == 10
         # Check merge
@@ -41,7 +44,7 @@ async def test_load_settings_existing(mock_hass):
 
 async def test_save_settings(mock_hass):
     """Test saving settings."""
-    manager = SettingsManager(mock_hass, "/config/cronostar")
+    manager = SettingsManager(mock_hass, mock_hass.config.path("cronostar"))
     
     with patch("pathlib.Path.write_text") as mock_write, \
          patch("pathlib.Path.mkdir"):

@@ -12,11 +12,16 @@ def pytest_configure(config):
     sys.path.insert(0, os.path.join(project_root, "custom_components"))
 
 @pytest.fixture
-def hass():
+def hass(tmp_path):
     """Mock Home Assistant instance."""
     hass = MagicMock()
     hass.data = {"cronostar": {}}
-    hass.config.path = MagicMock(side_effect=lambda x=None: f"/config/{x}" if x else "/config")
+    
+    # Create a temporary config directory
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    
+    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
     hass.config.components = []
     
     # Mock states with proper structure

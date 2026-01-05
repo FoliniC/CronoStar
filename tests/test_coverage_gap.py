@@ -6,10 +6,12 @@ from custom_components.cronostar.services.profile_service import ProfileService
 from custom_components.cronostar.const import DOMAIN
 
 @pytest.fixture
-def mock_hass():
+def mock_hass(tmp_path):
     hass = MagicMock()
     hass.data = {DOMAIN: {"settings_manager": MagicMock(), "profile_service": MagicMock()}}
-    hass.config.path = MagicMock(side_effect=lambda x=None: f"/config/{x}" if x else "/config")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
     async def mock_executor(target, *args, **kwargs):
         if hasattr(target, "__call__"):
             return target(*args, **kwargs)
@@ -77,7 +79,7 @@ async def test_profile_service_update_selectors_load_fail(mock_hass):
 async def test_storage_get_cached_containers_filters(mock_hass):
     """Test get_cached_containers with varied filters."""
     from custom_components.cronostar.storage.storage_manager import StorageManager
-    manager = StorageManager(mock_hass, "/config/cronostar/profiles")
+    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
     manager._cache = {
         "f1.json": {"meta": {"preset_type": "thermostat", "global_prefix": "p1_"}}
     }
