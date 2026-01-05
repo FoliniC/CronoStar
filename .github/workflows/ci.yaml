@@ -28,11 +28,10 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pycares==4.4.0
-          pip install aiodns==3.1.1
           pip install homeassistant==2025.11.1
           pip install pytest-homeassistant-custom-component==0.13.295
           pip install pytest pytest-asyncio pytest-cov
+          pip install pycares==4.5.0 aiodns==3.1.1 --force-reinstall
           
       - name: Run tests with coverage
         run: |
