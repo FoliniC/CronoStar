@@ -40,7 +40,7 @@ export class Step5Summary {
       'logging_enabled', 'title', 'interval_minutes'
     ];
 
-    for (const key of validKeys) {
+    for (const key of keys) {
       const val = this.editor._config[key];
       if (val !== null && val !== undefined && val !== '') {
         cleanConfig[key] = val;

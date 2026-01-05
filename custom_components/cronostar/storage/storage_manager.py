@@ -7,6 +7,7 @@ Manages JSON files with caching and backup support
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -36,7 +37,7 @@ class StorageManager:
 
         # Cache for loaded profiles
         self._cache = {}
-        self._cache_timestamps = {}
+        self._cache_mtimes = {}
         self._cache_lock = asyncio.Lock()
 
         # Ensure directory exists
@@ -96,6 +97,7 @@ class StorageManager:
             # Filter out None values
             profile_entry["entities"] = [e for e in profile_entry["entities"] if e]
 
+            container["profiles"] = container.get("profiles", {})
             container["profiles"][profile_name] = profile_entry
 
             # Backup if enabled
@@ -108,7 +110,10 @@ class StorageManager:
             # Update cache
             async with self._cache_lock:
                 self._cache[filename] = container
-                self._cache_timestamps[filename] = datetime.now()
+                try:
+                    self._cache_mtimes[filename] = os.path.getmtime(filepath)
+                except OSError:
+                    self._cache_mtimes[filename] = 0
 
             _LOGGER.info("Profile saved: %s/%s (%d points)", filename, profile_name, len(profile_data.get("schedule", [])))
 
@@ -120,7 +125,7 @@ class StorageManager:
 
     async def load_profile_cached(self, filename: str, force_reload: bool = False) -> dict | None:
         """
-        Load profile container with caching
+        Load profile container with caching based on file mtime.
 
         Args:
             filename: Profile filename
@@ -129,22 +134,28 @@ class StorageManager:
         Returns:
             Profile container or None
         """
+        filepath = self.profiles_dir / filename
+        
         async with self._cache_lock:
-            # Check cache
+            # Check cache if not forcing reload
             if not force_reload and filename in self._cache:
-                cache_age = (datetime.now() - self._cache_timestamps[filename]).seconds
-
-                # Cache valid for 60 seconds
-                if cache_age < 60:
-                    return self._cache[filename]
+                try:
+                    current_mtime = os.path.getmtime(filepath)
+                    if current_mtime <= self._cache_mtimes.get(filename, 0):
+                        return self._cache[filename]
+                except OSError:
+                    # File might have been deleted, proceed to load attempt which handles it
+                    pass
 
             # Load from disk
-            filepath = self.profiles_dir / filename
             container = await self._load_container(filepath)
 
             if container:
                 self._cache[filename] = container
-                self._cache_timestamps[filename] = datetime.now()
+                try:
+                    self._cache_mtimes[filename] = os.path.getmtime(filepath)
+                except OSError:
+                    self._cache_mtimes[filename] = 0
 
             return container
 

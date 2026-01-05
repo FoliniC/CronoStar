@@ -282,13 +282,12 @@ export class ChartManager {
         label: 'Corners',
         data: corners,
         showLine: false,
-        pointRadius: 4,
-        pointHoverRadius: 5,
+        pointRadius: 0, // Hidden as per user request
+        pointHoverRadius: 0,
         pointBackgroundColor: COLORS.accent || '#ff9800',
         pointBorderColor: '#fff',
         pointBorderWidth: 2,
         clip: false,
-        // Disable dragging on corner markers
         dragData: false
       };
     }
@@ -305,6 +304,7 @@ export class ChartManager {
       stepped: config.is_switch_preset ? 'after' : false,
       pointRadius: 6,
       pointHoverRadius: 8,
+      pointHitRadius: 15,
       pointBackgroundColor: COLORS.primary,
       pointBorderColor: '#fff',
       pointBorderWidth: 2,
@@ -328,6 +328,23 @@ export class ChartManager {
       maintainAspectRatio: false,
       animation: false,
       layout: { padding: { top: 15, right: 25, bottom: 25, left: 25 } },
+      onHover: (event, elements) => {
+        const canvas = event.chart.canvas;
+        const { x, y } = event.chart.scales;
+        const pos = this._getCanvasRelativePosition(event.native);
+
+        // Check if over axes for zoom feedback
+        const overXAxis = pos.y >= x.top && pos.y <= x.bottom;
+        const overYAxis = pos.x >= y.left && pos.x <= y.right;
+
+        if (overXAxis || overYAxis) {
+          canvas.style.cursor = 'zoom-in';
+        } else if (elements && elements.length > 0) {
+          canvas.style.cursor = 'pointer';
+        } else {
+          canvas.style.cursor = 'crosshair';
+        }
+      },
       interaction: {
         mode: 'nearest',
         axis: 'x',
@@ -413,25 +430,29 @@ export class ChartManager {
               return 'xy';
             },
             onZoom: ({ chart }) => {
-              const { x, y } = chart.scales;
-              const pos = this.lastMousePosition || { x: 0, y: 0 };
-              const isOverX = pos.y >= x.top;
-              const isOverY = pos.x <= y.right;
-              const isInside = !isOverX && !isOverY;
-              let needsUpdate = false;
-              if ((isOverX || isInside) && !this.context._card.isExpandedH) {
-                this.context._card.isExpandedH = true;
-                needsUpdate = true;
-              }
-              if ((isOverY || isInside) && !this.context._card.isExpandedV) {
-                this.context._card.isExpandedV = true;
-                needsUpdate = true;
-              }
-              // Adjust tick density when zooming horizontally
-              this._updateXAxisTicksDensity(chart);
-              if (needsUpdate) {
-                this.context.requestUpdate();
-                setTimeout(() => { if (this.chart) this.chart.resize(); }, 410);
+              try {
+                const { x, y } = chart.scales;
+                const pos = this.lastMousePosition || { x: 0, y: 0 };
+                const isOverX = pos.y >= x.top;
+                const isOverY = pos.x <= y.right;
+                const isInside = !isOverX && !isOverY;
+                let needsUpdate = false;
+                if ((isOverX || isInside) && !this.context._card.isExpandedH) {
+                  this.context._card.isExpandedH = true;
+                  needsUpdate = true;
+                }
+                if ((isOverY || isInside) && !this.context._card.isExpandedV) {
+                  this.context._card.isExpandedV = true;
+                  needsUpdate = true;
+                }
+                // Adjust tick density when zooming horizontally
+                this._updateXAxisTicksDensity(chart);
+                if (needsUpdate) {
+                  this.context.requestUpdate();
+                  setTimeout(() => { if (this.chart) this.chart.resize(); }, 410);
+                }
+              } catch (e) {
+                console.warn('[CronoStar] onZoom error suppressed:', e);
               }
             },
             onZoomComplete: ({ chart }) => {
@@ -470,18 +491,59 @@ export class ChartManager {
             this.context._card.isDragging = true;
             this._dragPointIndex = index;
             this.initialSelectedValues = {};
-            const activeIndices = this.context.getManager('selection').getSelectedPoints();
+            this.dragNeighbors = [];
+            
+            const dataset = this.chart.data.datasets[0];
+            const data = dataset.data;
+            const selectionManager = this.context.getManager('selection');
+            const activeIndices = selectionManager.getSelectedPoints();
+            
             activeIndices.forEach(idx => {
-              this.initialSelectedValues[idx] = this.chart.data.datasets[0].data[idx].y;
+              this.initialSelectedValues[idx] = data[idx].y;
             });
+
+            const isSwitch = !!this.context.config?.is_switch_preset;
+            if (isSwitch) {
+              const sortedByX = data.map((p, i) => ({ ...p, i })).sort((a, b) => a.x - b.x);
+              const activeSet = new Set(activeIndices);
+              
+              activeIndices.forEach(idx => {
+                const pos = sortedByX.findIndex(p => p.i === idx);
+                const curX = data[idx].x;
+                
+                // Segment dragging: ONLY transition partners (exactly 1 min away)
+                if (pos > 0) {
+                  const prev = sortedByX[pos - 1];
+                  if (Math.abs(curX - prev.x) === 1 && !activeSet.has(prev.i)) {
+                    this.dragNeighbors.push(prev.i);
+                  }
+                }
+                if (pos < sortedByX.length - 1) {
+                  const next = sortedByX[pos + 1];
+                  if (Math.abs(curX - next.x) === 1 && !activeSet.has(next.i)) {
+                    this.dragNeighbors.push(next.i);
+                  }
+                }
+              });
+            }
+
             const startVal = (typeof value === 'object' && value !== null) ? value.y : value;
             this.dragStartValue = Number(startVal);
             return true;
           },
           onDrag: (e, datasetIndex, index, value) => {
             const val = (typeof value === 'object' && value !== null) ? value.y : value;
+            const isSwitch = !!this.context.config?.is_switch_preset;
+            
             const diff = Number(val) - this.dragStartValue;
-            const data = this.chart.data.datasets[datasetIndex].data;
+            const dataset = this.chart.data.datasets[datasetIndex];
+            const data = dataset.data;
+            
+            const minValue = isSwitch ? 0 : (this.context.config.min_value ?? 0);
+            const maxValue = isSwitch ? 1 : (this.context.config.max_value ?? 30);
+            const step = this.context.config.step_value || 0.5;
+
+            // Move selected points
             Object.keys(this.initialSelectedValues).forEach(idx => {
               const i = Number(idx);
               let newVal = this.initialSelectedValues[i] + diff;
@@ -492,6 +554,14 @@ export class ChartManager {
               }
               data[i].y = newVal;
             });
+
+            // For switches, also move identified neighbors to visualize rising rectangular area
+            if (isSwitch && this.dragNeighbors) {
+              this.dragNeighbors.forEach(idx => {
+                data[idx].y = (val >= 0.5 ? 1 : 0);
+              });
+            }
+
             this.chart.update('none');
             this.showDragValueDisplay(data[index].y, data[index].x);
           },
@@ -506,14 +576,10 @@ export class ChartManager {
                 time: minutesToTime(p.x),
                 value: p.y
               }));
+              
+              // This triggers finalizeSwitchData internally in stateManager.setData
               stateManager.setData(schedule);
-              // Immediately expand corners for switch preset so left corners appear without reload
-              const cfg = this.context.config || {};
-              if (cfg.is_switch_preset && typeof stateManager.getDataWithChangePoints === 'function') {
-                const expanded = stateManager.getDataWithChangePoints();
-                Logger.log('SWITCH', `[Chart] DragEnd corner expansion: from ${schedule.length} to ${expanded.length} points`);
-                stateManager.setData(expanded, true);
-              }
+              this.dragNeighbors = [];
             }
           }
         }
@@ -633,25 +699,58 @@ export class ChartManager {
       return;
     }
 
-    const hitElements = this.chart.getElementsAtEventForMode(event, 'nearest', { intersect: true }, false);
-    // Prefer hits from the main dataset (index 0); ignore corner markers dataset
+    // Prioritize selecting existing points over inserting new ones.
+    // Use nearest point detection with a generous radius.
+    const hitElements = this.chart.getElementsAtEventForMode(event, 'nearest', { intersect: false, axis: 'xy' }, false);
+    // Prefer hits from the main dataset (index 0)
     const mainHit = hitElements.find(el => el.datasetIndex === 0);
 
+    // If we have a candidate, verify it's actually near the click (within 25px)
     if (mainHit) {
-      const index = mainHit.index;
-      if (event.native.shiftKey) selectionManager.selectRange(index);
-      else if (event.native.ctrlKey || event.native.metaKey) selectionManager.togglePoint(index);
-      else selectionManager.selectPoint(index);
-      this._updatePointStyles();
-    } else {
-      if (!event.native.shiftKey && !event.native.ctrlKey && !event.native.metaKey) {
-        if (!this.chart) return;
-        const pos = this._getCanvasRelativePosition(event.native);
-        const xScale = this.chart.scales.x;
-        const yScale = this.chart.scales.y;
+      const pos = this._getCanvasRelativePosition(event.native);
+      const meta = this.chart.getDatasetMeta(0);
+      const point = meta.data[mainHit.index];
+      const dist = Math.sqrt(Math.pow(pos.x - point.x, 2) + Math.pow(pos.y - point.y, 2));
+      
+      if (dist <= 25) {
+        const index = mainHit.index;
+        if (event.native.shiftKey) selectionManager.selectRange(index);
+        else if (event.native.ctrlKey || event.native.metaKey) selectionManager.togglePoint(index);
+        else selectionManager.selectPoint(index);
+        this._updatePointStyles();
+        return;
+      }
+    }
 
-        if (pos.x >= xScale.left && pos.x <= xScale.right && pos.y >= yScale.top && pos.y <= yScale.bottom) {
-          const minutes = xScale.getValueForPixel(pos.x);
+    if (!event.native.shiftKey && !event.native.ctrlKey && !event.native.metaKey) {
+      if (!this.chart) return;
+      const pos = this._getCanvasRelativePosition(event.native);
+      const xScale = this.chart.scales.x;
+      const yScale = this.chart.scales.y;
+
+      if (pos.x >= xScale.left && pos.x <= xScale.right && pos.y >= yScale.top && pos.y <= yScale.bottom) {
+        const minutes = xScale.getValueForPixel(pos.x);
+        
+        // CRITICAL PROTECTION: Do not insert if very close to an existing milestone point (within 10 minutes)
+        // Find the milestone that is TRULY nearest in time, not just the first one in the array
+        const data = stateManager.getData();
+        let nearestIdx = -1;
+        let minDiff = 11; // Must be <= 10
+        
+        data.forEach((p, i) => {
+          const diff = Math.abs(timeToMinutes(p.time) - minutes);
+          if (diff < minDiff) {
+            minDiff = diff;
+            nearestIdx = i;
+          }
+        });
+
+        if (nearestIdx !== -1) {
+          selectionManager.selectPoint(nearestIdx);
+          this._updatePointStyles();
+          return;
+        }
+
           const interpolatedY = this._interpolateValueAtMinutes(minutes);
           const config = this.context.config || {};
           const isSwitch = !!config.is_switch_preset;
@@ -687,7 +786,6 @@ export class ChartManager {
         this._updatePointStyles();
       }
     }
-  }
 
   _scheduleChartUpdate() {
     if (this._updateTimer) clearTimeout(this._updateTimer);

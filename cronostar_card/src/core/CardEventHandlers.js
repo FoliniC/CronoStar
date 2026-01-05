@@ -4,87 +4,8 @@ import { getEffectivePrefix, getAliasWithPrefix } from '../utils/prefix_utils.js
 import { copyToClipboard } from '../editor/services/service_handlers.js';
 
 function _buildCornerSwitchSchedule(schedulePoints) {
-    // For switch presets, persist only the "corner" points needed to make the
-    // step chart unambiguous when read from JSON.
-    //
-    // Rule:
-    // - Always keep each original point.
-    // - For every value change at time T (from prevValue -> nextValue), ensure there is
-    //   a point at (T - 1 minute) with prevValue (if valid and not already present).
-    // This encodes the horizontal segment ending right before the vertical jump.
-
-    if (!Array.isArray(schedulePoints) || schedulePoints.length === 0) {
-        Logger.log('SWITCH', '[CronoStar] Corner schedule: no points provided');
-        return [];
-    }
-
-    const pts = schedulePoints
-        .map((p) => ({
-            minutes: timeToMinutes(p?.time),
-            time: String(p?.time),
-            value: Number(p?.value)
-        }))
-        .filter((pt) => Number.isFinite(pt.minutes) && Number.isFinite(pt.value) && /^\d{2}:\d{2}$/.test(pt.time))
-        .sort((a, b) => a.minutes - b.minutes);
-
-    if (pts.length === 0) {
-        Logger.log('SWITCH', '[CronoStar] Corner schedule: no valid points after normalization');
-        return [];
-    }
-
-    const byMinute = new Map();
-    pts.forEach((p) => byMinute.set(p.minutes, Number(p.value)));
-
-    let inserted = 0;
-
-    for (let i = 1; i < pts.length; i++) {
-        const prev = pts[i - 1];
-        const cur = pts[i];
-        if (Number(prev.value) === Number(cur.value)) continue;
-
-        // Insert right-side corners to encode the box clearly
-        const prevRight = prev.minutes + 1;
-        if (prevRight < cur.minutes && prevRight >= 0 && prevRight <= 1439) {
-            byMinute.set(prevRight, Number(cur.value));
-            inserted++;
-            Logger.log(
-                'SWITCH',
-                `[CronoStar] Corner schedule: inserted RIGHT-of-prev at ${String(Math.floor(prevRight / 60)).padStart(2, '0')}:${String(prevRight % 60).padStart(2, '0')} value=${Number(cur.value)} (change at ${cur.time} ${Number(prev.value)}->${Number(cur.value)})`
-            );
-        }
-
-        const nextMin = pts[i + 1] ? pts[i + 1].minutes : 1440;
-        const curRight = cur.minutes + 1;
-        if (curRight < nextMin && curRight >= 0 && curRight <= 1439) {
-            byMinute.set(curRight, Number(cur.value));
-            inserted++;
-            Logger.log(
-                'SWITCH',
-                `[CronoStar] Corner schedule: inserted RIGHT-of-cur at ${String(Math.floor(curRight / 60)).padStart(2, '0')}:${String(curRight % 60).padStart(2, '0')} value=${Number(cur.value)} (change at ${cur.time} ${Number(prev.value)}->${Number(cur.value)})`
-            );
-        }
-    }
-
-    Logger.log('SWITCH', `[CronoStar] Corner schedule: input=${pts.length} output=${byMinute.size} inserted=${inserted}`);
-
-    const expanded = Array.from(byMinute.entries())
-        .sort((a, b) => a[0] - b[0])
-        .map(([minutes, value]) => ({
-            time: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`,
-            value
-        }));
-
-    // Compress consecutive points with identical values
-    const compressed = [];
-    for (let i = 0; i < expanded.length; i++) {
-        const cur = expanded[i];
-        const last = compressed[compressed.length - 1];
-        if (!last || Number(last.value) !== Number(cur.value)) {
-            compressed.push(cur);
-        }
-    }
-    Logger.log('SWITCH', `[CronoStar] Corner schedule compressed: ${compressed.length} points (from ${expanded.length})`);
-    return compressed;
+    // Deprecated: Now handled by StateManager.finalizeSwitchData
+    return schedulePoints;
 }
 
 export class CardEventHandlers {
@@ -315,6 +236,35 @@ export class CardEventHandlers {
         this.card.requestUpdate();
     }
 
+    async handleCopyJson() {
+        try {
+            const rawData = this.card.stateManager.getData() || [];
+            const scheduleData = rawData.map(p => ({
+                time: String(p.time),
+                value: Number(p.value)
+            }));
+
+            // Format manually to match the requested style exactly: {"time": "00:00", "value": 1}
+            const lines = scheduleData.map(p => `{"time": "${p.time}", "value": ${p.value}}`);
+            const jsonFragment = `"schedule": [\n${lines.join(',\n')}\n]`;
+            
+            const successMsg = this.card.localizationManager.localize(this.card.language, 'notify.json_copied');
+            const result = await copyToClipboard(jsonFragment, successMsg, "Error copying JSON");
+            
+            if (result.success) {
+                this.showNotification(result.message, 'success');
+            } else {
+                this.showNotification(result.message, 'error');
+            }
+        } catch (e) {
+            Logger.error('UI', 'Failed to copy JSON fragment:', e);
+            this.showNotification('Failed to copy JSON', 'error');
+        } finally {
+            this._closeContextMenu();
+            this.card.requestUpdate();
+        }
+    }
+
     _closeContextMenu() {
         this.card.contextMenu = { ...this.card.contextMenu, show: false };
     }
@@ -352,20 +302,13 @@ export class CardEventHandlers {
 
             // Build schedule payload for persistence
             const rawData = this.card.stateManager.getData() || [];
-            const sparseScheduleData = rawData
+            const scheduleData = rawData
                 .map((p) => ({
-                    minutes: timeToMinutes(p.time),
                     time: String(p.time),
                     value: Number(p.value)
-                }))
-                .filter((pt) => Number.isFinite(pt.value) && /^\d{2}:\d{2}$/.test(pt.time))
-                .sort((a, b) => a.minutes - b.minutes)
-                .map(({ time, value }) => ({ time, value }));
+                }));
 
-            const isSwitchPreset = this.card.config?.is_switch_preset === true || String(this.card.selectedPreset || '').includes('switch');
-            const scheduleData = isSwitchPreset ? _buildCornerSwitchSchedule(sparseScheduleData) : sparseScheduleData;
-
-            const profileName = this.card.selectedProfile || this.card.profileManager.lastLoadedProfile || 'Default';
+            const profileName = this.card.selectedProfile || this.card.profileManager?.lastLoadedProfile || 'Default';
 
             // Persist profile explicitly like the wizard
             const safeMeta = (() => {
@@ -390,34 +333,21 @@ export class CardEventHandlers {
 
             this.card.hasUnsavedChanges = false;
 
-            Logger.log('APPLY', `[CronoStar] Calling service 'cronostar.apply_now' for entity '${targetEntity}' with prefix '${effectivePrefix}'`);
-            try {
-                const first = scheduleData?.[0];
-                const last = scheduleData?.[scheduleData.length - 1];
-                Logger.log(
-                    'APPLY',
-                    `[CronoStar] apply_now payload: profile_name='${profileName}' preset_type='${this.card.selectedPreset}' global_prefix='${effectivePrefix}' schedule_len=${scheduleData?.length || 0} first=${first ? JSON.stringify(first) : 'null'} last=${last ? JSON.stringify(last) : 'null'} target_entity='${targetEntity}'`
-                );
-            } catch (e) {
-                Logger.warn('APPLY', '[CronoStar] Failed to log apply_now payload:', e);
-            }
-
-            await this.card.hass.callService("cronostar", "apply_now", {
+            const applyNowPayload = {
                 target_entity: targetEntity,
                 preset_type: this.card.selectedPreset,
                 allow_max_value: this.card.config.allow_max_value,
-                // IMPORTANT: backend save_profile requires global_prefix.
-                // Use the same effective prefix used elsewhere (and ensure trailing underscore via getEffectivePrefix).
                 global_prefix: effectivePrefix,
-                // Provide optional persistence params so backend can save after apply
                 profile_name: profileName,
                 schedule: scheduleData,
-                // Let backend persist enough config for later scheduler apply.
-                // (safe: profile_service only uses meta when provided)
                 meta: {
                     target_entity: targetEntity,
                 },
-            });
+            };
+
+            Logger.log('APPLY', '[CronoStar] apply_now payload:', applyNowPayload);
+
+            await this.card.hass.callService("cronostar", "apply_now", applyNowPayload);
 
             const currentHour = new Date().getHours().toString().padStart(2, '0');
             this.showNotification(

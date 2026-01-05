@@ -457,31 +457,69 @@ export class KeyboardHandler {
       : this.card.config.max_value;
 
     const dataset = chartMgr.chart.data.datasets[0];
+    const data = dataset.data;
+    
+    // For switches, implement strict 'transition partner' movement
+    let targetIndices = [...indices];
+    if (isSwitch) {
+      const activeSet = new Set(indices);
+      const partners = [];
+      
+      indices.forEach(idx => {
+        const curX = data[idx].x;
+        // Check immediate neighbors (T-1 and T+1) to see if they are transition partners
+        for (let i = 0; i < data.length; i++) {
+            if (activeSet.has(i)) continue;
+            const otherX = data[i].x;
+            if (Math.abs(curX - otherX) === 1) {
+                partners.push(i);
+            }
+        }
+      });
+      targetIndices = [...new Set([...indices, ...partners])];
+    }
 
-    indices.forEach(i => {
-      const current = dataset.data[i];
+    // Move identified points in chart data
+    targetIndices.forEach(i => {
+      const current = data[i];
       const currentVal = (typeof current === 'object' && current !== null) ? Number(current.y) : Number(current);
       let val = currentVal + delta;
       
       if (isSwitch) {
-        // Preserve ON by only changing on ArrowDown; ArrowUp sets to ON
         val = e.key === 'ArrowUp' ? 1 : 0;
       } else {
         val = clamp(val, this.card.config.min_value, upperClamp);
-        
-        // Snapping logic if needed, for now we just use the step
         const decimals = step < 1 ? 1 : 0;
         val = roundTo(val, decimals);
       }
 
-      if (typeof dataset.data[i] === 'object' && dataset.data[i] !== null) {
-        dataset.data[i].y = val;
+      if (typeof data[i] === 'object' && data[i] !== null) {
+        data[i].y = val;
       } else {
-        dataset.data[i] = val;
+        data[i] = val;
       }
-
-      stateMgr.updatePoint(i, val);
     });
+
+    // --- PRESERVE SELECTION BY TIME ---
+    // Save times of currently selected points
+    const selectedTimes = indices.map(i => data[i]?.x !== undefined ? minutesToTime(data[i].x) : null).filter(t => t !== null);
+
+    // Notify state manager with the full new dataset to trigger finalizeSwitchData
+    const schedule = data.map(p => ({
+      time: minutesToTime(p.x),
+      value: (typeof p === 'object') ? p.y : p
+    }));
+    stateMgr.setData(schedule);
+
+    // Restore selection based on time labels
+    const newSchedule = stateMgr.getData();
+    const newIndices = selectedTimes
+      .map(t => newSchedule.findIndex(p => p.time === t))
+      .filter(idx => idx !== -1);
+    
+    if (newIndices.length > 0) {
+      selMgr.selectIndices(newIndices, false);
+    }
 
     chartMgr.updatePointStyling(selMgr.selectedPoint, selMgr.selectedPoints);
     chartMgr.update('none');

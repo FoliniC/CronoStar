@@ -232,6 +232,10 @@ export class CardRenderer {
                   <ha-icon icon="mdi:select-all"></ha-icon>
                   ${localize('menu.select_all')}
                 </mwc-list-item>
+                <mwc-list-item @click=${() => this.card.eventHandlers.handleCopyJson()}>
+                  <ha-icon icon="mdi:code-json"></ha-icon>
+                  ${localize('menu.copy_json')}
+                </mwc-list-item>
                 <li divider role="separator"></li>
                 <mwc-list-item @click=${() => { this.card.contextMenu = { ...this.card.contextMenu, show: false }; this.card.requestUpdate(); }}>
                   <ha-icon icon="mdi:close"></ha-icon>

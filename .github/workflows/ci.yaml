@@ -19,14 +19,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - name: Install test dependencies
+          python-version: "3.13"
+          
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov pytest-homeassistant-custom-component
-      - name: Run tests
+          pip install homeassistant==2025.11.1
+          pip install pytest-homeassistant-custom-component==0.13.295
+          pip install pytest pytest-asyncio pytest-cov
+          
+      - name: Run tests with coverage
         run: |
-          pytest -v --cov=custom_components/cronostar --cov-report=xml
+          pytest -v --cov=custom_components/cronostar --cov-report=term-missing | tee pytest-coverage.txt
+          
+      - name: Extract Coverage
+        id: extract_coverage
+        run: |
+          COVERAGE=$(grep "TOTAL" pytest-coverage.txt | awk '{print $NF}' | tr -d '%')
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          
+      - name: Create Coverage Badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: ${{ secrets.GIST_ID }}
+          filename: cronostar_coverage.json
+          label: Coverage
+          message: ${{ steps.extract_coverage.outputs.coverage }}%
+          valColorRange: ${{ steps.extract_coverage.outputs.coverage }}
+          maxColorRange: 100
+          minColorRange: 0

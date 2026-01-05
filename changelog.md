@@ -1,5 +1,12 @@
 # Changelog
 
+## v5.4.0
+
+### 🛡️ Quality and Testing
+- **Code Coverage**: Reached **94%** coverage across the entire backend codebase.
+- **Robustness**: Improved error handling and edge case validation in service and storage managers.
+- **CI/CD Integration**: Automated test suite and dynamic coverage reporting via GitHub Actions.
+
 ## v5.3.0
 
 ### 🔄 Architectural Refactoring

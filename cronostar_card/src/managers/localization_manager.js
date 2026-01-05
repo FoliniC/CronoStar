@@ -41,6 +41,7 @@ const TRANSLATIONS = {
       enable_logging: "Enable logging",
       select_preset: "Select preset",
       delete_selected: "Delete selected",
+      copy_json: "Copy JSON fragment",
       close_menu: "Close"
     },
     preset: {
@@ -55,6 +56,7 @@ const TRANSLATIONS = {
       delete_profile_confirm: "Delete profile '{profile}'?"
     },
     notify: {
+      json_copied: "JSON fragment copied to clipboard",
       add_profile_success: "Profile '{profile}' created",
       add_profile_error: "Error creating profile '{profile}': {error}",
       delete_profile_success: "Profile '{profile}' deleted",
@@ -114,6 +116,7 @@ const TRANSLATIONS = {
       enable_logging: "Abilita log",
       select_preset: "Seleziona preset",
       delete_selected: "Elimina selezionati",
+      copy_json: "Copia frammento JSON",
       close_menu: "Chiudi"
     },
     preset: {
@@ -128,6 +131,7 @@ const TRANSLATIONS = {
       delete_profile_confirm: "Eliminare il profilo '{profile}'?"
     },
     notify: {
+      json_copied: "Frammento JSON copiato negli appunti",
       add_profile_success: "Profilo '{profile}' creato",
       add_profile_error: "Errore nella creazione del profilo '{profile}': {error}",
       delete_profile_success: "Profilo '{profile}' eliminato",

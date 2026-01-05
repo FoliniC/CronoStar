@@ -201,6 +201,13 @@ class CronoStarCoordinator(DataUpdateCoordinator):
                 container = await self.storage_manager.load_profile_cached(files[0])
 
                 if container and "profiles" in container:
+                    # Sync available profiles if they changed on disk
+                    new_profiles = list(container["profiles"].keys())
+                    if set(new_profiles) != set(self.available_profiles):
+                        self.available_profiles = new_profiles
+                        if self.logging_enabled:
+                            _LOGGER.info("Available profiles for '%s' synchronized from filesystem: %s", self.name, self.available_profiles)
+
                     profile_data = container["profiles"].get(self.selected_profile)
 
                     if profile_data:

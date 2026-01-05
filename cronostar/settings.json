@@ -1,0 +1,16 @@
+{
+  "keyboard": {
+    "ctrl": {
+      "horizontal": 1,
+      "vertical": 0.1
+    },
+    "shift": {
+      "horizontal": 30,
+      "vertical": 1.0
+    },
+    "alt": {
+      "horizontal": 60,
+      "vertical": 5.0
+    }
+  }
+}

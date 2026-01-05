@@ -395,7 +395,7 @@ export const cardStyles = css`
 
   canvas {
     display: block;
-    cursor: ns-resize;
+    cursor: crosshair;
     touch-action: none;
     position: absolute;
     top: 0;

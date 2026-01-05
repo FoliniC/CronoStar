@@ -27,11 +27,14 @@ export class StateManager {
    * @private
    */
   _initializeSchedule() {
-    const defaultValue = this.context.config?.min_value ?? 0;
-    this.scheduleData = [
+    const isSwitch = !!this.context.config?.is_switch_preset;
+    const defaultValue = isSwitch ? 0 : (this.context.config?.min_value ?? 0);
+    const initialData = [
       { time: '00:00', value: defaultValue },
       { time: '23:59', value: defaultValue }
     ];
+    
+    this.scheduleData = isSwitch ? this.finalizeSwitchData(initialData) : initialData;
     this._undoStack = [];
     this._redoStack = [];
 
@@ -60,70 +63,89 @@ export class StateManager {
 
   /**
    * Get schedule data with explicit change markers for switch presets.
-   * For every change of state (value differs between consecutive points),
-   * add an extra point one minute after the previous point with the new value.
-   * This makes JSON representation align with the visual step change.
+   * Now simplified as expansion happens during setData.
    * @returns {Array} Clarified schedule
    */
   getDataWithChangePoints() {
-    const isSwitch = !!this.context.config?.is_switch_preset;
-    const data = this.getData();
-    if (!isSwitch || data.length === 0) return data;
-    // Normalize and sort to ensure chronological order
-    const sorted = this._normalizeSchedule(data);
+    return this.getData();
+  }
 
-    // Build corner-expanded schedule consistent with UI expectations:
-    // For each change at time T (prev -> next), insert a corner at (T - 1 minute)
-    // with the previous value. This encodes the horizontal segment right up to the jump.
-    const byMinute = new Map();
-    sorted.forEach((p) => byMinute.set(timeToMinutes(p.time), Number(p.value)));
+  /**
+   * Finalize schedule data specifically for switch presets.
+   * Enforces the 1-minute transition pair rule (T:V, T+1:W) and deletes redundant points.
+   * @param {Array} data - Current points
+   * @returns {Array} Finalized points
+   */
+  finalizeSwitchData(data) {
+    if (!data || data.length === 0) return [];
+    
+    // 1. Normalize and Sort initial input milestones
+    let input = this._normalizeSchedule(data);
+    if (input.length === 0) return [];
 
-    let inserted = 0;
-    for (let i = 1; i < sorted.length; i++) {
-      const prev = sorted[i - 1];
-      const cur = sorted[i];
+    // 2. Pair Enforcement & Transition Expansion
+    const expandedMap = new Map();
+    
+    // Seed with input values (milestones)
+    input.forEach(p => expandedMap.set(timeToMinutes(p.time), Number(p.value)));
+
+    // Detect where transitions need a 1-minute step
+    for (let i = 1; i < input.length; i++) {
+      const prev = input[i - 1];
+      const cur = input[i];
+      const prevPrev = i > 1 ? input[i - 2] : null;
+      
       const prevMin = timeToMinutes(prev.time);
       const curMin = timeToMinutes(cur.time);
-      if (Number(prev.value) === Number(cur.value)) continue;
 
-      // Insert two RIGHT corners encoding the box:
-      // 1) prevMin + 1 with the NEXT value (cur.value)
-      // 2) curMin + 1 with the NEXT value (cur.value)
-      const prevRight = prevMin + 1;
-      if (prevRight < curMin && prevRight >= 0 && prevRight <= 1439) {
-        byMinute.set(prevRight, Number(cur.value));
-        inserted++;
-        Logger.log('SWITCH', `[State] Inserted RIGHT-of-prev at ${minutesToTime(prevRight)} value=${Number(cur.value)} (change at ${cur.time} ${Number(prev.value)}->${Number(cur.value)})`);
-      }
+      if (Number(cur.value) !== Number(prev.value)) {
+        // Transition detected between prev and cur.
+        
+        // --- SPIKE SUPPRESSION RULE ---
+        // If 'prev' was a transition point (T+1 from prevPrev) AND cur.value returns 
+        // to the state of prevPrev, then 'prev' is now a redundant blip.
+        if (prevPrev && prevMin === timeToMinutes(prevPrev.time) + 1 && Number(cur.value) === Number(prevPrev.value)) {
+          expandedMap.set(prevMin, Number(cur.value));
+          continue; // Absorbed
+        }
 
-      const nextPoint = sorted[i + 1];
-      const nextMin = nextPoint ? timeToMinutes(nextPoint.time) : 1440;
-      const curRight = curMin + 1;
-      if (curRight < nextMin && curRight >= 0 && curRight <= 1439) {
-        byMinute.set(curRight, Number(cur.value));
-        inserted++;
-        Logger.log('SWITCH', `[State] Inserted RIGHT-of-cur at ${minutesToTime(curRight)} value=${Number(cur.value)} (change at ${cur.time} ${Number(prev.value)}->${Number(cur.value)})`);
+        if (curMin > prevMin + 1) {
+          // Normal transition: hold OLD value at prev, jump to NEW value at prev + 1
+          // expandedMap.set(prevMin, Number(prev.value)); // Already in map
+          const stepMin = prevMin + 1;
+          if (stepMin < 1440 && !expandedMap.has(stepMin)) {
+            expandedMap.set(stepMin, Number(cur.value));
+          }
+        }
       }
     }
 
-    const expanded = Array.from(byMinute.entries())
+    // Convert Map back to chronologically sorted array
+    let processed = Array.from(expandedMap.entries())
       .sort((a, b) => a[0] - b[0])
-      .map(([minute, value]) => ({ time: minutesToTime(minute), value }));
+      .map(([m, v]) => ({ time: minutesToTime(m), value: v }));
 
-    // Compress consecutive points with the same value to avoid redundant duplicates
-    const compressed = [];
-    for (let i = 0; i < expanded.length; i++) {
-      const cur = expanded[i];
-      const last = compressed[compressed.length - 1];
-      if (!last || Number(last.value) !== Number(cur.value)) {
-        compressed.push(cur);
-      } else {
-        // Skip duplicate value point
+    // 3. Selective Redundancy Cleanup (Eliminated Pairs)
+    // Rule: If we have a sequence (T:V, T+1:V), it was likely a transition that got flattened.
+    // In this case, delete the second point (T+1) to keep milestones clean.
+    let final = [];
+    for (let i = 0; i < processed.length; i++) {
+      const cur = processed[i];
+      const prev = final.length > 0 ? final[final.length - 1] : null;
+      
+      if (prev && Number(cur.value) === Number(prev.value)) {
+        const prevMin = timeToMinutes(prev.time);
+        const curMin = timeToMinutes(cur.time);
+        
+        // Only delete if it's exactly 1 minute apart (the "T+1" point of an eliminated pair)
+        if (curMin === prevMin + 1 && curMin < 1439) {
+          continue; 
+        }
       }
+      final.push(cur);
     }
 
-    Logger.state(`getDataWithChangePoints: input=${sorted.length} output=${expanded.length} inserted=${inserted} compressed=${compressed.length}`);
-    return compressed;
+    return final;
   }
 
   /**
@@ -141,12 +163,8 @@ export class StateManager {
       this._pushHistory();
     }
 
-    // Normalize and validate
-    let normalized = this._normalizeSchedule(newData);
-
-    // Keep schedule as-is on UI updates; do not insert corners here.
-    // Corner expansion is provided via getDataWithChangePoints() for save/persist flows,
-    // avoiding off-by-one or right-shift issues during drag-release.
+    const isSwitch = !!this.context.config?.is_switch_preset;
+    let normalized = isSwitch ? this.finalizeSwitchData(newData) : this._normalizeSchedule(newData);
 
     this.scheduleData = normalized;
 
@@ -231,9 +249,9 @@ export class StateManager {
     const minutes = timeToMinutes(time);
     Logger.log('STATE', `InsertPoint requested at ${time} (${minutes}) = ${value}`);
 
-    // Check if point already exists nearby
+    // Check if point already exists at this exact minute
     const existingIndex = this.scheduleData.findIndex(p =>
-      Math.abs(timeToMinutes(p.time) - minutes) < 2
+      Math.abs(timeToMinutes(p.time) - minutes) < 1
     );
 
     if (existingIndex !== -1) {
@@ -300,10 +318,11 @@ export class StateManager {
   updatePoint(index, value) {
     if (index < 0 || index >= this.scheduleData.length) return;
 
-    this.scheduleData[index].value = value;
-    this.context.hasUnsavedChanges = true;
-    this.context.events.emit(Events.POINT_UPDATED, { index, value });
-    this.context.events.emit(Events.SCHEDULE_UPDATED, this.scheduleData);
+    const newData = [...this.scheduleData];
+    newData[index].value = value;
+    
+    // Using setData ensures finalizeSwitchData is called for switch presets
+    this.setData(newData);
   }
 
   /**

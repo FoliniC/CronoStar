@@ -120,7 +120,7 @@ class ProfileService:
             # 4. Update profile selectors (input_select entities)
             await self.async_update_profile_selectors()
 
-            log_operation("Save profile", True, profile=profile_name, preset=canonical_preset, points=len(schedule))
+            log_operation("Save profile", True, profile=profile_name, preset=canonical_preset, points=len(schedule) if schedule is not None else 0)
 
         except Exception as e:
             log_operation("Save profile", False, profile=profile_name, error=str(e))
@@ -539,6 +539,10 @@ class ProfileService:
             # Validate value is numeric
             try:
                 numeric_value = float(value)
+                import math
+                if math.isnan(numeric_value):
+                    _LOGGER.warning("Invalid value (NaN): %s", value)
+                    continue
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid value: %s", value)
                 continue
@@ -597,7 +601,14 @@ class ProfileService:
         """Check if time string is valid HH:MM format"""
         import re
 
-        return bool(re.match(r"^\d{2}:\d{2}$", time_str))
+        if not re.match(r"^\d{2}:\d{2}$", time_str):
+            return False
+            
+        try:
+            h, m = map(int, time_str.split(":"))
+            return 0 <= h < 24 and 0 <= m < 60
+        except ValueError:
+            return False
 
     @staticmethod
     def _time_to_minutes(time_str: str) -> int:
