@@ -3,9 +3,10 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![GitHub Release](https://img.shields.io/github/release/FoliniC/cronostar.svg)](https://github.com/FoliniC/cronostar/releases)
 [![License](https://img.shields.io/github/license/FoliniC/cronostar.svg)](LICENSE)
-[![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/FoliniC/821edf10816a25498418dc71aaa05d5e/raw/cronostar_coverage.json)](https://github.com/FoliniC/cronostar)
+[![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/FoliniC/821edf10816a25498418dc71aaa05d5e/raw/cronostar_coverage.json&maxAge=3600)](https://github.com/FoliniC/cronostar)
 
-Easily add time-based schedules to any entity. The integration uses standard Home Assistant entities and coordinators, stores its settings in editable JSON files, and provides an intuitive visual interface to manage all your time profiles. 
+Easily add time-based schedules to any entity.
+ The integration uses standard Home Assistant entities and coordinators, stores its settings in editable JSON files, and provides an intuitive visual interface to manage all your time profiles. 
 
 ![CronoStar](custom_components/cronostar/www/cronostar_card/cronostar-logo.png)
 
