@@ -6,36 +6,7 @@ from custom_components.cronostar.setup.events import setup_event_handlers
 from homeassistant.core import CoreState
 from homeassistant.const import EVENT_HOMEASSISTANT_START
 
-@pytest.fixture
-def mock_hass(tmp_path):
-    hass = MagicMock()
-    config_dir = tmp_path / "config"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
-    hass.config.components = ["http", "frontend", "input_number", "input_select", "input_boolean"]
-    hass.state = CoreState.running
-    hass.data = {"cronostar": {}}
-    hass.bus.async_listen_once = MagicMock()
-    
-    # Mock http component methods
-    hass.http.async_register_static_paths = AsyncMock()
-    hass.http.async_register_static_path = MagicMock()
-    
-    # Mock async_add_executor_job
-    async def mock_executor(target, *args, **kwargs):
-        if hasattr(target, "__call__"):
-            return target(*args, **kwargs)
-        return target
-    hass.async_add_executor_job = AsyncMock(side_effect=mock_executor)
-    
-    # Mock integration
-    integration = MagicMock()
-    integration.version = "1.0.0"
-    
-    with patch("homeassistant.loader.async_get_integration", return_value=integration):
-        yield hass
-
-async def test_async_setup_integration(mock_hass):
+async def test_async_setup_integration(hass):
     """Test full integration setup."""
     config = {
         "version": "1.0.0",
@@ -56,38 +27,38 @@ async def test_async_setup_integration(mock_hass):
             mock_storage.list_profiles = AsyncMock(return_value=[])
             mock_storage.get_cached_containers = AsyncMock(return_value=[])
             
-            success = await async_setup_integration(mock_hass, config)
+            success = await async_setup_integration(hass, config)
             
             assert success is True
-            assert "cronostar" in mock_hass.data
+            assert "cronostar" in hass.data
 
-async def test_setup_event_handlers_running(mock_hass):
+async def test_setup_event_handlers_running(hass):
     """Test events setup when HA is already running."""
     storage_manager = MagicMock()
     storage_manager.list_profiles = AsyncMock(return_value=["f1.json"])
     storage_manager.load_profile_cached = AsyncMock()
     
-    mock_hass.state = CoreState.running
-    await setup_event_handlers(mock_hass, storage_manager)
+    hass.state = CoreState.running
+    await setup_event_handlers(hass, storage_manager)
     
-    assert mock_hass.async_create_task.called
+    assert hass.async_create_task.called
     
     # Extract the coro
-    handler = mock_hass.async_create_task.call_args[0][0]
+    handler = hass.async_create_task.call_args[0][0]
     await handler
     
     assert storage_manager.list_profiles.called
 
-async def test_setup_event_handlers_starting(mock_hass):
+async def test_setup_event_handlers_starting(hass):
     """Test events setup when HA is starting."""
     storage_manager = MagicMock()
     storage_manager.list_profiles = AsyncMock(return_value=[])
     
-    mock_hass.state = CoreState.starting
-    await setup_event_handlers(mock_hass, storage_manager)
+    hass.state = CoreState.starting
+    await setup_event_handlers(hass, storage_manager)
     
-    assert mock_hass.bus.async_listen_once.called
-    args = mock_hass.bus.async_listen_once.call_args[0]
+    assert hass.bus.async_listen_once.called
+    args = hass.bus.async_listen_once.call_args[0]
     assert args[0] == EVENT_HOMEASSISTANT_START
     
     # Call the handler manually

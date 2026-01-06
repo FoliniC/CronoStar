@@ -197,7 +197,7 @@ class StorageManager:
                 # Clear cache
                 async with self._cache_lock:
                     self._cache.pop(filename, None)
-                    self._cache_timestamps.pop(filename, None)
+                    self._cache_mtimes.pop(filename, None)
             else:
                 # Update file
                 await self._write_json(filepath, container)
@@ -205,7 +205,10 @@ class StorageManager:
                 # Update cache
                 async with self._cache_lock:
                     self._cache[filename] = container
-                    self._cache_timestamps[filename] = datetime.now()
+                    try:
+                        self._cache_mtimes[filename] = os.path.getmtime(filepath)
+                    except OSError:
+                        self._cache_mtimes[filename] = 0
 
             _LOGGER.info("Profile deleted: %s from %s", profile_name, filename)
             return True
@@ -318,7 +321,7 @@ class StorageManager:
         """Clear profile cache"""
         async with self._cache_lock:
             self._cache.clear()
-            self._cache_timestamps.clear()
+            self._cache_mtimes.clear()
             _LOGGER.info("Profile cache cleared")
 
     async def get_cached_containers(

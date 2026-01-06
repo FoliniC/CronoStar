@@ -5,35 +5,21 @@ from custom_components.cronostar.coordinator import CronoStarCoordinator
 from custom_components.cronostar.const import DOMAIN, CONF_TARGET_ENTITY, PLATFORMS
 from custom_components.cronostar.setup.services import setup_services
 
-@pytest.fixture
-def mock_hass(tmp_path):
-    hass = MagicMock()
-    hass.data = {DOMAIN: {"settings_manager": MagicMock(), "profile_service": MagicMock()}}
-    config_dir = tmp_path / "config"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
-    async def mock_executor(target, *args, **kwargs):
-        if hasattr(target, "__call__"):
-            return target(*args, **kwargs)
-        return target
-    hass.async_add_executor_job = AsyncMock(side_effect=mock_executor)
-    return hass
-
-async def test_coordinator_logging_more(mock_hass):
+async def test_coordinator_logging_more(hass):
     """Trigger more logging lines in coordinator."""
     entry = MagicMock()
     entry.data = {CONF_TARGET_ENTITY: "climate.test"}
     entry.options = {}
-    coordinator = CronoStarCoordinator(mock_hass, entry)
+    coordinator = CronoStarCoordinator(hass, entry)
     coordinator.logging_enabled = True
     
     # Hit line 133
     await coordinator._async_update_data()
     
     # Hit line 148, 153 (via async_initialize)
-    mock_hass.data[DOMAIN]["storage_manager"] = MagicMock()
-    mock_hass.data[DOMAIN]["storage_manager"].list_profiles = AsyncMock(return_value=["f1.json"])
-    mock_hass.data[DOMAIN]["storage_manager"].load_profile_cached = AsyncMock(return_value={
+    hass.data[DOMAIN]["storage_manager"] = MagicMock()
+    hass.data[DOMAIN]["storage_manager"].list_profiles = AsyncMock(return_value=["f1.json"])
+    hass.data[DOMAIN]["storage_manager"].load_profile_cached = AsyncMock(return_value={
         "profiles": {"Default": {"schedule": []}}
     })
     await coordinator.async_initialize()
@@ -48,11 +34,11 @@ async def test_coordinator_logging_more(mock_hass):
     # Hit line 185 (set_enabled log)
     await coordinator.set_enabled(True)
 
-async def test_coordinator_interpolate_more(mock_hass):
+async def test_coordinator_interpolate_more(hass):
     """Trigger line 343 in coordinator."""
     entry = MagicMock()
     entry.data = {CONF_TARGET_ENTITY: "climate.test"}
-    coordinator = CronoStarCoordinator(mock_hass, entry)
+    coordinator = CronoStarCoordinator(hass, entry)
     
     schedule = [
         {"time": "08:00", "value": 20.0},
@@ -68,14 +54,14 @@ async def test_coordinator_interpolate_more(mock_hass):
         # which only happens if schedule has multiple points at same time.
         assert coordinator._interpolate_schedule(schedule) == 20.0
 
-async def test_setup_services_more_logging(mock_hass):
+async def test_setup_services_more_logging(hass):
     """Trigger logging in more setup/services.py handlers."""
-    await setup_services(mock_hass, MagicMock())
+    await setup_services(hass, MagicMock())
     
     # Get register_card handler
-    handler = next(c[0][2] for call in [mock_hass.services.async_register.call_args_list] for c in call if c[0][1] == "save_profile")
+    handler = next(c[0][2] for call in [hass.services.async_register.call_args_list] for c in call if c[0][1] == "save_profile")
     
-    ps = mock_hass.data[DOMAIN]["profile_service"]
+    ps = hass.data[DOMAIN]["profile_service"]
     ps.save_profile = AsyncMock()
     
     call = MagicMock()

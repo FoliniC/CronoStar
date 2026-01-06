@@ -5,39 +5,23 @@ from custom_components.cronostar.setup import async_setup_integration
 from custom_components.cronostar.setup.validators import validate_environment, _check_required_components
 from pathlib import Path
 
-@pytest.fixture
-def mock_hass(tmp_path):
-    hass = MagicMock()
-    config_dir = tmp_path / "config"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
-    hass.config.components = ["http", "frontend", "input_number", "input_select", "input_boolean"]
-    hass.data = {"cronostar": {}}
-    
-    async def mock_executor(target, *args, **kwargs):
-        if hasattr(target, "__call__"):
-            return target(*args, **kwargs)
-        return target
-    hass.async_add_executor_job = AsyncMock(side_effect=mock_executor)
-    return hass
-
-async def test_validate_environment_all_checks(mock_hass):
+async def test_validate_environment_all_checks(hass):
     """Test full environment validation success."""
     with patch("pathlib.Path.exists", return_value=True), \
          patch("pathlib.Path.is_dir", return_value=True), \
          patch("pathlib.Path.touch"), \
          patch("pathlib.Path.unlink"):
         
-        success = await validate_environment(mock_hass)
+        success = await validate_environment(hass)
         assert success is True
 
-async def test_check_required_components_missing(mock_hass):
+async def test_check_required_components_missing(hass):
     """Test check_required_components with missing dependencies."""
-    mock_hass.config.components = [] # None loaded
+    hass.config.components = [] # None loaded
     # Should log warning but return True (as per code logic which is non-fatal)
-    assert _check_required_components(mock_hass) is True
+    assert _check_required_components(hass) is True
 
-async def test_setup_integration_preload_failure(mock_hass):
+async def test_setup_integration_preload_failure(hass):
     """Test setup continues even if preload fails."""
     config = {"version": "1.0.0"}
     with patch("custom_components.cronostar.setup.validate_environment", return_value=True), \
@@ -52,12 +36,12 @@ async def test_setup_integration_preload_failure(mock_hass):
         mock_sm.load_profile_cached.side_effect = Exception("Preload error")
         mock_sm.get_cached_containers = AsyncMock(return_value=[])
         
-        success = await async_setup_integration(mock_hass, config)
+        success = await async_setup_integration(hass, config)
         assert success is True
 
-async def test_setup_static_resources_http_missing(mock_hass):
+async def test_setup_static_resources_http_missing(hass):
     """Test resource setup when http is not loaded."""
-    mock_hass.config.components = ["frontend"] # No http
+    hass.config.components = ["frontend"] # No http
     from custom_components.cronostar.setup import _setup_static_resources
     
     integration = MagicMock()
@@ -66,6 +50,6 @@ async def test_setup_static_resources_http_missing(mock_hass):
     with patch("pathlib.Path.exists", return_value=True), \
          patch("homeassistant.loader.async_get_integration", return_value=integration):
         
-        success = await _setup_static_resources(mock_hass)
+        success = await _setup_static_resources(hass)
         assert success is True
         # Should skip http registration

@@ -9,7 +9,13 @@ def mock_hass(tmp_path):
     hass = MagicMock()
     config_dir = tmp_path / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
-    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
+    
+    def mock_path(x=None):
+        if x is None:
+            return str(config_dir)
+        return str(config_dir / x)
+        
+    hass.config.path = MagicMock(side_effect=mock_path)
     async def mock_executor(target, *args, **kwargs):
         if hasattr(target, "__call__"):
             return target(*args, **kwargs)

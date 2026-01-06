@@ -61,11 +61,45 @@ async def test_save_profile_update_entry_fields(hass, profile_service, mock_stor
     assert hass.config_entries.async_update_entry.called
 
 async def test_validate_schedule_clamping(profile_service):
+
     """Hit more clamping branches in _validate_schedule."""
+
     schedule = [{"time": "08:00", "value": 5.0}]
+
     res = profile_service._validate_schedule(schedule, min_val=10.0)
+
     assert res[0]["value"] == 10.0
+
     
+
     schedule = [{"time": "08:00", "value": 50.0}]
+
     res = profile_service._validate_schedule(schedule, max_val=30.0, min_val=5.0)
+
     assert res[0]["value"] == 5.0
+
+
+
+def test_validate_schedule_deduplication(profile_service):
+
+    """Test sound logic: deduplicate points with same timestamp."""
+
+    schedule = [
+
+        {"time": "08:00", "value": 20.0},
+
+        {"time": "08:00", "value": 22.0}, # Duplicate, last wins
+
+        {"time": "10:00", "value": 18.0}
+
+    ]
+
+    res = profile_service._validate_schedule(schedule)
+
+    assert len(res) == 2
+
+    assert res[0]["time"] == "08:00"
+
+    assert res[0]["value"] == 22.0
+
+    assert res[1]["time"] == "10:00"

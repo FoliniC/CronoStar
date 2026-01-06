@@ -176,6 +176,7 @@ ha.components.frontend.add_extra_js_url = MagicMock()
 
 ha.components.http = mock_module("homeassistant.components.http")
 ha.components.http.StaticPathConfig = MagicMock
+ha.components.http.start_http_server_and_save_config = MagicMock
 
 ha.loader = mock_module("homeassistant.loader")
 ha.loader.async_get_integration = AsyncMock()

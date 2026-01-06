@@ -286,15 +286,40 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
 
 async def async_unload_services(hass: HomeAssistant) -> None:
+
+
     """
+
+
     Unregister all CronoStar global services.
+
+
     """
+
+
     _LOGGER.info("🗑️ Unregistering CronoStar services...")
-    hass.services.async_remove(DOMAIN, "save_profile")
-    hass.services.async_remove(DOMAIN, "load_profile")
-    hass.services.async_remove(DOMAIN, "add_profile")
-    hass.services.async_remove(DOMAIN, "delete_profile")
-    hass.services.async_remove(DOMAIN, "register_card")
-    hass.services.async_remove(DOMAIN, "list_all_profiles")
-    hass.services.async_remove(DOMAIN, "apply_now")
+
+
+    await hass.services.async_remove(DOMAIN, "save_profile")
+
+
+    await hass.services.async_remove(DOMAIN, "load_profile")
+
+
+    await hass.services.async_remove(DOMAIN, "add_profile")
+
+
+    await hass.services.async_remove(DOMAIN, "delete_profile")
+
+
+    await hass.services.async_remove(DOMAIN, "register_card")
+
+
+    await hass.services.async_remove(DOMAIN, "list_all_profiles")
+
+
+    await hass.services.async_remove(DOMAIN, "apply_now")
+
+
     _LOGGER.info("✅ CronoStar services unregistered.")
+

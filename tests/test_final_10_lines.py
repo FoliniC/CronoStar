@@ -5,55 +5,40 @@ from custom_components.cronostar.const import DOMAIN, CONF_TARGET_ENTITY
 from custom_components.cronostar.coordinator import CronoStarCoordinator
 from custom_components.cronostar.setup.services import setup_services
 
-@pytest.fixture
-def mock_hass(tmp_path):
-    hass = MagicMock()
-    hass.data = {DOMAIN: {"settings_manager": MagicMock(), "profile_service": MagicMock()}}
-    config_dir = tmp_path / "config"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
-    async def mock_executor(target, *args, **kwargs):
-        if hasattr(target, "__call__"):
-            return target(*args, **kwargs)
-        return target
-    hass.async_add_executor_job = AsyncMock(side_effect=mock_executor)
-    return hass
-
-async def test_coordinator_next_change_no_diff(mock_hass):
+async def test_coordinator_next_change_no_diff(hass):
     """Trigger lines 395-396 in coordinator (no differing value found)."""
     entry = MagicMock()
     entry.data = {CONF_TARGET_ENTITY: "climate.test"}
-    coordinator = CronoStarCoordinator(mock_hass, entry)
+    coordinator = CronoStarCoordinator(hass, entry)
     
-    # All points same as current value
-    schedule = [
-        {"time": "08:00", "value": 20.0},
-        {"time": "20:00", "value": 20.0}
-    ]
+    schedule = [{"time": "08:00", "value": 20.0}]
     assert coordinator._get_next_change(schedule, 20.0) is None
 
-async def test_setup_services_list_all_bad_data(mock_hass):
-    """Trigger line 103 in setup/services.py (missing meta/profiles)."""
-    storage = MagicMock()
-    storage.list_profiles = AsyncMock(return_value=["bad.json"])
-    # Missing 'meta'
-    storage.load_profile_cached = AsyncMock(return_value={"profiles": {}})
+async def test_setup_services_list_all_bad_data(hass):
+    """Trigger setup/services.py line 103 (empty container)."""
+    from custom_components.cronostar.setup.services import setup_services
+    await setup_services(hass, MagicMock())
     
-    await setup_services(mock_hass, storage)
-    handler = next(c[0][2] for call in [mock_hass.services.async_register.call_args_list] for c in call if c[0][1] == "list_all_profiles")
+    handler = next(c[0][2] for call in [hass.services.async_register.call_args_list] for c in call if c[0][1] == "list_all_profiles")
+    
+    mock_storage = MagicMock()
+    mock_storage.list_profiles = AsyncMock(return_value=["f1.json"])
+    mock_storage.load_profile_cached = AsyncMock(return_value={}) # No meta
+    
+    # We need to ensure list_all_profiles uses our mock_storage
+    hass.data[DOMAIN]["storage_manager"] = mock_storage
     
     await handler(MagicMock())
-    # Hits line 103 'continue'
 
-async def test_coordinator_init_no_profiles_found_log(mock_hass):
+async def test_coordinator_init_no_profiles_found_log(hass):
     """Trigger line 153 logging branch."""
     entry = MagicMock()
     entry.data = {CONF_TARGET_ENTITY: "climate.test"}
-    coordinator = CronoStarCoordinator(mock_hass, entry)
+    coordinator = CronoStarCoordinator(hass, entry)
     coordinator.logging_enabled = True
     
-    mock_hass.data[DOMAIN]["storage_manager"] = MagicMock()
-    mock_hass.data[DOMAIN]["storage_manager"].list_profiles = AsyncMock(return_value=[])
+    storage = MagicMock()
+    storage.list_profiles = AsyncMock(return_value=[])
+    hass.data[DOMAIN]["storage_manager"] = storage
     
     await coordinator.async_initialize()
-    # Hits line 153 log

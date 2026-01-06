@@ -5,25 +5,11 @@ from custom_components.cronostar.const import DOMAIN
 from custom_components.cronostar.coordinator import CronoStarCoordinator
 from pathlib import Path
 
-@pytest.fixture
-def mock_hass(tmp_path):
-    hass = MagicMock()
-    hass.data = {DOMAIN: {"settings_manager": MagicMock(), "profile_service": MagicMock()}}
-    config_dir = tmp_path / "config"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    hass.config.path = MagicMock(side_effect=lambda x=None: str(config_dir / x) if x else str(config_dir))
-    async def mock_executor(target, *args, **kwargs):
-        if hasattr(target, "__call__"):
-            return target(*args, **kwargs)
-        return target
-    hass.async_add_executor_job = AsyncMock(side_effect=mock_executor)
-    return hass
-
-async def test_coordinator_stepped_interpolation(mock_hass):
+async def test_coordinator_stepped_interpolation(hass):
     """Test stepped interpolation for generic_switch."""
     entry = MagicMock()
     entry.data = {"preset": "generic_switch", "target_entity": "switch.test"}
-    coordinator = CronoStarCoordinator(mock_hass, entry)
+    coordinator = CronoStarCoordinator(hass, entry)
     
     schedule = [
         {"time": "08:00", "value": 1.0},
@@ -37,37 +23,37 @@ async def test_coordinator_stepped_interpolation(mock_hass):
         # Should be 1.0 (no linear interpolation)
         assert val == 1.0
 
-async def test_profile_service_ensure_controller_already_exists(mock_hass):
+async def test_profile_service_ensure_controller_already_exists(hass):
     """Test _ensure_controller_exists returns early if prefix exists."""
     from custom_components.cronostar.services.profile_service import ProfileService
-    ps = ProfileService(mock_hass, MagicMock(), MagicMock())
+    ps = ProfileService(hass, MagicMock(), MagicMock())
     
-    mock_hass.config_entries.async_entries.return_value = [
+    hass.config_entries.async_entries.return_value = [
         MagicMock(data={"global_prefix": "p1"})
     ]
     
     await ps._ensure_controller_exists("p1", "thermostat", {})
-    assert not mock_hass.config_entries.flow.async_init.called
+    assert not hass.config_entries.flow.async_init.called
 
-async def test_service_handlers_errors(mock_hass):
+async def test_service_handlers_errors(hass):
     """Test error branches in service handlers."""
     from custom_components.cronostar.setup.services import setup_services
-    await setup_services(mock_hass, MagicMock())
+    await setup_services(hass, MagicMock())
     
     # Test delete_profile error path (missing name)
-    handler = next(c[0][2] for call in [mock_hass.services.async_register.call_args_list] for c in call if c[0][1] == "delete_profile")
+    handler = next(c[0][2] for call in [hass.services.async_register.call_args_list] for c in call if c[0][1] == "delete_profile")
     
-    ps = mock_hass.data[DOMAIN]["profile_service"]
+    ps = hass.data[DOMAIN]["profile_service"]
     ps.delete_profile = AsyncMock(side_effect=Exception("Fail"))
     
     # Should log error but not crash (handled by decorator? no, decorator only raised HomeAssistantError)
     # Wait, setup/services.py handlers don't all use decorator.
     pass
 
-async def test_storage_list_profiles_more_branches(mock_hass):
+async def test_storage_list_profiles_more_branches(hass):
     """Test list_profiles with more branches."""
     from custom_components.cronostar.storage.storage_manager import StorageManager
-    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
+    manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
     
     p1 = MagicMock(spec=Path)
     p1.name = "cronostar_p1.json"
@@ -85,11 +71,11 @@ async def test_storage_list_profiles_more_branches(mock_hass):
         res = await manager.list_profiles(prefix="other_")
         assert len(res) == 0
 
-async def test_storage_write_json_fail(mock_hass):
+async def test_storage_write_json_fail(hass):
     """Test write_json failure."""
     from custom_components.cronostar.storage.storage_manager import StorageManager
-    manager = StorageManager(mock_hass, mock_hass.config.path("cronostar/profiles"))
-    mock_hass.async_add_executor_job.side_effect = Exception("Write failed")
+    manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
+    hass.async_add_executor_job.side_effect = Exception("Write failed")
     
     with pytest.raises(Exception):
         await manager._write_json(Path("test.json"), {})

@@ -518,7 +518,7 @@ class ProfileService:
             _LOGGER.warning("Schedule is not a list, using empty schedule")
             return []
 
-        validated = []
+        validated_map = {}
 
         for item in schedule:
             if not isinstance(item, dict):
@@ -561,9 +561,11 @@ class ProfileService:
                 )
                 numeric_value = float(min_val) if min_val is not None else 0.0
 
-            validated.append({"time": time_str, "value": numeric_value})
+            # Store in map to deduplicate (last one wins)
+            validated_map[time_str] = numeric_value
 
-        # Sort by time
+        # Convert back to list and sort by time
+        validated = [{"time": t, "value": v} for t, v in validated_map.items()]
         validated.sort(key=lambda x: self._time_to_minutes(x["time"]))
 
         return validated

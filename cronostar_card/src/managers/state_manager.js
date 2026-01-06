@@ -145,7 +145,13 @@ export class StateManager {
       final.push(cur);
     }
 
-    return final;
+    // Final deduplication by time string as a safety measure
+    const dedupMap = new Map();
+    final.forEach(p => dedupMap.set(p.time, p.value));
+    
+    return Array.from(dedupMap.entries())
+      .sort((a, b) => timeToMinutes(a[0]) - timeToMinutes(b[0]))
+      .map(([time, value]) => ({ time, value }));
   }
 
   /**
