@@ -10,6 +10,7 @@ from custom_components.cronostar.setup.validators import (
 )
 from pathlib import Path
 
+@pytest.mark.anyio
 async def test_save_load_settings_services(hass):
     """Test settings services in setup/services.py."""
     await setup_services(hass, MagicMock())
@@ -36,6 +37,7 @@ async def test_save_load_settings_services(hass):
     res = await load_handler(MagicMock())
     assert res == {"test": 1}
 
+@pytest.mark.anyio
 async def test_register_card_service(hass):
     """Test register_card service handler."""
     await setup_services(hass, MagicMock())
@@ -51,6 +53,7 @@ async def test_register_card_service(hass):
     await handler(MagicMock())
     assert ps.register_card.called
 
+@pytest.mark.anyio
 async def test_validator_failures(hass):
     """Test validator failure paths."""
     # Config dir not found
@@ -68,12 +71,14 @@ async def test_validator_failures(hass):
          patch("pathlib.Path.touch", side_effect=Exception("Perm error")):
         assert _check_profiles_directory(hass) is False
 
+@pytest.mark.anyio
 async def test_validate_environment_failure_path(hass):
     """Test validate_environment when one check fails."""
     # Force first check to fail
     with patch("custom_components.cronostar.setup.validators._check_config_directory", return_value=False):
         assert await validate_environment(hass) is False
 
+@pytest.mark.anyio
 async def test_storage_clear_cache(hass):
     """Test clear_cache in StorageManager."""
     from custom_components.cronostar.storage.storage_manager import StorageManager
@@ -82,6 +87,7 @@ async def test_storage_clear_cache(hass):
     await manager.clear_cache()
     assert len(manager._cache) == 0
 
+@pytest.mark.anyio
 async def test_storage_list_profiles_filtering(hass):
     """Test list_profiles with filters hitting meta branches."""
     from custom_components.cronostar.storage.storage_manager import StorageManager
@@ -96,6 +102,7 @@ async def test_storage_list_profiles_filtering(hass):
         res = await manager.list_profiles(preset_type="thermostat")
         assert len(res) == 0
 
+@pytest.mark.anyio
 async def test_storage_delete_empty_container(hass):
     """Test delete_profile when container becomes empty."""
     from custom_components.cronostar.storage.storage_manager import StorageManager

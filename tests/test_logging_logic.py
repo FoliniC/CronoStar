@@ -7,6 +7,7 @@ from custom_components.cronostar.storage.storage_manager import StorageManager
 from custom_components.cronostar.const import DOMAIN, CONF_TARGET_ENTITY, CONF_LOGGING_ENABLED
 from pathlib import Path
 
+@pytest.mark.anyio
 async def test_coordinator_logging_branches(hass):
     """Trigger various logging branches in coordinator."""
     entry = MagicMock()
@@ -24,6 +25,7 @@ async def test_coordinator_logging_branches(hass):
     hass.states.get.return_value = None
     await coordinator._async_update_data()
 
+@pytest.mark.anyio
 async def test_coordinator_interpolate_debug(hass):
     """Trigger debug logging in interpolation."""
     entry = MagicMock()
@@ -34,11 +36,13 @@ async def test_coordinator_interpolate_debug(hass):
     schedule = [{"time": "invalid", "value": 20}]
     coordinator._interpolate_schedule(schedule)
 
+@pytest.mark.anyio
 async def test_storage_backups_enabled_logs(hass):
     """Trigger logging when backups enabled."""
     with patch("pathlib.Path.mkdir"):
         manager = StorageManager(hass, hass.config.path("cronostar/profiles"), enable_backups=True)
 
+@pytest.mark.anyio
 async def test_storage_load_cache_lock(hass):
     """Hit the cache age logic in load_profile_cached."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -53,6 +57,7 @@ async def test_storage_load_cache_lock(hass):
     with patch("pathlib.Path.exists", return_value=False):
         await manager.load_profile_cached("f1.json", force_reload=True)
 
+@pytest.mark.anyio
 async def test_storage_list_profiles_load_fail(hass):
     """Hit line 249-251 in list_profiles."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -62,6 +67,7 @@ async def test_storage_list_profiles_load_fail(hass):
         manager.load_profile_cached = AsyncMock(return_value=None)
         await manager.list_profiles(preset_type="thermostat")
 
+@pytest.mark.anyio
 async def test_storage_json_errors(hass):
     """Hit various JSON and IO error paths."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))

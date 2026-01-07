@@ -1,8 +1,11 @@
 import logging
+from datetime import datetime
 
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
+from homeassistant.exceptions import HomeAssistantError
 
 from ..const import DOMAIN
+from ..exceptions import ProfileNotFoundError, ScheduleApplicationError
 from ..services.profile_service import ProfileService
 from ..storage.storage_manager import StorageManager
 from ..storage.settings_manager import SettingsManager
@@ -155,7 +158,15 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
             if "error" in profile_data:
                 _LOGGER.error("apply_now: Profile not found: %s", profile_data["error"])
-                return
+                raise ProfileNotFoundError(
+                    translation_domain=DOMAIN,
+                    translation_key="profile_not_found",
+                    translation_placeholders={
+                        "profile": profile_name,
+                        "preset": preset_type,
+                        "prefix": global_prefix,
+                    },
+                )
 
             schedule = profile_data.get("schedule", [])
 
@@ -164,7 +175,6 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
                 return
 
             # Interpolate current value
-            from datetime import datetime
 
             now = datetime.now()
             current_minutes = now.hour * 60 + now.minute
@@ -269,9 +279,19 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
                 next_in_minutes=next_in_minutes if next_in_minutes is not None else -1,
             )
 
+        except HomeAssistantError:
+            raise
         except Exception as e:
             _LOGGER.error("apply_now failed: %s", e, exc_info=True)
             log_operation("Manual apply value", False, entity=target_entity, error=str(e), profile=profile_name)
+            raise ScheduleApplicationError(
+                translation_domain=DOMAIN,
+                translation_key="schedule_application_error",
+                translation_placeholders={
+                    "entity": target_entity,
+                    "error": str(e),
+                },
+            ) from e
 
     hass.services.async_register(DOMAIN, "apply_now", apply_now_handler)
 

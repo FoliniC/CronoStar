@@ -1,7 +1,9 @@
+import pytest
 """Test CronoStar Switch."""
 from unittest.mock import AsyncMock
 from custom_components.cronostar.switch import CronoStarEnabledSwitch
 
+@pytest.mark.anyio
 async def test_switch_entity(hass, mock_coordinator):
     """Test switch entity properties."""
     mock_coordinator.data = {

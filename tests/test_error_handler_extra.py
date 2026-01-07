@@ -11,7 +11,7 @@ from custom_components.cronostar.utils.error_handler import (
     log_operation
 )
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_handle_service_errors_success():
     """Test handle_service_errors decorator with success."""
     @handle_service_errors
@@ -20,7 +20,7 @@ async def test_handle_service_errors_success():
     
     assert await mock_func(10) == 10
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_handle_service_errors_cronostar_error():
     """Test handle_service_errors decorator with CronoStarError."""
     @handle_service_errors
@@ -30,7 +30,7 @@ async def test_handle_service_errors_cronostar_error():
     with pytest.raises(CronoStarError):
         await mock_func()
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_handle_service_errors_unexpected_error():
     """Test handle_service_errors decorator with unexpected error."""
     @handle_service_errors

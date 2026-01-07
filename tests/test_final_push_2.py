@@ -5,6 +5,7 @@ from custom_components.cronostar.const import DOMAIN, CONF_TARGET_ENTITY
 from custom_components.cronostar.coordinator import CronoStarCoordinator
 from custom_components.cronostar.setup.services import setup_services
 
+@pytest.mark.anyio
 async def test_coordinator_unsupported_domain_trigger(hass):
     """Trigger lines 210-216 in coordinator."""
     entry = MagicMock()
@@ -18,6 +19,7 @@ async def test_coordinator_unsupported_domain_trigger(hass):
     # We need to call _update_target_entity directly
     await coordinator._update_target_entity(20.0)
 
+@pytest.mark.anyio
 async def test_coordinator_next_change_edge(hass):
     """Trigger lines 390, 395-396 in coordinator."""
     entry = MagicMock()
@@ -40,6 +42,7 @@ async def test_coordinator_next_change_edge(hass):
         res = coordinator._get_next_change(schedule, 18.0)
         assert res[0] == "08:00"
 
+@pytest.mark.anyio
 async def test_setup_services_more_handlers(hass):
     """Trigger more lines in setup/services.py."""
     await setup_services(hass, MagicMock())

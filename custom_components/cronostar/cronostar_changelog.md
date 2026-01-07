@@ -2,6 +2,25 @@
 
 All notable changes to CronoStar will be documented in this file.
 
+## [5.4.0] - 2026-01-05
+
+### 🛡️ Quality and Testing
+
+This release focuses on internal stability, reliability, and automated validation.
+
+### Added
+- **Automated Testing**: Comprehensive test suite covering all core backend modules.
+- **Dynamic Coverage Badge**: Automated coverage reporting integrated with GitHub Actions.
+
+### Changed
+- **Increased Code Coverage**: Reached **94%** total code coverage (up from 0%).
+- **Error Handling**: Standardized error responses and improved validation in `setup`, `storage`, and `services` modules.
+- **CI Workflow**: Updated GitHub Actions to use Python 3.13 and pinned dependencies for consistent builds.
+
+### Fixed
+- Fixed various edge cases in profile preloading and settings management.
+- Improved model name detection in entity initialization.
+
 ## [5.3.0] - 2026-01-01
 
 ### Complete Architecture Refactoring - Component-Only Model

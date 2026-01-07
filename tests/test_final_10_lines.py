@@ -5,6 +5,7 @@ from custom_components.cronostar.const import DOMAIN, CONF_TARGET_ENTITY
 from custom_components.cronostar.coordinator import CronoStarCoordinator
 from custom_components.cronostar.setup.services import setup_services
 
+@pytest.mark.anyio
 async def test_coordinator_next_change_no_diff(hass):
     """Trigger lines 395-396 in coordinator (no differing value found)."""
     entry = MagicMock()
@@ -14,6 +15,7 @@ async def test_coordinator_next_change_no_diff(hass):
     schedule = [{"time": "08:00", "value": 20.0}]
     assert coordinator._get_next_change(schedule, 20.0) is None
 
+@pytest.mark.anyio
 async def test_setup_services_list_all_bad_data(hass):
     """Trigger setup/services.py line 103 (empty container)."""
     from custom_components.cronostar.setup.services import setup_services
@@ -30,6 +32,7 @@ async def test_setup_services_list_all_bad_data(hass):
     
     await handler(MagicMock())
 
+@pytest.mark.anyio
 async def test_coordinator_init_no_profiles_found_log(hass):
     """Trigger line 153 logging branch."""
     entry = MagicMock()

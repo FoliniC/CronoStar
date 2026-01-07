@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from custom_components.cronostar.storage.storage_manager import StorageManager
 
+@pytest.mark.anyio
 async def test_storage_list_profiles(hass):
     """Test listing profiles."""
     with patch("pathlib.Path.glob") as mock_glob:
@@ -19,6 +20,7 @@ async def test_storage_list_profiles(hass):
         files = await manager.list_profiles()
         assert "cronostar_test.json" in files
 
+@pytest.mark.anyio
 async def test_storage_load_profile(hass):
     """Test loading profile."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -30,6 +32,7 @@ async def test_storage_load_profile(hass):
         data = await manager.load_profile_cached("test.json")
         assert data["meta"]["test"] == 1
 
+@pytest.mark.anyio
 async def test_storage_save_profile(hass):
     """Test saving profile."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -46,6 +49,7 @@ async def test_storage_save_profile(hass):
         assert success is True
         assert mock_write.called
 
+@pytest.mark.anyio
 async def test_storage_delete_profile(hass):
     """Test deleting profile."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -58,6 +62,7 @@ async def test_storage_delete_profile(hass):
         assert success is True
         assert mock_write.called
 
+@pytest.mark.anyio
 async def test_storage_backups(hass):
     """Test backup creation."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"), enable_backups=True)
@@ -77,6 +82,7 @@ async def test_storage_backups(hass):
         
         await manager._create_backup(filepath)
 
+@pytest.mark.anyio
 async def test_storage_cleanup_old_backups(hass):
     """Test cleanup of old backups."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -98,6 +104,7 @@ async def test_storage_cleanup_old_backups(hass):
         delete_calls = [b.unlink.called for b in backups]
         assert sum(delete_calls) == 5
 
+@pytest.mark.anyio
 async def test_load_all_profiles(hass):
     """Test load_all_profiles."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))

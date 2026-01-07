@@ -23,6 +23,7 @@ def mock_hass(tmp_path):
     hass.async_add_executor_job = AsyncMock(side_effect=mock_executor)
     return hass
 
+@pytest.mark.anyio
 async def test_load_settings_default(mock_hass):
     """Test loading settings when file doesn't exist."""
     with patch("pathlib.Path.exists", return_value=False), \
@@ -33,6 +34,7 @@ async def test_load_settings_default(mock_hass):
         settings = await manager.load_settings()
         assert settings == DEFAULT_SETTINGS
 
+@pytest.mark.anyio
 async def test_load_settings_existing(mock_hass):
     """Test loading existing settings."""
     custom_settings = {"keyboard": {"ctrl": {"horizontal": 10}}}
@@ -48,6 +50,7 @@ async def test_load_settings_existing(mock_hass):
         # Check merge
         assert settings["keyboard"]["shift"]["horizontal"] == 30
 
+@pytest.mark.anyio
 async def test_save_settings(mock_hass):
     """Test saving settings."""
     manager = SettingsManager(mock_hass, mock_hass.config.path("cronostar"))

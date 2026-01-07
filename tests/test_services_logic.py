@@ -10,11 +10,13 @@ def profile_service(hass, mock_storage_manager):
     settings_manager.load_settings = AsyncMock(return_value={})
     return ProfileService(hass, mock_storage_manager, settings_manager)
 
+@pytest.mark.anyio
 async def test_get_profile_data_invalid_prefix(profile_service, mock_storage_manager):
     """Test get_profile_data with a generic prefix."""
     result = await profile_service.get_profile_data("Default", "thermostat", global_prefix="cronostar_")
     assert result["profile_name"] == "Default"
 
+@pytest.mark.anyio
 async def test_register_card_missing_profile(hass, profile_service, mock_storage_manager):
     """Test register_card when profile is missing and fallback fails."""
     call = MagicMock()
@@ -25,6 +27,7 @@ async def test_register_card_missing_profile(hass, profile_service, mock_storage
         assert result["profile_data"] is None
         assert result["diagnostics"] == {"error": "Not found"}
 
+@pytest.mark.anyio
 async def test_ensure_controller_exists_custom_naming(hass, profile_service):
     """Test ensure_controller_exists with different prefix patterns."""
     hass.config_entries.async_entries.return_value = []
@@ -35,6 +38,7 @@ async def test_ensure_controller_exists_custom_naming(hass, profile_service):
     # "prefix" becomes "Prefix" in deriving name
     assert "Prefix" in args["data"]["name"]
 
+@pytest.mark.anyio
 async def test_validate_schedule_edge_cases(profile_service):
     """Test _validate_schedule with various inputs."""
     assert profile_service._validate_schedule(None) == []
@@ -42,6 +46,7 @@ async def test_validate_schedule_edge_cases(profile_service):
     assert profile_service._validate_schedule([{"time": "08:00"}]) == []
     assert profile_service._validate_schedule([{"time": "8:00", "value": 20}]) == []
 
+@pytest.mark.anyio
 async def test_list_all_profiles_service(hass, mock_storage_manager):
     """Test list_all_profiles service handler from setup/services.py."""
     from custom_components.cronostar.setup.services import setup_services

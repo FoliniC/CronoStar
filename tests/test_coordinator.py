@@ -6,6 +6,7 @@ import pytest
 from custom_components.cronostar.coordinator import CronoStarCoordinator
 from homeassistant.const import STATE_ON, STATE_OFF
 
+@pytest.mark.anyio
 async def test_coordinator_init(hass, mock_storage_manager):
     """Test coordinator initialization."""
     entry = MagicMock()
@@ -35,6 +36,7 @@ async def test_coordinator_init(hass, mock_storage_manager):
     assert coordinator.available_profiles == ["Default", "Comfort"]
     assert coordinator.selected_profile == "Default"
 
+@pytest.mark.anyio
 async def test_coordinator_apply_schedule(hass, mock_coordinator):
     """Test applying schedule."""
     # Mock target entity state
@@ -61,6 +63,7 @@ async def test_coordinator_apply_schedule(hass, mock_coordinator):
             blocking=False
         )
 
+@pytest.mark.anyio
 async def test_coordinator_apply_schedule_other_domains(hass, mock_coordinator):
     """Test applying schedule for other domains (cover, input_number)."""
     # Cover
@@ -90,6 +93,7 @@ async def test_coordinator_apply_schedule_other_domains(hass, mock_coordinator):
         "input_number", "set_value", {"entity_id": "input_number.test", "value": 25.5}, blocking=False
     )
 
+@pytest.mark.anyio
 async def test_coordinator_apply_schedule_generic_switch(hass, mock_storage_manager):
     """Test applying schedule for generic switch (step interpolation)."""
     entry = MagicMock()
@@ -136,6 +140,7 @@ async def test_coordinator_apply_schedule_generic_switch(hass, mock_storage_mana
             "switch", "turn_on", {"entity_id": "switch.test_switch"}, blocking=False
         )
 
+@pytest.mark.anyio
 async def test_coordinator_set_profile(hass, mock_coordinator):
     """Test setting profile."""
     mock_coordinator.available_profiles = ["Default", "Comfort"]
@@ -146,12 +151,14 @@ async def test_coordinator_set_profile(hass, mock_coordinator):
     await mock_coordinator.set_profile("Invalid")
     assert mock_coordinator.selected_profile == "Comfort"
 
+@pytest.mark.anyio
 async def test_coordinator_set_enabled(hass, mock_coordinator):
     """Test enabling/disabling."""
     await mock_coordinator.set_enabled(False)
     assert mock_coordinator.is_enabled is False
     assert mock_coordinator.async_refresh.called
 
+@pytest.mark.anyio
 async def test_coordinator_target_unavailable(hass, mock_coordinator):
     """Test behavior when target is unavailable."""
     hass.states.get.side_effect = None
@@ -165,6 +172,7 @@ async def test_coordinator_target_unavailable(hass, mock_coordinator):
     await mock_coordinator.apply_schedule()
     hass.services.async_call.assert_not_called()
 
+@pytest.mark.anyio
 async def test_coordinator_async_refresh_profiles(hass, mock_coordinator, mock_storage_manager):
     """Test refreshing profiles."""
     mock_storage_manager.load_profile_cached.return_value = {
@@ -174,6 +182,7 @@ async def test_coordinator_async_refresh_profiles(hass, mock_coordinator, mock_s
     assert "NewProfile" in mock_coordinator.available_profiles
     assert mock_coordinator.selected_profile == "NewProfile"
 
+@pytest.mark.anyio
 async def test_coordinator_interpolation_wrap_around(hass, mock_coordinator):
     """Test interpolation crossing midnight."""
     schedule = [

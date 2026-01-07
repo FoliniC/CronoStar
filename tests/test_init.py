@@ -4,6 +4,7 @@ import pytest
 from custom_components.cronostar import async_setup, async_setup_entry, async_unload_entry, async_reload_entry
 from custom_components.cronostar.const import DOMAIN
 
+@pytest.mark.anyio
 async def test_async_setup(hass):
     """Test YAML setup."""
     with patch("custom_components.cronostar.async_setup_integration", return_value=True):
@@ -11,6 +12,7 @@ async def test_async_setup(hass):
         assert success is True
         assert hass.data[DOMAIN]["_global_setup_done"] is True
 
+@pytest.mark.anyio
 async def test_async_setup_entry_global(hass):
     """Test global component setup entry."""
     entry = MagicMock()
@@ -22,6 +24,7 @@ async def test_async_setup_entry_global(hass):
         success = await async_setup_entry(hass, entry)
         assert success is True
 
+@pytest.mark.anyio
 async def test_async_setup_entry_global_failure(hass):
     """Test global component setup entry failure."""
     entry = MagicMock()
@@ -33,6 +36,7 @@ async def test_async_setup_entry_global_failure(hass):
         success = await async_setup_entry(hass, entry)
         assert success is False
 
+@pytest.mark.anyio
 async def test_async_setup_entry_controller(hass):
     """Test controller entry setup."""
     entry = MagicMock()
@@ -56,6 +60,7 @@ async def test_async_setup_entry_controller(hass):
         assert success is True
         assert hasattr(entry, 'runtime_data')
 
+@pytest.mark.anyio
 async def test_async_setup_entry_controller_lazy_init(hass):
     """Test controller entry setup triggers lazy init if global missing."""
     entry = MagicMock()
@@ -76,6 +81,7 @@ async def test_async_setup_entry_controller_lazy_init(hass):
             assert success is True
             assert hass.data[DOMAIN]["_global_setup_done"] is True
 
+@pytest.mark.anyio
 async def test_async_unload_entry(hass):
     """Test unloading entry."""
     entry = MagicMock()
@@ -92,6 +98,7 @@ async def test_async_unload_entry(hass):
         assert success is True
         assert "_global_setup_done" not in hass.data[DOMAIN]
 
+@pytest.mark.anyio
 async def test_async_reload_entry(hass):
     """Test reloading entry."""
     entry = MagicMock()

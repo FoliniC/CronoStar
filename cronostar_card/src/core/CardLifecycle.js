@@ -6,7 +6,7 @@ export class CardLifecycle {
     this.card = card;
     this.hasRegistered = false;
 
-    // Observer per visibilitÃ  (conservato)
+    // Observer per visibilità  (conservato)
     this._visibilityObserver = null;
     this._lastVisible = null;
 

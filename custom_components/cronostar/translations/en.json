@@ -20,5 +20,13 @@
                 "title": "CronoStar Options"
             }
         }
+    },
+    "exceptions": {
+        "profile_not_found": {
+            "message": "Profile '{profile}' not found for '{preset}' (Prefix: '{prefix}')."
+        },
+        "schedule_application_error": {
+            "message": "Failed to apply schedule to '{entity}': {error}"
+        }
     }
 }

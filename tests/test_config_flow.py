@@ -4,6 +4,7 @@ import pytest
 from homeassistant.data_entry_flow import FlowResultType
 from custom_components.cronostar.const import DOMAIN, CONF_LOGGING_ENABLED
 
+@pytest.mark.anyio
 async def test_config_flow_user_step(hass):
     """Test user step."""
     # Start flow
@@ -33,6 +34,7 @@ async def test_config_flow_user_step(hass):
     assert result["data"]["component_installed"] is True
     assert result["data"][CONF_LOGGING_ENABLED] is True
 
+@pytest.mark.anyio
 async def test_config_flow_single_instance(hass):
     """Test only one global instance allowed."""
     # Mock existing entry
@@ -52,6 +54,7 @@ async def test_config_flow_single_instance(hass):
     assert result["type"] == FlowResultType.ABORT
     assert result["reason"] == "single_instance_allowed"
 
+@pytest.mark.anyio
 async def test_config_flow_create_controller(hass):
     """Test programmatic controller creation."""
     from custom_components.cronostar.config_flow import CronoStarConfigFlow
@@ -73,6 +76,7 @@ async def test_config_flow_create_controller(hass):
     assert result["title"] == "Test Room"
     assert result["data"]["global_prefix"] == "test_prefix_"
 
+@pytest.mark.anyio
 async def test_options_flow(hass):
     """Test options flow."""
     entry = MagicMock()

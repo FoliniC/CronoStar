@@ -13,6 +13,7 @@ def profile_service(hass, mock_storage_manager):
     
     return ProfileService(hass, mock_storage_manager, settings_manager)
 
+@pytest.mark.anyio
 async def test_save_profile(hass, profile_service, mock_storage_manager):
     """Test saving a profile."""
     call = MagicMock()
@@ -35,6 +36,7 @@ async def test_save_profile(hass, profile_service, mock_storage_manager):
     # Ensure controller creation was triggered
     hass.config_entries.flow.async_init.assert_called_once()
 
+@pytest.mark.anyio
 async def test_save_profile_metadata_only(hass, profile_service, mock_storage_manager):
     """Test updating only metadata."""
     call = MagicMock()
@@ -58,6 +60,7 @@ async def test_save_profile_metadata_only(hass, profile_service, mock_storage_ma
     assert args["profile_data"]["schedule"][0]["value"] == 20.0
     assert args["metadata"]["title"] == "New Title"
 
+@pytest.mark.anyio
 async def test_save_profile_update_existing_entry(hass, profile_service):
     """Test saving a profile when entry already exists."""
     call = MagicMock()
@@ -82,6 +85,7 @@ async def test_save_profile_update_existing_entry(hass, profile_service):
     assert hass.config_entries.async_update_entry.called
     assert entry.runtime_data.async_refresh_profiles.called
 
+@pytest.mark.anyio
 async def test_ensure_controller_exists_naming(hass, profile_service):
     """Test name derivation in controller creation."""
     # Prefix: cronostar_thermostat_living_room_ -> Name: Living Room
@@ -95,6 +99,7 @@ async def test_ensure_controller_exists_naming(hass, profile_service):
     args = hass.config_entries.flow.async_init.call_args[1]
     assert args["data"]["name"] == "Living Room"
 
+@pytest.mark.anyio
 async def test_save_profile_validation(hass, profile_service):
     """Test validation during save."""
     call = MagicMock()
@@ -120,6 +125,7 @@ async def test_save_profile_validation(hass, profile_service):
     assert schedule[0]["time"] == "08:00"
     assert schedule[0]["value"] == 0.0
 
+@pytest.mark.anyio
 async def test_load_profile(hass, profile_service):
     """Test loading a profile."""
     call = MagicMock()
@@ -134,6 +140,7 @@ async def test_load_profile(hass, profile_service):
     assert result["profile_name"] == "Default"
     assert len(result["schedule"]) == 2
 
+@pytest.mark.anyio
 async def test_get_profile_data_fallbacks(hass, profile_service, mock_storage_manager):
     """Test fallbacks in get_profile_data."""
     # Mock storage to NOT have the requested profile but HAVE "Comfort"
@@ -149,6 +156,7 @@ async def test_get_profile_data_fallbacks(hass, profile_service, mock_storage_ma
     result = await profile_service.get_profile_data("Missing", "thermostat")
     assert result["profile_name"] == "Comfort"
 
+@pytest.mark.anyio
 async def test_get_profile_data_diagnostics(hass, profile_service, mock_storage_manager):
     """Test diagnostic info when profile not found."""
     mock_storage_manager.get_cached_containers = AsyncMock(side_effect=[
@@ -161,6 +169,7 @@ async def test_get_profile_data_diagnostics(hass, profile_service, mock_storage_
     assert result["error"] == "Profile not found"
     assert len(result["available_in_storage"]) == 1
 
+@pytest.mark.anyio
 async def test_register_card(hass, profile_service):
     """Test register_card."""
     call = MagicMock()
@@ -188,6 +197,7 @@ async def test_register_card(hass, profile_service):
         assert result["preset_defaults"]["default_val"] == 1
         assert result["entity_states"]["enabled"] == "on"
 
+@pytest.mark.anyio
 async def test_async_update_profile_selectors(hass, profile_service, mock_storage_manager):
     """Test updating profile selectors."""
     mock_storage_manager.list_profiles = AsyncMock(return_value=["f1.json"])
@@ -210,6 +220,7 @@ async def test_async_update_profile_selectors(hass, profile_service, mock_storag
     assert args[1] == "set_options"
     assert "P1" in args[2]["options"]
 
+@pytest.mark.anyio
 async def test_async_update_profile_selectors_error(hass, profile_service, mock_storage_manager):
     """Test error handling in update profile selectors."""
     mock_storage_manager.list_profiles = AsyncMock(return_value=["f1.json"])

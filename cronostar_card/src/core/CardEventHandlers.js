@@ -1,12 +1,7 @@
 import { CARD_CONFIG_PRESETS, validateConfig, VERSION } from '../config.js';
-import { Logger, timeToMinutes } from '../utils.js';
+import { Logger } from '../utils.js';
 import { getEffectivePrefix, getAliasWithPrefix } from '../utils/prefix_utils.js';
 import { copyToClipboard } from '../editor/services/service_handlers.js';
-
-function _buildCornerSwitchSchedule(schedulePoints) {
-    // Deprecated: Now handled by StateManager.finalizeSwitchData
-    return schedulePoints;
-}
 
 export class CardEventHandlers {
     constructor(card) {
@@ -477,8 +472,6 @@ export class CardEventHandlers {
     }
 
     async _openAddProfileDialog() {
-        const localize = (key, search, replace) =>
-            this.card.localizationManager.localize(this.card.language, key, search, replace);
         // Safe localize with fallback: if localization returns the key or empty, use fallback
         const t = (key, fallback) => {
             try {
@@ -692,28 +685,7 @@ export class CardEventHandlers {
         // Dynamic info
         const actualPoints = this.card.stateManager?.getNumPoints() || 0;
 
-        const configInfoTechnical = this.card.language === 'it'
-            ? `=== Configurazione Attuale ===
-Card ID: ${cardId}
-Versione: ${VERSION}
-Preset: ${preset}
-Profilo Attivo: ${currentProfile}
-Prefisso: ${prefix}
-Automazione: ${automationAlias}
-
-=== Entità ===
-Entità Destinazione: ${targetEntity}${stTarget}
-Entità Valore Corrente: ${currentEntity}${stHelper}
-Selettore Profili: ${profileEntity}${stSelector}
-Entità Abilitazione: ${enabledEntity}${stEnabled}
-
-=== Configurazione ===
-Intervallo: Dinamico (Time-based)
-Punti nel Profilo: ${actualPoints}
-
-=== File di Configurazione ===
-1. Profili: /config/cronostar/profiles/${prefixBase}_data.json`
-            : `=== Current Configuration ===
+        const configInfoTechnical = `=== Current Configuration ===
 Card ID: ${cardId}
 Version: ${VERSION}
 Preset: ${preset}
@@ -776,8 +748,8 @@ Points in Profile: ${actualPoints}
 
         const sections = [
             { title: '', text: introText },
-            { title: this.card.language === 'it' ? '(Mouse) Utilizzo Mouse' : '(Mouse) Mouse Usage', text: mouseManual },
-            { title: this.card.language === 'it' ? '(Keyboard) Utilizzo Tastiera' : '(Keyboard) Keyboard Usage', text: keyboardManual }
+            { title: localize('help.mouse_usage_title', 'Mouse Usage'), text: mouseManual },
+            { title: localize('help.keyboard_usage_title', 'Keyboard Usage'), text: keyboardManual }
         ];
 
         sections.forEach(s => {
@@ -797,7 +769,7 @@ Points in Profile: ${actualPoints}
         });
 
         const techTitle = document.createElement('h3');
-        techTitle.textContent = this.card.language === 'it' ? '(Technical Details) Dettagli Tecnici' : '(Technical Details) Technical Details';
+        techTitle.textContent = localize('help.technical_details_title', 'Technical Details');
         techTitle.style.margin = '24px 0 8px 0';
         dialog.appendChild(techTitle);
 
@@ -814,7 +786,7 @@ Points in Profile: ${actualPoints}
         dialog.appendChild(textarea);
 
         const copyBtn = document.createElement('button');
-        copyBtn.textContent = this.card.language === 'it' ? '📋 Copia dettagli tecnici' : '📋 Copy technical details';
+        copyBtn.textContent = localize('help.copy_technical_details_button', '📋 Copy technical details');
         copyBtn.style.cssText = `
       margin-top: 12px; padding: 10px 20px;
       background: var(--primary-color); color: white;
@@ -822,13 +794,13 @@ Points in Profile: ${actualPoints}
       cursor: pointer; font-size: 14px; font-weight: bold;
     `;
         copyBtn.onclick = async () => {
-            const successMsg = this.card.language === 'it' ? '(Copied!) Copiato!' : '(Copied!) Copied!';
-            const errorMsg = this.card.language === 'it' ? 'Errore copia' : 'Copy Error';
+            const successMsg = localize('help.copied_message', 'Copied!');
+            const errorMsg = localize('help.copy_error_message', 'Copy Error');
             const result = await copyToClipboard(configInfoTechnical, successMsg, errorMsg);
             if (result.success) {
                 copyBtn.textContent = result.message;
                 setTimeout(() => {
-                    copyBtn.textContent = this.card.language === 'it' ? '📋 Copia dettagli tecnici' : '📋 Copy technical details';
+                    copyBtn.textContent = localize('help.copy_technical_details_button', '📋 Copy technical details');
                 }, 2000);
             }
         };

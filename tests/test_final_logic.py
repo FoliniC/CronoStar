@@ -5,6 +5,7 @@ from custom_components.cronostar.const import DOMAIN
 from custom_components.cronostar.coordinator import CronoStarCoordinator
 from pathlib import Path
 
+@pytest.mark.anyio
 async def test_coordinator_stepped_interpolation(hass):
     """Test stepped interpolation for generic_switch."""
     entry = MagicMock()
@@ -23,6 +24,7 @@ async def test_coordinator_stepped_interpolation(hass):
         # Should be 1.0 (no linear interpolation)
         assert val == 1.0
 
+@pytest.mark.anyio
 async def test_profile_service_ensure_controller_already_exists(hass):
     """Test _ensure_controller_exists returns early if prefix exists."""
     from custom_components.cronostar.services.profile_service import ProfileService
@@ -35,6 +37,7 @@ async def test_profile_service_ensure_controller_already_exists(hass):
     await ps._ensure_controller_exists("p1", "thermostat", {})
     assert not hass.config_entries.flow.async_init.called
 
+@pytest.mark.anyio
 async def test_service_handlers_errors(hass):
     """Test error branches in service handlers."""
     from custom_components.cronostar.setup.services import setup_services
@@ -50,6 +53,7 @@ async def test_service_handlers_errors(hass):
     # Wait, setup/services.py handlers don't all use decorator.
     pass
 
+@pytest.mark.anyio
 async def test_storage_list_profiles_more_branches(hass):
     """Test list_profiles with more branches."""
     from custom_components.cronostar.storage.storage_manager import StorageManager
@@ -71,6 +75,7 @@ async def test_storage_list_profiles_more_branches(hass):
         res = await manager.list_profiles(prefix="other_")
         assert len(res) == 0
 
+@pytest.mark.anyio
 async def test_storage_write_json_fail(hass):
     """Test write_json failure."""
     from custom_components.cronostar.storage.storage_manager import StorageManager

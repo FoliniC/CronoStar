@@ -5,6 +5,7 @@ from custom_components.cronostar.coordinator import CronoStarCoordinator
 from custom_components.cronostar.services.profile_service import ProfileService
 from custom_components.cronostar.const import DOMAIN
 
+@pytest.mark.anyio
 async def test_coordinator_unsupported_domain(hass):
     """Test coordinator with an unsupported target domain."""
     entry = MagicMock()
@@ -20,6 +21,7 @@ async def test_coordinator_unsupported_domain(hass):
     await coordinator._update_target_entity(20.0)
     # Should log warning
 
+@pytest.mark.anyio
 async def test_coordinator_update_exception(hass):
     """Test coordinator update exception handling."""
     entry = MagicMock()
@@ -30,6 +32,7 @@ async def test_coordinator_update_exception(hass):
     await coordinator._update_target_entity(20.0)
     # Should log error
 
+@pytest.mark.anyio
 async def test_coordinator_interpolate_edge_cases(hass):
     """Test interpolation edge cases."""
     entry = MagicMock()
@@ -46,12 +49,14 @@ async def test_coordinator_interpolate_edge_cases(hass):
         mock_dt.now.return_value = datetime(2023, 1, 1, 8, 0, 0)
         assert coordinator._interpolate_schedule(schedule) == 20.0
 
+@pytest.mark.anyio
 async def test_profile_service_ensure_controller_no_prefix(hass):
     """Test _ensure_controller_exists with empty prefix."""
     ps = ProfileService(hass, MagicMock(), MagicMock())
     await ps._ensure_controller_exists("", "thermostat", {})
     assert not hass.config_entries.flow.async_init.called
 
+@pytest.mark.anyio
 async def test_profile_service_update_selectors_load_fail(hass):
     """Test update_selectors when one file fails to load."""
     storage = MagicMock()
@@ -62,6 +67,7 @@ async def test_profile_service_update_selectors_load_fail(hass):
     await ps.async_update_profile_selectors()
     # Should continue
 
+@pytest.mark.anyio
 async def test_storage_get_cached_containers_filters(hass):
     """Test get_cached_containers with varied filters."""
     from custom_components.cronostar.storage.storage_manager import StorageManager

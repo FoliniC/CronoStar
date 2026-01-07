@@ -5,6 +5,7 @@ from custom_components.cronostar.const import DOMAIN, CONF_TARGET_ENTITY
 from custom_components.cronostar.coordinator import CronoStarCoordinator
 from custom_components.cronostar.setup.services import setup_services
 
+@pytest.mark.anyio
 async def test_coordinator_more_branch_hits(hass):
     """Trigger remaining coordinator lines."""
     entry = MagicMock()
@@ -21,6 +22,7 @@ async def test_coordinator_more_branch_hits(hass):
     coordinator.target_entity = "unsupported.entity"
     await coordinator._update_target_entity(20.0)
 
+@pytest.mark.anyio
 async def test_setup_services_remaining_errors(hass):
     """Trigger remaining lines in setup/services.py."""
     await setup_services(hass, MagicMock())
@@ -40,7 +42,10 @@ async def test_setup_services_remaining_errors(hass):
     # Profile error
     ps.get_profile_data = AsyncMock(return_value={"error": "Not found"})
     call.data = {"target_entity": "climate.test", "profile_name": "P1"}
-    await handler(call)
+    
+    from custom_components.cronostar.exceptions import ProfileNotFoundError
+    with pytest.raises(ProfileNotFoundError):
+        await handler(call)
     
     # Constant schedule for domain testing
     ps.get_profile_data = AsyncMock(return_value={

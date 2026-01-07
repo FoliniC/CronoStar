@@ -204,7 +204,7 @@ class UTF8ConverterApp:
         self.convert_button = ttk.Button(
             button_frame, 
             text="🔄 Converti Tutti i File", 
-            command=self.start_convert_all_files,  # CORRETTO: usa il nome corretto
+            command=self.start_convert_all_files,
             width=25, 
             state='disabled')
         self.convert_button.grid(row=0, column=1, padx=5)
@@ -216,13 +216,14 @@ class UTF8ConverterApp:
             width=25)
         self.clear_button.grid(row=0, column=2, padx=5)
         
-        # Pulsante debug (opzionale, puoi rimuoverlo dopo)
-        debug_button = ttk.Button(
-            button_frame, 
-            text="🔧 Debug", 
-            command=self.force_enable_convert, 
-            width=15)
-        debug_button.grid(row=0, column=3, padx=5)
+        # Aggiunto: Pulsante per mostrare comando CLI
+        self.cli_button = ttk.Button(
+            button_frame,
+            text="📋 Mostra Comando CLI",
+            command=self.show_cli_command,
+            width=25
+        )
+        self.cli_button.grid(row=0, column=3, padx=5)
         
     def create_stat_box(self, parent, label, value, column, color):
         frame = tk.Frame(parent, relief='solid', borderwidth=1, bg=color)
@@ -492,7 +493,7 @@ class UTF8ConverterApp:
                         'encoding': 'error',
                         'confidence': 0.0,
                         'newline_status': newline_status,
-                        'newline_type': newline_type,  # AGGIUNGI QUESTA RIGA
+                        'newline_type': newline_type,
                         'newline_info': newline_info,
                         'status': 'error'
                     })
@@ -509,7 +510,7 @@ class UTF8ConverterApp:
                         'encoding': encoding,
                         'confidence': confidence,
                         'newline_status': newline_status,
-                        'newline_type': newline_type,  # AGGIUNGI QUESTA RIGA
+                        'newline_type': newline_type,
                         'newline_info': newline_info,
                         'status': 'ok' if newline_status == 'ok' else 'convertible_nl'
                     })
@@ -526,7 +527,7 @@ class UTF8ConverterApp:
                         'encoding': encoding,
                         'confidence': confidence,
                         'newline_status': newline_status,
-                        'newline_type': newline_type,  # AGGIUNGI QUESTA RIGA
+                        'newline_type': newline_type,
                         'newline_info': newline_info,
                         'status': 'convertible'
                     })
@@ -545,7 +546,7 @@ class UTF8ConverterApp:
                         'encoding': encoding,
                         'confidence': confidence,
                         'newline_status': newline_status,
-                        'newline_type': newline_type,  # AGGIUNGI QUESTA RIGA
+                        'newline_type': newline_type,
                         'newline_info': newline_info,
                         'status': 'convertible'
                     })
@@ -563,10 +564,6 @@ class UTF8ConverterApp:
             
             newline_mode = self.newline_mode.get()
             
-            # DEBUG: Controlla cosa c'è nei risultati
-            print(f"DEBUG: convertible_files={convertible_files}, newline_mixed_files={newline_mixed_files}")
-            print(f"DEBUG: newline_mode={newline_mode}")
-            
             # Controlla se ci sono file Unix o Windows in base alla modalità
             has_target_files = False
             if newline_mode != 'none':
@@ -577,17 +574,14 @@ class UTF8ConverterApp:
                     # Per modalità "windows": cerca file Unix o Mac
                     if newline_mode == 'windows' and (newline_type in ['unix', 'mac'] or '[NL: UNIX]' in info):
                         has_target_files = True
-                        print(f"DEBUG: Trovato file Unix da convertire a Windows: {r['rel_path']}")
                         break
                     # Per modalità "unix": cerca file Windows o Mac  
                     elif newline_mode == 'unix' and (newline_type in ['windows', 'mac'] or '[NL: WINDOWS]' in info):
                         has_target_files = True
-                        print(f"DEBUG: Trovato file Windows da convertire a Unix: {r['rel_path']}")
                         break
                     # Per modalità "auto": cerca qualsiasi file non-Windows
                     elif newline_mode == 'auto' and newline_type in ['unix', 'mac', 'mixed']:
                         has_target_files = True
-                        print(f"DEBUG: Trovato file da normalizzare (auto): {r['rel_path']} - {newline_type}")
                         break
             
             # Attiva il bottone se:
@@ -596,11 +590,9 @@ class UTF8ConverterApp:
             # 3. Modalità newline attiva E ci sono file target
             if convertible_files > 0 or newline_mixed_files > 0 or (newline_mode != 'none' and has_target_files):
                 self.convert_button.config(state='normal')
-                print(f"DEBUG: Bottone ATTIVATO - encoding:{convertible_files}>0, mixed:{newline_mixed_files}>0, target_files:{has_target_files}")            
             else:
                 messagebox.showinfo("Scansione Completata", 
                                    "Tutti i file sono già in UTF-8/ASCII con newline consistenti!")
-                print("DEBUG: Bottone NON attivato - nessuna conversione necessaria")
                 
         except Exception as e:
             self.log(f"❌ Errore durante la scansione: {str(e)}", 'error')
@@ -793,10 +785,6 @@ class UTF8ConverterApp:
                 r['convert_reason'] = ', '.join(reason)
                 convertible_files.append(r)
         
-        print(f"DEBUG convert_all_files: {len(convertible_files)} file da convertire")
-        for r in convertible_files[:5]:  # Mostra primi 5 per debug
-            print(f"  - {r['rel_path']}: {r.get('convert_reason', 'N/A')}")
-        
         total_to_convert = len(convertible_files)
         
         for idx, file_info in enumerate(convertible_files):
@@ -863,7 +851,7 @@ class UTF8ConverterApp:
         if len([r for r in self.results if r['status'] in ['convertible', 'convertible_nl']]) > 0:
             self.convert_button.config(state='normal')
     
-    def start_convert_all_files(self):  # Aggiunto: wrapper per threading
+    def start_convert_all_files(self):
         if not self.converting:
             # Calcola i file da convertire usando la stessa logica di convert_all_files
             newline_mode = self.newline_mode.get()
@@ -904,22 +892,247 @@ class UTF8ConverterApp:
                 thread = threading.Thread(target=self.convert_all_files, daemon=True)
                 thread.start()
 
+    def show_cli_command(self):
+        """Mostra il comando da riga di comando per effettuare la conversione"""
+        # Ottieni il percorso dello script corrente
+        script_path = os.path.abspath(__file__)
+        
+        # Costruisci il comando CLI
+        command_parts = [sys.executable, script_path]
+        
+        # Aggiungi directory
+        command_parts.append(f'--dir "{self.current_dir}"')
+        
+        # Aggiungi estensioni (se diverse da default)
+        current_extensions = self.extensions_var.get()
+        
+        # Per semplicità, mostriamo sempre le estensioni attuali
+        command_parts.append(f'--extensions "{current_extensions}"')
+        
+        # Aggiungi opzione no-backup se disabilitato
+        if not self.backup_var.get():
+            command_parts.append("--no-backup")
+        
+        # Aggiungi opzione newline se diversa da "none"
+        if self.newline_mode.get() != "none":
+            command_parts.append(f'--newline {self.newline_mode.get()}')
+        
+        # Aggiungi modalità automatica
+        command_parts.append("--auto")
+        
+        # Combina tutto in un comando
+        cli_command = " ".join(command_parts)
+        
+        # Mostra il comando
+        self.log("=" * 80, 'info')
+        self.log("📋 COMANDO CLI PER LA CONVERSIONE:", 'info')
+        self.log("=" * 80, 'info')
+        self.log(cli_command, 'info')
+        self.log("", 'info')
+        self.log("Spiegazione parametri:", 'info')
+        self.log(f"  --dir \"{self.current_dir}\"     : Directory da elaborare", 'info')
+        self.log(f"  --extensions \"{current_extensions}\" : Tipi di file da elaborare", 'info')
+        if not self.backup_var.get():
+            self.log(f"  --no-backup               : Non crea file di backup", 'info')
+        if self.newline_mode.get() != "none":
+            self.log(f"  --newline {self.newline_mode.get():<16} : Conversione newline", 'info')
+        self.log(f"  --auto                    : Esegue automaticamente scansione e conversione", 'info')
+        self.log("=" * 80, 'info')
+        
+        # Copia negli appunti
+        try:
+            import pyperclip
+            pyperclip.copy(cli_command)
+            self.log("✅ Comando copiato negli appunti!", 'success')
+        except ImportError:
+            self.log("⚠ Installare 'pyperclip' per copiare automaticamente: pip install pyperclip", 'warning')
+            
     def force_enable_convert(self):
         """Forza l'attivazione del bottone converti (per debug)"""
         self.convert_button.config(state='normal')
         print("DEBUG: Bottone forzatamente attivato")
 
-def main():
-    parser = argparse.ArgumentParser(description="UTF-8 File Converter")
-    parser.add_argument("--dir", help="Directory iniziale", default=os.getcwd())
-    parser.add_argument("--no-backup", action="store_true", help="Non creare file .backup")
-    parser.add_argument("--newline", choices=["none", "windows", "unix", "auto"], default="none", help="Modalità newline")
-    parser.add_argument("--auto", action="store_true", help="Scansione e conversione automatica")
-    args = parser.parse_args()
+def run_command_line(args):
+    """Esegue la conversione da riga di comando"""
+    print("=" * 80)
+    print("🔤 UTF-8 File Converter - Modalità Comando")
+    print("=" * 80)
+    
+    if not os.path.isdir(args.dir):
+        print(f"❌ ERRORE: La directory '{args.dir}' non esiste!")
+        sys.exit(1)
+    
+    # Ottieni estensioni
+    extensions = [ext.strip() for ext in args.extensions.split(',')]
+    extensions = [ext if ext.startswith('.') else f'.{ext}' for ext in extensions]
+    
+    print(f"📁 Directory: {args.dir}")
+    print(f"📄 Estensioni: {', '.join(extensions)}")
+    print(f"💾 Backup: {'NO (--no-backup)' if args.no_backup else 'SI (crea .backup)'}")
+    print(f"↩️  Newline: {args.newline}")
+    print("=" * 80)
+    
+    # Directory da escludere
+    excluded_dirs = {'.git', 'node_modules', '__pycache__', 'venv', '.venv', 
+                    'env', '.env', 'dist', 'build', '.idea', '.vscode', 
+                    'target', 'bin', 'obj'}
+    
+    try:
+        # Trova tutti i file
+        print("🔍 Ricerca file...")
+        all_files = []
+        for root, dirs, files in os.walk(args.dir):
+            # Filtra directory da escludere
+            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in excluded_dirs]
+            
+            for filename in files:
+                file_ext = os.path.splitext(filename)[1].lower()
+                if file_ext in extensions:
+                    all_files.append(os.path.join(root, filename))
+        
+        print(f"📊 Trovati {len(all_files)} file da analizzare")
+        
+        if not all_files:
+            print("ℹ️  Nessun file trovato con le estensioni specificate.")
+            sys.exit(0)
+        
+        # Chiedi conferma
+        if not args.auto:
+            response = input(f"Convertire {len(all_files)} file? (s/n): ")
+            if response.lower() != 's':
+                print("⏹️  Operazione annullata.")
+                sys.exit(0)
+        
+        # Funzione semplificata di rilevamento encoding
+        def simple_detect_encoding(file_path):
+            try:
+                with open(file_path, 'rb') as f:
+                    raw_data = f.read()
+                
+                if len(raw_data) == 0:
+                    return 'empty'
+                
+                # Verifica BOM UTF-8
+                if raw_data[:3] == b'\xef\xbb\xbf':
+                    return 'utf-8-sig'
+                
+                # Prova UTF-8
+                try:
+                    raw_data.decode('utf-8')
+                    return 'utf-8'
+                except UnicodeDecodeError:
+                    pass
+                
+                # Prova ASCII
+                try:
+                    raw_data.decode('ascii')
+                    return 'ascii'
+                except UnicodeDecodeError:
+                    pass
+                
+                # Usa chardet
+                result = chardet.detect(raw_data)
+                return result['encoding'] if result['encoding'] else 'windows-1252'
+                
+            except Exception:
+                return None
+        
+        # Converti i file
+        converted = 0
+        failed = 0
+        
+        for idx, file_path in enumerate(all_files):
+            rel_path = os.path.relpath(file_path, args.dir)
+            print(f"[{idx+1}/{len(all_files)}] Analisi: {rel_path}")
+            
+            encoding = simple_detect_encoding(file_path)
+            
+            if encoding in ['utf-8', 'ascii', 'empty'] and args.newline == 'none':
+                print(f"  ✓ Già in UTF-8/ASCII")
+                continue
+            
+            # Converti il file
+            try:
+                # Leggi il contenuto
+                with open(file_path, 'r', encoding=encoding if encoding else 'latin-1', errors='replace') as f:
+                    content = f.read()
+                
+                # Applica conversione newline se richiesta
+                if args.newline != 'none':
+                    # Funzione semplificata per normalizzare newline
+                    if args.newline == 'windows':
+                        content = content.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '\r\n')
+                    elif args.newline == 'unix':
+                        content = content.replace('\r\n', '\n').replace('\r', '\n')
+                    elif args.newline == 'auto':
+                        # Per semplicità, converte a Windows
+                        content = content.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '\r\n')
+                
+                # Crea backup se richiesto
+                if not args.no_backup:
+                    backup_path = file_path + '.backup'
+                    shutil.copy2(file_path, backup_path)
+                
+                # Scrivi in UTF-8
+                with open(file_path, 'w', encoding='utf-8', newline='') as f:
+                    f.write(content)
+                
+                print(f"  ✓ Convertito a UTF-8")
+                converted += 1
+                
+            except Exception as e:
+                print(f"  ✗ Errore: {str(e)}")
+                failed += 1
+        
+        print("=" * 80)
+        print(f"✅ CONVERSIONE COMPLETATA")
+        print(f"   ✓ Convertiti: {converted}")
+        print(f"   ✗ Falliti: {failed}")
+        print("=" * 80)
+        
+    except Exception as e:
+        print(f"❌ Errore durante l'esecuzione: {str(e)}")
+        sys.exit(1)
 
-    root = tk.Tk()
-    UTF8ConverterApp(root, args)
-    root.mainloop()
+def main():
+    parser = argparse.ArgumentParser(
+        description="UTF-8 File Converter - Converte file in UTF-8 con normalizzazione newline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Esempi di utilizzo:
+  %(prog)s                      # Avvia l'interfaccia grafica
+  %(prog)s --gui                # Avvia l'interfaccia grafica
+  %(prog)s --dir . --auto       # Converti automaticamente la directory corrente
+  %(prog)s --dir . --newline windows --no-backup --auto  # Converti con opzioni specifiche
+  
+Modalità GUI:
+  Se non vengono forniti parametri o si usa --gui, si apre l'interfaccia grafica.
+  
+Modalità comando:
+  Con i parametri --dir e --auto, esegue la conversione automaticamente.
+        """
+    )
+    parser.add_argument("--dir", help="Directory da elaborare", default=os.getcwd())
+    parser.add_argument("--no-backup", action="store_true", help="Non creare file .backup")
+    parser.add_argument("--newline", choices=["none", "windows", "unix", "auto"], 
+                       default="none", help="Modalità conversione newline")
+    parser.add_argument("--auto", action="store_true", help="Esegue automaticamente senza chiedere conferma")
+    parser.add_argument("--extensions", help="Estensioni da elaborare (separate da virgola)", 
+                       default=".txt,.py,.js,.html,.css,.json,.xml,.md,.csv,.log,.yaml,.yml,.ini,.cfg,.conf,.java,.c,.cpp,.h,.hpp,.rs,.go,.php,.rb,.sh,.bat,.ps1")
+    parser.add_argument("--gui", action="store_true", help="Forza l'apertura dell'interfaccia grafica")
+    
+    args = parser.parse_args()
+    
+    # Se non ci sono parametri OPPURE se è stato specificato --gui
+    # oppure se mancano parametri essenziali per la modalità comando
+    if len(sys.argv) == 1 or args.gui or (not args.auto and not args.gui):
+        # Modalità GUI
+        root = tk.Tk()
+        app = UTF8ConverterApp(root, args)
+        root.mainloop()
+    else:
+        # Modalità comando
+        run_command_line(args)
 
 if __name__ == "__main__":
     main()

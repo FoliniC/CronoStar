@@ -4,6 +4,7 @@ import pytest
 from custom_components.cronostar.setup import _preload_profile_cache, _setup_static_resources
 from pathlib import Path
 
+@pytest.mark.anyio
 async def test_preload_profile_cache_with_files(hass):
     """Test preloading cache with actual profile files."""
     storage_manager = MagicMock()
@@ -19,6 +20,7 @@ async def test_preload_profile_cache_with_files(hass):
     await _preload_profile_cache(hass, storage_manager)
     assert storage_manager.load_profile_cached.called
 
+@pytest.mark.anyio
 async def test_preload_profile_cache_empty(hass):
     """Test preloading cache when no files exist."""
     storage_manager = MagicMock()
@@ -26,6 +28,7 @@ async def test_preload_profile_cache_empty(hass):
     await _preload_profile_cache(hass, storage_manager)
     # Should log and return
 
+@pytest.mark.anyio
 async def test_setup_static_resources_full(hass):
     """Test full static resource setup with all components."""
     from custom_components.cronostar.setup import _setup_static_resources
@@ -48,6 +51,7 @@ async def test_setup_static_resources_full(hass):
         assert hass.http.async_register_static_paths.called
         assert mock_add_js.called
 
+@pytest.mark.anyio
 async def test_setup_static_resources_old_ha(hass):
     """Test resource setup for older HA versions (without StaticPathConfig)."""
     from custom_components.cronostar.setup import _setup_static_resources

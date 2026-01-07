@@ -1,11 +1,11 @@
-// Guard ultra-aggressivo per HA 2025.12
+// Aggressive guard for HA 2025.12 to ensure custom elements are correctly registered and managed.
 (function() {
   'use strict';
 
   const CARD_NAME = 'cronostar-card';
   const EDITOR_NAME = 'cronostar-card-editor';
 
-  // Intercetta costruttore CustomElementRegistry
+  // Intercept CustomElementRegistry constructor
   try {
     const OriginalRegistry = window.CustomElementRegistry;
     
@@ -14,10 +14,10 @@
         console.log('CRONOSTAR: Nuovo CustomElementRegistry creato!');
         const instance = new OriginalRegistry(...args);
         
-        // Patcha immediatamente questa istanza
+        // Immediately patch this instance
         patchRegistryInstance(instance, 'new-instance');
         
-        // Auto-registra i nostri elementi dopo un breve delay
+        // Auto-register our elements after a short delay
         setTimeout(() => {
           if (window.CronoStarCard && window.CronoStarEditor) {
             try {
@@ -38,7 +38,7 @@
         return instance;
       };
       
-      // Mantieni proprietà originali
+      // Maintain original properties
       Object.setPrototypeOf(window.CustomElementRegistry, OriginalRegistry);
       Object.setPrototypeOf(window.CustomElementRegistry.prototype, OriginalRegistry.prototype);
       
@@ -54,16 +54,16 @@
     const originalGet = registry.get;
     const originalDefine = registry.define;
 
-    // Get con fallback multipli
+    // Get with multiple fallbacks
     registry.get = function(elementName) {
       try {
         const result = originalGet.call(this, elementName);
         if (result) return result;
       } catch (e) {
-        // Non trovato
+        // Not found
       }
 
-      // Fallback ai nostri elementi
+      // Fallback to our elements
       if (elementName === CARD_NAME && window.CronoStarCard) {
         return window.CronoStarCard;
       }
@@ -71,7 +71,7 @@
         return window.CronoStarEditor;
       }
 
-      // Fallback a registry globale
+      // Fallback to global registry
       if (window.customElements && window.customElements !== this) {
         try {
           return window.customElements.get(elementName);
@@ -83,15 +83,15 @@
       return undefined;
     };
 
-    // Define con auto-registro
+    // Define with auto-registration
     registry.define = function(elementName, constructor, options) {
       try {
         const existing = this.get(elementName);
         if (existing === constructor) {
-          return; // Già registrato con stesso constructor
+          return; // Already registered with the same constructor
         }
         if (existing) {
-          console.warn(`CRONOSTAR: ${elementName} già definito in ${name}`);
+          console.warn(`CRONOSTAR: ${elementName} already defined in ${name}`);
           return;
         }
 
@@ -99,7 +99,7 @@
       } catch (e) {
         const err = String(e);
         if (err.includes('already been used') || err.includes('already defined')) {
-          return; // Ignora errori duplicati
+          return; // Ignore duplicate definition errors
         }
         throw e;
       }
@@ -113,20 +113,20 @@
     console.log(`CRONOSTAR: Registry patchato: ${name}`);
   }
 
-  // Patcha registry globale
+  // Patch global registry
   if (window.customElements) {
     patchRegistryInstance(window.customElements, 'global');
   }
 
-  // Patcha prototype
+  // Patch prototype
   if (window.CustomElementRegistry?.prototype) {
     patchRegistryInstance(window.CustomElementRegistry.prototype, 'prototype');
   }
 
-  // Scansione continua per nuovi registry
+  // Continuous scan for new registries
   let scanCount = 0;
   const scanInterval = setInterval(() => {
-    // Scansiona proprietà globali
+    // Scan global properties
     for (const prop of Object.getOwnPropertyNames(window)) {
       try {
         const obj = window[prop];
@@ -141,7 +141,7 @@
       }
     }
 
-    // Scansiona shadow roots
+    // Scan shadow roots
     document.querySelectorAll('*').forEach((el) => {
       try {
         if (el.shadowRoot?.customElements && !el.shadowRoot.customElements.__cronostar_patched__) {

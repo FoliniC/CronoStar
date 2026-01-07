@@ -18,7 +18,7 @@ from custom_components.cronostar.setup.events import setup_event_handlers
 from custom_components.cronostar.setup.validators import validate_environment, _check_config_directory, _check_profiles_directory
 from custom_components.cronostar.storage.settings_manager import SettingsManager
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_config_flow_aborts(hass):
     """Test config flow abort cases."""
     # Test single instance abort
@@ -38,7 +38,7 @@ async def test_config_flow_aborts(hass):
     assert result["type"] == FlowResultType.ABORT
     assert result["reason"] == "no_input"
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_config_flow_install_success(hass):
     """Test successful install step."""
     flow = CronoStarConfigFlow()
@@ -49,7 +49,7 @@ async def test_config_flow_install_success(hass):
     assert result["data"]["component_installed"] is True
     assert result["data"][CONF_LOGGING_ENABLED] is True
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_platforms_setup_entry(hass):
     """Test async_setup_entry for select, sensor, and switch."""
     mock_coordinator = MagicMock()
@@ -78,7 +78,7 @@ async def test_platforms_setup_entry(hass):
     await async_setup_switch(hass, entry, async_add_entities)
     assert async_add_entities.called
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_entities_logging_and_availability(hass):
     """Test logging calls and availability logic in entities."""
     mock_coordinator = MagicMock()
@@ -137,7 +137,7 @@ def test_entity_init_exception_handling():
     select = CronoStarProfileSelect(mock_coordinator)
     assert select.device_info["model"] == "Controller"
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_setup_integration_failures(hass):
     """Test failure paths in async_setup_integration."""
     with patch("custom_components.cronostar.setup.validate_environment", return_value=False):
@@ -147,7 +147,7 @@ async def test_setup_integration_failures(hass):
          patch("custom_components.cronostar.setup._setup_static_resources", return_value=False):
         assert await async_setup_integration(hass, {}) is False
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_setup_events_startup(hass):
     """Test event handlers startup logic."""
     mock_storage = AsyncMock()
@@ -170,7 +170,7 @@ async def test_setup_events_startup(hass):
     mock_storage.load_profile_cached.assert_called_with("file1", force_reload=False)
     assert hass.data["cronostar"]["profile_service"].async_update_profile_selectors.called
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_validators_exceptions(hass):
     """Test exception paths in validators."""
     with patch("custom_components.cronostar.setup.validators.Path.exists", side_effect=Exception("fs error")):
@@ -188,7 +188,7 @@ async def test_validators_exceptions(hass):
              patch("custom_components.cronostar.setup.validators.Path.is_dir", return_value=True):
             assert _check_profiles_directory(hass) is False
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_settings_manager_exceptions(hass, tmp_path):
     """Test exception paths in SettingsManager."""
     sm = SettingsManager(hass, tmp_path)
@@ -204,7 +204,7 @@ async def test_settings_manager_exceptions(hass, tmp_path):
     with patch("pathlib.Path.write_text", side_effect=Exception("write error")):
         assert await sm.save_settings({"test": 1}) is False
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_setup_static_resources_edge_cases(hass):
     """Test edge cases in _setup_static_resources."""
     # Test Path not found
@@ -223,7 +223,7 @@ async def test_setup_static_resources_edge_cases(hass):
          patch("custom_components.cronostar.setup.async_get_integration", side_effect=Exception("int error")):
         assert await _setup_static_resources(hass) is False
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_preload_profile_cache_inner_error(hass):
     """Test error handling in _preload_profile_cache loop."""
     mock_storage = AsyncMock()
@@ -235,7 +235,7 @@ async def test_preload_profile_cache_inner_error(hass):
     await _preload_profile_cache(hass, mock_storage)
     assert mock_storage.load_profile_cached.called
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_check_profiles_directory_not_a_dir(hass):
     """Test _check_profiles_directory when path exists but is not a directory."""
     with patch("custom_components.cronostar.setup.validators.Path.exists", return_value=True), \

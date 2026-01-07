@@ -10,6 +10,7 @@ def profile_service(hass, mock_storage_manager):
     settings_manager.load_settings = AsyncMock(return_value={})
     return ProfileService(hass, mock_storage_manager, settings_manager)
 
+@pytest.mark.anyio
 async def test_get_profile_data_diagnostics_extended(hass, profile_service, mock_storage_manager):
     """Trigger lines 276-330 in get_profile_data."""
     mock_storage_manager.get_cached_containers = AsyncMock(side_effect=[
@@ -20,6 +21,7 @@ async def test_get_profile_data_diagnostics_extended(hass, profile_service, mock
     res = await profile_service.get_profile_data("Missing", "thermostat", global_prefix="p1")
     assert "available_in_storage" in res
 
+@pytest.mark.anyio
 async def test_register_card_entity_states_error(hass, profile_service, mock_storage_manager):
     """Hit line 442-443 in register_card (exception in state populating)."""
     call = MagicMock()
@@ -42,6 +44,7 @@ async def test_register_card_entity_states_error(hass, profile_service, mock_sto
         res = await profile_service.register_card(call)
         assert res["success"] is True
 
+@pytest.mark.anyio
 async def test_save_profile_update_entry_fields(hass, profile_service, mock_storage_manager):
     """Hit lines 108-109 in save_profile (updating entry with new meta)."""
     call = MagicMock()
@@ -60,6 +63,7 @@ async def test_save_profile_update_entry_fields(hass, profile_service, mock_stor
     await profile_service.save_profile(call)
     assert hass.config_entries.async_update_entry.called
 
+@pytest.mark.anyio
 async def test_validate_schedule_clamping(profile_service):
 
     """Hit more clamping branches in _validate_schedule."""

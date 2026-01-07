@@ -1,5 +1,5 @@
 task_name: CronoStar Card Files only lovelace card
-description: All files for the Home Assistant CronoStar Card component, including recursively found files, generated from the complete project structure.
+description: All files for the Home Assistant CronoStar Card component, including source and tests, for comprehensive context.
 output_dir: "."
 base_dir: "."
 output_filename_prefix: "cronostar_card_lovelace_only"
@@ -8,11 +8,13 @@ files:
 - path: cronostar_card/package.json
 - path: cronostar_card/rollup.config.js
 - path: cronostar_card/src/config.js
+- path: cronostar_card/src/core/CardContext.js
 - path: cronostar_card/src/core/CardEventHandlers.js
 - path: cronostar_card/src/core/CardLifecycle.js
 - path: cronostar_card/src/core/CardRenderer.js
 - path: cronostar_card/src/core/CardSync.js
 - path: cronostar_card/src/core/CronoStar.js
+- path: cronostar_card/src/core/EventBus.js
 - path: cronostar_card/src/core/cronostar_define_guard.js
 - path: cronostar_card/src/editor/CronoStarEditor.js
 - path: cronostar_card/src/editor/EditorI18n.js
@@ -38,5 +40,43 @@ files:
 - path: cronostar_card/src/utils.js
 - path: cronostar_card/src/utils/editor_utils.js
 - path: cronostar_card/src/utils/filename_utils.js
+- path: cronostar_card/src/utils/logger_utils.js
 - path: cronostar_card/src/utils/prefix_utils.js
-
+- path: cronostar_card/tests/config.test.js
+- path: cronostar_card/tests/core/CardContext.test.js
+- path: cronostar_card/tests/core/CardEventHandlers.test.js
+- path: cronostar_card/tests/core/CardLifecycle.test.js
+- path: cronostar_card/tests/core/CardRenderer.test.js
+- path: cronostar_card/tests/core/CardSync.test.js
+- path: cronostar_card/tests/core/CronoStar.test.js
+- path: cronostar_card/tests/core/EventBus.test.js
+- path: cronostar_card/tests/core/cronostar_define_guard.test.js
+- path: cronostar_card/tests/editor/CronoStarEditor.test.js
+- path: cronostar_card/tests/editor/EditorI18n.test.js
+- path: cronostar_card/tests/editor/EditorWizard.test.js
+- path: cronostar_card/tests/editor/services/service_handlers.test.js
+- path: cronostar_card/tests/editor/steps/Step0Dashboard.test.js
+- path: cronostar_card/tests/editor/steps/Step1Preset.test.js
+- path: cronostar_card/tests/editor/steps/Step2Entities.test.js
+- path: cronostar_card/tests/editor/steps/Step3Options.test.js
+- path: cronostar_card/tests/editor/steps/Step4Automation.test.js
+- path: cronostar_card/tests/editor/steps/Step5Summary.test.js
+- path: cronostar_card/tests/editor/yaml/yaml_generators.test.js
+- path: cronostar_card/tests/final_coverage_boost.test.js
+- path: cronostar_card/tests/handlers/keyboard_handler.test.js
+- path: cronostar_card/tests/handlers/pointer_handler.test.js
+- path: cronostar_card/tests/main.test.js
+- path: cronostar_card/tests/managers/StateManager.test.js
+- path: cronostar_card/tests/managers/chart_manager.test.js
+- path: cronostar_card/tests/managers/localization_manager.test.js
+- path: cronostar_card/tests/managers/profile_manager.test.js
+- path: cronostar_card/tests/managers/selection_manager.test.js
+- path: cronostar_card/tests/managers/shared_data_manager.test.js
+- path: cronostar_card/tests/styles.test.js
+- path: cronostar_card/tests/utils.test.js
+- path: cronostar_card/tests/utils/editor_utils.test.js
+- path: cronostar_card/tests/utils/filename_utils.test.js
+- path: cronostar_card/tests/utils/logger_utils.test.js
+- path: cronostar_card/tests/utils/prefix_utils.test.js
+- path: cronostar_card/vitest.config.js
+- path: cronostar_card/web-test-runner.config.mjs

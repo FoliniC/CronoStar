@@ -1,9 +1,11 @@
+import pytest
 """Test CronoStar Sensor."""
 from unittest.mock import MagicMock
 from homeassistant.components.sensor import SensorDeviceClass
 from custom_components.cronostar.sensor import CronoStarCurrentSensor
 from custom_components.cronostar.const import DOMAIN
 
+@pytest.mark.anyio
 async def test_sensor_entity(hass, mock_coordinator):
     """Test sensor entity properties."""
     mock_coordinator.data = {
@@ -24,6 +26,7 @@ async def test_sensor_entity(hass, mock_coordinator):
     assert extra["is_enabled"] is True
     assert extra["target_entity"] == "climate.test_thermostat"
 
+@pytest.mark.anyio
 async def test_sensor_availability(hass, mock_coordinator):
     """Test sensor availability."""
     sensor = CronoStarCurrentSensor(mock_coordinator)
@@ -39,6 +42,7 @@ async def test_sensor_availability(hass, mock_coordinator):
     hass.states.get.return_value = None
     assert sensor.available is False
 
+@pytest.mark.anyio
 async def test_sensor_types(hass, mock_coordinator):
     """Test sensor properties for different presets."""
     mock_coordinator.preset_type = "ev_charging"

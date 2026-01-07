@@ -20,5 +20,13 @@
                 }
             }
         }
+    },
+    "exceptions": {
+        "profile_not_found": {
+            "message": "Profilo '{profile}' non trovato per '{preset}' (Prefisso: '{prefix}')."
+        },
+        "schedule_application_error": {
+            "message": "Impossibile applicare la programmazione a '{entity}': {error}"
+        }
     }
 }

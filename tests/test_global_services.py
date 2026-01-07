@@ -4,6 +4,7 @@ import pytest
 from custom_components.cronostar.setup.services import setup_services
 from custom_components.cronostar.const import DOMAIN
 
+@pytest.mark.anyio
 async def test_setup_services(hass):
     """Test service registration."""
     storage_manager = MagicMock()
@@ -23,6 +24,7 @@ def get_handler(hass, service_name):
             return call[0][2]
     return None
 
+@pytest.mark.anyio
 async def test_save_profile_service(hass):
     storage_manager = MagicMock()
     await setup_services(hass, storage_manager)
@@ -36,6 +38,7 @@ async def test_save_profile_service(hass):
     await handler(call)
     profile_service.save_profile.assert_called_with(call)
 
+@pytest.mark.anyio
 async def test_load_profile_service(hass):
     storage_manager = MagicMock()
     await setup_services(hass, storage_manager)
@@ -48,6 +51,7 @@ async def test_load_profile_service(hass):
     await handler(call)
     profile_service.load_profile.assert_called_with(call)
 
+@pytest.mark.anyio
 async def test_add_profile_service(hass):
     storage_manager = MagicMock()
     await setup_services(hass, storage_manager)
@@ -60,6 +64,7 @@ async def test_add_profile_service(hass):
     await handler(call)
     profile_service.add_profile.assert_called_with(call)
 
+@pytest.mark.anyio
 async def test_delete_profile_service(hass):
     storage_manager = MagicMock()
     await setup_services(hass, storage_manager)
@@ -72,6 +77,7 @@ async def test_delete_profile_service(hass):
     await handler(call)
     profile_service.delete_profile.assert_called_with(call)
 
+@pytest.mark.anyio
 async def test_apply_now_service(hass):
     """Test apply_now service handler."""
     storage_manager = MagicMock()

@@ -1,7 +1,9 @@
+import pytest
 """Test CronoStar Select."""
 from unittest.mock import AsyncMock
 from custom_components.cronostar.select import CronoStarProfileSelect
 
+@pytest.mark.anyio
 async def test_select_entity(hass, mock_coordinator):
     """Test select entity properties."""
     mock_coordinator.data = {

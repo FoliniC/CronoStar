@@ -567,6 +567,9 @@ Potential improvements:
 ❌ Coordinator pattern (intentionally omitted)
 
 ---
+**Version**: 5.4.0  
+**Last Updated**: January 2026
+
 
 **Version**: 5.3.0
 **Model**: Component-Only (Card-Managed Controllers)

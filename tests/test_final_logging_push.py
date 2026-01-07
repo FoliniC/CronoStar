@@ -5,6 +5,7 @@ from custom_components.cronostar.coordinator import CronoStarCoordinator
 from custom_components.cronostar.const import DOMAIN, CONF_TARGET_ENTITY, PLATFORMS
 from custom_components.cronostar.setup.services import setup_services
 
+@pytest.mark.anyio
 async def test_coordinator_logging_more(hass):
     """Trigger more logging lines in coordinator."""
     entry = MagicMock()
@@ -34,6 +35,7 @@ async def test_coordinator_logging_more(hass):
     # Hit line 185 (set_enabled log)
     await coordinator.set_enabled(True)
 
+@pytest.mark.anyio
 async def test_coordinator_interpolate_more(hass):
     """Trigger line 343 in coordinator."""
     entry = MagicMock()
@@ -54,6 +56,7 @@ async def test_coordinator_interpolate_more(hass):
         # which only happens if schedule has multiple points at same time.
         assert coordinator._interpolate_schedule(schedule) == 20.0
 
+@pytest.mark.anyio
 async def test_setup_services_more_logging(hass):
     """Trigger logging in more setup/services.py handlers."""
     await setup_services(hass, MagicMock())

@@ -7,11 +7,13 @@ from custom_components.cronostar.storage.storage_manager import StorageManager
 from custom_components.cronostar.setup.services import setup_services, async_unload_services
 from pathlib import Path
 
+@pytest.mark.anyio
 async def test_unload_services(hass):
     """Test unloading services."""
     await async_unload_services(hass)
     assert hass.services.async_remove.called
 
+@pytest.mark.anyio
 async def test_storage_list_profiles_complex_prefix(hass):
     """Test list_profiles with complex prefix fallback logic."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -28,6 +30,7 @@ async def test_storage_list_profiles_complex_prefix(hass):
         res = await manager.list_profiles(prefix="myprefix_thermostat")
         assert len(res) == 1
 
+@pytest.mark.anyio
 async def test_storage_load_all_profiles_exception(hass):
     """Test load_all_profiles with a file that causes exception."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -51,6 +54,7 @@ async def test_storage_load_all_profiles_exception(hass):
             # If load_container raises outside the loop context, res will be empty
             assert res == {}
 
+@pytest.mark.anyio
 async def test_apply_now_handler_unsupported_domain(hass):
     """Test apply_now handler with unsupported domain."""
     await setup_services(hass, MagicMock())
@@ -65,6 +69,7 @@ async def test_apply_now_handler_unsupported_domain(hass):
     call.data = {"target_entity": "unsupported.entity", "profile_name": "Default"}
     await handler(call)
 
+@pytest.mark.anyio
 async def test_storage_list_profiles_exception(hass):
     """Test list_profiles exception path."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -72,6 +77,7 @@ async def test_storage_list_profiles_exception(hass):
         res = await manager.list_profiles()
         assert res == []
 
+@pytest.mark.anyio
 async def test_storage_get_profile_list_exception(hass):
     """Test get_profile_list exception path."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))

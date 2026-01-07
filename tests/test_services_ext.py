@@ -8,6 +8,7 @@ def profile_service(hass, mock_storage_manager):
     settings_manager = MagicMock()
     return ProfileService(hass, mock_storage_manager, settings_manager)
 
+@pytest.mark.anyio
 async def test_validate_schedule_out_of_range(profile_service):
     """Test value clamping in schedule validation."""
     schedule = [
@@ -24,6 +25,7 @@ async def test_validate_schedule_out_of_range(profile_service):
     #     numeric_value = float(min_val) if min_val is not None else 0.0
     # Yes, it resets to min_val.
 
+@pytest.mark.anyio
 async def test_ensure_controller_exists_already_exists(hass, profile_service):
     """Test no action when controller already exists."""
     hass.config_entries.async_entries = MagicMock(return_value=[
@@ -34,6 +36,7 @@ async def test_ensure_controller_exists_already_exists(hass, profile_service):
     await profile_service._ensure_controller_exists("exists_", "thermostat", {})
     assert not hass.config_entries.flow.async_init.called
 
+@pytest.mark.anyio
 async def test_get_profile_data_default_comfort_fallbacks(hass, profile_service, mock_storage_manager):
     """Test fallbacks to Default/Comfort names."""
     mock_storage_manager.get_cached_containers = AsyncMock(return_value=[
@@ -49,6 +52,7 @@ async def test_get_profile_data_default_comfort_fallbacks(hass, profile_service,
     result = await profile_service.get_profile_data("NonExistent", "thermostat")
     assert result["profile_name"] == "Comfort"
 
+@pytest.mark.anyio
 async def test_profile_service_save_exception(hass, profile_service, mock_storage_manager):
     """Test exception handling in save_profile."""
     call = MagicMock()

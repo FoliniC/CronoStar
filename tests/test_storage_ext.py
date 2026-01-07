@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from custom_components.cronostar.storage.storage_manager import StorageManager
 
+@pytest.mark.anyio
 async def test_delete_profile_not_found(hass):
     """Test deleting a non-existent profile."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -13,6 +14,7 @@ async def test_delete_profile_not_found(hass):
     success = await manager.delete_profile("P2", "thermostat", "prefix")
     assert success is False
 
+@pytest.mark.anyio
 async def test_delete_profile_container_not_found(hass):
     """Test deleting when container doesn't exist."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -21,6 +23,7 @@ async def test_delete_profile_container_not_found(hass):
     success = await manager.delete_profile("P1", "thermostat", "prefix")
     assert success is False
 
+@pytest.mark.anyio
 async def test_list_profiles_filters(hass):
     """Test list_profiles with preset and prefix filters."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -51,6 +54,7 @@ async def test_list_profiles_filters(hass):
         assert len(files) == 1
         assert files[0] == "cronostar_t2.json"
 
+@pytest.mark.anyio
 async def test_get_profile_list(hass):
     """Test get_profile_list."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -62,6 +66,7 @@ async def test_get_profile_list(hass):
     assert "P1" in profiles
     assert "P2" in profiles
 
+@pytest.mark.anyio
 async def test_get_cached_containers(hass):
     """Test get_cached_containers filtering."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -74,6 +79,7 @@ async def test_get_cached_containers(hass):
     assert len(res) == 1
     assert res[0][0] == "f1.json"
 
+@pytest.mark.anyio
 async def test_write_json_error(hass):
     """Test error handling in _write_json."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
@@ -82,6 +88,7 @@ async def test_write_json_error(hass):
     with pytest.raises(Exception):
         await manager._write_json(Path("test.json"), {})
 
+@pytest.mark.anyio
 async def test_load_container_json_error(hass):
     """Test error handling in _load_container with invalid JSON."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))

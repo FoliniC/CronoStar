@@ -20,14 +20,13 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class CronoStarCurrentSensor(CoordinatorEntity, SensorEntity):
     """Sensor showing current scheduled value."""
 
-    _attr_has_entity_name = False
+    _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator):
         """Initialize current value sensor."""
         super().__init__(coordinator)
-        # Naming requirement: global_prefix + "current"
-        self._attr_name = f"{coordinator.prefix}current"
+        # Unique ID must persist (legacy)
         self._attr_unique_id = f"{coordinator.prefix}current"
 
         # Determine device class, unit, and translation key based on preset type
@@ -49,6 +48,11 @@ class CronoStarCurrentSensor(CoordinatorEntity, SensorEntity):
             # Generic or switch presets - no unit
             self._attr_translation_key = "current_value"
             self._attr_native_unit_of_measurement = None
+
+        # Name is now relative to the device (handled by translation key or default)
+        # If translation key is not found, fallback to None (main feature of device) or specific name
+        # For now, we rely on translation keys or HA default behavior.
+
 
         # Device info for grouping
         # Friendly model name from preset type

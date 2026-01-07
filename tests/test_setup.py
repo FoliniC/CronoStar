@@ -6,6 +6,7 @@ from custom_components.cronostar.setup.events import setup_event_handlers
 from homeassistant.core import CoreState
 from homeassistant.const import EVENT_HOMEASSISTANT_START
 
+@pytest.mark.anyio
 async def test_async_setup_integration(hass):
     """Test full integration setup."""
     config = {
@@ -32,6 +33,7 @@ async def test_async_setup_integration(hass):
             assert success is True
             assert "cronostar" in hass.data
 
+@pytest.mark.anyio
 async def test_setup_event_handlers_running(hass):
     """Test events setup when HA is already running."""
     storage_manager = MagicMock()
@@ -49,6 +51,7 @@ async def test_setup_event_handlers_running(hass):
     
     assert storage_manager.list_profiles.called
 
+@pytest.mark.anyio
 async def test_setup_event_handlers_starting(hass):
     """Test events setup when HA is starting."""
     storage_manager = MagicMock()

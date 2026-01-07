@@ -1,4 +1,4 @@
-// main.js – versione pulita con log scoped
+// main.js – clean version with scoped logs
 
 console.log('[CronoStar] main.js file loaded by browser');
 
@@ -6,10 +6,10 @@ import { CronoStarCard } from './core/CronoStar.js';
 import { CronoStarEditor } from './editor/CronoStarEditor.js';
 import { VERSION, CARD_CONFIG_PRESETS } from './config.js';
 
-// Espone preset globali (se servono ad altri script)
+// Expose global presets (if needed by other scripts)
 globalThis.PRESETS = CARD_CONFIG_PRESETS;
 
-// Espone classi su window (utile per debug / integrazioni esterne)
+// Expose classes on window (useful for debugging / external integrations)
 window.CronoStarCard = CronoStarCard;
 window.CronoStarEditor = CronoStarEditor;
 
@@ -17,7 +17,7 @@ console.log(`CRONOSTAR: main.js started (v${VERSION})`);
 console.log('CRONOSTAR: window.CronoStarCard assigned:', !!window.CronoStarCard);
 console.log('CRONOSTAR: window.CronoStarEditor assigned:', !!window.CronoStarEditor);
 
-// Helper sicuro per registrare in un registry (globale o scoped)
+// Safe helper to register in a registry (global or scoped)
 function registerInRegistry(registry, name, constructor, context = 'global') {
   if (!registry) {
     console.warn(`CRONOSTAR: registry nullo per "${name}" in ${context}`);
@@ -30,7 +30,7 @@ function registerInRegistry(registry, name, constructor, context = 'global') {
       return false;
     }
   } catch {
-    // se get non esiste/fail, proviamo comunque la define
+    // If get doesn't exist/fails, still try to define
   }
 
   try {
@@ -48,14 +48,14 @@ function registerInRegistry(registry, name, constructor, context = 'global') {
   }
 }
 
-// 1) Registrazione nel registry globale
+// 1) Global registry registration
 console.log('CRONOSTAR: Inizio registrazione globale...');
 registerInRegistry(customElements, 'cronostar-card', CronoStarCard, 'global');
 registerInRegistry(customElements, 'custom:cronostar-card', CronoStarCard, 'global-fallback');
 registerInRegistry(customElements, 'cronostar-card-editor', CronoStarEditor, 'global');
 registerInRegistry(customElements, 'custom:cronostar-card-editor', CronoStarEditor, 'global-editor-fallback');
 
-// 2) Supporto per Scoped CustomElementRegistry (usato dal card picker)
+// 2) Support for Scoped CustomElementRegistry (used by the card picker)
 if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
   console.log('CRONOSTAR: ScopedRegistryHost rilevato, patch connectedCallback');
 
@@ -86,7 +86,7 @@ if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
         registerInRegistry(registry, 'cronostar-card-editor', CronoStarEditor, `${ctx} / editor`);
         registerInRegistry(registry, 'custom:cronostar-card-editor', CronoStarEditor, `${ctx} / editor-fallback`);
 
-        // Assicurati che i componenti HA essenziali siano disponibili nel registry scoped
+        // Ensure essential HA components are available in the scoped registry
         try {
           const haEntityPickerCtor = customElements.get('ha-entity-picker');
           if (haEntityPickerCtor) {
@@ -126,9 +126,9 @@ if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
   console.warn('CRONOSTAR: ScopedRegistryHost non rilevato – niente patch scoped');
 }
 
-// 3) Registrazione in window.customCards per apparire nel card picker
+// 3) Register in window.customCards to appear in the card picker
 window.customCards = window.customCards || [];
-const cardType = 'cronostar-card'; // ✅ Senza prefisso "custom:"
+const cardType = 'cronostar-card'; // ✅ Without "custom:" prefix
 const existingCardIndex = window.customCards.findIndex((c) => c.type === cardType || c.type === 'custom:cronostar-card');
 
 const cardMetadata = {
@@ -152,7 +152,7 @@ if (existingCardIndex === -1) {
   console.log('CRONOSTAR: ✅ Aggiornata registrazione in window.customCards');
 }
 
-// Banner finale
+// Final banner
 console.log(
   `%c CRONOSTAR %c v${VERSION} LOADED `,
   'color: white; background: #03a9f4; font-weight: 700;',

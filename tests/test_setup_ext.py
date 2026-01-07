@@ -5,6 +5,7 @@ from custom_components.cronostar.setup import async_setup_integration
 from custom_components.cronostar.setup.validators import validate_environment, _check_required_components
 from pathlib import Path
 
+@pytest.mark.anyio
 async def test_validate_environment_all_checks(hass):
     """Test full environment validation success."""
     with patch("pathlib.Path.exists", return_value=True), \
@@ -15,12 +16,14 @@ async def test_validate_environment_all_checks(hass):
         success = await validate_environment(hass)
         assert success is True
 
+@pytest.mark.anyio
 async def test_check_required_components_missing(hass):
     """Test check_required_components with missing dependencies."""
     hass.config.components = [] # None loaded
     # Should log warning but return True (as per code logic which is non-fatal)
     assert _check_required_components(hass) is True
 
+@pytest.mark.anyio
 async def test_setup_integration_preload_failure(hass):
     """Test setup continues even if preload fails."""
     config = {"version": "1.0.0"}
@@ -39,6 +42,7 @@ async def test_setup_integration_preload_failure(hass):
         success = await async_setup_integration(hass, config)
         assert success is True
 
+@pytest.mark.anyio
 async def test_setup_static_resources_http_missing(hass):
     """Test resource setup when http is not loaded."""
     hass.config.components = ["frontend"] # No http

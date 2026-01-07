@@ -4,6 +4,7 @@ import pytest
 from custom_components.cronostar.diagnostics import async_get_config_entry_diagnostics
 from custom_components.cronostar.const import DOMAIN
 
+@pytest.mark.anyio
 async def test_diagnostics(hass):
     """Test diagnostics output."""
     entry = MagicMock()

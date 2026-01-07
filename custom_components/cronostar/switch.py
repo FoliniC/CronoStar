@@ -21,14 +21,13 @@ class CronoStarEnabledSwitch(CoordinatorEntity, SwitchEntity):
     """Switch to enable/disable schedule application."""
 
     _attr_translation_key = "enabled"
-    _attr_has_entity_name = False
+    _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator):
         """Initialize enabled switch."""
         super().__init__(coordinator)
-        # Naming requirement: global_prefix + "enabled"
-        self._attr_name = f"{coordinator.prefix}enabled"
+        # Unique ID must persist
         self._attr_unique_id = f"{coordinator.prefix}enabled"
 
         # Device info for grouping
