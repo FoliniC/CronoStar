@@ -80,7 +80,12 @@ export class ChartManager {
       const clampedActive = Math.max(boundsActive.left, Math.min(boundsActive.right, minutes));
       const dxMinutes = clampedActive - Math.round(Number(this.initialSelectedX?.[activeIndex] ?? this.dragStartX ?? 0));
 
-      const pointsToMove = Array.isArray(this.dragSelectedPoints) ? this.dragSelectedPoints : [activeIndex];
+      const selectedIndices = (Array.isArray(this.dragSelectedPoints) && this.dragSelectedPoints.length > 0)
+        ? this.dragSelectedPoints 
+        : [activeIndex];
+
+      // Merge selected points and neighbors, ensuring uniqueness
+      const pointsToMove = [...new Set([...selectedIndices, ...(this.hDragNeighbors || [])])];
 
       pointsToMove.forEach((i) => {
         const p = dataset.data[i];
@@ -90,6 +95,11 @@ export class ChartManager {
         if (origX === undefined) return;
         const bounds = this.dragBounds?.[i] || { left: 0, right: 1440 };
         let newX = Math.max(bounds.left, Math.min(bounds.right, Math.round(origX + dxMinutes)));
+        
+        if (this.context.config?.is_switch_preset) {
+           Logger.log('SWITCH', `[DragMove] Point ${i}: ${origX} -> ${newX} (dx=${dxMinutes})`);
+        }
+
         // Clamp to end-of-day boundary at 23:59 (1439 minutes) to avoid 00:00 wrap
         p.x = Math.max(0, Math.min(1439, newX));
       });
@@ -193,6 +203,45 @@ export class ChartManager {
       this.dragDatasetIndex = 0;
       this.dragActiveIndex = idx;
       this.dragStartX = dataset.data[idx].x;
+      this.dragSelectedPoints = [...selected];
+      
+      // Identify neighbors for switch presets to move vertical edges together
+      this.hDragNeighbors = [];
+      const config = this.context.config || {};
+      if (config.is_switch_preset) {
+        const data = dataset.data || [];
+        const sortedData = data.map((p, i) => ({ i, x: Number(p.x) })).sort((a, b) => a.x - b.x);
+        const selectedSet = new Set(selected.map(Number));
+
+        selected.forEach(sIdx => {
+          const sIdxNum = Number(sIdx);
+          const sortedIdx = sortedData.findIndex(p => p.i === sIdxNum);
+          if (sortedIdx === -1) return;
+          
+          const checkAndAdd = (neighborSortedIdx) => {
+            if (neighborSortedIdx >= 0 && neighborSortedIdx < sortedData.length) {
+              const neighbor = sortedData[neighborSortedIdx];
+              const current = sortedData[sortedIdx];
+              
+              // If neighbor is within 1.5 minutes (adjacent) and not already selected
+              if (Math.abs(current.x - neighbor.x) <= 1.5 && !selectedSet.has(neighbor.i)) {
+                // Prevent duplicates
+                if (!this.hDragNeighbors.includes(neighbor.i)) {
+                  this.hDragNeighbors.push(neighbor.i);
+                  this.initialSelectedX[neighbor.i] = data[neighbor.i].x;
+                  this.dragBounds[neighbor.i] = { left: 0, right: 1440 };
+                }
+              }
+            }
+          };
+
+          checkAndAdd(sortedIdx - 1);
+          checkAndAdd(sortedIdx + 1);
+        });
+
+        Logger.log('SWITCH', `[DragStart] Selected: ${JSON.stringify(this.dragSelectedPoints)}, Neighbors: ${JSON.stringify(this.hDragNeighbors)}`);
+      }
+
       this._hDragActive = true;
       this._hDragPointerId = e.pointerId;
       this.context._card.isDragging = true;
@@ -287,6 +336,7 @@ export class ChartManager {
         pointBackgroundColor: COLORS.accent || '#ff9800',
         pointBorderColor: '#fff',
         pointBorderWidth: 2,
+        pointHitRadius: 0,
         clip: false,
         dragData: false
       };
@@ -731,11 +781,24 @@ export class ChartManager {
       if (pos.x >= xScale.left && pos.x <= xScale.right && pos.y >= yScale.top && pos.y <= yScale.bottom) {
         const minutes = xScale.getValueForPixel(pos.x);
         
-        // CRITICAL PROTECTION: Do not insert if very close to an existing milestone point (within 10 minutes)
+        // CRITICAL PROTECTION: Do not insert if very close to an existing milestone point.
+        // Base the threshold on the current zoom level (visible range).
+        const visibleRange = (xScale.max || 1440) - (xScale.min || 0);
+        
+        // Gradual threshold: 10 mins at full view (1440), tapering to 2 mins at high zoom (<=180)
+        // Linear interpolation: y = mx + c
+        // Points: (180, 2) and (1440, 10)
+        // m = (10 - 2) / (1440 - 180) = 8 / 1260 ~= 0.00635
+        // y = 0.00635 * (visibleRange - 180) + 2
+        let minDiffThreshold = 2 + (Math.max(0, visibleRange - 180) * (8 / 1260));
+        minDiffThreshold = Math.max(2, Math.min(10, minDiffThreshold));
+
+        Logger.log('CHART', `[Click] Visible: ${visibleRange.toFixed(0)}m, Threshold: ${minDiffThreshold.toFixed(1)}m`);
+
         // Find the milestone that is TRULY nearest in time, not just the first one in the array
         const data = stateManager.getData();
         let nearestIdx = -1;
-        let minDiff = 11; // Must be <= 10
+        let minDiff = minDiffThreshold;
         
         data.forEach((p, i) => {
           const diff = Math.abs(timeToMinutes(p.time) - minutes);
@@ -747,6 +810,18 @@ export class ChartManager {
 
         if (nearestIdx !== -1) {
           selectionManager.selectPoint(nearestIdx);
+
+          if (this.context.config?.is_switch_preset) {
+             const p = data[nearestIdx];
+             const tMin = timeToMinutes(p.time);
+             const neighbors = [];
+             data.forEach((other, i) => {
+                 if (i === nearestIdx) return;
+                 if (Math.abs(timeToMinutes(other.time) - tMin) <= 1.5) neighbors.push(i);
+             });
+             Logger.log('SWITCH', `[Select] Point ${nearestIdx} (${p.time}=${p.value}) Paired: [${neighbors.join(', ')}]`);
+          }
+
           this._updatePointStyles();
           return;
         }

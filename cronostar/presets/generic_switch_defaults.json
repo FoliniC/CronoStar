@@ -1,0 +1,14 @@
+{
+    "kb_def_h": 5,
+    "kb_def_v": 0.5,
+    "kb_alt_h": 60,
+    "kb_ctrl_h": 1,
+    "kb_ctrl_v": 1,
+    "kb_shift_h": 30,
+    "kb_shift_v": 1,
+    "max_value": 1,
+    "min_value": 0,
+    "step_value": 1,
+    "unit_of_measurement": "",
+    "y_axis_label": "State"
+}

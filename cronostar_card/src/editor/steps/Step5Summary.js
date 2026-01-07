@@ -18,6 +18,12 @@ export class Step5Summary {
 
   render() {
     const effectivePrefix = getEffectivePrefix(this.editor._config);
+    const isIt = this.editor._language === 'it';
+
+    // Build associated entity names
+    const currentEntity = `sensor.${effectivePrefix}current`;
+    const selectEntity = `select.${effectivePrefix}current_profile`;
+    const enabledEntity = `switch.${effectivePrefix}enabled`;
 
     // Verifica configurazione lovelace
     const requiredFields = [
@@ -41,7 +47,16 @@ export class Step5Summary {
     ];
 
     for (const key of keys) {
-      const val = this.editor._config[key];
+      let val = this.editor._config[key];
+      
+      // FIX: Ensure profiles_select_entity uses the correct prefix if not manually overridden
+      if (key === 'profiles_select_entity' && !val) {
+        val = selectEntity;
+      }
+      if (key === 'enabled_entity' && !val) {
+        val = enabledEntity;
+      }
+
       if (val !== null && val !== undefined && val !== '') {
         cleanConfig[key] = val;
       }
@@ -70,15 +85,23 @@ export class Step5Summary {
             <pre style="margin: 0; color: #22c55e; font-size: 0.85em; font-family: monospace; white-space: pre-wrap; overflow-wrap: break-word;">${cardYaml}</pre>
           </div>
           
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9em; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+          <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 8px 12px; font-size: 0.85em; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
             <div style="color: #a0a8c0;">Prefix:</div>
-            <div style="font-family: monospace; color: #fff;">${effectivePrefix}</div>
+            <div style="font-family: monospace; color: #fff; overflow-wrap: anywhere;">${effectivePrefix}</div>
             
-            <div style="color: #a0a8c0;">Target Entity:</div>
-            <div style="font-family: monospace; color: #fff;">${this.editor._config.target_entity || 'Not set'}</div>
+            <div style="color: #a0a8c0;">Target:</div>
+            <div style="font-family: monospace; color: #fff; overflow-wrap: anywhere;">${this.editor._config.target_entity || 'Not set'}</div>
             
-            <div style="color: #a0a8c0;">Preset:</div>
-            <div style="font-family: monospace; color: #fff;">${this.editor._config.preset_type || 'Not set'}</div>
+            <div style="height: 1px; background: rgba(255,255,255,0.1); grid-column: span 2; margin: 4px 0;"></div>
+
+            <div style="color: #60d5ff;">Sensor (Current):</div>
+            <div style="font-family: monospace; color: #fff; overflow-wrap: anywhere;">${currentEntity}</div>
+
+            <div style="color: #60d5ff;">Select (Profile):</div>
+            <div style="font-family: monospace; color: #fff; overflow-wrap: anywhere;">${selectEntity}</div>
+
+            <div style="color: #60d5ff;">Switch (Enabled):</div>
+            <div style="font-family: monospace; color: #fff; overflow-wrap: anywhere;">${enabledEntity}</div>
           </div>
           
           ${!configComplete ? html`
@@ -90,7 +113,7 @@ export class Step5Summary {
 
         <div style="margin-top: 24px; padding: 16px; border-radius: 8px; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); text-align: center;">
           <p style="color: #fff; margin: 0; font-weight: 600;">
-            ${this.editor._language === 'it' 
+            ${isIt 
               ? 'Tutto pronto! Clicca il pulsante "SALVA" in basso a destra (UI di Home Assistant) per confermare l\'aggiunta della card.' 
               : 'All set! Click the "SAVE" button at the bottom right (Home Assistant UI) to finalize adding the card.'}
           </p>

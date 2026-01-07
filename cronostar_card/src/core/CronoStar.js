@@ -150,6 +150,7 @@ export class CronoStarCard extends LitElement {
     this.modificationCounter = 0;
     this.globalSettings = {
       keyboard: {
+        def: { horizontal: 5, vertical: 0.5 },
         ctrl: { horizontal: 1, vertical: 0.1 },
         shift: { horizontal: 30, vertical: 1.0 },
         alt: { horizontal: 60, vertical: 5.0 }

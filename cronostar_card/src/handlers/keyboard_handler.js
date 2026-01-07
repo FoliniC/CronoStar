@@ -48,7 +48,10 @@ export class KeyboardHandler {
     if (!this.enabled) return;
     if (!this.containerEl) return;
     const active = this.card.shadowRoot?.activeElement;
-    if (active !== this.containerEl && !(e.ctrlKey || e.metaKey || e.altKey)) return;
+    // If the container is focused, let the container's own listener handle it
+    if (active === this.containerEl) return;
+    
+    if (!(e.ctrlKey || e.metaKey || e.altKey)) return;
     this.handleKeydown(e);
   }
 
@@ -56,7 +59,10 @@ export class KeyboardHandler {
     if (!this.enabled) return;
     if (!this.containerEl) return;
     const active = this.card.shadowRoot?.activeElement;
-    if (active !== this.containerEl && !(e.ctrlKey || e.metaKey || e.altKey)) return;
+    // If the container is focused, let the container's own listener handle it
+    if (active === this.containerEl) return;
+    
+    if (!(e.ctrlKey || e.metaKey || e.altKey)) return;
     this.handleKeyup(e);
   }
 
@@ -302,14 +308,20 @@ export class KeyboardHandler {
     const data = dataset.data;
     
     const config = this.card.config || {};
-    const kbGlobal = this.card.globalSettings?.keyboard || {
-      ctrl: { horizontal: 1, vertical: 0.1 },
-      shift: { horizontal: 30, vertical: 1.0 },
-      alt: { horizontal: 60, vertical: 5.0 }
+    const kbGlobalRaw = this.card.globalSettings?.keyboard || {};
+    const kbGlobal = {
+      def: kbGlobalRaw.def || { horizontal: 5, vertical: 0.5 },
+      ctrl: kbGlobalRaw.ctrl || { horizontal: 1, vertical: 0.1 },
+      shift: kbGlobalRaw.shift || { horizontal: 30, vertical: 1.0 },
+      alt: kbGlobalRaw.alt || { horizontal: 60, vertical: 5.0 }
     };
 
     // Extract movement settings (Priority: Card Config > Global Settings)
     const settings = {
+      def: {
+        h: config.kb_def_h !== undefined ? config.kb_def_h : kbGlobal.def.horizontal,
+        v: config.kb_def_v !== undefined ? config.kb_def_v : kbGlobal.def.vertical
+      },
       ctrl: { 
         h: config.kb_ctrl_h !== undefined ? config.kb_ctrl_h : kbGlobal.ctrl.horizontal,
         v: config.kb_ctrl_v !== undefined ? config.kb_ctrl_v : kbGlobal.ctrl.vertical
@@ -320,12 +332,12 @@ export class KeyboardHandler {
       },
       alt: { 
         h: config.kb_alt_h !== undefined ? config.kb_alt_h : kbGlobal.alt.horizontal,
-        v: 0 // Explicitly disabled per request
+        v: config.kb_alt_v !== undefined ? config.kb_alt_v : kbGlobal.alt.vertical
       }
     };
 
     // Movement logic
-    let minutesStep = 1; // Default
+    let minutesStep = settings.def.h; // Default
     let snapToGrid = false;
 
     if (e.ctrlKey || e.metaKey) {
@@ -340,12 +352,34 @@ export class KeyboardHandler {
 
     const dx = e.key === "ArrowLeft" ? -minutesStep : minutesStep;
 
+    // 0. Expand selection to include switch neighbors (vertical edges)
+    let indicesToMove = [...indices];
+    if (config.is_switch_preset) {
+      const activeSet = new Set(indices);
+      const partners = [];
+      indices.forEach(idx => {
+        const curX = data[idx]?.x;
+        if (curX === undefined) return;
+        
+        // Find immediate neighbors (T-1 or T+1)
+        data.forEach((pt, i) => {
+          if (activeSet.has(i)) return;
+          if (Math.abs(pt.x - curX) <= 1.5) { // tolerant check like chart_manager
+             partners.push(i);
+          }
+        });
+      });
+      // Merge unique
+      indicesToMove = [...new Set([...indices, ...partners])];
+      Logger.log('SWITCH', `[Keyboard] Expanded selection for drag: ${JSON.stringify(indices)} -> ${JSON.stringify(indicesToMove)}`);
+    }
+
     // 1. Build a time-sorted list of ALL points to find true neighbors
     const allByTime = data
       .map((pt, idx) => ({ idx, x: Math.round(Number(pt?.x ?? 0)) }))
       .sort((a, b) => a.x - b.x);
     
-    const selectedSet = new Set(indices);
+    const selectedSet = new Set(indicesToMove);
 
     // 2. Identify the Hard Limits for the WHOLE selected group
     let leftLimit = 0;
@@ -370,29 +404,50 @@ export class KeyboardHandler {
     }
 
     // 3. Compute current extent of the selected group
-    const groupMinX = Math.min(...indices.map(i => data[i].x));
-    const groupMaxX = Math.max(...indices.map(i => data[i].x));
+    const groupMinX = Math.min(...indicesToMove.map(i => data[i].x));
+    const groupMaxX = Math.max(...indicesToMove.map(i => data[i].x));
 
     // 4. Calculate actual displacement (clamped by hard limits)
-    let finalDx = dx;
-    if (groupMinX + dx < leftLimit) finalDx = leftLimit - groupMinX;
-    if (groupMaxX + dx > rightLimit) finalDx = rightLimit - groupMaxX;
+    // When snapping, we calculate the delta based on the ANCHOR point (indices[0]),
+    // and apply that same delta to all other points to preserve relative distances (e.g. 1 min switch gap).
+    
+    let moveDelta = 0;
+    const anchorIdx = indices[0];
+    const anchorP = data[anchorIdx];
+    
+    if (anchorP) {
+        let targetX = anchorP.x + dx;
+        
+        if (snapToGrid) {
+            const gridSize = minutesStep;
+            targetX = Math.round(targetX / gridSize) * gridSize;
+        }
+        
+        moveDelta = targetX - anchorP.x;
+    } else {
+        moveDelta = dx; // Fallback
+    }
+
+    // Check bounds for the WHOLE group with this calculated delta
+    if (groupMinX + moveDelta < leftLimit) {
+        moveDelta = leftLimit - groupMinX;
+    }
+    if (groupMaxX + moveDelta > rightLimit) {
+        moveDelta = rightLimit - groupMaxX;
+    }
 
     // 5. Apply movement
-    indices.forEach((i) => {
+    indicesToMove.forEach((i) => {
       const p = data[i];
       if (!p) return;
       if (i === 0 || i === data.length - 1) return; // keep anchors fixed
       
-      let nx = p.x + finalDx;
+      const oldX = p.x;
+      let nx = p.x + moveDelta;
       
-      if (snapToGrid) {
-          const gridSize = minutesStep;
-          nx = Math.round(nx / gridSize) * gridSize;
-      }
-
-      // Final safety clamp for each point
+      // Final safety clamp for each point (redundant if group logic is correct, but safe)
       p.x = Math.max(leftLimit, Math.min(rightLimit, nx));
+      Logger.log('SWITCH', `[KeyboardMove] Point ${i}: ${minutesToTime(oldX)} -> ${minutesToTime(p.x)}`);
     });
 
     // Persist to state and update chart
@@ -421,24 +476,30 @@ export class KeyboardHandler {
 
     const isSwitch = !!this.card.config?.is_switch_preset;
     const config = this.card.config || {};
-    const kbGlobal = this.card.globalSettings?.keyboard || {
-      ctrl: { horizontal: 1, vertical: 0.1 },
-      shift: { horizontal: 30, vertical: 1.0 },
-      alt: { horizontal: 60, vertical: 5.0 }
+    const kbGlobalRaw = this.card.globalSettings?.keyboard || {};
+    const kbGlobal = {
+      def: kbGlobalRaw.def || { horizontal: 5, vertical: 0.5 },
+      ctrl: kbGlobalRaw.ctrl || { horizontal: 1, vertical: 0.1 },
+      shift: kbGlobalRaw.shift || { horizontal: 30, vertical: 1.0 },
+      alt: kbGlobalRaw.alt || { horizontal: 60, vertical: 5.0 }
     };
 
     // Extract movement settings
     const settings = {
+      def: config.kb_def_v !== undefined ? config.kb_def_v : kbGlobal.def.vertical,
       ctrl: config.kb_ctrl_v !== undefined ? config.kb_ctrl_v : kbGlobal.ctrl.vertical,
-      shift: config.kb_shift_v !== undefined ? config.kb_shift_v : kbGlobal.shift.vertical
+      shift: config.kb_shift_v !== undefined ? config.kb_shift_v : kbGlobal.shift.vertical,
+      alt: config.kb_alt_v !== undefined ? config.kb_alt_v : kbGlobal.alt.vertical
     };
 
-    let step = isSwitch ? 1 : this.card.config.step_value;
+    let step = isSwitch ? 1 : settings.def;
     
     if (e.ctrlKey || e.metaKey) {
       step = isSwitch ? 1 : settings.ctrl;
     } else if (e.shiftKey) {
       step = isSwitch ? 1 : settings.shift;
+    } else if (e.altKey) {
+      step = isSwitch ? 1 : settings.alt;
     }
     
     const delta = e.key === "ArrowUp" ? step : -step;

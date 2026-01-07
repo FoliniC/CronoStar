@@ -1,4 +1,5 @@
 import { html } from 'lit';
+import { EditorI18n } from '../EditorI18n.js';
 
 export class Step0Dashboard {
   constructor(editor) {
@@ -16,7 +17,7 @@ export class Step0Dashboard {
       const cardLang = cardEl?.language;
       if (cardLang && this.editor._language !== cardLang) {
         this.editor._language = cardLang;
-        this.editor.i18n = new this.editor.EditorI18n(this.editor);
+        this.editor.i18n = new EditorI18n(this.editor);
         console.log(`[DASHBOARD] Adopted language from card (constructor): ${cardLang}`);
       }
       // Attempt prime from backend profile metadata using current config
@@ -30,7 +31,7 @@ export class Step0Dashboard {
       const cardLang = cardEl?.language;
       if (cardLang && this.editor._language !== cardLang) {
         this.editor._language = cardLang;
-        this.editor.i18n = new this.editor.EditorI18n(this.editor);
+        this.editor.i18n = new EditorI18n(this.editor);
         console.log(`[DASHBOARD] Adopted language from card: ${cardLang}`);
       }
     } catch (e) { /* ignore */ }
@@ -90,7 +91,7 @@ export class Step0Dashboard {
         console.log(`[DASHBOARD] 55555Adopted language from profiles list: ${metaLang}`);
         if (metaLang && this.editor._language !== metaLang) {
           this.editor._language = metaLang;
-          this.editor.i18n = new this.editor.EditorI18n(this.editor);
+          this.editor.i18n = new EditorI18n(this.editor);
           console.log(`[DASHBOARD] Adopted language from profiles list: ${metaLang}`);
         }
       } catch { /* ignore */ }
@@ -126,7 +127,7 @@ export class Step0Dashboard {
       const metaLang = loadedProfile?.meta?.language;
       if (metaLang && this.editor._language !== metaLang) {
         this.editor._language = metaLang;
-        this.editor.i18n = new this.editor.EditorI18n(this.editor);
+        this.editor.i18n = new EditorI18n(this.editor);
         console.log(`[DASHBOARD] Adopted language from backend profile: ${metaLang}`);
         // No explicit requestUpdate; Lit will re-render based on reactive change
       }
@@ -269,7 +270,7 @@ export class Step0Dashboard {
       // Ensure editor language matches the loaded profile if specified
       if (loadedProfile?.meta?.language && this.editor._language !== loadedProfile.meta.language) {
         this.editor._language = loadedProfile.meta.language;
-        this.editor.i18n = new this.editor.EditorI18n(this.editor);
+        this.editor.i18n = new EditorI18n(this.editor);
         console.log(`[DASHBOARD] Synchronized editor language to loaded profile: ${loadedProfile.meta.language}`);
       }
       return loadedProfile;
@@ -293,7 +294,7 @@ export class Step0Dashboard {
     const loadedLanguage = profileData?.meta?.language;
     if (loadedLanguage && this.editor._language !== loadedLanguage) {
       this.editor._language = loadedLanguage;
-      this.editor.i18n = new this.editor.EditorI18n(this.editor); // Re-initialize i18n with the new language
+      this.editor.i18n = new EditorI18n(this.editor); // Re-initialize i18n with the new language
       console.log(`[DASHBOARD] Editor language updated to: ${loadedLanguage}`);
     }
 

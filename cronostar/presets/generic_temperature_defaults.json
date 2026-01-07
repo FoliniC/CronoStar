@@ -6,8 +6,8 @@
     "kb_ctrl_v": 0.1,
     "kb_shift_h": 30,
     "kb_shift_v": 1.0,
-    "max_value": 30,
-    "min_value": 15,
+    "max_value": 40,
+    "min_value": 0,
     "step_value": 0.5,
     "unit_of_measurement": "\u00b0C",
     "y_axis_label": "Temperature"

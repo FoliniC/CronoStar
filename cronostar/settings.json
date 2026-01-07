@@ -1,5 +1,9 @@
 {
   "keyboard": {
+    "def": {
+      "horizontal": 5,
+      "vertical": 0.5
+    },
     "ctrl": {
       "horizontal": 1,
       "vertical": 0.1

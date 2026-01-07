@@ -27,6 +27,7 @@ export class CronoStarEditor extends LitElement {
       _step: { type: Number },
       _selectedPreset: { type: String },
       _automationYaml: { type: String },
+      _showLlmPrompt: { type: Boolean },
       _language: { type: String },
       _creatingAutomation: { type: Boolean },
       _showStepError: { type: Boolean },
@@ -501,6 +502,7 @@ export class CronoStarEditor extends LitElement {
     this._pickerLoaded = true;
 
     this._showStepError = false;
+    this._showLlmPrompt = false;
 
     // Debounce config-changed to avoid constant card recreations while typing
     this._debouncedDispatch = debounce(() => {

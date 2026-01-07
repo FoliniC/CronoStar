@@ -1,5 +1,6 @@
 import { html } from 'lit';
 import { CARD_CONFIG_PRESETS } from '../../config.js';
+import { EditorI18n } from '../EditorI18n.js';
 
 export class Step3Options {
   constructor(editor) {
@@ -108,6 +109,10 @@ export class Step3Options {
   _renderKeyboardModifierSection() {
     const config = this.editor._config;
     const settings = {
+      def: { 
+        horizontal: config.kb_def_h !== undefined ? config.kb_def_h : 5, 
+        vertical: config.kb_def_v !== undefined ? config.kb_def_v : 0.5 
+      },
       ctrl: { 
         horizontal: config.kb_ctrl_h !== undefined ? config.kb_ctrl_h : 1, 
         vertical: config.kb_ctrl_v !== undefined ? config.kb_ctrl_v : 0.1 
@@ -118,11 +123,11 @@ export class Step3Options {
       },
       alt: { 
         horizontal: config.kb_alt_h !== undefined ? config.kb_alt_h : 60, 
-        vertical: 0 
+        vertical: config.kb_alt_v !== undefined ? config.kb_alt_v : 5.0 
       }
     };
 
-    const modifiers = ['ctrl', 'shift', 'alt'];
+    const modifiers = ['def', 'ctrl', 'shift', 'alt'];
     
     return html`
       <div style="display: flex; flex-direction: column; gap: 20px;">
@@ -147,7 +152,6 @@ export class Step3Options {
                   type="number"
                   step="0.1"
                   .value=${settings[mod].vertical}
-                  ?disabled=${mod === 'alt'}
                   @change=${(e) => this._updateKeyboardConfig(mod, 'v', e.target.value)}
                   style="width: 100%;"
                 ></ha-textfield>

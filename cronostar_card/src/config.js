@@ -1,6 +1,6 @@
 /** Configuration management for CronoStar Card */
 import { log } from './utils/logger_utils.js';
-export const VERSION = window.CRONOSTAR_CARD_VERSION || '5.3.2';
+export const VERSION = window.CRONOSTAR_CARD_VERSION || '5.3.5';
 
 export const COLORS = {
   primary: "#03a9f4",
@@ -217,7 +217,8 @@ export function extractCardConfig(src = {}) {
     'profiles_select_entity', 'min_value', 'max_value', 'step_value',
     'unit_of_measurement', 'y_axis_label', 'allow_max_value',
     'logging_enabled', 'hour_base', 'title', 'step',
-    'kb_ctrl_h', 'kb_ctrl_v', 'kb_shift_h', 'kb_shift_v', 'kb_alt_h'
+    'kb_ctrl_h', 'kb_ctrl_v', 'kb_shift_h', 'kb_shift_v', 'kb_alt_h', 'kb_alt_v',
+    'kb_def_h', 'kb_def_v'
   ];
   const out = {};
   for (const key of validKeys) {
