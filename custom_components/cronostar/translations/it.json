@@ -3,7 +3,7 @@
         "step": {
             "install_component": {
                 "title": "Installa CronoStar",
-                "description": "⏰ **CronoStar** - Programmazione Oraria Avanzata per Home Assistant\n\n🚀 **Cosa verrà installato:**\n- Sistema di archiviazione profili globale\n- Servizi per la gestione dei profili (salva, carica, elimina)\n- Scheda Lovelace CronoStar per creare controller\n\n📝 **Dopo l'installazione:**\n- Aggiungi schede CronoStar alle tue dashboard\n- Ogni scheda crea un nuovo controller (Termostato, Interruttore, ecc.)\n- Configura le programmazioni direttamente nell'interfaccia della scheda\n\nClicca **Invia** per installare il componente."
+                "description": "⏰ **CronoStar** - Programmazione Oraria Avanzata per Home Assistant\n\n🚀 **Cosa verrà installato:**\n- Sistema di archiviazione profili globale\n- Servizi per la gestione dei profili (salva, carica, elimina)\n- Scheda Lovelace CronoStar per creare controller\n\n📝 **Dopo l\'installazione:**\n- Aggiungi schede CronoStar alle tue dashboard\n- Ogni scheda crea un nuovo controller (Termostato, Interruttore, ecc.)\n- Configura le programmazioni direttamente nell\'interfaccia della scheda\n\nClicca **Invia** per installare il componente."
             }
         },
         "abort": {
@@ -23,10 +23,10 @@
     },
     "exceptions": {
         "profile_not_found": {
-            "message": "Profilo '{profile}' non trovato per '{preset}' (Prefisso: '{prefix}')."
+            "message": "Profilo {profile} non trovato per {preset} (Prefisso: {prefix})."
         },
         "schedule_application_error": {
-            "message": "Impossibile applicare la programmazione a '{entity}': {error}"
+            "message": "Impossibile applicare la programmazione a {entity}: {error}"
         }
     }
 }
