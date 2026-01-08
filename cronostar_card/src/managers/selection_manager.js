@@ -156,7 +156,6 @@ export class SelectionManager {
   clearSelection() {
     this._selectedPoints.clear();
     this._anchorPoint = null;
-    this._snapshot = null;
 
     this._emitChange();
     Logger.sel('Selection cleared');

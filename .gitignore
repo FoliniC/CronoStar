@@ -80,3 +80,5 @@ addons_config/guacamole/postgres/pg_wal/*
 
 # Temporary directories
 temp/
+
+cronostar_card/coverage/

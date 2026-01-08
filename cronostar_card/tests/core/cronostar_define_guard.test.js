@@ -20,12 +20,15 @@ describe('cronostar_define_guard', () => {
   });
 
   it('should patch the global registry and set the flag', async () => {
+    const originalGet = mockRegistry.get;
+    const originalDefine = mockRegistry.define;
+
     // Force re-run of the IIFE
     await import('../../src/core/cronostar_define_guard.js?t=' + Date.now());
     
     expect(window.customElements.__cronostar_patched__).toBe(true);
-    expect(window.customElements.get).not.toBe(mockRegistry.get);
-    expect(window.customElements.define).not.toBe(mockRegistry.define);
+    expect(window.customElements.get).not.toBe(originalGet);
+    expect(window.customElements.define).not.toBe(originalDefine);
   });
 
   it('should fallback to window.CronoStarCard when original get returns undefined', async () => {

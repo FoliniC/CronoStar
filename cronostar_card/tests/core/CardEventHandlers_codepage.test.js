@@ -19,15 +19,17 @@ describe('CardEventHandlers - Enhanced Coverage', () => {
       config: { 
         target_entity: 'climate.test', 
         global_prefix: 'test_',
-        preset_type: 'thermostat'
+        preset_type: 'thermostat',
+        enabled_entity: 'switch.test_enabled'
       },
       language: 'en',
       localizationManager: { localize: vi.fn((l, k, s, r) => {
+        const replacements = r || s || {};
         if (k === 'notify.json_copied') return 'JSON copied!';
         if (k === 'notify.add_profile_success') return 'Profile added!';
-        if (k === 'notify.add_profile_error') return 'Error adding profile';
+        if (k === 'notify.add_profile_error') return `Error adding profile: ${replacements['{error}'] || ''}`;
         if (k === 'notify.delete_profile_success') return 'Profile deleted!';
-        if (k === 'notify.delete_profile_error') return 'Error deleting profile';
+        if (k === 'notify.delete_profile_error') return `Error deleting profile: ${replacements['{error}'] || ''}`;
         if (k === 'prompt.add_profile_title') return 'Add Profile';
         if (k === 'prompt.add_profile_name') return 'Profile name';
         if (k === 'prompt.delete_profile_confirm') return 'Delete?';
@@ -74,9 +76,12 @@ describe('CardEventHandlers - Enhanced Coverage', () => {
       isEnabled: true,
       cardId: 'test-card',
       globalSettings: { keyboard: {} },
-      entityStates: {}
+      entityStates: {},
+      isEditorContext: vi.fn(() => false)
     };
     handlers = new CardEventHandlers(card);
+    // Explicitly set it again just in case reference semantics are weird
+    handlers.card.isEditorContext = vi.fn(() => false);
   });
 
   describe('handleCopyJson', () => {
@@ -157,6 +162,7 @@ describe('CardEventHandlers - Enhanced Coverage', () => {
       vi.spyOn(handlers, '_openAddProfileDialog').mockResolvedValue('Existing');
       
       await handlers.handleAddProfile();
+      // Should find "already exists" in the error message, now constructed by updated localize mock
       expect(showNotificationSpy).toHaveBeenCalledWith(expect.stringContaining('already exists'), 'error');
     });
 

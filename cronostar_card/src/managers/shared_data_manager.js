@@ -33,7 +33,7 @@ export class SharedDataManager {
    */
   getPresetType() {
     const prefix = this.card.config?.global_prefix || 'cronostar_';
-    const match = prefix.match(/^cronostar_([^_]+)_$/);
+    const match = prefix.match(/^cronostar_(.+)_$/);
     return match ? match[1] : 'temp';
   }
 
