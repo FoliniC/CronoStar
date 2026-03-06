@@ -370,8 +370,8 @@ export class ChartManager {
     const config = this.context.config || {};
     const isSwitch = !!config.is_switch_preset;
     const minValue = isSwitch ? 0 : (config.min_value ?? 0);
-    const maxValue = isSwitch ? 1 : (config.max_value ?? 30);
     const step = config.step_value || 0.5;
+    const maxValue = isSwitch ? 1 : (config.max_value ?? 30) + (config.allow_max_value ? step : 0);
 
     return {
       responsive: true,
@@ -590,8 +590,8 @@ export class ChartManager {
             const data = dataset.data;
             
             const minValue = isSwitch ? 0 : (this.context.config.min_value ?? 0);
-            const maxValue = isSwitch ? 1 : (this.context.config.max_value ?? 30);
             const step = this.context.config.step_value || 0.5;
+            const maxValue = isSwitch ? 1 : (this.context.config.max_value ?? 30) + (this.context.config.allow_max_value ? step : 0);
 
             // Move selected points
             Object.keys(this.initialSelectedValues).forEach(idx => {
@@ -844,7 +844,7 @@ export class ChartManager {
                 const step = config.step_value || 0.5;
                 value = Math.round(value / step) * step;
                 const minV = config.min_value ?? 0;
-                const maxV = config.max_value ?? 30;
+                const maxV = (config.max_value ?? 30) + (config.allow_max_value ? step : 0);
                 value = Math.max(minV, Math.min(maxV, value));
               }
 

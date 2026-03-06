@@ -161,7 +161,7 @@ export class CardEventHandlers {
             const chart = this.card.chartManager.getChart();
             if (chart) {
                 chart.options.scales.y.min = this.card.config.min_value;
-                chart.options.scales.y.max = this.card.config.max_value;
+                chart.options.scales.y.max = this.card.config.max_value + (this.card.config.allow_max_value && !this.card.config.is_switch_preset ? this.card.config.step_value : 0);
                 chart.update();
             }
             this.card.chartManager.updateChartLabels();
