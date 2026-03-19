@@ -63,7 +63,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             # Added version tag to label
-            return self.async_create_entry(title="CronoStar [v5.4.69]", data={"component_installed": True})
+            return self.async_create_entry(title="CronoStar [v5.4.70]", data={"component_installed": True})
 
         return self.async_show_form(
             step_id="install_component",
@@ -109,7 +109,6 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Required(CONF_TARGET_ENTITY, default=defaults.get(CONF_TARGET_ENTITY)): str,
                 vol.Optional(CONF_GLOBAL_PREFIX, default=defaults.get(CONF_GLOBAL_PREFIX, "cronostar_")): str,
-                vol.Optional(CONF_LOGGING_ENABLED, default=defaults.get(CONF_LOGGING_ENABLED, False)): bool,
             }
         )
 
@@ -132,6 +131,17 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional(CONF_UNIT_OF_MEASUREMENT, default=defaults.get("unit", "")): str,
             vol.Optional(CONF_Y_AXIS_LABEL, default=defaults.get("y_axis_label", "")): str,
             vol.Optional(CONF_ALLOW_MAX_VALUE, default=defaults.get("allow_max_value", False)): bool,
+            vol.Optional(CONF_LOGGING_ENABLED, default=self._controller_data.get(CONF_LOGGING_ENABLED, False)): bool,
+            vol.Optional(CONF_LANGUAGE, default=self._controller_data.get(CONF_LANGUAGE, "default")): selector({
+                "select": {
+                    "options": [
+                        {"value": "default", "label": "System Default"},
+                        {"value": "en", "label": "English"},
+                        {"value": "it", "label": "Italiano"},
+                    ],
+                    "mode": "dropdown"
+                }
+            }),
         })
 
         return self.async_show_form(
@@ -146,7 +156,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_success(self, user_input=None):
         """Final Step: Success confirmation dialog."""
         if user_input is not None:
-            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.69]"
+            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.70]"
             return self.async_create_entry(title=title, data=self._controller_data)
 
         return self.async_show_form(
@@ -202,8 +212,6 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
         current_preset = self._config_entry.data.get(CONF_PRESET, "thermostat")
         current_target = self._config_entry.data.get(CONF_TARGET_ENTITY, "")
         current_prefix = self._config_entry.data.get(CONF_GLOBAL_PREFIX, "cronostar_")
-        current_logging = self._config_entry.data.get(CONF_LOGGING_ENABLED, False)
-        current_language = self._config_entry.data.get(CONF_LANGUAGE, "default")
 
         schema = vol.Schema(
             {
@@ -213,17 +221,6 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
                 ),
                 vol.Required(CONF_TARGET_ENTITY, default=current_target): str,
                 vol.Optional(CONF_GLOBAL_PREFIX, default=current_prefix): str,
-                vol.Optional(CONF_LOGGING_ENABLED, default=current_logging): bool,
-                vol.Optional(CONF_LANGUAGE, default=current_language): selector({
-                    "select": {
-                        "options": [
-                            {"value": "default", "label": "System Default"},
-                            {"value": "en", "label": "English"},
-                            {"value": "it", "label": "Italiano"},
-                        ],
-                        "mode": "dropdown"
-                    }
-                }),
             }
         )
 
@@ -252,6 +249,8 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
         current_unit = self._config_entry.data.get(CONF_UNIT_OF_MEASUREMENT, "")
         current_y_label = self._config_entry.data.get(CONF_Y_AXIS_LABEL, "")
         current_allow_max = self._config_entry.data.get(CONF_ALLOW_MAX_VALUE, False)
+        current_logging = self._config_entry.data.get(CONF_LOGGING_ENABLED, False)
+        current_language = self._config_entry.data.get(CONF_LANGUAGE, "default")
 
         schema = vol.Schema(
             {
@@ -262,6 +261,17 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_UNIT_OF_MEASUREMENT, default=current_unit): str,
                 vol.Optional(CONF_Y_AXIS_LABEL, default=current_y_label): str,
                 vol.Optional(CONF_ALLOW_MAX_VALUE, default=current_allow_max): bool,
+                vol.Optional(CONF_LOGGING_ENABLED, default=current_logging): bool,
+                vol.Optional(CONF_LANGUAGE, default=current_language): selector({
+                    "select": {
+                        "options": [
+                            {"value": "default", "label": "System Default"},
+                            {"value": "en", "label": "English"},
+                            {"value": "it", "label": "Italiano"},
+                        ],
+                        "mode": "dropdown"
+                    }
+                }),
             }
         )
 
@@ -287,7 +297,7 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
             if clean_name.startswith("CronoStar: "):
                 clean_name = clean_name[len("CronoStar: "):]
             
-            new_title = f"CronoStar: {clean_name} [v5.4.69]"
+            new_title = f"CronoStar: {clean_name} [v5.4.70]"
 
             self.hass.config_entries.async_update_entry(self._config_entry, title=new_title, data=new_data)
             await self.hass.config_entries.async_reload(self._config_entry.entry_id)
