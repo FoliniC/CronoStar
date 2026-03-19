@@ -62,7 +62,8 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="single_instance_allowed")
 
         if user_input is not None:
-            return self.async_create_entry(title="CronoStar", data={"component_installed": True})
+            # Added version tag to label
+            return self.async_create_entry(title="CronoStar [v5.4.66]", data={"component_installed": True})
 
         return self.async_show_form(
             step_id="install_component",
@@ -87,6 +88,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
 
             self._controller_data.update(user_input)
+            # FORCE OPEN NEXT STEP
             return await self.async_step_card_config()
 
         return self.async_show_form(
@@ -118,8 +120,8 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             self._controller_data.update(user_input)
-            title = f"CronoStar: {self._controller_data.get(CONF_NAME)}"
-            return self.async_create_entry(title=title, data=self._controller_data)
+            # Move to success confirmation before creating entry
+            return await self.async_step_success()
 
         # Pre-fill with preset defaults
         schema = vol.Schema({
@@ -136,7 +138,23 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="card_config",
             data_schema=schema,
             description_placeholders={
-                "preset": preset
+                "preset": preset,
+                "tag": "[PRESET_CONFIG_ACTIVE]" # Tag to confirm preset config is open
+            }
+        )
+
+    async def async_step_success(self, user_input=None):
+        """Final Step: Success confirmation dialog."""
+        if user_input is not None:
+            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.66]"
+            return self.async_create_entry(title=title, data=self._controller_data)
+
+        return self.async_show_form(
+            step_id="success",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "name": self._controller_data.get(CONF_NAME),
+                "confirm_tag": "[MODIFICA_ESEGUITA_SUCCESSO]" # Tag for success confirmation
             }
         )
 
@@ -168,6 +186,7 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
         # It's a controller entry
         if user_input is not None:
             self._options_data.update(user_input)
+            # FORCE OPEN PRESET CONFIG
             return await self.async_step_card_config()
 
         # Schema with current values
@@ -204,13 +223,8 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
         """Step 2: Configure card parameters in options flow."""
         if user_input is not None:
             self._options_data.update(user_input)
-            
-            # Merge into entry data and reload
-            new_data = {**self._config_entry.data, **self._options_data}
-            self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
-            await self.hass.config_entries.async_reload(self._config_entry.entry_id)
-            
-            return self.async_create_entry(title="", data={})
+            # Move to success confirmation
+            return await self.async_step_success()
 
         preset = self._config_entry.data.get(CONF_PRESET, "thermostat")
         current_title = self._config_entry.data.get(CONF_TITLE, "")
@@ -237,6 +251,31 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
             step_id="card_config",
             data_schema=schema,
             description_placeholders={
-                "preset": preset
+                "preset": preset,
+                "tag": "[PRESET_CONFIG_ACTIVE]" # Tag to confirm preset config is open
+            }
+        )
+
+    async def async_step_success(self, user_input=None):
+        """Final Step: Success confirmation dialog in options flow."""
+        if user_input is not None:
+            # Merge into entry data and reload
+            new_data = {**self._config_entry.data, **self._options_data}
+            # Update title with version tag if not already present
+            if "[v5.4.66]" not in self._config_entry.title:
+                new_title = f"{self._config_entry.title} [v5.4.66]"
+            else:
+                new_title = self._config_entry.title
+
+            self.hass.config_entries.async_update_entry(self._config_entry, title=new_title, data=new_data)
+            await self.hass.config_entries.async_reload(self._config_entry.entry_id)
+            
+            return self.async_create_entry(title="", data={})
+
+        return self.async_show_form(
+            step_id="success",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "confirm_tag": "[MODIFICA_ESEGUITA_SUCCESSO]"
             }
         )

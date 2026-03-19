@@ -23,7 +23,7 @@
                 }
             },
             "card_config": {
-                "title": "Configurazione Card CronoStar",
+                "title": "Configurazione Card CronoStar {tag}",
                 "description": "Configura l'aspetto predefinito e i limiti per la card Lovelace associata a questo controller.\n\nPreset: **{preset}**",
                 "data": {
                     "title": "Titolo della Card",
@@ -34,6 +34,10 @@
                     "y_axis_label": "Etichetta Asse Y",
                     "allow_max_value": "Consenti valore 'Max'"
                 }
+            },
+            "success": {
+                "title": "Configurazione Completata {confirm_tag}",
+                "description": "Il controller '{name}' è stato configurato con successo.\n\nPuoi ora aggiungere la card CronoStar alla tua dashboard utilizzando il prefisso e l'entità target definiti."
             }
         },
         "abort": {
@@ -57,6 +61,23 @@
                     "logging_enabled": "Abilita Log di Debug",
                     "language": "Lingua Interfaccia"
                 }
+            },
+            "card_config": {
+                "title": "Configurazione Card CronoStar {tag}",
+                "description": "Aggiorna l'aspetto predefinito e i limiti per la card Lovelace.\n\nPreset: **{preset}**",
+                "data": {
+                    "title": "Titolo della Card",
+                    "min_value": "Valore Minimo",
+                    "max_value": "Valore Massimo",
+                    "step_value": "Valore Step",
+                    "unit_of_measurement": "Unità di Misura",
+                    "y_axis_label": "Etichetta Asse Y",
+                    "allow_max_value": "Consenti valore 'Max'"
+                }
+            },
+            "success": {
+                "title": "Impostazioni Aggiornate {confirm_tag}",
+                "description": "La configurazione è stata aggiornata con successo."
             }
         }
     },

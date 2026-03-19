@@ -26,7 +26,7 @@
                 }
             },
             "card_config": {
-                "title": "CronoStar Card Configuration",
+                "title": "CronoStar Card Configuration {tag}",
                 "description": "Configure the default appearance and limits for the Lovelace card associated with this controller.\n\nPreset: **{preset}**",
                 "data": {
                     "title": "Card Title",
@@ -37,6 +37,10 @@
                     "y_axis_label": "Y-Axis Label",
                     "allow_max_value": "Allow 'Max' Value"
                 }
+            },
+            "success": {
+                "title": "Configuration Complete {confirm_tag}",
+                "description": "The controller '{name}' has been successfully configured.\n\nYou can now add the CronoStar card to your dashboard using the prefix and target entity defined."
             }
         }
     },
@@ -57,6 +61,23 @@
                 },
                 "description": "Configure settings for this CronoStar controller.",
                 "title": "CronoStar Options"
+            },
+            "card_config": {
+                "title": "CronoStar Card Configuration {tag}",
+                "description": "Update the default appearance and limits for the Lovelace card.\n\nPreset: **{preset}**",
+                "data": {
+                    "title": "Card Title",
+                    "min_value": "Minimum Value",
+                    "max_value": "Maximum Value",
+                    "step_value": "Step Value",
+                    "unit_of_measurement": "Unit of Measurement",
+                    "y_axis_label": "Y-Axis Label",
+                    "allow_max_value": "Allow 'Max' Value"
+                }
+            },
+            "success": {
+                "title": "Settings Updated {confirm_tag}",
+                "description": "The configuration has been successfully updated."
             }
         }
     },
