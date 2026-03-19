@@ -11,6 +11,7 @@ This integration provides:
 """
 
 import logging
+import re
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -21,6 +22,8 @@ from .setup import async_setup_integration
 
 _LOGGER = logging.getLogger(__name__)
 
+# CURRENT_VERSION for title tagging
+CURRENT_VERSION = "5.4.68"
 
 async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     """Set up CronoStar component from YAML (deprecated, kept for backward compatibility)."""
@@ -59,6 +62,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # 2. Identify Entry Type
     if entry.data.get("component_installed"):
+        # Auto-update global component title with version tag
+        expected_title = f"CronoStar [v{CURRENT_VERSION}]"
+        if entry.title != expected_title:
+            _LOGGER.info("Updating global component title: %s -> %s", entry.title, expected_title)
+            hass.config_entries.async_update_entry(entry, title=expected_title)
+            
         _LOGGER.info("✅ CronoStar: Global component entry set up")
         return True
 
@@ -69,6 +78,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         new_data = {**entry.data}
         new_data[CONF_PRESET] = new_data.pop("preset")
         hass.config_entries.async_update_entry(entry, data=new_data)
+
+    # Auto-update controller title with current version tag
+    if f"[v{CURRENT_VERSION}]" not in entry.title:
+        clean_title = re.sub(r"\s*\[v\d+\.\d+\.\d+\]", "", entry.title)
+        new_title = f"{clean_title} [v{CURRENT_VERSION}]"
+        _LOGGER.info("Updating controller title: %s -> %s", entry.title, new_title)
+        hass.config_entries.async_update_entry(entry, title=new_title)
 
     # Validate controller entry required fields
     missing = [k for k in (CONF_NAME, CONF_PRESET, CONF_TARGET_ENTITY) if k not in entry.data]

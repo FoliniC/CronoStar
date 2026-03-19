@@ -63,7 +63,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             # Added version tag to label
-            return self.async_create_entry(title="CronoStar [v5.4.67]", data={"component_installed": True})
+            return self.async_create_entry(title="CronoStar [v5.4.68]", data={"component_installed": True})
 
         return self.async_show_form(
             step_id="install_component",
@@ -146,7 +146,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_success(self, user_input=None):
         """Final Step: Success confirmation dialog."""
         if user_input is not None:
-            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.67]"
+            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.68]"
             return self.async_create_entry(title=title, data=self._controller_data)
 
         return self.async_show_form(
@@ -177,6 +177,9 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
         """Step 1: Manage component basic options."""
         # Check if this is the main component entry (no options currently)
         if self._config_entry.data.get("component_installed"):
+            if user_input is not None:
+                return self.async_create_entry(title="", data={})
+            
             return self.async_show_form(
                 step_id="init",
                 data_schema=vol.Schema({}),
@@ -261,11 +264,11 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             # Merge into entry data and reload
             new_data = {**self._config_entry.data, **self._options_data}
-            # Update title with version tag if not already present
-            if "[v5.4.67]" not in self._config_entry.title:
-                new_title = f"{self._config_entry.title} [v5.4.67]"
-            else:
-                new_title = self._config_entry.title
+            
+            # Use current title but strip old version tags and apply current one
+            import re
+            clean_title = re.sub(r"\s*\[v\d+\.\d+\.\d+\]", "", self._config_entry.title)
+            new_title = f"{clean_title} [v5.4.68]"
 
             self.hass.config_entries.async_update_entry(self._config_entry, title=new_title, data=new_data)
             await self.hass.config_entries.async_reload(self._config_entry.entry_id)

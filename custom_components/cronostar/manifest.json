@@ -1,6 +1,6 @@
 {
   "domain": "cronostar",
-  "name": "CronoStar [v5.4.67]",
+  "name": "CronoStar [v5.4.68]",
   "after_dependencies": [
     "http",
     "frontend"
@@ -23,5 +23,5 @@
   ],
   "quality_scale": "gold",
   "requirements": [],
-  "version": "5.4.67"
+  "version": "5.4.68"
 }
