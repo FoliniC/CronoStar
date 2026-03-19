@@ -63,7 +63,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             # Added version tag to label
-            return self.async_create_entry(title="CronoStar [v5.4.68]", data={"component_installed": True})
+            return self.async_create_entry(title="CronoStar [v5.4.69]", data={"component_installed": True})
 
         return self.async_show_form(
             step_id="install_component",
@@ -146,7 +146,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_success(self, user_input=None):
         """Final Step: Success confirmation dialog."""
         if user_input is not None:
-            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.68]"
+            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.69]"
             return self.async_create_entry(title=title, data=self._controller_data)
 
         return self.async_show_form(
@@ -174,7 +174,7 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
         self._options_data = {}
 
     async def async_step_init(self, user_input=None):
-        """Step 1: Manage component basic options."""
+        """Step 1: Manage component basic options (Full Wizard Style)."""
         # Check if this is the main component entry (no options currently)
         if self._config_entry.data.get("component_installed"):
             if user_input is not None:
@@ -192,14 +192,27 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
             # FORCE OPEN PRESET CONFIG
             return await self.async_step_card_config()
 
-        # Schema with current values
+        # Schema with current values (Wizard Style Step 1)
+        current_name = self._config_entry.data.get(CONF_NAME, self._config_entry.title)
+        import re
+        current_name = re.sub(r"\s*\[v\d+\.\d+\.\d+\]", "", current_name)
+        if current_name.startswith("CronoStar: "):
+            current_name = current_name[len("CronoStar: "):]
+
+        current_preset = self._config_entry.data.get(CONF_PRESET, "thermostat")
         current_target = self._config_entry.data.get(CONF_TARGET_ENTITY, "")
+        current_prefix = self._config_entry.data.get(CONF_GLOBAL_PREFIX, "cronostar_")
         current_logging = self._config_entry.data.get(CONF_LOGGING_ENABLED, False)
         current_language = self._config_entry.data.get(CONF_LANGUAGE, "default")
 
         schema = vol.Schema(
             {
+                vol.Required(CONF_NAME, default=current_name): str,
+                vol.Required(CONF_PRESET, default=current_preset): vol.In(
+                    ["thermostat", "ev_charging", "generic_kwh", "generic_temperature", "generic_switch", "cover"]
+                ),
                 vol.Required(CONF_TARGET_ENTITY, default=current_target): str,
+                vol.Optional(CONF_GLOBAL_PREFIX, default=current_prefix): str,
                 vol.Optional(CONF_LOGGING_ENABLED, default=current_logging): bool,
                 vol.Optional(CONF_LANGUAGE, default=current_language): selector({
                     "select": {
@@ -218,7 +231,7 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
             step_id="init",
             data_schema=schema,
             description_placeholders={
-                "info": f"Configure basic options for controller '{self._config_entry.title}'"
+                "info": f"Configure options for controller '{self._config_entry.title}'"
             },
         )
 
@@ -229,7 +242,9 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
             # Move to success confirmation
             return await self.async_step_success()
 
-        preset = self._config_entry.data.get(CONF_PRESET, "thermostat")
+        # Use current values from entry or defaults from presets if entry has none
+        preset = self._options_data.get(CONF_PRESET) or self._config_entry.data.get(CONF_PRESET, "thermostat")
+        
         current_title = self._config_entry.data.get(CONF_TITLE, "")
         current_min = self._config_entry.data.get(CONF_MIN_VALUE, 0.0)
         current_max = self._config_entry.data.get(CONF_MAX_VALUE, 100.0)
@@ -265,10 +280,14 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
             # Merge into entry data and reload
             new_data = {**self._config_entry.data, **self._options_data}
             
-            # Use current title but strip old version tags and apply current one
+            # Use name from options_data to build title
+            new_name = self._options_data.get(CONF_NAME, self._config_entry.title)
             import re
-            clean_title = re.sub(r"\s*\[v\d+\.\d+\.\d+\]", "", self._config_entry.title)
-            new_title = f"{clean_title} [v5.4.68]"
+            clean_name = re.sub(r"\s*\[v\d+\.\d+\.\d+\]", "", new_name)
+            if clean_name.startswith("CronoStar: "):
+                clean_name = clean_name[len("CronoStar: "):]
+            
+            new_title = f"CronoStar: {clean_name} [v5.4.69]"
 
             self.hass.config_entries.async_update_entry(self._config_entry, title=new_title, data=new_data)
             await self.hass.config_entries.async_reload(self._config_entry.entry_id)
