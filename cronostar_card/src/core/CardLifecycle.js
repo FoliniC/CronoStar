@@ -105,6 +105,23 @@ export class CardLifecycle {
       this._hass = hass;
       const card = this.card;
 
+      if (!this._firstHassAt) {
+        this._firstHassAt = Date.now();
+        Logger.log('HASS', 'CronoStar received first hass object');
+      }
+
+      // Detect startup phase (30s grace period)
+      // Also consider startup if backend service is not yet detected
+      const haState = hass.config?.state;
+      const uptime = Date.now() - this._firstHassAt;
+      const isStartup = (!card.cronostarReady && uptime < 60000) || ((haState !== 'RUNNING') && (uptime < 60000));
+
+      card.isStartup = isStartup;
+
+      if (isStartup) {        // Silent update during startup to catch entities as they appear
+        card.requestUpdate();
+      }
+
       this._refreshContextFlags();
 
       if (card.isPreview || card.preview === true || card._preview === true || this.isPickerPreviewContext()) {
@@ -162,7 +179,7 @@ export class CardLifecycle {
         if (enabledStateObj) {
           card.isEnabled = enabledStateObj.state === 'on';
           this.loggedPauseEntityMissing = false;
-        } else {
+        } else if (card.initialLoadComplete && enabledId && !isStartup) {
           let alreadyWarnedGlobally = false;
           if (typeof window !== 'undefined' && window.cronostarpausewarned instanceof Set) {
             alreadyWarnedGlobally = window.cronostarpausewarned.has(enabledId);
@@ -190,7 +207,7 @@ export class CardLifecycle {
             Logger.log('HASS', 'CronoStar Profile options updated:', newOptions?.length, 'profiles');
           }
 
-          if (newProfile && newProfile !== card.selectedProfile) {
+          if (newProfile && newProfile !== card.selectedProfile && newProfile !== 'unavailable' && newProfile !== 'unknown') {
             card.selectedProfile = newProfile;
             Logger.log('HASS', 'CronoStar Selected profile updated:', newProfile);
 
@@ -200,7 +217,7 @@ export class CardLifecycle {
               });
             }
           }
-        } else if (!this.loggedProfileSelectEntityMissing) {
+        } else if (card.initialLoadComplete && selId && !this.loggedProfileSelectEntityMissing && !isStartup) {
           Logger.warn('HASS', 'CronoStar Profile select entity not found:', selId);
           this.loggedProfileSelectEntityMissing = true;
         }
@@ -420,12 +437,34 @@ export class CardLifecycle {
       this.card.cardId = cardId;
 
       const cfg = this.card.config || {};
+      // Resolve last active profile to restore state correctly
+      let selectedProfile = this.card.selectedProfile;
+      
+      // 1. Check current selector entity state (if entity known from config)
+      if (!selectedProfile && this.card.config?.profiles_select_entity && hass.states) {
+        const selState = hass.states[this.card.config.profiles_select_entity];
+        if (selState && selState.state && selState.state !== 'unknown' && selState.state !== 'unavailable') {
+          selectedProfile = selState.state;
+          Logger.log('LOAD', 'Found profile via selector entity:', selectedProfile);
+        }
+      }
+      
+      // 2. Fallback: try to guess selector from prefix if config is missing
+      if (!selectedProfile && this.card.config?.global_prefix && hass.states) {
+        const guessedEntity = `select.${this.card.config.global_prefix}current_profile`;
+        const selState = hass.states[guessedEntity];
+        if (selState && selState.state && selState.state !== 'unknown' && selState.state !== 'unavailable') {
+          selectedProfile = selState.state;
+          Logger.log('LOAD', 'Found profile via guessed selector:', selectedProfile);
+        }
+      }
+
       const serviceData = {
         card_id: cardId,
         version: VERSION,
         preset: cfg.preset_type || 'thermostat',
         global_prefix: cfg.global_prefix,
-        selected_profile: this.card.selectedProfile
+        selected_profile: selectedProfile
       };
 
       Logger.log('LOAD', 'CronoStar registering card with service data:', serviceData);
@@ -474,9 +513,18 @@ export class CardLifecycle {
       }
 
       if (profileData?.meta) {
+        const oldEnabled = this.card.config?.enabled_entity;
+        const oldSelect = this.card.config?.profiles_select_entity;
         const cleanMeta = extractCardConfig(profileData.meta);
         this.card.config = { ...this.card.config, ...cleanMeta };
-        Logger.log('LOAD', 'CronoStar updated card config from register_card metadata');
+        const newEnabled = this.card.config?.enabled_entity;
+        const newSelect = this.card.config?.profiles_select_entity;
+        
+        Logger.log('LOAD', `CronoStar updated card config from register_card metadata. enabled_entity: ${oldEnabled} -> ${newEnabled}`);
+        
+        // Reset warnings if entities changed
+        if (oldEnabled !== newEnabled) this.loggedPauseEntityMissing = false;
+        if (oldSelect !== newSelect) this.loggedProfileSelectEntityMissing = false;
 
         // Explicitly apply language from profile meta
         try {

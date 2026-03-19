@@ -72,50 +72,50 @@ export class Step5Summary {
         <div class="step-description">${this.editor.i18n._t('descriptions.step5')}</div>
 
         <!-- CARD CONFIGURATION SECTION -->
-        <div class="field-group" style="border-left: 4px solid #0ea5e9;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <strong style="font-size: 1.1em; color: #fff;">Lovelace Card Setup</strong>
+        <div class="field-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <strong style="font-size: 1.2rem; color: #ffffff;">Lovelace Card Setup</strong>
             ${configComplete 
-              ? html`<span style="background: #22c55e; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold;">READY</span>`
-              : html`<span style="background: #ef4444; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold;">INCOMPLETE</span>`
+              ? html`<span style="background: #22c55e; color: #ffffff; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800;">READY</span>`
+              : html`<span style="background: #ef4444; color: #ffffff; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800;">INCOMPLETE</span>`
             }
           </div>
           
-          <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
-            <pre style="margin: 0; color: #22c55e; font-size: 0.85em; font-family: monospace; white-space: pre-wrap; overflow-wrap: break-word;">${cardYaml}</pre>
+          <div style="background: #0f172a; padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 24px;">
+            <pre style="margin: 0; color: #38bdf8; font-size: 0.9rem; font-family: 'Fira Code', monospace; white-space: pre-wrap; overflow-wrap: break-word;">${cardYaml}</pre>
           </div>
           
-          <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 8px 12px; font-size: 0.85em; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-            <div style="color: #a0a8c0;">Prefix:</div>
-            <div style="font-family: monospace; color: #fff; overflow-wrap: anywhere;">${effectivePrefix}</div>
+          <div class="field-value-info" style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 12px 16px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05);">
+            <div style="color: #94a3b8;">Prefix:</div>
+            <div style="font-family: monospace; color: #ffffff;">${effectivePrefix}</div>
             
-            <div style="color: #a0a8c0;">Target:</div>
-            <div style="font-family: monospace; color: #fff; overflow-wrap: anywhere;">${this.editor._config.target_entity || 'Not set'}</div>
+            <div style="color: #94a3b8;">Target:</div>
+            <div style="font-family: monospace; color: #ffffff;">${this.editor._config.target_entity || 'Not set'}</div>
             
-            <div style="height: 1px; background: rgba(255,255,255,0.1); grid-column: span 2; margin: 4px 0;"></div>
+            <div style="height: 1px; background: rgba(255,255,255,0.1); grid-column: span 2; margin: 8px 0;"></div>
 
-            <div style="color: #60d5ff;">Sensor (Current):</div>
-            <div style="font-family: monospace; color: #fff; overflow-wrap: anywhere;">${currentEntity}</div>
+            <div style="color: #38bdf8;">Sensor (Current):</div>
+            <div style="font-family: monospace; color: #ffffff;">${currentEntity}</div>
 
-            <div style="color: #60d5ff;">Select (Profile):</div>
-            <div style="font-family: monospace; color: #fff; overflow-wrap: anywhere;">${selectEntity}</div>
+            <div style="color: #38bdf8;">Select (Profile):</div>
+            <div style="font-family: monospace; color: #ffffff;">${selectEntity}</div>
 
-            <div style="color: #60d5ff;">Switch (Enabled):</div>
-            <div style="font-family: monospace; color: #fff; overflow-wrap: anywhere;">${enabledEntity}</div>
+            <div style="color: #38bdf8;">Switch (Enabled):</div>
+            <div style="font-family: monospace; color: #ffffff;">${enabledEntity}</div>
           </div>
           
           ${!configComplete ? html`
-            <div style="margin-top: 8px; color: #fb923c; font-size: 0.85em;">
+            <div class="warning-box" style="margin-top: 16px;">
               <strong>Missing:</strong> ${missingFields.join(', ')}
             </div>
           ` : ''}
         </div>
 
-        <div style="margin-top: 24px; padding: 16px; border-radius: 8px; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); text-align: center;">
-          <p style="color: #fff; margin: 0; font-weight: 600;">
+        <div class="success-box" style="text-align: center;">
+          <p style="font-weight: 700; font-size: 1.1rem; margin: 0;">
             ${isIt 
-              ? 'Tutto pronto! Clicca il pulsante "SALVA" in basso a destra (UI di Home Assistant) per confermare l\'aggiunta della card.' 
-              : 'All set! Click the "SAVE" button at the bottom right (Home Assistant UI) to finalize adding the card.'}
+              ? 'Tutto pronto! Clicca il pulsante "SALVA" in basso a destra per confermare.' 
+              : 'All set! Click the "SAVE" button at the bottom right to finalize.'}
           </p>
         </div>
       </div>

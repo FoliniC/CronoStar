@@ -27,8 +27,12 @@ class CronoStarEnabledSwitch(CoordinatorEntity, SwitchEntity):
     def __init__(self, coordinator):
         """Initialize enabled switch."""
         super().__init__(coordinator)
-        # Unique ID must persist
+        # Unique ID remains based on global_prefix
         self._attr_unique_id = f"{coordinator.prefix}enabled"
+        self._attr_name = None  # Handled by translation key
+        
+        # Explicit entity_id to prevent HA truncation (e.g. switch.cronostar_ev)
+        self.entity_id = f"switch.{coordinator.prefix}enabled"
 
         # Device info for grouping
         self._attr_device_info = {
@@ -42,6 +46,8 @@ class CronoStarEnabledSwitch(CoordinatorEntity, SwitchEntity):
     @property
     def is_on(self) -> bool:
         """Return true if schedule is enabled."""
+        if self.coordinator.data is None:
+            return True
         return self.coordinator.data.get("is_enabled", True)
 
     async def async_turn_on(self, **kwargs) -> None:
@@ -57,9 +63,3 @@ class CronoStarEnabledSwitch(CoordinatorEntity, SwitchEntity):
             _LOGGER.info("Disabling controller '%s'", self.coordinator.name)
 
         await self.coordinator.set_enabled(False)
-
-    @property
-    def available(self) -> bool:
-        """Entity availability based on target entity presence."""
-        state = self.coordinator.hass.states.get(self.coordinator.target_entity)
-        return state is not None and state.state not in ("unknown", "unavailable")

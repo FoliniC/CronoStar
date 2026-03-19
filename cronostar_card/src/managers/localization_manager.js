@@ -27,7 +27,12 @@ const TRANSLATIONS = {
       apply_now_success: "Applied successfully for hour {hour}",
       time_label: "Time",
       hours_label: "Hours",
-      temperature_label: "Temperature"
+      temperature_label: "Temperature",
+      value_label: "Value",
+      power_label: "Power",
+      energy_label: "Energy",
+      state_label: "State",
+      position_label: "Position"
     },
     menu: {
       language: "Language",
@@ -53,6 +58,12 @@ const TRANSLATIONS = {
     },
     prompt: {
       add_profile_name: "Enter new profile name",
+      add_profile_title: "Add Profile",
+      add_profile_placeholder: "Enter profile name",
+      add_profile_suggestions: "Suggestions from other cards",
+      no_suggestions: "No suggestions available",
+      cancel: "Cancel",
+      create: "Create",
       delete_profile_confirm: "Delete profile '{profile}'?"
     },
     notify: {
@@ -65,8 +76,14 @@ const TRANSLATIONS = {
     help: {
       title: "CronoStar Help",
       text: "Use mouse/touch to drag points. Keyboard: Ctrl+A select all, arrows change values, Esc clears selection.",
+      mouse_usage_title: "Mouse Usage",
       mouse_manual: "Mouse Usage:\n- Add Points: Left-click on empty space\n- Selection: Click on a point\n- Multiple Selection: Ctrl/Cmd + Click or Selection Box (drag on empty area)\n- Adjust Values: Drag point up/down\n- Delete: Right-click on a point\n- Alignment: Alt + Left/Right Click\n- Zoom: Wheel/Pinch on X-axis (bottom) or Y-axis (left)\n- Pan: Click and drag on axes",
-      keyboard_manual: "Keyboard Usage:\n- Arrows: UP/DOWN (value), LEFT/RIGHT (move/align)\n- Modifiers: Ctrl/Cmd (Fine), Shift (Snap)\n- Shortcuts: Ctrl+Z (Undo), Ctrl+Y (Redo), Ctrl+A (Select All), Alt+Q (Insert), Alt+W (Delete), Esc (Deselect), Enter (Apply)"
+      keyboard_usage_title: "Keyboard Usage",
+      keyboard_manual: "Keyboard Usage:\n- Arrows: UP/DOWN (value), LEFT/RIGHT (move/align)\n- Modifiers: Ctrl/Cmd (Fine), Shift (Snap)\n- Shortcuts: Ctrl+Z (Undo), Ctrl+Y (Redo), Ctrl+A (Select All), Alt+Q (Insert), Alt+W (Delete), Esc (Deselect), Enter (Apply)",
+      technical_details_title: "Technical Details",
+      copy_technical_details_button: "📋 Copy technical details",
+      copied_message: "Copied!",
+      copy_error_message: "Copy Error"
     },
     error: {
       chart_init_failed: "Chart initialization failed. See console logs.",
@@ -102,7 +119,12 @@ const TRANSLATIONS = {
       apply_now_success: "Applicato correttamente per l'ora {hour}",
       time_label: "Orario",
       hours_label: "Ore",
-      temperature_label: "Temperatura"
+      temperature_label: "Temperatura",
+      value_label: "Valore",
+      power_label: "Potenza",
+      energy_label: "Energia",
+      state_label: "Stato",
+      position_label: "Posizione"
     },
     menu: {
       language: "Lingua",
@@ -128,6 +150,12 @@ const TRANSLATIONS = {
     },
     prompt: {
       add_profile_name: "Inserisci il nome del nuovo profilo",
+      add_profile_title: "Aggiungi Profilo",
+      add_profile_placeholder: "Inserisci nome profilo",
+      add_profile_suggestions: "Suggerimenti da altre card",
+      no_suggestions: "Nessun suggerimento disponibile",
+      cancel: "Annulla",
+      create: "Crea",
       delete_profile_confirm: "Eliminare il profilo '{profile}'?"
     },
     notify: {
@@ -140,8 +168,14 @@ const TRANSLATIONS = {
     help: {
       title: "Aiuto CronoStar",
       text: "Usa mouse/touch per trascinare i punti. Tastiera: Ctrl+A seleziona tutto, frecce cambiano i valori, Esc cancella la selezione.",
+      mouse_usage_title: "Utilizzo Mouse",
       mouse_manual: "Utilizzo Mouse:\n- Aggiungi Punti: Click sinistro su spazio vuoto\n- Selezione: Click su un punto\n- Selezione Multipla: Ctrl/Cmd + Click o Box di selezione (trascina su area vuota)\n- Regola Valori: Trascina il punto su/giù\n- Elimina: Click destro su un punto\n- Allineamento: Alt + Click Sinistro/Destro\n- Zoom: Rotella/Pinch su asse X (fondo) o Y (sinistra)\n- Pan: Trascina sugli assi",
-      keyboard_manual: "Utilizzo Tastiera:\n- Frecce: SU/GIÙ (valore), SINISTRA/DESTRA (sposta/allinea)\n- Modificatori: Ctrl/Cmd (Fine), Shift (Snap)\n- Scorciatoie: Ctrl+Z (Undo), Ctrl+Y (Redo), Ctrl+A (Tutto), Alt+Q (Inserisci), Alt+W (Elimina), Esc (Deseleziona), Invio (Applica)"
+      keyboard_usage_title: "Utilizzo Tastiera",
+      keyboard_manual: "Utilizzo Tastiera:\n- Frecce: SU/GIÙ (valore), SINISTRA/DESTRA (sposta/allinea)\n- Modificatori: Ctrl/Cmd (Fine), Shift (Snap)\n- Scorciatoie: Ctrl+Z (Undo), Ctrl+Y (Redo), Ctrl+A (Tutto), Alt+Q (Inserisci), Alt+W (Elimina), Esc (Deseleziona), Invio (Applica)",
+      technical_details_title: "Dettagli Tecnici",
+      copy_technical_details_button: "📋 Copia dettagli tecnici",
+      copied_message: "Copiato!",
+      copy_error_message: "Errore copia"
     },
     error: {
       chart_init_failed: "Inizializzazione grafico fallita. Vedi i log della console.",
@@ -155,24 +189,43 @@ const TRANSLATIONS = {
 };
 
 export class LocalizationManager {
+  constructor(card) {
+    this.card = card;
+  }
+
   localize(lang, key, search, replace) {
     try {
       const parts = key.split('.');
-      let obj = TRANSLATIONS[lang] || TRANSLATIONS.en;
+      
+      // Support sub-tags like 'it-IT' or 'en-US' by checking base language
+      let langCode = (lang || 'en').toLowerCase();
+      let translations = TRANSLATIONS[langCode];
+      
+      if (!translations && langCode.includes('-')) {
+        const baseLang = langCode.split('-')[0];
+        translations = TRANSLATIONS[baseLang];
+      }
+      
+      let obj = translations || TRANSLATIONS.en;
+      
       for (const p of parts) {
         obj = obj?.[p];
       }
+      
       let value = typeof obj === 'string' ? obj : key;
-      if (search && typeof search === 'object') {
-        Object.keys(search).forEach((needle) => {
-          value = value.replace(needle, search[needle]);
+      
+      // Merged replacements (supporting both search/replace patterns used in codebase)
+      const replacements = { ...(search || {}), ...(replace || {}) };
+      
+      if (Object.keys(replacements).length > 0) {
+        Object.entries(replacements).forEach(([needle, replacement]) => {
+          // Global replacement for placeholders like {hour} or [hour]
+          const escapedNeedle = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(escapedNeedle, 'g');
+          value = value.replace(regex, replacement);
         });
       }
-      if (replace && typeof replace === 'object') {
-        Object.keys(replace).forEach((needle) => {
-          value = value.replace(needle, replace[needle]);
-        });
-      }
+      
       return value;
     } catch (e) {
       Logger.warn('I18N', `[Localization] Missing key '${key}' for lang '${lang}'`);

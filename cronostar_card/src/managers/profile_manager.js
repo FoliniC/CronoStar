@@ -4,7 +4,7 @@
  * Handles profile operations and sync with backend
  */
 
-import { Logger } from '../utils.js';
+import { Logger, timeToMinutes } from '../utils.js';
 import { Events } from '../core/EventBus.js';
 import { getEffectivePrefix } from '../utils/prefix_utils.js';
 
@@ -23,6 +23,11 @@ export class ProfileManager {
   async loadProfile(profileName) {
     if (this._isLoading) {
       Logger.warn('PROFILE', 'Load already in progress');
+      return;
+    }
+
+    if (!profileName || profileName === 'unavailable' || profileName === 'unknown' || profileName === 'undefined') {
+      Logger.warn('PROFILE', `Ignoring invalid profile name: '${profileName}'`);
       return;
     }
 
@@ -73,6 +78,8 @@ export class ProfileManager {
         name: profileName,
         schedule
       });
+
+      this.context.requestUpdate();
 
       Logger.load(`✅ Profile '${profileName}' loaded successfully`);
 
@@ -142,9 +149,27 @@ export class ProfileManager {
    * @param {Event} event - Selection event
    */
   async handleProfileSelection(event) {
-    const newProfile = event?.target?.value || event?.detail?.value || '';
+    // Try different ways to get the value from the event
+    // 1. event.detail.value (standard for ha-select)
+    // 2. event.target.value (fallback)
+    // 3. event.detail.item.value (MDC internal)
+    const newProfile = event?.detail?.value || event?.target?.value || event?.detail?.item?.value || '';
+    
+    console.log('[CRONOSTAR] [PROFILE] handleProfileSelection triggered:', { 
+      type: event?.type, 
+      value: newProfile, 
+      current: this.context.selectedProfile 
+    });
+    
+    Logger.log('PROFILE', `handleProfileSelection triggered. Event type: ${event?.type}, Value: '${newProfile}', Current: '${this.context.selectedProfile}'`);
 
-    if (!newProfile || newProfile === this.context.selectedProfile) {
+    if (!newProfile) {
+      Logger.warn('PROFILE', 'Profile selection event received but value is empty');
+      return;
+    }
+
+    if (newProfile === this.context.selectedProfile) {
+      Logger.log('PROFILE', `Profile '${newProfile}' is already selected, ignoring.`);
       return;
     }
 
@@ -152,9 +177,15 @@ export class ProfileManager {
 
     // Check for unsaved changes
     if (this.context.hasUnsavedChanges && previousProfile) {
+      Logger.log('PROFILE', `Unsaved changes in '${previousProfile}', showing confirmation for switch to '${newProfile}'`);
       this._showUnsavedDialog(newProfile);
       return;
     }
+
+    Logger.log('PROFILE', `Proceeding with profile switch to: '${newProfile}'`);
+
+    // Close menu if open
+    this.context.isMenuOpen = false;
 
     // Load new profile
     this.context.selectedProfile = newProfile;
@@ -166,6 +197,13 @@ export class ProfileManager {
     const selectionManager = this.context.getManager('selection');
     if (selectionManager) {
       selectionManager.snapshotSelection();
+    }
+
+    // Close menu if open
+    if (this.context._card.isMenuOpen) {
+      Logger.log('PROFILE', 'Closing card menu');
+      this.context._card.isMenuOpen = false;
+      this.context._card.keyboardHandler?.enable();
     }
 
     try {
@@ -189,6 +227,10 @@ export class ProfileManager {
     // Signal to card to show dialog
     this.context._card.showUnsavedChangesDialog = true;
     this.context._card.pendingProfileChange = newProfile;
+    
+    // Also close menu when dialog appears
+    this.context.isMenuOpen = false;
+    
     this.context.requestUpdate();
   }
 
@@ -201,13 +243,18 @@ export class ProfileManager {
     const selectorEntity = this.context.config?.profiles_select_entity;
 
     if (selectorEntity) {
+      Logger.log('PROFILE', `[PERSIST_TRACE] Updating selector entity '${selectorEntity}' to '${profileName}'`);
       const domain = selectorEntity.split('.')[0] || 'input_select';
       this.context.hass.callService(domain, 'select_option', {
         entity_id: selectorEntity,
         option: profileName
-      }).catch(() => {
-        // Ignore errors (entity might not exist)
+      }).then(() => {
+        Logger.log('PROFILE', `[PERSIST_TRACE] Service call success for '${selectorEntity}'`);
+      }).catch((e) => {
+        Logger.warn('PROFILE', `[PERSIST_TRACE] Failed to update selector entity '${selectorEntity}':`, e);
       });
+    } else {
+      Logger.warn('PROFILE', '[PERSIST_TRACE] Cannot persist selection: profiles_select_entity is missing in config');
     }
   }
 
@@ -218,8 +265,6 @@ export class ProfileManager {
    * @returns {Array} Normalized schedule
    */
   _buildSchedulePayload(rawData) {
-    const stateManager = this.context.getManager('state');
-
     return rawData
       .map(point => ({
         time: String(point.time),
@@ -230,8 +275,8 @@ export class ProfileManager {
         Number.isFinite(point.value)
       )
       .sort((a, b) => {
-        const aMin = stateManager.timeToMinutes(a.time);
-        const bMin = stateManager.timeToMinutes(b.time);
+        const aMin = timeToMinutes(a.time);
+        const bMin = timeToMinutes(b.time);
         return aMin - bMin;
       });
   }

@@ -4,9 +4,26 @@
             "single_instance_allowed": "The CronoStar global component is already installed."
         },
         "step": {
+            "user": {
+                "title": "CronoStar Setup",
+                "menu_options": {
+                    "controller": "Add a new Controller"
+                }
+            },
             "install_component": {
                 "description": "This will install the CronoStar component and register the global services and Lovelace card resource.",
                 "title": "Install CronoStar"
+            },
+            "controller": {
+                "title": "Configure CronoStar Controller",
+                "description": "Set up a new controller for your time-based schedule.\n\nThe **Global Prefix** will be used to generate helper entities (profile select, pause switch).",
+                "data": {
+                    "name": "Controller Name",
+                    "preset_type": "Preset Type",
+                    "target_entity": "Target Entity",
+                    "global_prefix": "Global Prefix",
+                    "logging_enabled": "Enable Debug Logging"
+                }
             }
         }
     },
@@ -14,10 +31,21 @@
         "step": {
             "init": {
                 "data": {
-                    "logging_enabled": "Enable Debug Logging"
+                    "target_entity": "Target Entity",
+                    "logging_enabled": "Enable Debug Logging",
+                    "language": "UI Language"
                 },
-                "description": "Global component settings.",
+                "description": "Configure settings for this CronoStar controller.",
                 "title": "CronoStar Options"
+            }
+        }
+    },
+    "selector": {
+        "language": {
+            "options": {
+                "default": "System Default",
+                "en": "English",
+                "it": "Italiano"
             }
         }
     },
@@ -27,6 +55,32 @@
         },
         "schedule_application_error": {
             "message": "Failed to apply schedule to {entity}: {error}"
+        }
+    },
+    "entity": {
+        "sensor": {
+            "current_value": {
+                "name": "Scheduled Value"
+            },
+            "current_value_temp": {
+                "name": "Scheduled Temperature"
+            },
+            "current_value_power": {
+                "name": "Scheduled Power"
+            },
+            "current_value_cover": {
+                "name": "Scheduled Position"
+            }
+        },
+        "switch": {
+            "enabled": {
+                "name": "Automation Enabled"
+            }
+        },
+        "select": {
+            "profile": {
+                "name": "Active Profile"
+            }
         }
     }
 }

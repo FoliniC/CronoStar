@@ -107,7 +107,14 @@ class CronoStarCoordinator(DataUpdateCoordinator):
                 if container and "profiles" in container:
                     self.available_profiles = list(container["profiles"].keys())
 
-                    # Set initial profile selection
+                    # Restore last active profile if available
+                    last_active = container.get("meta", {}).get("last_active_profile")
+                    if last_active and last_active in self.available_profiles:
+                        self.selected_profile = last_active
+                        if self.logging_enabled:
+                            _LOGGER.info("Restored last active profile '%s' for '%s'", last_active, self.name)
+
+                    # Set initial profile selection (fallback)
                     if self.selected_profile not in self.available_profiles:
                         # Prefer "Default", then first available
                         if "Default" in self.available_profiles:
@@ -161,13 +168,23 @@ class CronoStarCoordinator(DataUpdateCoordinator):
     async def set_profile(self, profile_name: str):
         """Set the active profile and apply immediately."""
         if self.logging_enabled:
-            _LOGGER.info("Setting profile '%s' for '%s'", profile_name, self.name)
+            _LOGGER.info("[PERSIST_TRACE] Setting profile '%s' for '%s'", profile_name, self.name)
 
         if profile_name not in self.available_profiles:
-            _LOGGER.warning("Profile '%s' not found in available profiles for '%s'", profile_name, self.name)
+            _LOGGER.warning("[PERSIST_TRACE] Profile '%s' not found in available profiles for '%s'", profile_name, self.name)
             return
 
         self.selected_profile = profile_name
+        
+        # Persist selection to metadata
+        success = await self.storage_manager.update_active_profile(
+            self.preset_type, 
+            self.prefix, 
+            self.selected_profile
+        )
+        if self.logging_enabled:
+             _LOGGER.info("[PERSIST_TRACE] update_active_profile result: %s", success)
+        
         await self.async_refresh()
 
     async def set_enabled(self, enabled: bool):

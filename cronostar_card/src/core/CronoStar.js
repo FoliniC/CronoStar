@@ -49,6 +49,7 @@ export class CronoStarCard extends LitElement {
       contextMenu: { type: Object },
       modificationCounter: { type: Number },
       globalSettings: { type: Object },
+      isStartup: { type: Boolean },
     };
   }
 
@@ -146,6 +147,7 @@ export class CronoStarCard extends LitElement {
     this.cardId = "";
     this.isExpandedV = false;
     this.isExpandedH = false;
+    this.isStartup = true;
     this.contextMenu = { show: false, x: 0, y: 0 };
     this.modificationCounter = 0;
     this.globalSettings = {

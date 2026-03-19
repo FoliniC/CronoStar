@@ -26,8 +26,13 @@ class CronoStarCurrentSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator):
         """Initialize current value sensor."""
         super().__init__(coordinator)
-        # Unique ID must persist (legacy)
+        # Unique ID remains based on global_prefix
         self._attr_unique_id = f"{coordinator.prefix}current"
+        self._attr_has_entity_name = True
+        self._attr_name = None  # Handled by translation key
+
+        # Explicit entity_id to ensure consistency
+        self.entity_id = f"sensor.{coordinator.prefix}current"
 
         # Determine device class, unit, and translation key based on preset type
         preset = getattr(coordinator, "preset_type", None) or "thermostat"
@@ -71,11 +76,19 @@ class CronoStarCurrentSensor(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return the current scheduled value."""
+        if self.coordinator.data is None:
+            return 0.0
         return self.coordinator.data.get("current_value")
 
     @property
     def extra_state_attributes(self) -> dict:
         """Return additional state attributes."""
+        if self.coordinator.data is None:
+            return {
+                "active_profile": "Default",
+                "is_enabled": True,
+                "target_entity": self.coordinator.target_entity,
+            }
         return {
             "active_profile": self.coordinator.data.get("selected_profile"),
             "is_enabled": self.coordinator.data.get("is_enabled", True),

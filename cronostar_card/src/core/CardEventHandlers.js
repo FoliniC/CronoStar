@@ -412,10 +412,39 @@ export class CardEventHandlers {
                 const selectorEntity = this.card.config.profiles_select_entity;
                 if (selectorEntity) {
                     const domain = selectorEntity.split('.')[0] || 'input_select';
-                    this.card.hass.callService(domain, 'select_option', {
-                        entity_id: selectorEntity,
-                        option: profileName
-                    }).catch(() => { /* ignore */ });
+                    
+                    // Add a small delay and retry to allow HA to refresh the select entity options
+                    const trySelect = async (attempts = 5) => {
+                        try {
+                            // Check if the option is valid first (if we have access to state)
+                            const st = this.card.hass.states[selectorEntity];
+                            const options = st?.attributes?.options || [];
+                            
+                            if (st && !options.includes(profileName)) {
+                                if (attempts > 0) {
+                                    Logger.log('PROFILE', `New profile '${profileName}' not yet in ${selectorEntity} options. Retrying in 1s... (${attempts} left)`);
+                                    setTimeout(() => trySelect(attempts - 1), 1000);
+                                    return;
+                                }
+                            }
+
+                            await this.card.hass.callService(domain, 'select_option', {
+                                entity_id: selectorEntity,
+                                option: profileName
+                            });
+                            Logger.log('PROFILE', `Successfully selected new profile '${profileName}' on ${selectorEntity}`);
+                        } catch (e) {
+                            if (attempts > 0) {
+                                Logger.log('PROFILE', `Error selecting ${profileName} on ${selectorEntity}, retrying... (${attempts} attempts left)`);
+                                setTimeout(() => trySelect(attempts - 1), 1000);
+                            } else {
+                                Logger.warn('PROFILE', `Failed to select new profile ${profileName} on ${selectorEntity} after retries:`, e);
+                            }
+                        }
+                    };
+                    
+                    // Initial wait of 500ms before starting retries
+                    setTimeout(() => trySelect(), 500);
                 }
             } catch (e) {
                 Logger.warn('PROFILE', 'Post-create UI update failed:', e);
@@ -684,12 +713,14 @@ export class CardEventHandlers {
 
         // Dynamic info
         const actualPoints = this.card.stateManager?.getNumPoints() || 0;
+        const availableProfiles = (this.card.profileOptions || []).join(', ') || 'None found';
 
         const configInfoTechnical = `=== Current Configuration ===
 Card ID: ${cardId}
 Version: ${VERSION}
 Preset: ${preset}
 Active Profile: ${currentProfile}
+Available Profiles: ${availableProfiles}
 Prefix: ${prefix}
 Automation: ${automationAlias}
 

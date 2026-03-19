@@ -120,12 +120,19 @@ async def _setup_static_resources(hass: HomeAssistant) -> bool:
         # Get integration version for cache busting
         integration = await async_get_integration(hass, "cronostar")
         version = integration.version
+        
+        # Use a boot-unique identifier (timestamp of this setup run)
+        # This ensures that every time HA restarts, the URL changes
+        import time
+        boot_id = int(time.time())
 
         # Add JS modules to frontend
         if "frontend" in hass.config.components:
-            add_extra_js_url(hass, f"/cronostar_card/cronostar-card.js?v={version}")
-            add_extra_js_url(hass, f"/cronostar_card/card-picker-metadata.js?v={version}")
-            _LOGGER.info("✅ Lovelace card registered: /cronostar_card/cronostar-card.js")
+            # Using multiple query params to ensure proxies/browsers don't cache
+            url_params = f"v={version}&b={boot_id}"
+            add_extra_js_url(hass, f"/cronostar_card/cronostar-card.js?{url_params}")
+            add_extra_js_url(hass, f"/cronostar_card/card-picker-metadata.js?{url_params}")
+            _LOGGER.info("✅ Lovelace card registered: /cronostar_card/cronostar-card.js (%s)", url_params)
         else:
             _LOGGER.debug("Frontend component not loaded, skipping extra JS URLs")
 

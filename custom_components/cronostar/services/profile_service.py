@@ -12,7 +12,17 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er_helper
 
+from ..const import (
+    CONF_ALLOW_MAX_VALUE,
+    CONF_MAX_VALUE,
+    CONF_MIN_VALUE,
+    CONF_STEP_VALUE,
+    CONF_TITLE,
+    CONF_UNIT_OF_MEASUREMENT,
+    CONF_Y_AXIS_LABEL,
+)
 from ..utils.error_handler import log_operation
 from ..utils.prefix_normalizer import get_effective_prefix, normalize_preset_type
 
@@ -34,6 +44,60 @@ class ProfileService:
         self.hass = hass
         self.storage = storage_manager
         self.settings = settings_manager
+
+    async def add_profile(self, call: ServiceCall) -> None:
+        """
+        Add a new profile
+
+        Expected data:
+            - profile_name: str
+            - preset_type: str
+            - global_prefix: str (optional)
+        """
+        _LOGGER.debug("[ADD_PROFILE] Service called with data: %s", call.data)
+        try:
+            profile_name = call.data.get("profile_name")
+            preset_type = call.data.get("preset_type", "thermostat")
+            global_prefix = call.data.get("global_prefix", "")
+
+            if not profile_name:
+                raise HomeAssistantError("profile_name is required")
+
+            canonical_preset = normalize_preset_type(preset_type)
+            effective_prefix = get_effective_prefix(global_prefix, {})
+
+            # Create default empty schedule (boundaries only)
+            schedule = [
+                {"time": "00:00", "value": 0},
+                {"time": "23:59", "value": 0}
+            ]
+
+            profile_data = {
+                "schedule": schedule, 
+                "updated_at": datetime.now().isoformat()
+            }
+
+            # Save to storage (merges with existing container metadata)
+            await self.storage.save_profile(
+                profile_name=profile_name, 
+                preset_type=canonical_preset, 
+                profile_data=profile_data, 
+                metadata={}, 
+                global_prefix=effective_prefix
+            )
+
+            # Notify coordinators to refresh available_profiles
+            for entry in self.hass.config_entries.async_entries("cronostar"):
+                if entry.data.get("global_prefix") == effective_prefix:
+                    if hasattr(entry, 'runtime_data') and entry.runtime_data:
+                        await entry.runtime_data.async_refresh_profiles()
+
+            log_operation("Add profile", True, profile=profile_name, preset=canonical_preset)
+
+        except Exception as e:
+            log_operation("Add profile", False, profile=profile_name, error=str(e))
+            _LOGGER.error("Error adding profile: %s", e)
+            raise HomeAssistantError(f"Failed to add profile: {e}") from e
 
     async def save_profile(self, call: ServiceCall) -> None:
         """
@@ -108,6 +172,12 @@ class ProfileService:
                         new_data["preset_type"] = meta["preset_type"]
                         changed = True
 
+                    # Update card configuration fields if present in meta
+                    for field in [CONF_TITLE, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_STEP_VALUE, CONF_UNIT_OF_MEASUREMENT, CONF_Y_AXIS_LABEL, CONF_ALLOW_MAX_VALUE]:
+                        if field in meta and entry.data.get(field) != meta[field]:
+                            new_data[field] = meta[field]
+                            changed = True
+
                     if changed:
                         _LOGGER.info("Updating Config Entry for '%s' with new metadata", effective_prefix)
                         self.hass.config_entries.async_update_entry(entry, data=new_data)
@@ -160,7 +230,7 @@ class ProfileService:
             context={"source": "create_controller"},
             data={
                 "name": name,
-                "preset": preset,
+                "preset_type": preset,
                 "target_entity": target_entity,
                 "global_prefix": prefix
             }
@@ -329,6 +399,50 @@ class ProfileService:
         _LOGGER.warning("[GET_PROFILE] Match failed. Diagnostics: %s", diagnostics)
         return diagnostics
 
+    async def delete_profile(self, call: ServiceCall) -> None:
+        """
+        Delete a profile
+
+        Expected data:
+            - profile_name: str
+            - preset_type: str
+            - global_prefix: str
+        """
+        _LOGGER.debug("[DELETE_PROFILE] Service called with data: %s", call.data)
+        try:
+            profile_name = call.data.get("profile_name")
+            preset_type = call.data.get("preset_type", "thermostat")
+            global_prefix = call.data.get("global_prefix", "")
+
+            if not profile_name:
+                raise HomeAssistantError("profile_name is required")
+
+            canonical_preset = normalize_preset_type(preset_type)
+            effective_prefix = get_effective_prefix(global_prefix, {})
+
+            # Delete from storage
+            success = await self.storage.delete_profile(
+                profile_name=profile_name, 
+                preset_type=canonical_preset, 
+                global_prefix=effective_prefix
+            )
+
+            if success:
+                # Notify coordinators to refresh available_profiles
+                for entry in self.hass.config_entries.async_entries("cronostar"):
+                    if entry.data.get("global_prefix") == effective_prefix:
+                        if hasattr(entry, 'runtime_data') and entry.runtime_data:
+                            await entry.runtime_data.async_refresh_profiles()
+
+                log_operation("Delete profile", True, profile=profile_name, preset=canonical_preset)
+            else:
+                log_operation("Delete profile", False, profile=profile_name, error="Not found or storage error")
+
+        except Exception as e:
+            log_operation("Delete profile", False, profile=profile_name, error=str(e))
+            _LOGGER.error("Error deleting profile: %s", e)
+            raise HomeAssistantError(f"Failed to delete profile: {e}") from e
+
     async def register_card(self, call: ServiceCall) -> ServiceResponse:
         """
         Register a frontend card and return active profile and entity states.
@@ -403,9 +517,27 @@ class ProfileService:
 
         # 2. Fetch profile data (STRICT)
         try:
+            # Auto-create controller entities if missing
+            await self._ensure_controller_exists(global_prefix, preset, {})
+            
+            # Find the config entry for this prefix to merge its settings
+            entry_data = {}
+            for entry in self.hass.config_entries.async_entries("cronostar"):
+                if entry.data.get("global_prefix") == global_prefix:
+                    entry_data = entry.data
+                    break
+
             data = await self.get_profile_data(profile_to_load or "Default", preset, global_prefix)
             
             if "error" not in data:
+                # Merge config entry data into profile metadata
+                # This ensures the card gets the latest backend-configured values
+                if "meta" in data:
+                    for key in [CONF_TITLE, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_STEP_VALUE, 
+                               CONF_UNIT_OF_MEASUREMENT, CONF_Y_AXIS_LABEL, CONF_ALLOW_MAX_VALUE]:
+                        if key in entry_data and entry_data[key] is not None:
+                            data["meta"][key] = entry_data[key]
+                
                 response["profile_data"] = data
             else:
                 # Store diagnostic info if strict match failed
@@ -414,9 +546,53 @@ class ProfileService:
         except Exception as e:
             _LOGGER.error("[REGISTER] Critical error loading profile: %s", e)
 
-        # 3. Populate entity states for card status indicators (even if profile data missing)
+        # 3. Populate entity states using Entity Registry for accurate lookups
         try:
-            # Target entity (try config meta first, then fallback to common pattern)
+            er = er_helper.async_get(self.hass)
+            
+            # Helper: Get state by unique ID
+            def get_state_by_uid(uid):
+                # Priority 1: Registry lookup (most reliable for modern HA)
+                entity_id = er.async_get_entity_id("switch", "cronostar", uid) or \
+                            er.async_get_entity_id("sensor", "cronostar", uid) or \
+                            er.async_get_entity_id("select", "cronostar", uid)
+                
+                if entity_id:
+                    _LOGGER.info("[REGISTER] Resolved UID '%s' via Registry -> %s", uid, entity_id)
+
+                # Priority 2: Direct lookup if registry failed (handles some legacy cases)
+                if not entity_id:
+                    # Robust check across domains for this object_id
+                    # Also check for truncated versions (HA often truncates 'enabled' or 'current_profile' if redundant)
+                    search_bases = [uid.rstrip('_')]
+                    if uid.endswith("_enabled"): search_bases.append(uid.rsplit("_enabled", 1)[0])
+                    if uid.endswith("_current_profile"): search_bases.append(uid.rsplit("_current_profile", 1)[0])
+                    
+                    for base in search_bases:
+                        for domain in ["switch", "sensor", "select", "input_number", "input_select"]:
+                            possible_id = f"{domain}.{base}"
+                            if self.hass.states.get(possible_id):
+                                entity_id = possible_id
+                                _LOGGER.info("[REGISTER] Resolved UID '%s' via State Search (base: %s) -> %s", uid, base, entity_id)
+                                break
+                        if entity_id: break
+                
+                # Priority 3: Last-resort suffix guess (deprecated, only for very early bootstrap)
+                if not entity_id:
+                    if uid.endswith("enabled"): entity_id = f"switch.{uid}"
+                    elif uid.endswith("current"): entity_id = f"sensor.{uid}"
+                    elif uid.endswith("current_profile"): entity_id = f"select.{uid}"
+                    if entity_id:
+                        _LOGGER.info("[REGISTER] Resolved UID '%s' via Suffix Guess -> %s", uid, entity_id)
+                
+                state_obj = self.hass.states.get(entity_id) if entity_id else None
+                # Log if we found an ID but it has no state yet (common during startup/reloads)
+                if entity_id and not state_obj:
+                    _LOGGER.debug("[REGISTER] Entity ID '%s' found but has no state in HASS (yet)", entity_id)
+                    
+                return state_obj, entity_id
+
+            # Target entity (try config meta first, then fallback)
             target_ent = None
             if response["profile_data"] and "meta" in response["profile_data"]:
                 target_ent = response["profile_data"]["meta"].get("target_entity")
@@ -425,23 +601,43 @@ class ProfileService:
                 t_state = self.hass.states.get(target_ent)
                 response["entity_states"]["target"] = t_state.state if t_state else "unknown"
             
-            # Helper for current value (using sensor in new architecture)
-            helper_ent = f"sensor.{prefix_with_underscore}current"
-            h_state = self.hass.states.get(helper_ent)
+            # Helper for current value (sensor)
+            # UID: {prefix}current
+            h_state, h_id = get_state_by_uid(f"{prefix_with_underscore}current")
             response["entity_states"]["current_helper"] = h_state.state if h_state else "unknown"
             
-            # Active selector state
-            sel_state = self.hass.states.get(native_selector) or self.hass.states.get(f"input_select.{base}_profiles")
+            # Active selector (select)
+            # UID: {prefix}current_profile
+            sel_state, sel_id = get_state_by_uid(f"{prefix_with_underscore}current_profile")
             response["entity_states"]["selector"] = sel_state.state if sel_state else "unknown"
             
-            # Enabled switch (native switch.xxx_enabled or legacy input_boolean.xxx_paused)
-            enabled_ent = f"switch.{prefix_with_underscore}enabled"
-            e_state = self.hass.states.get(enabled_ent) or self.hass.states.get(f"input_boolean.{prefix_with_underscore}paused")
+            # Enabled switch
+            # UID: {prefix}enabled
+            e_state, e_id = get_state_by_uid(f"{prefix_with_underscore}enabled")
             response["entity_states"]["enabled"] = e_state.state if e_state else "unknown"
+
+            # CRITICAL: Update profile metadata with ACTUAL entity IDs if found
+            # This ensures the frontend config is updated with the correct IDs even if stored meta is stale
+            if response.get("profile_data") and "meta" in response["profile_data"]:
+                meta = response["profile_data"]["meta"]
+                
+                # Propagate IDs to frontend even if state is missing (registry match is sufficient)
+                if e_id:
+                    _LOGGER.info("[REGISTER] Updating frontend meta: enabled_entity = %s", e_id)
+                    meta["enabled_entity"] = e_id
+                else:
+                    _LOGGER.debug("[REGISTER] Could not resolve enabled_entity for prefix '%s'", global_prefix)
+
+                if sel_id:
+                    _LOGGER.info("[REGISTER] Updating frontend meta: profiles_select_entity = %s", sel_id)
+                    meta["profiles_select_entity"] = sel_id
+                else:
+                    _LOGGER.debug("[REGISTER] Could not resolve profiles_select_entity for prefix '%s'", global_prefix)
             
         except Exception as e:
             _LOGGER.debug("[REGISTER] Failed to populate entity_states: %s", e)
 
+        _LOGGER.debug("[REGISTER] Sending response to frontend: %s", response)
         return response
 
 

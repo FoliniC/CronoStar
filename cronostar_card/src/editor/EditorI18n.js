@@ -222,8 +222,18 @@ export class EditorI18n {
       lang = this.editor._language || this.editor._lang || 'en';
     }
 
+    // Support sub-tags like 'it-IT' or 'en-US' by checking base language
+    let langCode = lang.toLowerCase();
+    let translations = I18N[langCode];
+
+    if (!translations && langCode.includes('-')) {
+      const baseLang = langCode.split('-')[0];
+      translations = I18N[baseLang];
+    }
+
     const parts = path.split('.');
-    let obj = I18N[lang] || I18N.en;
+    let obj = translations || I18N.en;
+
     for (const part of parts) {
       obj = obj?.[part];
     }
@@ -233,13 +243,16 @@ export class EditorI18n {
       obj = fallback;
     }
     if (obj === undefined) {
-      log('warn', this.editor._config.logging, `[EditorI18n] Missing translation: ${path}`);
+      log('warn', this.editor?._config?.logging, `[EditorI18n] Missing translation: ${path}`);
       return path;
     }
     if (typeof obj === 'string' && Object.keys(replacements).length > 0) {
       let result = obj;
       for (const [key, value] of Object.entries(replacements)) {
-        result = result.replace(key, value);
+        // Global replacement for placeholders
+        const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escapedKey, 'g');
+        result = result.replace(regex, value);
       }
       return result;
     }

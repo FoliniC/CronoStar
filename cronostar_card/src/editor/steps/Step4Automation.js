@@ -23,11 +23,18 @@ export class Step4Automation {
       <div class="step-content">
         <div class="step-header">${this.editor.i18n._t('headers.step4')}</div>
         
-        <div class="success-box" style="margin-top: 0; margin-bottom: 24px;">
-          <ha-icon icon="mdi:check-circle-outline" style="margin-right: 8px;"></ha-icon>
-          ${isIt 
-            ? "CronoStar applica automaticamente la pianificazione! Non è necessaria alcuna automazione per il funzionamento base." 
-            : "CronoStar automatically applies the schedule! No automation is needed for basic operation."}
+        <div class="success-box" style="margin-top: 0; margin-bottom: 32px;">
+          <div style="display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 1.1rem;">
+            <ha-icon icon="mdi:check-circle" style="color: #4ade80;"></ha-icon>
+            ${isIt 
+              ? "CronoStar applica automaticamente la pianificazione!" 
+              : "CronoStar automatically applies the schedule!"}
+          </div>
+          <p style="margin: 8px 0 0 36px; color: #cbd5e1;">
+            ${isIt 
+              ? "Non è necessaria alcuna automazione per il funzionamento base." 
+              : "No automation is needed for basic operation."}
+          </p>
         </div>
 
         <div class="step-description">
@@ -37,23 +44,21 @@ export class Step4Automation {
         </div>
 
         <div class="field-group">
-          <div class="field-description" style="color: #bae6fd; font-weight: 500; display: flex; justify-content: space-between; align-items: center;">
-            <span>${isIt ? "Automazione Smart Presence" : "Smart Presence Automation"}</span>
-            <mwc-button outlined style="--mdc-theme-primary: #bae6fd;" @click=${() => this.editor.serviceHandlers.copyToClipboard(yaml, "✓ Copied!", "Error")}>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <span style="font-weight: 700; color: #ffffff;">${isIt ? "Automazione Smart Presence" : "Smart Presence Automation"}</span>
+            <mwc-button outlined @click=${() => this.editor.serviceHandlers.copyToClipboard(yaml, "✓ Copied!", "Error")}>
               📋 ${isIt ? "Copia YAML" : "Copy YAML"}
             </mwc-button>
           </div>
           
-          <div style="position: relative; margin-top: 12px;">
-            <textarea 
-              readonly 
-              style="height: 250px; font-size: 12px; line-height: 1.4; background: rgba(0,0,0,0.4); font-family: 'Roboto Mono', monospace;"
-            >${yaml}</textarea>
-          </div>
+          <textarea 
+            readonly 
+            style="width: 100%; height: 280px; font-size: 13px; line-height: 1.5; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); color: #38bdf8; font-family: 'Fira Code', 'Roboto Mono', monospace;"
+          >${yaml}</textarea>
         </div>
 
-        <div style="margin-top: 32px; text-align: center;">
-          <div style="margin-bottom: 12px; color: #a0a8c0;">
+        <div style="margin-top: 40px; text-align: center; padding: 24px; background: rgba(255,255,255,0.02); border-radius: 16px;">
+          <div style="margin-bottom: 16px; color: #cbd5e1; font-size: 1.1rem;">
             ${isIt ? "Vuoi un'automazione più complessa?" : "Do you want a more complex automation?"}
           </div>
           <mwc-button raised @click=${toggleLlmPrompt}>

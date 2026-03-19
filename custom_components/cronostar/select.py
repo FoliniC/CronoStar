@@ -21,15 +21,18 @@ class CronoStarProfileSelect(CoordinatorEntity, SelectEntity):
     """Select entity to choose active schedule profile."""
 
     _attr_translation_key = "profile"
-    _attr_has_entity_name = False
+    _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator):
         """Initialize profile selector."""
         super().__init__(coordinator)
-        # Naming requirement: global_prefix + "current_profile"
-        self._attr_name = f"{coordinator.prefix}current_profile"
+        # Unique ID remains based on global_prefix
         self._attr_unique_id = f"{coordinator.prefix}current_profile"
+        self._attr_name = None  # Handled by translation key
+
+        # Explicit entity_id to ensure consistency
+        self.entity_id = f"select.{coordinator.prefix}current_profile"
 
         # Device info for grouping
         try:
@@ -48,17 +51,21 @@ class CronoStarProfileSelect(CoordinatorEntity, SelectEntity):
     @property
     def options(self) -> list[str]:
         """Return available profile options."""
+        if self.coordinator.data is None:
+            return ["Default"]
         return self.coordinator.data.get("available_profiles", ["Default"])
 
     @property
     def current_option(self) -> str | None:
         """Return currently selected profile."""
+        if self.coordinator.data is None:
+            return "Default"
         return self.coordinator.data.get("selected_profile") or "Default"
 
     async def async_select_option(self, option: str) -> None:
         """Handle profile selection."""
         if self.coordinator.logging_enabled:
-            _LOGGER.info("Profile selected for '%s': %s", self.coordinator.name, option)
+            _LOGGER.info("[PERSIST_TRACE] Profile selected for '%s': %s", self.coordinator.name, option)
 
         await self.coordinator.set_profile(option)
 

@@ -51,9 +51,7 @@ function registerInRegistry(registry, name, constructor, context = 'global') {
 // 1) Global registry registration
 console.log('CRONOSTAR: Inizio registrazione globale...');
 registerInRegistry(customElements, 'cronostar-card', CronoStarCard, 'global');
-registerInRegistry(customElements, 'custom:cronostar-card', CronoStarCard, 'global-fallback');
 registerInRegistry(customElements, 'cronostar-card-editor', CronoStarEditor, 'global');
-registerInRegistry(customElements, 'custom:cronostar-card-editor', CronoStarEditor, 'global-editor-fallback');
 
 // 2) Support for Scoped CustomElementRegistry (used by the card picker)
 if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
@@ -74,45 +72,16 @@ if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
           ? `scoped(<${this.tagName.toLowerCase()}>)`
           : 'scoped(unknown-host)';
 
-      console.log(`CRONOSTAR: Scoped host connesso: ${ctx}`);
-      if (root && root !== document && root !== document.body) {
-        console.log('CRONOSTAR:   renderRoot/shadowRoot presente:', root);
-      }
-
       if (registry && registry !== customElements) {
-        console.log('CRONOSTAR:   registry scoped diverso dal globale, registrazione elementi...');
+        console.log(`CRONOSTAR: Scoped host connesso: ${ctx}, registrazione elementi...`);
         registerInRegistry(registry, 'cronostar-card', CronoStarCard, `${ctx} / card`);
-        registerInRegistry(registry, 'custom:cronostar-card', CronoStarCard, `${ctx} / card-fallback`);
         registerInRegistry(registry, 'cronostar-card-editor', CronoStarEditor, `${ctx} / editor`);
-        registerInRegistry(registry, 'custom:cronostar-card-editor', CronoStarEditor, `${ctx} / editor-fallback`);
 
         // Ensure essential HA components are available in the scoped registry
-        try {
-          const haEntityPickerCtor = customElements.get('ha-entity-picker');
-          if (haEntityPickerCtor) {
-            registerInRegistry(registry, 'ha-entity-picker', haEntityPickerCtor, `${ctx} / ha-entity-picker`);
-          } else {
-            console.warn('CRONOSTAR: ha-entity-picker non ancora definito nel registry globale, attendo whenDefined...');
-            if (customElements.whenDefined) {
-              customElements.whenDefined('ha-entity-picker').then(() => {
-                try {
-                  const ctor = customElements.get('ha-entity-picker');
-                  if (ctor) {
-                    registerInRegistry(registry, 'ha-entity-picker', ctor, `${ctx} / ha-entity-picker(late)`);
-                  }
-                } catch (e) {
-                  console.warn('CRONOSTAR: errore nella registrazione tardiva di ha-entity-picker nel registry scoped:', e);
-                }
-              });
-            }
-          }
-        } catch (e) {
-          console.warn('CRONOSTAR: errore durante la registrazione di ha-entity-picker nel registry scoped:', e);
+        const haEntityPickerCtor = customElements.get('ha-entity-picker');
+        if (haEntityPickerCtor) {
+          registerInRegistry(registry, 'ha-entity-picker', haEntityPickerCtor, `${ctx} / ha-entity-picker`);
         }
-      } else if (registry === customElements) {
-        console.log('CRONOSTAR:   registry coincidente con customElements globale, nessuna azione');
-      } else {
-        console.warn('CRONOSTAR:   nessun registry valido trovato per host scoped');
       }
     } catch (e) {
       console.error('CRONOSTAR: errore registrazione in scoped registry:', e);
@@ -123,7 +92,7 @@ if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
     }
   };
 } else {
-  console.warn('CRONOSTAR: ScopedRegistryHost non rilevato – niente patch scoped');
+  console.log('CRONOSTAR: ScopedRegistryHost non rilevato – niente patch scoped');
 }
 
 // 3) Register in window.customCards to appear in the card picker

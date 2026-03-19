@@ -414,7 +414,7 @@ export class ChartManager {
             callback: (v) => (v === 1439 || v === 1440) ? '23:59' : minutesToTime(v)
           },
           grid: { color: 'rgba(0, 0, 0, 0.05)' },
-          title: { display: true, text: 'Time' }
+          title: { display: true, text: this._getLocalizedLabel('Time') }
         },
         y: {
           min: isSwitch ? -0.1 : minValue,
@@ -436,7 +436,7 @@ export class ChartManager {
             }
           },
           grid: { color: 'rgba(0, 0, 0, 0.1)' },
-          title: { display: true, text: config.y_axis_label || 'Value' }
+          title: { display: true, text: this._getLocalizedLabel(config.y_axis_label || 'Value') }
         }
       },
       plugins: {
@@ -636,6 +636,23 @@ export class ChartManager {
       },
       onClick: (event, elements) => this._handleClick(event, elements)
     };
+  }
+
+  _getLocalizedLabel(label) {
+    const card = this.context._card;
+    const lang = this.context.language;
+    const localize = (key) => card.localizationManager.localize(lang, key);
+
+    const l = String(label || '');
+    if (l === 'Time') return localize('ui.time_label');
+    if (l === 'Temperature') return localize('ui.temperature_label');
+    if (l === 'Power') return localize('ui.power_label');
+    if (l === 'Energy') return localize('ui.energy_label');
+    if (l === 'State') return localize('ui.state_label');
+    if (l === 'Position') return localize('ui.position_label');
+    if (l === 'Value') return localize('ui.value_label');
+    
+    return label;
   }
 
   _showHoverInfo(evt) {

@@ -29,15 +29,15 @@ export class Step1Preset {
 
     return html`
       <div class="step-content">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
           <div class="step-header" style="margin-bottom: 0;">${this.editor.i18n._t(headerKey)}</div>
-          <mwc-button outlined @click=${() => this.editor.handleShowHelp()} style="--mdc-theme-primary: #0ea5e9;">
+          <mwc-button outlined @click=${() => this.editor.handleShowHelp()}>
             ℹ️ ${this.editor.i18n._t('actions.component_info')}
           </mwc-button>
         </div>
         <div class="step-description">${this.editor.i18n._t('descriptions.step1')}</div>
 
-        <div class="preset-cards" style="margin-bottom: 24px;">
+        <div class="preset-cards">
           ${list.map(preset => html`
             <button
               type="button"
@@ -52,7 +52,7 @@ export class Step1Preset {
           `)}
         </div>
 
-        <div class="field-group" style="margin-bottom: 24px;">
+        <div class="field-group">
           <label class="field-label">1. ${this.editor.i18n._t('fields.target_entity_label')}</label>
           <div class="field-description">${this.editor.i18n._t('fields.target_entity_desc')}</div>
           ${canRenderSelector ? html`
@@ -69,13 +69,13 @@ export class Step1Preset {
             ></ha-selector>
           ` : html`
             ${this.editor._renderTextInput('target_entity', applyEntity, 'entity_id (es. climate.salotto)')}
-            <div style="margin-top:8px; color:#a0a8c0; font-size:0.85rem;">
+            <div style="margin-top:8px; color:#94a3b8; font-size:0.85rem;">
               ${this.editor.i18n._t('ui.entity_selector_unavailable')}
             </div>
           `}
         </div>
 
-        <div class="field-group" style="margin-bottom: 24px;">
+        <div class="field-group">
           <label class="field-label">${this.editor.i18n._t('ui.identification_prefix')}</label>
           <div class="field-description">
             ${this.editor.i18n._t('ui.prefix_description')}
@@ -85,21 +85,21 @@ export class Step1Preset {
             .value=${currentPrefix || ''}
             @input=${(e) => this._handlePrefixChange(e.target.value, e)}
             @change=${() => this.editor._dispatchConfigChanged(true)}
-            style="width: 100%;"
           ></ha-textfield>
-        </div>
-
-        <div style="margin-bottom: 12px;">
+          
+          <div style="margin-top: 12px;">
             ${prefixValid
-        ? html`<div style="color: #cbd3e8; font-size: 1rem; margin-bottom: 8px;">${this.editor.i18n._t('ui.prefix_ok')}</div>`
-        : html`<div style="color: var(--error-color); font-size: 1rem; margin-bottom: 8px;">${this.editor.i18n._t('ui.prefix_bad')}</div>`
+        ? html`<div style="color: #4ade80; font-weight: 500;">✅ ${this.editor.i18n._t('ui.prefix_ok')}</div>`
+        : html`<div style="color: #ef4444; font-weight: 500;">❌ ${this.editor.i18n._t('ui.prefix_bad')}</div>`
       }
+          </div>
         </div>
 
         ${minimalConfigComplete ? html`
-          <div class="success-box" style="margin: 20px 0; border: 1px solid var(--success-color); padding: 16px; border-radius: 8px; background: rgba(0, 255, 0, 0.05);">
-            <strong>✅ ${this.editor.i18n._t('ui.minimal_config_complete')}</strong>
-            <div style="margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
+          <div class="success-box">
+            <div style="font-weight: 800; font-size: 1.1rem; margin-bottom: 8px;">✅ ${this.editor.i18n._t('ui.minimal_config_complete')}</div>
+            <div style="color: #cbd5e1; margin-bottom: 20px;">${this.editor.i18n._t('ui.minimal_config_help')}</div>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
               <mwc-button raised @click=${() => this._handleSaveAndClose()}>
                 💾 ${this.editor.i18n._t('actions.save_and_close')}
               </mwc-button>
@@ -110,7 +110,7 @@ export class Step1Preset {
           </div>
         ` : html`
           <div class="info-box">
-            <strong>ℹ️ ${this.editor.i18n._t('ui.minimal_config_needed')}</strong>
+            <div style="font-weight: 800; font-size: 1.1rem; margin-bottom: 8px;">ℹ️ ${this.editor.i18n._t('ui.minimal_config_needed')}</div>
             <p>${this.editor.i18n._t('ui.minimal_config_help')}</p>
           </div>
         `}
@@ -158,10 +158,8 @@ export class Step1Preset {
     let start = target.selectionStart;
     let end = target.selectionEnd;
     
+    // Normalize: lowercase and valid characters only. Don't force trailing underscore while typing.
     let normalizedValue = value.toLowerCase().replace(/[^a-z0-9_]/g, '');
-    if (normalizedValue.length > 0 && !normalizedValue.endsWith('_')) {
-      normalizedValue += '_';
-    }
     
     let newConfig = { ...editor._config, global_prefix: normalizedValue };
     const presetId = editor._selectedPreset || 'thermostat';

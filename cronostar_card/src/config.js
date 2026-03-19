@@ -1,6 +1,6 @@
 /** Configuration management for CronoStar Card */
 import { log } from './utils/logger_utils.js';
-export const VERSION = window.CRONOSTAR_CARD_VERSION || '5.4.1';
+export const VERSION = window.CRONOSTAR_CARD_VERSION || '5.4.64';
 
 export const COLORS = {
   primary: "#03a9f4",
@@ -169,12 +169,8 @@ export function validateConfig(config, isLoggingEnabled = false) {
   }
 
   if (!config.not_configured) {
-    if (!mergedConfig.enabled_entity) {
-      mergedConfig.enabled_entity = `switch.${mergedConfig.global_prefix}enabled`;
-    }
-    if (!mergedConfig.profiles_select_entity) {
-      mergedConfig.profiles_select_entity = `select.${mergedConfig.global_prefix}current_profile`;
-    }
+    // Rely on backend registration to provide correct entity IDs. 
+    // Manual overrides in YAML/Config still take precedence.
   }
 
   mergedConfig.hour_base = normalizeHourBase(mergedConfig.hour_base);

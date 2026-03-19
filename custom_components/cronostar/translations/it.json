@@ -1,9 +1,26 @@
 {
     "config": {
         "step": {
+            "user": {
+                "title": "Configurazione CronoStar",
+                "menu_options": {
+                    "controller": "Aggiungi un nuovo Controller"
+                }
+            },
             "install_component": {
                 "title": "Installa CronoStar",
                 "description": "⏰ **CronoStar** - Programmazione Oraria Avanzata per Home Assistant\n\n🚀 **Cosa verrà installato:**\n- Sistema di archiviazione profili globale\n- Servizi per la gestione dei profili (salva, carica, elimina)\n- Scheda Lovelace CronoStar per creare controller\n\n📝 **Dopo l'installazione:**\n- Aggiungi schede CronoStar alle tue dashboard\n- Ogni scheda crea un nuovo controller (Termostato, Interruttore, ecc.)\n- Configura le programmazioni direttamente nell'interfaccia della scheda\n\nClicca **Invia** per installare il componente."
+            },
+            "controller": {
+                "title": "Configura Controller CronoStar",
+                "description": "Configura un nuovo controller per gestire una programmazione oraria.\n\nIl **Prefisso Globale** verrà utilizzato per creare le entità ausiliarie (selettore profilo, interruttore abilitazione).",
+                "data": {
+                    "name": "Nome del Controller",
+                    "preset_type": "Tipo di Preset",
+                    "target_entity": "Entità di Destinazione",
+                    "global_prefix": "Prefisso Globale",
+                    "logging_enabled": "Abilita Log di Debug"
+                }
             }
         },
         "abort": {
@@ -14,10 +31,21 @@
         "step": {
             "init": {
                 "title": "Opzioni CronoStar",
-                "description": "Impostazioni globali del componente.",
+                "description": "Configura le impostazioni per questo controller CronoStar.",
                 "data": {
-                    "logging_enabled": "Abilita Log di Debug"
+                    "target_entity": "Entità di Destinazione",
+                    "logging_enabled": "Abilita Log di Debug",
+                    "language": "Lingua Interfaccia"
                 }
+            }
+        }
+    },
+    "selector": {
+        "language": {
+            "options": {
+                "default": "Default di Sistema",
+                "en": "Inglese",
+                "it": "Italiano"
             }
         }
     },
@@ -27,6 +55,32 @@
         },
         "schedule_application_error": {
             "message": "Impossibile applicare la programmazione a {entity}: {error}"
+        }
+    },
+    "entity": {
+        "sensor": {
+            "current_value": {
+                "name": "Valore Programmato"
+            },
+            "current_value_temp": {
+                "name": "Temperatura Programmata"
+            },
+            "current_value_power": {
+                "name": "Potenza Programmata"
+            },
+            "current_value_cover": {
+                "name": "Posizione Programmata"
+            }
+        },
+        "switch": {
+            "enabled": {
+                "name": "Automazione Abilitata"
+            }
+        },
+        "select": {
+            "profile": {
+                "name": "Profilo Attivo"
+            }
         }
     }
 }

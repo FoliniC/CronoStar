@@ -21,6 +21,7 @@ export class CardContext {
   get selectedPreset() { return this._card.selectedPreset; }
   get selectedProfile() { return this._card.selectedProfile; }
   get hasUnsavedChanges() { return this._card.hasUnsavedChanges; }
+  get isMenuOpen() { return this._card.isMenuOpen; }
 
   // Setters for card properties
   set hasUnsavedChanges(value) {
@@ -31,6 +32,11 @@ export class CardContext {
   set selectedProfile(value) {
     this._card.selectedProfile = value;
     this._eventBus.emit('profile:changed', value);
+  }
+
+  set isMenuOpen(value) {
+    this._card.isMenuOpen = value;
+    this._eventBus.emit('menu:changed', value);
   }
 
   // Event bus access

@@ -262,19 +262,52 @@ export class CardRenderer {
               </div>
             ` : ''}
 
-            ${this.card.profileOptions?.length > 0 && !isPreview ? html`
+            ${this.card.isStartup ? html`
+              <div class="control-group startup-wait">
+                <ha-circular-progress active size="small"></ha-circular-progress>
+                <span style="font-size: 0.9em; opacity: 0.8; margin-left: 8px;">${this.card.language === 'it' ? 'Avvio HA in corso...' : 'HA Starting...'}</span>
+              </div>
+            ` : (this.card.profileOptions?.length > 0 && !isPreview ? html`
               <div class="control-group">
                 <ha-select
                   label="${localize('ui.select_profile')}"
                   .value=${this.card.selectedProfile}
-                  @selected=${(e) => this.card.profileManager.handleProfileSelection(e)}
+                  @selected=${(e) => {
+                    const val = e.target.value || e.detail?.value;
+                    if (val && val !== this.card.selectedProfile) {
+                      this.card.profileManager.handleProfileSelection({ target: { value: val } });
+                    }
+                  }}
+                  @closed=${(e) => e.stopPropagation()}
                 >
-                  ${this.card.profileOptions.map(
-          (opt) => html`<mwc-list-item .value=${opt}>${opt}</mwc-list-item>`
-        )}
+                  ${(this.card.profileOptions || [])
+          .filter(opt => opt && opt !== 'undefined' && opt !== 'unavailable' && opt !== 'unknown')
+          .map(opt => html`
+            <mwc-list-item 
+              value="${opt}" 
+              .value=${opt}
+              role="option"
+              ?selected=${opt === this.card.selectedProfile}
+              @click=${(e) => {
+                // Redundant click handler to ensure selection and CLOSURE
+                this.card.profileManager.handleProfileSelection({ target: { value: opt } });
+                
+                // Aggressively close the menu
+                const selectEl = e.target.closest('ha-select');
+                if (selectEl) {
+                  selectEl.open = false;
+                  // Try mwc-select specific property if available
+                  if (selectEl.menuOpen !== undefined) selectEl.menuOpen = false;
+                  selectEl.blur();
+                  // Force focus away
+                  document.body.focus();
+                }
+              }}
+            >${opt}</mwc-list-item>
+          `)}
                 </ha-select>
               </div>
-            ` : ''}
+            ` : '')}
           </div>
         </div>
 
@@ -291,6 +324,8 @@ export class CardRenderer {
                 <mwc-button raised class="save-btn" @click=${async () => {
           await this.card.profileManager.saveProfile();
           this.card.showUnsavedChangesDialog = false;
+          this.card.isMenuOpen = false;
+          this.card.keyboardHandler?.enable();
           await this.card.profileManager.loadProfile(this.card.pendingProfileChange);
           this.card.selectedProfile = this.card.pendingProfileChange;
           this.card.requestUpdate();
@@ -300,6 +335,8 @@ export class CardRenderer {
                 <mwc-button raised class="discard-btn" @click=${async () => {
           this.card.showUnsavedChangesDialog = false;
           this.card.hasUnsavedChanges = false;
+          this.card.isMenuOpen = false;
+          this.card.keyboardHandler?.enable();
           await this.card.profileManager.loadProfile(this.card.pendingProfileChange);
           this.card.selectedProfile = this.card.pendingProfileChange;
           this.card.requestUpdate();

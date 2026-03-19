@@ -16,12 +16,23 @@ PARALLEL_UPDATES = 0
 
 # Configuration keys (used by config flow/services)
 CONF_NAME = "name"
+CONF_PRESET = "preset_type"
 CONF_PRESET_TYPE = "preset_type"
 CONF_TARGET_ENTITY = "target_entity"
 CONF_GLOBAL_PREFIX = "global_prefix"
 CONF_PROFILE_NAME = "profile_name"
 CONF_SCHEDULE = "schedule"
 CONF_LOGGING_ENABLED = "logging_enabled"
+CONF_LANGUAGE = "language"
+
+# Card configuration constants
+CONF_TITLE = "title"
+CONF_MIN_VALUE = "min_value"
+CONF_MAX_VALUE = "max_value"
+CONF_STEP_VALUE = "step_value"
+CONF_UNIT_OF_MEASUREMENT = "unit_of_measurement"
+CONF_Y_AXIS_LABEL = "y_axis_label"
+CONF_ALLOW_MAX_VALUE = "allow_max_value"
 
 # Service names
 SERVICE_SAVE_PROFILE = "save_profile"

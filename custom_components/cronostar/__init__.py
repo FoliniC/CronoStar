@@ -6,22 +6,20 @@ This integration provides:
 - Global storage manager for profiles
 - Global services (save/load/delete profiles, apply schedules)
 - Frontend card registration
-- Controller entities (sensors, switches) via config entries
+- Controller entities (switches, sensors, selects)
+
 """
 
 import logging
 
-import homeassistant.helpers.config_validation as cv
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, PLATFORMS, CONF_LOGGING_ENABLED
+from .const import CONF_NAME, CONF_PRESET, CONF_TARGET_ENTITY, DOMAIN, PLATFORMS
 from .coordinator import CronoStarCoordinator
 from .setup import async_setup_integration
 
 _LOGGER = logging.getLogger(__name__)
-
-CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
@@ -30,80 +28,64 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     # Register global services/resources early to satisfy bronze 'action-setup'
     # Avoid duplicate setup by checking marker
     if not hass.data[DOMAIN].get("_global_setup_done"):
-        setup_config = {
-            "version": "unknown",
-            "enable_backups": False,
-            "logging_enabled": False,
-        }
+        setup_config = {"version": "unknown", "enable_backups": False}
         try:
             await async_setup_integration(hass, setup_config)
             hass.data[DOMAIN]["_global_setup_done"] = True
-        except Exception as e:
-            _LOGGER.warning("Global setup failed during async_setup; will retry on config entry setup: %s", e, exc_info=True)
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("Global setup failed during async_setup; will retry on config entry setup")
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up CronoStar component from a config entry.
 
-    Handles two types of entries:
-    1. Global Component: Sets up services, storage, and frontend.
-    2. Controller: Sets up a specific schedule controller (entities).
+    Handles both global component setup and controller entity setup.
     """
     hass.data.setdefault(DOMAIN, {})
 
-    # 1. Global Component Setup
-    if entry.data.get("component_installed"):
-        _LOGGER.info("🌟 CronoStar: Installing component...")
-
-        # Get logging preference from options (fallback to data or False)
-        logging_enabled = entry.options.get(
-            CONF_LOGGING_ENABLED, entry.data.get(CONF_LOGGING_ENABLED, False)
-        )
-
-        # Global integration setup (skip if already done by yaml async_setup)
+    # 1. Global Setup (if not already done)
+    if not hass.data.get(DOMAIN, {}).get("_global_setup_done"):
+        _LOGGER.info("🌟 CronoStar: Installing global component...")
         setup_config = {
             "version": entry.version,
-            "enable_backups": False,  # Can be made configurable later
-            "logging_enabled": logging_enabled,
+            "enable_backups": False,
         }
-
-        if not hass.data.get(DOMAIN, {}).get("_global_setup_done"):
-            if not await async_setup_integration(hass, setup_config):
-                _LOGGER.error("❌ CronoStar: Component installation failed")
-                return False
-            hass.data.setdefault(DOMAIN, {})
-            hass.data[DOMAIN]["_global_setup_done"] = True
-        else:
-             # If setup was already done (e.g. by YAML), update logging state
-             hass.data[DOMAIN]["logging_enabled"] = logging_enabled
-
-        _LOGGER.info("✅ CronoStar: Component installed successfully (logging=%s)", logging_enabled)
-        return True
-
-    # 2. Controller Setup (Entities)
-    # Ensure global component is ready (should be enforced by config flow dependencies, but safe to check)
-    if not hass.data.get(DOMAIN, {}).get("_global_setup_done"):
-        _LOGGER.warning("CronoStar global component not ready yet. Attempting lazy init...")
-        # Fallback: try to init globals if missing
-        setup_config = {"version": "unknown", "enable_backups": False}
-        await async_setup_integration(hass, setup_config)
+        if not await async_setup_integration(hass, setup_config):
+            _LOGGER.error("❌ CronoStar: Component installation failed")
+            return False
+        hass.data.setdefault(DOMAIN, {})
         hass.data[DOMAIN]["_global_setup_done"] = True
 
-    _LOGGER.info("🌟 CronoStar: Setting up controller '%s'", entry.title)
+    # 2. Identify Entry Type
+    if entry.data.get("component_installed"):
+        _LOGGER.info("✅ CronoStar: Global component entry set up")
+        return True
 
+    # 3. Controller Setup (for entity entries)
+    # Migration: Handle legacy "preset" key -> "preset_type"
+    if "preset" in entry.data and CONF_PRESET not in entry.data:
+        _LOGGER.warning("Migrating legacy config entry '%s': preset -> preset_type", entry.title)
+        new_data = {**entry.data}
+        new_data[CONF_PRESET] = new_data.pop("preset")
+        hass.config_entries.async_update_entry(entry, data=new_data)
+
+    # Validate controller entry required fields
+    missing = [k for k in (CONF_NAME, CONF_PRESET, CONF_TARGET_ENTITY) if k not in entry.data]
+    if missing:
+        _LOGGER.error("Controller entry missing required fields: %s", ", ".join(missing))
+        return False
+
+    _LOGGER.info("🌟 CronoStar: Setting up controller '%s'...", entry.title)
+
+    # Create and store coordinator in runtime_data
     coordinator = CronoStarCoordinator(hass, entry)
-
-    # Initialize (load profiles, set initial state)
     await coordinator.async_initialize()
 
-    # Initial refresh (this calls _async_update_data)
-    await coordinator.async_config_entry_first_refresh()
-
-    # Store coordinator in runtime_data (Quality Scale requirement)
+    # Store coordinator in ConfigEntry.runtime_data (quality scale: runtime-data)
     entry.runtime_data = coordinator
 
-    # Forward to platforms (Sensor, Switch, etc.)
+    # Forward platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
@@ -111,35 +93,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload CronoStar component."""
-    _LOGGER.info("🔄 CronoStar: Unloading entry '%s'...", entry.title)
+    _LOGGER.info("🔄 CronoStar: Unloading entry %s...", entry.title)
+
+    # If this is a controller entry, unload platforms
+    unloaded = True
+    if not entry.data.get("component_installed"):
+        try:
+            unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+        except Exception:
+            unloaded = False
 
     if entry.data.get("component_installed"):
-        # Installation-only entry: remove global data and services
-        if DOMAIN in hass.data and hass.data[DOMAIN].get("_global_setup_done"):
-            # Unregister services
-            from .setup.services import async_unload_services
-            await async_unload_services(hass)
-
-            # Clear storage manager cache
-            storage_manager = hass.data[DOMAIN].get("storage_manager")
-            if storage_manager:
-                await storage_manager.clear_cache()
-
-            # Clean up global data (only remove _global_setup_done if no other controllers exist)
-            # For now, just remove the key indicating global setup. Full DOMAIN pop could be problematic if other controllers are still running.
-            hass.data[DOMAIN].pop("_global_setup_done", None)
-            hass.data[DOMAIN].pop("storage_manager", None)
-            hass.data[DOMAIN].pop("profile_service", None) # Remove profile_service if it was stored
-
+        # Installation-only entry: remove global data and services will be handled by HA
+        if DOMAIN in hass.data:
+            hass.data.pop(DOMAIN)
         _LOGGER.info("✅ CronoStar: Component unloaded")
         return True
 
-    # Unload Controller
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    _LOGGER.info("✅ CronoStar: Entry unload %s", "succeeded" if unloaded else "failed")
+    return unloaded
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload CronoStar component."""
-    _LOGGER.info("🔄 CronoStar: Reloading...")
+    _LOGGER.info("🔄 CronoStar: Reloading component...")
     await async_unload_entry(hass, entry)
     await async_setup_entry(hass, entry)

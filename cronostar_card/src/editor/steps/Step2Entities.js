@@ -25,18 +25,20 @@ export class Step2Entities {
         <div class="step-description">${this.editor.i18n._t('descriptions.step2')}</div>
 
         <div style="border-bottom: 1px solid var(--divider-color); padding-bottom: 20px; margin-bottom: 20px;">
-          <div class="field-group" style="background: var(--secondary-background-color); padding: 10px; border-radius: 4px; margin-top: 12px;">
+          <div class="field-group">
             <ha-formfield .label=${this.editor.i18n._t('fields.enable_pause_label')}>
               <ha-switch
                 .checked=${hasEnabled}
                 @change=${(e) => this._toggleFeature('enabled_entity', e.target.checked, `switch.${effectivePrefix}enabled`)}
               ></ha-switch>
             </ha-formfield>
-            <div class="field-value-info" style="font-size: 0.85rem; opacity: 0.7; margin: 4px 0 8px 4px;">
-              ${this.editor.i18n._t('ui.current_entity')}: <code style="background: rgba(0,0,0,0.1); padding: 2px 4px; border-radius: 3px;">${this.editor._config.enabled_entity || this.editor.i18n._t('ui.not_set')}</code>
+            
+            <div class="field-value-info">
+              ${this.editor.i18n._t('ui.current_entity')}: <code>${this.editor._config.enabled_entity || this.editor.i18n._t('ui.not_set')}</code>
             </div>
+
             ${hasEnabled ? html`
-              <div style="margin-top: 8px;">
+              <div style="margin-top: 16px;">
                 ${canRenderPicker
           ? html`<ha-entity-picker
                       .hass=${this.editor.hass}
@@ -51,18 +53,20 @@ export class Step2Entities {
             ` : ''}
           </div>
 
-          <div class="field-group" style="background: var(--secondary-background-color); padding: 10px; border-radius: 4px; margin-top: 12px;">
+          <div class="field-group">
             <ha-formfield .label=${this.editor.i18n._t('fields.enable_profiles_label')}>
               <ha-switch
                 .checked=${hasProfiles}
                 @change=${(e) => this._toggleFeature('profiles_select_entity', e.target.checked, `select.${effectivePrefix}current_profile`)}
               ></ha-switch>
             </ha-formfield>
-            <div class="field-value-info" style="font-size: 0.85rem; opacity: 0.7; margin: 4px 0 8px 4px;">
-              ${this.editor.i18n._t('ui.current_entity')}: <code style="background: rgba(0,0,0,0.1); padding: 2px 4px; border-radius: 3px;">${this.editor._config.profiles_select_entity || this.editor.i18n._t('ui.not_set')}</code>
+
+            <div class="field-value-info">
+              ${this.editor.i18n._t('ui.current_entity')}: <code>${this.editor._config.profiles_select_entity || this.editor.i18n._t('ui.not_set')}</code>
             </div>
+
             ${hasProfiles ? html`
-              <div style="margin-top: 8px;">
+              <div style="margin-top: 16px;">
                 ${canRenderPicker
           ? html`<ha-entity-picker
                       .hass=${this.editor.hass}

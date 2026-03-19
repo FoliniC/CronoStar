@@ -49,130 +49,69 @@ export class CronoStarEditor extends LitElement {
 
   static get styles() {
     return css`
+      :host {
+        --primary-text-color: #ffffff;
+        --secondary-text-color: #cbd5e1;
+        --paper-item-icon-color: #38bdf8;
+        --card-background-color: #1e293b;
+        --disabled-text-color: #64748b;
+        --divider-color: rgba(255, 255, 255, 0.1);
+      }
+
       .editor-container { 
         padding: 24px;
-        background: linear-gradient(135deg, 
-          #1a1f2e 0%,
-          #252b3d 100%
-        );
+        background: #0f172a;
         border-radius: 12px;
-        color: #e8eaf0;
+        color: #f8fafc;
+        font-family: 'Inter', -apple-system, sans-serif;
       }
       
       .wizard-steps { 
         display: flex; 
         justify-content: space-between; 
         margin-bottom: 32px;
-        padding: 20px;
-        background: linear-gradient(135deg, 
-          rgba(42, 48, 66, 0.95) 0%,
-          rgba(32, 38, 56, 0.95) 100%
-        );
-        backdrop-filter: blur(10px);
+        padding: 24px;
+        background: #1e293b;
         border-radius: 16px;
-        box-shadow: 
-          0 8px 32px rgba(0, 0, 0, 0.4),
-          inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.05);
       }
       
       .step-badge {
-        width: 52px; 
-        height: 52px; 
+        width: 44px; 
+        height: 44px; 
         border-radius: 50%;
-        background: linear-gradient(145deg, 
-          #3a4158,
-          #2a3042
-        );
-        color: #a0a8c0; 
+        background: #334155;
+        color: #94a3b8; 
         display: flex; 
         align-items: center; 
         justify-content: center;
-        font-weight: 700;
-        font-size: 1.3rem;
+        font-weight: 600;
+        font-size: 1rem;
         cursor: pointer;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 
-          0 8px 20px rgba(0, 0, 0, 0.5),
-          inset 0 -2px 4px rgba(0, 0, 0, 0.4),
-          inset 0 2px 4px rgba(255, 255, 255, 0.1);
-        position: relative;
-        border: 2px solid rgba(255, 255, 255, 0.05);
-      }
-      
-      .step-badge::before {
-        content: '';
-        position: absolute;
-        top: 3px;
-        left: 3px;
-        right: 3px;
-        height: 45%;
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.15), transparent);
-        border-radius: 50%;
-        pointer-events: none;
+        transition: all 0.2s ease-in-out;
+        border: 2px solid transparent;
       }
       
       .step-badge:hover {
-        transform: translateY(-3px) scale(1.08);
-        box-shadow: 
-          0 12px 28px rgba(0, 0, 0, 0.6),
-          inset 0 -2px 4px rgba(0, 0, 0, 0.4),
-          inset 0 2px 4px rgba(255, 255, 255, 0.15);
-        color: #cbd3e8;
-        border-color: rgba(255, 255, 255, 0.1);
-      }
-      
-      .step-badge:active {
-        transform: translateY(0px) scale(0.96);
-        box-shadow: 
-          0 4px 12px rgba(0, 0, 0, 0.5),
-          inset 0 2px 6px rgba(0, 0, 0, 0.5);
+        background: #475569;
+        color: #f1f5f9;
       }
       
       .step-badge.active { 
-        background: linear-gradient(145deg, 
-          #0ea5e9,
-          #0284c7
-        );
+        background: #0ea5e9;
         color: #ffffff;
-        box-shadow: 
-          0 12px 32px rgba(14, 165, 233, 0.5),
-          0 0 40px rgba(14, 165, 233, 0.3),
-          inset 0 -2px 4px rgba(0, 0, 0, 0.3),
-          inset 0 2px 4px rgba(255, 255, 255, 0.3);
+        box-shadow: 0 0 15px rgba(14, 165, 233, 0.4);
         border-color: rgba(255, 255, 255, 0.2);
-        animation: pulse 2.5s ease-in-out infinite;
-      }
-      
-      @keyframes pulse {
-        0%, 100% { 
-          box-shadow: 
-            0 12px 32px rgba(14, 165, 233, 0.5),
-            0 0 40px rgba(14, 165, 233, 0.3),
-            inset 0 -2px 4px rgba(0, 0, 0, 0.3),
-            inset 0 2px 4px rgba(255, 255, 255, 0.3);
-        }
-        50% { 
-          box-shadow: 
-            0 12px 40px rgba(14, 165, 233, 0.7),
-            0 0 60px rgba(14, 165, 233, 0.5),
-            inset 0 -2px 4px rgba(0, 0, 0, 0.3),
-            inset 0 2px 4px rgba(255, 255, 255, 0.4);
-        }
+        transform: scale(1.1);
       }
       
       .step-content { 
-        min-height: 300px;
-        padding: 28px;
-        background: linear-gradient(135deg, 
-          rgba(42, 48, 66, 0.9) 0%,
-          rgba(32, 38, 56, 0.9) 100%
-        );
-        backdrop-filter: blur(10px);
+        min-height: 350px;
+        padding: 32px;
+        background: #1e293b;
         border-radius: 12px;
-        box-shadow: 
-          0 8px 32px rgba(0, 0, 0, 0.4),
-          inset 0 1px 0 rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.05);
       }
       
       .wizard-actions { 
@@ -180,300 +119,146 @@ export class CronoStarEditor extends LitElement {
         justify-content: space-between; 
         margin-top: 24px;
         padding: 20px;
-        background: linear-gradient(135deg, 
-          rgba(42, 48, 66, 0.95) 0%,
-          rgba(32, 38, 56, 0.95) 100%
-        );
-        backdrop-filter: blur(10px);
+        background: #1e293b;
         border-radius: 12px;
-        box-shadow: 
-          0 8px 32px rgba(0, 0, 0, 0.4),
-          inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.05);
       }
       
       mwc-button {
-        --mdc-theme-primary: #0ea5e9;
-        position: relative;
-        overflow: visible;
-      }
-      
-      mwc-button[raised] {
-        background: linear-gradient(145deg, 
-          #0ea5e9,
-          #0284c7
-        ) !important;
-        box-shadow: 
-          0 8px 20px rgba(14, 165, 233, 0.4),
-          0 0 30px rgba(14, 165, 233, 0.2),
-          inset 0 -2px 4px rgba(0, 0, 0, 0.3),
-          inset 0 2px 4px rgba(255, 255, 255, 0.2) !important;
-        border: 2px solid rgba(255, 255, 255, 0.1) !important;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        color: #ffffff !important;
-      }
-      
-      mwc-button[raised]::before {
-        content: '';
-        position: absolute;
-        top: 2px;
-        left: 8px;
-        right: 8px;
-        height: 40%;
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.25), transparent);
-        border-radius: 4px;
-        pointer-events: none;
-      }
-      
-      mwc-button[raised]:hover {
-        transform: translateY(-3px);
-        box-shadow: 
-          0 12px 28px rgba(14, 165, 233, 0.5),
-          0 0 40px rgba(14, 165, 233, 0.3),
-          inset 0 -2px 4px rgba(0, 0, 0, 0.3),
-          inset 0 2px 4px rgba(255, 255, 255, 0.3) !important;
-        border-color: rgba(255, 255, 255, 0.2) !important;
-      }
-      
-      mwc-button[raised]:active {
-        transform: translateY(0px);
-        box-shadow: 
-          0 4px 12px rgba(14, 165, 233, 0.4),
-          inset 0 2px 6px rgba(0, 0, 0, 0.4) !important;
-      }
-      
-      mwc-button[outlined] {
-        border: 2px solid #0ea5e9 !important;
-        background: linear-gradient(145deg, 
-          rgba(48, 55, 75, 0.95),
-          rgba(38, 44, 62, 0.95)
-        ) !important;
-        color: #60d5ff !important;
-        box-shadow: 
-          0 6px 16px rgba(0, 0, 0, 0.3),
-          inset 0 1px 2px rgba(255, 255, 255, 0.1) !important;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-      }
-      
-      mwc-button[outlined]:hover {
-        transform: translateY(-3px);
-        box-shadow: 
-          0 8px 20px rgba(0, 0, 0, 0.4),
-          0 0 30px rgba(14, 165, 233, 0.2),
-          inset 0 1px 2px rgba(255, 255, 255, 0.15) !important;
-        background: linear-gradient(145deg, 
-          rgba(58, 65, 85, 0.95),
-          rgba(48, 54, 72, 0.95)
-        ) !important;
-        border-color: #60d5ff !important;
-      }
-      
-      mwc-button[outlined]:active {
-        transform: translateY(0px);
-        box-shadow: 
-          0 3px 10px rgba(0, 0, 0, 0.3),
-          inset 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+        --mdc-theme-primary: #38bdf8;
+        --mdc-theme-on-primary: #ffffff;
       }
       
       .field-group { 
         margin-bottom: 24px;
-        padding: 20px;
-        background: linear-gradient(145deg, 
-          rgba(48, 55, 75, 0.7),
-          rgba(38, 44, 62, 0.7)
-        );
+        padding: 24px;
+        background: #334155;
         border-radius: 12px;
-        box-shadow: 
-          0 6px 20px rgba(0, 0, 0, 0.4),
-          inset 0 1px 0 rgba(255, 255, 255, 0.08);
-        transition: all 0.3s ease;
-        border: 1px solid rgba(255, 255, 255, 0.06);
-      }
-      
-      .field-group:hover {
-        box-shadow: 
-          0 8px 24px rgba(0, 0, 0, 0.5),
-          inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        transform: translateY(-2px);
-        border-color: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.1);
       }
       
       .field-label { 
         display: block; 
-        font-weight: 600; 
-        margin-bottom: 10px;
+        font-weight: 700; 
+        margin-bottom: 8px;
         color: #ffffff;
-        font-size: 1.05rem;
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        font-size: 1.1rem;
       }
       
       .field-description { 
-        font-size: 0.9em; 
-        color: #a0a8c0; 
-        margin-bottom: 14px;
-        line-height: 1.6;
+        font-size: 0.95rem; 
+        color: #cbd5e1; 
+        margin-bottom: 16px;
+        line-height: 1.5;
+      }
+      
+      .field-value-info {
+        font-size: 0.9rem;
+        color: #94a3b8;
+        background: #0f172a;
+        padding: 8px 12px;
+        border-radius: 8px;
+        margin: 12px 0;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .field-value-info code {
+        color: #38bdf8;
+        font-family: 'Fira Code', monospace;
+        font-weight: 500;
       }
       
       .hint { 
-        font-size: 0.85em; 
-        color: #8891a8; 
-        margin-top: 10px;
-        padding: 10px 14px;
-        background: rgba(14, 165, 233, 0.08);
+        font-size: 0.9rem; 
+        color: #cbd5e1; 
+        margin-top: 12px;
+        padding: 12px 16px;
+        background: rgba(56, 189, 248, 0.1);
         border-radius: 8px;
-        border-left: 3px solid #0ea5e9;
-        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+        border-left: 4px solid #38bdf8;
       }
       
-      .success-box { 
-        background: linear-gradient(145deg,
-          rgba(34, 197, 94, 0.15),
-          rgba(22, 163, 74, 0.12)
-        );
-        padding: 18px; 
-        border-radius: 12px; 
-        border-left: 4px solid #22c55e;
-        box-shadow: 
-          0 6px 20px rgba(34, 197, 94, 0.2),
-          inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        margin: 20px 0;
-        color: #bbf7d0;
-      }
-      
-      .info-box { 
-        background: linear-gradient(145deg,
-          rgba(14, 165, 233, 0.15),
-          rgba(2, 132, 199, 0.12)
-        );
-        padding: 18px; 
-        border-radius: 12px; 
-        border-left: 4px solid #0ea5e9;
-        box-shadow: 
-          0 6px 20px rgba(14, 165, 233, 0.2),
-          inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        margin: 20px 0;
-        color: #bae6fd;
-      }
-      
-      .warning-box {
-        background: linear-gradient(145deg,
-          rgba(251, 146, 60, 0.15),
-          rgba(249, 115, 22, 0.12)
-        );
-        padding: 18px;
-        border-radius: 12px;
-        border-left: 4px solid #fb923c;
-        box-shadow: 
-          0 6px 20px rgba(251, 146, 60, 0.2),
-          inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        margin: 20px 0;
-        color: #fed7aa;
-      }
-      
-      ha-textfield, ha-select {
+      ha-textfield, ha-select, ha-entity-picker, ha-selector {
         width: 100%;
-        --mdc-theme-primary: #0ea5e9;
-        --mdc-text-field-fill-color: rgba(38, 44, 62, 0.6);
-        --mdc-text-field-ink-color: #e8eaf0;
-        --mdc-text-field-label-ink-color: #a0a8c0;
-        --mdc-text-field-outlined-idle-border-color: rgba(255, 255, 255, 0.12);
-        --mdc-text-field-outlined-hover-border-color: rgba(14, 165, 233, 0.5);
+        --mdc-theme-primary: #38bdf8;
+        --mdc-text-field-fill-color: #0f172a;
+        --mdc-text-field-ink-color: #ffffff;
+        --mdc-text-field-label-ink-color: #cbd5e1;
+        --mdc-text-field-outlined-idle-border-color: rgba(255, 255, 255, 0.2);
+        --mdc-text-field-outlined-hover-border-color: #38bdf8;
+        --primary-text-color: #ffffff;
+        --secondary-text-color: #cbd5e1;
+        --primary-color: #38bdf8;
       }
-      
-      ha-switch {
-        --mdc-theme-secondary: #0ea5e9;
-        --switch-checked-button-color: #0ea5e9;
-        --switch-checked-track-color: rgba(14, 165, 233, 0.5);
+
+      ha-formfield {
+        color: #ffffff !important;
+        display: block;
+        --mdc-theme-text-primary-on-background: #ffffff;
+        --mdc-theme-text-secondary-on-background: #cbd5e1;
       }
-      
-      .action-buttons {
-        display: flex;
-        gap: 14px;
-        flex-wrap: wrap;
-        margin-top: 14px;
+
+      ha-formfield span[slot="secondary"], 
+      ha-formfield div[slot="secondary"] {
+        color: #cbd5e1 !important;
+        display: block;
+        margin-top: 4px;
+        font-size: 0.85rem;
       }
-      
-      textarea { 
-        width: 100%; 
-        font-family: 'Courier New', monospace; 
-        min-height: 200px;
-        padding: 14px;
-        border: 2px solid rgba(255, 255, 255, 0.12);
-        border-radius: 10px;
-        background: rgba(28, 33, 48, 0.8);
-        color: #e8eaf0;
-        transition: all 0.3s ease;
-        box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3);
-      }
-      
-      textarea:focus {
-        outline: none;
-        border-color: #0ea5e9;
-        box-shadow: 
-          0 0 0 4px rgba(14, 165, 233, 0.2),
-          inset 0 2px 6px rgba(0, 0, 0, 0.3);
-        background: rgba(28, 33, 48, 0.95);
+
+      textarea {
+        width: 100% !important;
+        box-sizing: border-box;
+        display: block;
       }
       
       .step-header {
-        font-size: 1.6rem;
-        font-weight: 700;
-        margin-bottom: 18px;
+        font-size: 1.5rem;
+        font-weight: 800;
+        margin-bottom: 12px;
         color: #ffffff;
-        background: linear-gradient(135deg, #0ea5e9, #60d5ff);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        text-shadow: 0 4px 8px rgba(14, 165, 233, 0.3);
-        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
       }
       
       .step-description {
         font-size: 1rem;
-        color: #cbd3e8;
-        margin-bottom: 28px;
-        line-height: 1.7;
+        color: #cbd5e1;
+        margin-bottom: 32px;
+        line-height: 1.6;
       }
 
-      /* Grid for Presets */
       .preset-cards {
-        display: grid !important;
-        grid-template-columns: 1fr 1fr !important;
-        gap: 12px !important;
-        margin-top: 16px !important;
-        width: 100% !important;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px;
+        margin: 24px 0;
       }
 
       .preset-card {
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
-        text-align: center !important;
-        padding: 16px !important;
-        background: #3c3c3c !important;
-        border-radius: 8px !important;
-        border: 1px solid #555 !important;
-        color: #ffffff !important;
-        cursor: pointer !important;
-        min-height: 110px !important;
-        transition: all 0.2s ease !important;
-        width: 100% !important;
-        box-sizing: border-box !important;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        background: #334155;
+        border-radius: 12px;
+        border: 2px solid transparent;
+        color: #ffffff;
+        cursor: pointer;
+        transition: all 0.2s ease;
       }
 
       .preset-card:hover {
-        background: #4a4a4a !important;
+        background: #475569;
+        border-color: rgba(255, 255, 255, 0.1);
       }
 
       .preset-card.selected {
-        border: 2px solid #00b0ff !important;
-        box-shadow: 0 0 10px rgba(0, 176, 255, 0.4) !important;
+        background: rgba(14, 165, 233, 0.1);
+        border-color: #0ea5e9;
       }
 
-      .preset-icon { font-size: 2.2rem !important; margin-bottom: 4px !important; }
-      .preset-title { font-weight: 600 !important; font-size: 1rem !important; }
-      .preset-description { font-size: 0.8rem !important; color: #b0b0b0 !important; }
+      .preset-icon { font-size: 2rem; margin-bottom: 8px; }
+      .preset-title { font-weight: 700; font-size: 1.05rem; margin-bottom: 4px; }
+      .preset-description { font-size: 0.85rem; color: #94a3b8; text-align: center; }
     `;
   }
 
