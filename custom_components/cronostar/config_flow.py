@@ -153,9 +153,10 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry):
         """Initialize options flow."""
         self._config_entry = config_entry
+        self._options_data = {}
 
     async def async_step_init(self, user_input=None):
-        """Manage component options."""
+        """Step 1: Manage component basic options."""
         # Check if this is the main component entry (no options currently)
         if self._config_entry.data.get("component_installed"):
             return self.async_show_form(
@@ -164,38 +165,19 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
                 description_placeholders={"info": "Global component options are not yet available."},
             )
 
-        # It's a controller entry - allow editing mutable fields
+        # It's a controller entry
         if user_input is not None:
-            new_data = {**self._config_entry.data, **user_input}
-            self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
-            
-            # Reload to apply changes
-            await self.hass.config_entries.async_reload(self._config_entry.entry_id)
-            return self.async_create_entry(title="", data={})
+            self._options_data.update(user_input)
+            return await self.async_step_card_config()
 
         # Schema with current values
         current_target = self._config_entry.data.get(CONF_TARGET_ENTITY, "")
         current_logging = self._config_entry.data.get(CONF_LOGGING_ENABLED, False)
         current_language = self._config_entry.data.get(CONF_LANGUAGE, "default")
-        
-        current_title = self._config_entry.data.get(CONF_TITLE, "")
-        current_min = self._config_entry.data.get(CONF_MIN_VALUE, 0.0)
-        current_max = self._config_entry.data.get(CONF_MAX_VALUE, 100.0)
-        current_step = self._config_entry.data.get(CONF_STEP_VALUE, 1.0)
-        current_unit = self._config_entry.data.get(CONF_UNIT_OF_MEASUREMENT, "")
-        current_y_label = self._config_entry.data.get(CONF_Y_AXIS_LABEL, "")
-        current_allow_max = self._config_entry.data.get(CONF_ALLOW_MAX_VALUE, False)
 
         schema = vol.Schema(
             {
                 vol.Required(CONF_TARGET_ENTITY, default=current_target): str,
-                vol.Optional(CONF_TITLE, default=current_title): str,
-                vol.Required(CONF_MIN_VALUE, default=float(current_min)): vol.Coerce(float),
-                vol.Required(CONF_MAX_VALUE, default=float(current_max)): vol.Coerce(float),
-                vol.Required(CONF_STEP_VALUE, default=float(current_step)): vol.Coerce(float),
-                vol.Optional(CONF_UNIT_OF_MEASUREMENT, default=current_unit): str,
-                vol.Optional(CONF_Y_AXIS_LABEL, default=current_y_label): str,
-                vol.Optional(CONF_ALLOW_MAX_VALUE, default=current_allow_max): bool,
                 vol.Optional(CONF_LOGGING_ENABLED, default=current_logging): bool,
                 vol.Optional(CONF_LANGUAGE, default=current_language): selector({
                     "select": {
@@ -214,6 +196,47 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
             step_id="init",
             data_schema=schema,
             description_placeholders={
-                "info": f"Configure options for controller '{self._config_entry.title}'"
+                "info": f"Configure basic options for controller '{self._config_entry.title}'"
             },
+        )
+
+    async def async_step_card_config(self, user_input=None):
+        """Step 2: Configure card parameters in options flow."""
+        if user_input is not None:
+            self._options_data.update(user_input)
+            
+            # Merge into entry data and reload
+            new_data = {**self._config_entry.data, **self._options_data}
+            self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
+            await self.hass.config_entries.async_reload(self._config_entry.entry_id)
+            
+            return self.async_create_entry(title="", data={})
+
+        preset = self._config_entry.data.get(CONF_PRESET, "thermostat")
+        current_title = self._config_entry.data.get(CONF_TITLE, "")
+        current_min = self._config_entry.data.get(CONF_MIN_VALUE, 0.0)
+        current_max = self._config_entry.data.get(CONF_MAX_VALUE, 100.0)
+        current_step = self._config_entry.data.get(CONF_STEP_VALUE, 1.0)
+        current_unit = self._config_entry.data.get(CONF_UNIT_OF_MEASUREMENT, "")
+        current_y_label = self._config_entry.data.get(CONF_Y_AXIS_LABEL, "")
+        current_allow_max = self._config_entry.data.get(CONF_ALLOW_MAX_VALUE, False)
+
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_TITLE, default=current_title): str,
+                vol.Required(CONF_MIN_VALUE, default=float(current_min)): vol.Coerce(float),
+                vol.Required(CONF_MAX_VALUE, default=float(current_max)): vol.Coerce(float),
+                vol.Required(CONF_STEP_VALUE, default=float(current_step)): vol.Coerce(float),
+                vol.Optional(CONF_UNIT_OF_MEASUREMENT, default=current_unit): str,
+                vol.Optional(CONF_Y_AXIS_LABEL, default=current_y_label): str,
+                vol.Optional(CONF_ALLOW_MAX_VALUE, default=current_allow_max): bool,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="card_config",
+            data_schema=schema,
+            description_placeholders={
+                "preset": preset
+            }
         )
