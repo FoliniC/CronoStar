@@ -24,6 +24,19 @@
                     "global_prefix": "Global Prefix",
                     "logging_enabled": "Enable Debug Logging"
                 }
+            },
+            "card_config": {
+                "title": "CronoStar Card Configuration",
+                "description": "Configure the default appearance and limits for the Lovelace card associated with this controller.\n\nPreset: **{preset}**",
+                "data": {
+                    "title": "Card Title",
+                    "min_value": "Minimum Value",
+                    "max_value": "Maximum Value",
+                    "step_value": "Step Value",
+                    "unit_of_measurement": "Unit of Measurement",
+                    "y_axis_label": "Y-Axis Label",
+                    "allow_max_value": "Allow 'Max' Value"
+                }
             }
         }
     },
@@ -32,6 +45,13 @@
             "init": {
                 "data": {
                     "target_entity": "Target Entity",
+                    "title": "Card Title",
+                    "min_value": "Minimum Value",
+                    "max_value": "Maximum Value",
+                    "step_value": "Step Value",
+                    "unit_of_measurement": "Unit of Measurement",
+                    "y_axis_label": "Y-Axis Label",
+                    "allow_max_value": "Allow 'Max' Value",
                     "logging_enabled": "Enable Debug Logging",
                     "language": "UI Language"
                 },

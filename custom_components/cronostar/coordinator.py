@@ -7,7 +7,20 @@ from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import CONF_LOGGING_ENABLED, CONF_NAME, CONF_PRESET_TYPE, CONF_TARGET_ENTITY, DOMAIN
+from .const import (
+    CONF_ALLOW_MAX_VALUE,
+    CONF_LOGGING_ENABLED,
+    CONF_MAX_VALUE,
+    CONF_MIN_VALUE,
+    CONF_NAME,
+    CONF_PRESET_TYPE,
+    CONF_STEP_VALUE,
+    CONF_TARGET_ENTITY,
+    CONF_TITLE,
+    CONF_UNIT_OF_MEASUREMENT,
+    CONF_Y_AXIS_LABEL,
+    DOMAIN,
+)
 from .storage.storage_manager import StorageManager
 from .utils.error_handler import log_operation
 
@@ -40,6 +53,17 @@ class CronoStarCoordinator(DataUpdateCoordinator):
         self.name = entry.data.get(CONF_NAME, entry.title)
         self.preset_type = entry.data.get(CONF_PRESET_TYPE, entry.data.get("preset", "thermostat"))
         self.target_entity = entry.data[CONF_TARGET_ENTITY]
+
+        # Card configuration from entry
+        self.card_config = {
+            CONF_TITLE: entry.data.get(CONF_TITLE),
+            CONF_MIN_VALUE: entry.data.get(CONF_MIN_VALUE),
+            CONF_MAX_VALUE: entry.data.get(CONF_MAX_VALUE),
+            CONF_STEP_VALUE: entry.data.get(CONF_STEP_VALUE),
+            CONF_UNIT_OF_MEASUREMENT: entry.data.get(CONF_UNIT_OF_MEASUREMENT),
+            CONF_Y_AXIS_LABEL: entry.data.get(CONF_Y_AXIS_LABEL),
+            CONF_ALLOW_MAX_VALUE: entry.data.get(CONF_ALLOW_MAX_VALUE),
+        }
 
         # Controller state
         self.selected_profile = "Default"
@@ -79,6 +103,7 @@ class CronoStarCoordinator(DataUpdateCoordinator):
                 "is_enabled": self.is_enabled,
                 "current_value": self.current_value,
                 "available_profiles": self.available_profiles,
+                "card_config": self.card_config,
             }
         if self.logging_enabled:
             _LOGGER.debug("Update cycle for '%s'", self.name)
@@ -92,6 +117,7 @@ class CronoStarCoordinator(DataUpdateCoordinator):
             "is_enabled": self.is_enabled,
             "current_value": self.current_value,
             "available_profiles": self.available_profiles,
+            "card_config": self.card_config,
         }
 
     async def async_initialize(self):

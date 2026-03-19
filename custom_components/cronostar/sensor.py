@@ -5,7 +5,16 @@ import logging
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import (
+    CONF_ALLOW_MAX_VALUE,
+    CONF_MAX_VALUE,
+    CONF_MIN_VALUE,
+    CONF_STEP_VALUE,
+    CONF_TITLE,
+    CONF_UNIT_OF_MEASUREMENT,
+    CONF_Y_AXIS_LABEL,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,11 +63,6 @@ class CronoStarCurrentSensor(CoordinatorEntity, SensorEntity):
             self._attr_translation_key = "current_value"
             self._attr_native_unit_of_measurement = None
 
-        # Name is now relative to the device (handled by translation key or default)
-        # If translation key is not found, fallback to None (main feature of device) or specific name
-        # For now, we rely on translation keys or HA default behavior.
-
-
         # Device info for grouping
         # Friendly model name from preset type
         try:
@@ -89,11 +93,21 @@ class CronoStarCurrentSensor(CoordinatorEntity, SensorEntity):
                 "is_enabled": True,
                 "target_entity": self.coordinator.target_entity,
             }
-        return {
+        
+        attrs = {
             "active_profile": self.coordinator.data.get("selected_profile"),
             "is_enabled": self.coordinator.data.get("is_enabled", True),
             "target_entity": self.coordinator.target_entity,
         }
+        
+        # Merge card configuration into attributes
+        card_config = self.coordinator.data.get("card_config", {})
+        for key in [CONF_TITLE, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_STEP_VALUE, 
+                   CONF_UNIT_OF_MEASUREMENT, CONF_Y_AXIS_LABEL, CONF_ALLOW_MAX_VALUE]:
+            if key in card_config:
+                attrs[key] = card_config[key]
+                
+        return attrs
 
     @property
     def available(self) -> bool:
