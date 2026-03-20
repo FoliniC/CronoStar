@@ -23,7 +23,7 @@ from .setup import async_setup_integration
 _LOGGER = logging.getLogger(__name__)
 
 # CURRENT_VERSION for title tagging
-CURRENT_VERSION = "5.4.72"
+CURRENT_VERSION = "5.4.73"
 
 async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     """Set up CronoStar component from YAML (deprecated, kept for backward compatibility)."""

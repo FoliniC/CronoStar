@@ -37,6 +37,15 @@
                     "language": "Lingua Interfaccia"
                 }
             },
+            "dashboard": {
+                "title": "Aggiungi alla Dashboard",
+                "description": "{info}",
+                "data": {
+                    "add_to_dashboard": "Aggiungi la card CronoStar a una dashboard",
+                    "dashboard_path": "Seleziona Dashboard",
+                    "dashboard_view": "Indice Vista (Default: 0)"
+                }
+            },
             "success": {
                 "title": "Configurazione Completata {confirm_tag}",
                 "description": "Il controller '{name}' è stato configurato con successo.\n\nPuoi ora aggiungere la card CronoStar alla tua dashboard utilizzando il prefisso e l'entità target definiti."
@@ -49,8 +58,8 @@
     "options": {
         "step": {
             "init": {
-                "title": "Opzioni CronoStar [v5.4.72]",
-                "description": "Configura le impostazioni per questo controller CronoStar.",
+                "title": "Opzioni CronoStar [v5.4.73]",
+                "description": "{info}",
                 "data": {
                     "name": "Nome del Controller",
                     "preset_type": "Tipo di Preset",
@@ -61,7 +70,7 @@
                 }
             },
             "card_config": {
-                "title": "Configurazione Card CronoStar {tag} [v5.4.72]",
+                "title": "Configurazione Card CronoStar {tag} [v5.4.73]",
                 "description": "Aggiorna l'aspetto predefinito e i limiti per la card Lovelace.\n\nPreset: **{preset}**",
                 "data": {
                     "title": "Titolo della Card",

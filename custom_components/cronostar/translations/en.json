@@ -1,8 +1,5 @@
 {
     "config": {
-        "abort": {
-            "single_instance_allowed": "The CronoStar global component is already installed."
-        },
         "step": {
             "user": {
                 "title": "CronoStar Setup",
@@ -40,10 +37,22 @@
                     "language": "UI Language"
                 }
             },
+            "dashboard": {
+                "title": "Add to Dashboard",
+                "description": "{info}",
+                "data": {
+                    "add_to_dashboard": "Add CronoStar card to a dashboard",
+                    "dashboard_path": "Select Dashboard",
+                    "dashboard_view": "View Index (Default: 0)"
+                }
+            },
             "success": {
                 "title": "Configuration Complete {confirm_tag}",
                 "description": "The controller '{name}' has been successfully configured.\n\nYou can now add the CronoStar card to your dashboard using the prefix and target entity defined."
             }
+        },
+        "abort": {
+            "single_instance_allowed": "The CronoStar global component is already installed."
         }
     },
     "options": {
@@ -57,11 +66,11 @@
                     "logging_enabled": "Enable Debug Logging",
                     "language": "UI Language"
                 },
-                "description": "Configure settings for this CronoStar controller.",
-                "title": "CronoStar Options [v5.4.72]"
+                "description": "{info}",
+                "title": "CronoStar Options [v5.4.73]"
             },
             "card_config": {
-                "title": "CronoStar Card Configuration {tag} [v5.4.72]",
+                "title": "CronoStar Card Configuration {tag} [v5.4.73]",
                 "description": "Update the default appearance and limits for the Lovelace card.\n\nPreset: **{preset}**",
                 "data": {
                     "title": "Card Title",

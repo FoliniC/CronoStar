@@ -63,7 +63,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             # Added version tag to label
-            return self.async_create_entry(title="CronoStar [v5.4.72]", data={"component_installed": True})
+            return self.async_create_entry(title="CronoStar [v5.4.73]", data={"component_installed": True})
 
         return self.async_show_form(
             step_id="install_component",
@@ -119,8 +119,8 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             self._controller_data.update(user_input)
-            # Move to success confirmation before creating entry
-            return await self.async_step_success()
+            # Move to dashboard selection step
+            return await self.async_step_dashboard()
 
         # Pre-fill with preset defaults
         schema = vol.Schema({
@@ -153,10 +153,61 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
         )
 
+    async def async_step_dashboard(self, user_input=None):
+        """Step 3: Choose dashboard to add the card."""
+        if user_input is not None:
+            if user_input.get("add_to_dashboard") and user_input.get("dashboard_path"):
+                self._controller_data["dashboard_path"] = user_input["dashboard_path"]
+                self._controller_data["dashboard_view"] = user_input.get("dashboard_view", 0)
+            
+            return await self.async_step_success()
+
+        # Get list of dashboards
+        dashboards = []
+        try:
+            # Main dashboard is None
+            dashboards.append({"value": "none", "label": "Main Dashboard (Overview)"})
+            
+            # Additional dashboards
+            if "lovelace" in self.hass.data:
+                lovelace_manager = self.hass.data["lovelace"]
+                if hasattr(lovelace_manager, "dashboards"):
+                    for dash in lovelace_manager.dashboards.values():
+                        dashboards.append({
+                            "value": dash.url_path,
+                            "label": f"{dash.config.get('title', dash.url_path)} ({dash.url_path})"
+                        })
+        except Exception as e:
+            _LOGGER.warning("Error fetching dashboards: %s", e)
+
+        schema = vol.Schema({
+            vol.Optional("add_to_dashboard", default=False): bool,
+            vol.Optional("dashboard_path", default="none"): selector({
+                "select": {
+                    "options": dashboards,
+                    "mode": "dropdown"
+                }
+            }),
+            vol.Optional("dashboard_view", default=0): vol.Coerce(int),
+        })
+
+        return self.async_show_form(
+            step_id="dashboard",
+            data_schema=schema,
+            description_placeholders={
+                "info": "Choose if and where to add the CronoStar card automatically."
+            }
+        )
+
     async def async_step_success(self, user_input=None):
         """Final Step: Success confirmation dialog."""
         if user_input is not None:
-            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.72]"
+            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.73]"
+            
+            # Handle dashboard addition
+            if self._controller_data.get("dashboard_path"):
+                await self._async_add_card_to_dashboard()
+            
             return self.async_create_entry(title=title, data=self._controller_data)
 
         return self.async_show_form(
@@ -167,6 +218,48 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "confirm_tag": "[MODIFICA_ESEGUITA_SUCCESSO]" # Tag for success confirmation
             }
         )
+
+    async def _async_add_card_to_dashboard(self):
+        """Helper to add card to selected dashboard."""
+        try:
+            path = self._controller_data.get("dashboard_path")
+            if path == "none":
+                path = None
+            
+            view_index = self._controller_data.get("dashboard_view", 0)
+            
+            # 1. Get Lovelace config
+            from homeassistant.components.lovelace import async_get_config, async_save_config
+            
+            config = await async_get_config(self.hass, path)
+            
+            # 2. Build Card JSON
+            card_json = {
+                "type": "custom:cronostar-card",
+                "target_entity": self._controller_data.get(CONF_TARGET_ENTITY),
+                "global_prefix": self._controller_data.get(CONF_GLOBAL_PREFIX),
+                "preset_type": self._controller_data.get(CONF_PRESET),
+                "title": self._controller_data.get(CONF_TITLE, self._controller_data.get(CONF_NAME)),
+                "min_value": self._controller_data.get(CONF_MIN_VALUE),
+                "max_value": self._controller_data.get(CONF_MAX_VALUE),
+                "step_value": self._controller_data.get(CONF_STEP_VALUE),
+                "unit_of_measurement": self._controller_data.get(CONF_UNIT_OF_MEASUREMENT),
+                "y_axis_label": self._controller_data.get(CONF_Y_AXIS_LABEL),
+                "allow_max_value": self._controller_data.get(CONF_ALLOW_MAX_VALUE),
+            }
+
+            # 3. Add to view
+            if "views" in config and len(config["views"]) > view_index:
+                view = config["views"][view_index]
+                if "cards" not in view:
+                    view["cards"] = []
+                view["cards"].append(card_json)
+                
+                # 4. Save
+                await async_save_config(self.hass, path, config)
+                _LOGGER.info("Successfully added CronoStar card to dashboard: %s", path)
+        except Exception as e:
+            _LOGGER.error("Failed to add card to dashboard: %s", e)
 
     @staticmethod
     @callback
@@ -326,7 +419,7 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
             if clean_name.startswith("CronoStar: "):
                 clean_name = clean_name[len("CronoStar: "):]
             
-            new_title = f"CronoStar: {clean_name} [v5.4.72]"
+            new_title = f"CronoStar: {clean_name} [v5.4.73]"
             
             _LOGGER.debug("[OptionsFlow] Updating entry. Title: %s, Data: %s", new_title, new_data)
 
