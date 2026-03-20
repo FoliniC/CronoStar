@@ -58,10 +58,10 @@
                     "language": "UI Language"
                 },
                 "description": "Configure settings for this CronoStar controller.",
-                "title": "CronoStar Options [v5.4.71]"
+                "title": "CronoStar Options [v5.4.72]"
             },
             "card_config": {
-                "title": "CronoStar Card Configuration {tag} [v5.4.71]",
+                "title": "CronoStar Card Configuration {tag} [v5.4.72]",
                 "description": "Update the default appearance and limits for the Lovelace card.\n\nPreset: **{preset}**",
                 "data": {
                     "title": "Card Title",

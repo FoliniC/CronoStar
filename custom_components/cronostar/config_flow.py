@@ -63,7 +63,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             # Added version tag to label
-            return self.async_create_entry(title="CronoStar [v5.4.71]", data={"component_installed": True})
+            return self.async_create_entry(title="CronoStar [v5.4.72]", data={"component_installed": True})
 
         return self.async_show_form(
             step_id="install_component",
@@ -156,7 +156,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_success(self, user_input=None):
         """Final Step: Success confirmation dialog."""
         if user_input is not None:
-            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.71]"
+            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.72]"
             return self.async_create_entry(title=title, data=self._controller_data)
 
         return self.async_show_form(
@@ -185,20 +185,42 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Step 1: Manage component basic options (Full Wizard Style)."""
-        # Check if this is the main component entry (no options currently)
+        _LOGGER.debug("[OptionsFlow] async_step_init called. User input: %s", user_input)
+        
+        # 1. Global Component Options (Global Config Entry)
         if self._config_entry.data.get("component_installed"):
             if user_input is not None:
-                return self.async_create_entry(title="", data={})
+                # Update global options
+                return self.async_create_entry(title="", data=user_input)
             
+            # Load current global settings
+            current_logging = self._config_entry.options.get(CONF_LOGGING_ENABLED, False)
+            current_language = self._config_entry.options.get(CONF_LANGUAGE, "default")
+
             return self.async_show_form(
                 step_id="init",
-                data_schema=vol.Schema({}),
-                description_placeholders={"info": "Global component options are not yet available."},
+                data_schema=vol.Schema({
+                    vol.Optional(CONF_LOGGING_ENABLED, default=current_logging): bool,
+                    vol.Optional(CONF_LANGUAGE, default=current_language): selector({
+                        "select": {
+                            "options": [
+                                {"value": "default", "label": "System Default"},
+                                {"value": "en", "label": "English"},
+                                {"value": "it", "label": "Italiano"},
+                            ],
+                            "mode": "dropdown"
+                        }
+                    }),
+                }),
+                description_placeholders={
+                    "info": "Configure global defaults for new CronoStar instances."
+                },
             )
 
-        # It's a controller entry
+        # 2. Controller Options (Entity Config Entry)
         if user_input is not None:
             self._options_data.update(user_input)
+            _LOGGER.debug("[OptionsFlow] init step submitted. Data so far: %s", self._options_data)
             # FORCE OPEN PRESET CONFIG
             return await self.async_step_card_config()
 
@@ -234,21 +256,26 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_card_config(self, user_input=None):
         """Step 2: Configure card parameters in options flow."""
+        _LOGGER.debug("[OptionsFlow] async_step_card_config called. User input: %s", user_input)
+        
         if user_input is not None:
             self._options_data.update(user_input)
+            _LOGGER.debug("[OptionsFlow] card_config step submitted. Data so far: %s", self._options_data)
             # Move to success confirmation
             return await self.async_step_success()
 
         # Use current values from entry or defaults from presets if entry has none
         preset = self._options_data.get(CONF_PRESET) or self._config_entry.data.get(CONF_PRESET, "thermostat")
+        defaults = PRESETS_CONFIG.get(preset, PRESETS_CONFIG["thermostat"])
         
-        current_title = self._config_entry.data.get(CONF_TITLE, "")
-        current_min = self._config_entry.data.get(CONF_MIN_VALUE, 0.0)
-        current_max = self._config_entry.data.get(CONF_MAX_VALUE, 100.0)
-        current_step = self._config_entry.data.get(CONF_STEP_VALUE, 1.0)
-        current_unit = self._config_entry.data.get(CONF_UNIT_OF_MEASUREMENT, "")
-        current_y_label = self._config_entry.data.get(CONF_Y_AXIS_LABEL, "")
-        current_allow_max = self._config_entry.data.get(CONF_ALLOW_MAX_VALUE, False)
+        current_title = self._config_entry.data.get(CONF_TITLE, defaults.get("title", ""))
+        current_min = self._config_entry.data.get(CONF_MIN_VALUE, defaults.get("min_value", 0.0))
+        current_max = self._config_entry.data.get(CONF_MAX_VALUE, defaults.get("max_value", 100.0))
+        current_step = self._config_entry.data.get(CONF_STEP_VALUE, defaults.get("step_value", 1.0))
+        current_unit = self._config_entry.data.get(CONF_UNIT_OF_MEASUREMENT, defaults.get("unit", ""))
+        current_y_label = self._config_entry.data.get(CONF_Y_AXIS_LABEL, defaults.get("y_axis_label", ""))
+        current_allow_max = self._config_entry.data.get(CONF_ALLOW_MAX_VALUE, defaults.get("allow_max_value", False))
+        
         current_logging = self._config_entry.data.get(CONF_LOGGING_ENABLED, False)
         current_language = self._config_entry.data.get(CONF_LANGUAGE, "default")
 
@@ -286,6 +313,8 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_success(self, user_input=None):
         """Final Step: Success confirmation dialog in options flow."""
+        _LOGGER.debug("[OptionsFlow] async_step_success called. User input: %s", user_input)
+        
         if user_input is not None:
             # Merge into entry data and reload
             new_data = {**self._config_entry.data, **self._options_data}
@@ -297,7 +326,9 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
             if clean_name.startswith("CronoStar: "):
                 clean_name = clean_name[len("CronoStar: "):]
             
-            new_title = f"CronoStar: {clean_name} [v5.4.71]"
+            new_title = f"CronoStar: {clean_name} [v5.4.72]"
+            
+            _LOGGER.debug("[OptionsFlow] Updating entry. Title: %s, Data: %s", new_title, new_data)
 
             self.hass.config_entries.async_update_entry(self._config_entry, title=new_title, data=new_data)
             await self.hass.config_entries.async_reload(self._config_entry.entry_id)

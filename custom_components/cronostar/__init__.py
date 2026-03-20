@@ -16,14 +16,14 @@ import re
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_NAME, CONF_PRESET, CONF_TARGET_ENTITY, DOMAIN, PLATFORMS
+from .const import CONF_NAME, CONF_PRESET, CONF_TARGET_ENTITY, DOMAIN, PLATFORMS, CONF_LOGGING_ENABLED, CONF_LANGUAGE
 from .coordinator import CronoStarCoordinator
 from .setup import async_setup_integration
 
 _LOGGER = logging.getLogger(__name__)
 
 # CURRENT_VERSION for title tagging
-CURRENT_VERSION = "5.4.71"
+CURRENT_VERSION = "5.4.72"
 
 async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     """Set up CronoStar component from YAML (deprecated, kept for backward compatibility)."""
@@ -67,8 +67,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if entry.title != expected_title:
             _LOGGER.info("Updating global component title: %s -> %s", entry.title, expected_title)
             hass.config_entries.async_update_entry(entry, title=expected_title)
-            
-        _LOGGER.info("✅ CronoStar: Global component entry set up")
+        
+        # Store global configuration in hass.data for services to access
+        global_config = {
+            CONF_LOGGING_ENABLED: entry.options.get(CONF_LOGGING_ENABLED, False),
+            CONF_LANGUAGE: entry.options.get(CONF_LANGUAGE, "default")
+        }
+        hass.data[DOMAIN]["global_config"] = global_config
+        _LOGGER.info("✅ CronoStar: Global component entry set up. Config: %s", global_config)
         return True
 
     # 3. Controller Setup (for entity entries)
