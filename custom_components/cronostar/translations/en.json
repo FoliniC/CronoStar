@@ -35,7 +35,9 @@
                     "step_value": "Step Value",
                     "unit_of_measurement": "Unit of Measurement",
                     "y_axis_label": "Y-Axis Label",
-                    "allow_max_value": "Allow 'Max' Value"
+                    "allow_max_value": "Allow 'Max' Value",
+                    "logging_enabled": "Enable Debug Logging",
+                    "language": "UI Language"
                 }
             },
             "success": {
@@ -48,14 +50,10 @@
         "step": {
             "init": {
                 "data": {
+                    "name": "Controller Name",
+                    "preset_type": "Preset Type",
                     "target_entity": "Target Entity",
-                    "title": "Card Title",
-                    "min_value": "Minimum Value",
-                    "max_value": "Maximum Value",
-                    "step_value": "Step Value",
-                    "unit_of_measurement": "Unit of Measurement",
-                    "y_axis_label": "Y-Axis Label",
-                    "allow_max_value": "Allow 'Max' Value",
+                    "global_prefix": "Global Prefix",
                     "logging_enabled": "Enable Debug Logging",
                     "language": "UI Language"
                 },
@@ -72,7 +70,9 @@
                     "step_value": "Step Value",
                     "unit_of_measurement": "Unit of Measurement",
                     "y_axis_label": "Y-Axis Label",
-                    "allow_max_value": "Allow 'Max' Value"
+                    "allow_max_value": "Allow 'Max' Value",
+                    "logging_enabled": "Enable Debug Logging",
+                    "language": "UI Language"
                 }
             },
             "success": {
