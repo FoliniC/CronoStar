@@ -63,7 +63,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             # Added version tag to label
-            return self.async_create_entry(title="CronoStar [v5.4.70]", data={"component_installed": True})
+            return self.async_create_entry(title="CronoStar [v5.4.71]", data={"component_installed": True})
 
         return self.async_show_form(
             step_id="install_component",
@@ -156,7 +156,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_success(self, user_input=None):
         """Final Step: Success confirmation dialog."""
         if user_input is not None:
-            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.70]"
+            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.71]"
             return self.async_create_entry(title=title, data=self._controller_data)
 
         return self.async_show_form(
@@ -297,7 +297,7 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
             if clean_name.startswith("CronoStar: "):
                 clean_name = clean_name[len("CronoStar: "):]
             
-            new_title = f"CronoStar: {clean_name} [v5.4.70]"
+            new_title = f"CronoStar: {clean_name} [v5.4.71]"
 
             self.hass.config_entries.async_update_entry(self._config_entry, title=new_title, data=new_data)
             await self.hass.config_entries.async_reload(self._config_entry.entry_id)

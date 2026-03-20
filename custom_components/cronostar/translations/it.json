@@ -49,7 +49,7 @@
     "options": {
         "step": {
             "init": {
-                "title": "Opzioni CronoStar [v5.4.70]",
+                "title": "Opzioni CronoStar [v5.4.71]",
                 "description": "Configura le impostazioni per questo controller CronoStar.",
                 "data": {
                     "name": "Nome del Controller",
@@ -61,7 +61,7 @@
                 }
             },
             "card_config": {
-                "title": "Configurazione Card CronoStar {tag} [v5.4.70]",
+                "title": "Configurazione Card CronoStar {tag} [v5.4.71]",
                 "description": "Aggiorna l'aspetto predefinito e i limiti per la card Lovelace.\n\nPreset: **{preset}**",
                 "data": {
                     "title": "Titolo della Card",

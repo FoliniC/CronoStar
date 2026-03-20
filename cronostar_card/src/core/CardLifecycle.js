@@ -516,7 +516,26 @@ export class CardLifecycle {
         const oldEnabled = this.card.config?.enabled_entity;
         const oldSelect = this.card.config?.profiles_select_entity;
         const cleanMeta = extractCardConfig(profileData.meta);
-        this.card.config = { ...this.card.config, ...cleanMeta };
+        
+        // ✅ FORCE SYNC: Aggressively update local config with backend metadata
+        // This ensures changes made in the Integration Options Flow are reflected in the card
+        let hasChanges = false;
+        const syncKeys = ['min_value', 'max_value', 'step_value', 'title', 'unit_of_measurement', 'y_axis_label', 'allow_max_value', 'target_entity', 'logging_enabled'];
+        
+        for (const key of syncKeys) {
+          if (cleanMeta[key] !== undefined && cleanMeta[key] !== this.card.config[key]) {
+             Logger.log('SYNC', `[CronoStar] Updating config.${key} from backend: ${this.card.config[key]} -> ${cleanMeta[key]}`);
+             hasChanges = true;
+          }
+        }
+
+        if (hasChanges) {
+             this.card.config = { ...this.card.config, ...cleanMeta };
+        } else {
+             // Still merge to catch other keys
+             this.card.config = { ...this.card.config, ...cleanMeta };
+        }
+        
         const newEnabled = this.card.config?.enabled_entity;
         const newSelect = this.card.config?.profiles_select_entity;
         
