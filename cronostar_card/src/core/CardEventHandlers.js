@@ -885,6 +885,13 @@ Points in Profile: ${actualPoints}
         }
     }
 
+    handleEditCard() {
+        this.card.dispatchEvent(new CustomEvent('hass-edit-card', {
+            bubbles: true,
+            composed: true
+        }));
+    }
+
     handleCardClick(e) {
         if (this.card.isMenuOpen && !e.target.closest('.menu-content') && !e.target.closest('.menu-button')) {
             this.card.isMenuOpen = false;

@@ -22,10 +22,10 @@ export class Step1Preset {
     const minimalConfigComplete = prefixValid && !!applyEntity;
 
     const domains = this.getApplyIncludeDomains();
-    const globalSelectorCtor = customElements.get('ha-selector');
-    const canRenderSelector = !!globalSelectorCtor;
-
     const headerKey = this.editor._isEditing ? 'headers.step1_edit' : 'headers.step1';
+
+    const isPickerDefined = !!customElements.get('ha-entity-picker');
+    const canRenderPicker = isPickerDefined || this.editor._pickerLoaded;
 
     return html`
       <div class="step-content">
@@ -55,24 +55,21 @@ export class Step1Preset {
         <div class="field-group">
           <label class="field-label">1. ${this.editor.i18n._t('fields.target_entity_label')}</label>
           <div class="field-description">${this.editor.i18n._t('fields.target_entity_desc')}</div>
-          ${canRenderSelector ? html`
-            <ha-selector
-              .hass=${this.editor.hass}
-              .selector=${{ entity: { domain: domains.length === 1 ? domains[0] : domains } }}
-              .value=${applyEntity}
-              .label=${"Target Entity"}
-              @value-changed=${(e) => {
-          const v = e?.detail?.value;
-          this.editor._updateConfig('target_entity', v);
-          this.editor._dispatchConfigChanged(true);
-        }}
-            ></ha-selector>
-          ` : html`
-            ${this.editor._renderTextInput('target_entity', applyEntity, 'entity_id (es. climate.salotto)')}
-            <div style="margin-top:8px; color:#94a3b8; font-size:0.85rem;">
-              ${this.editor.i18n._t('ui.entity_selector_unavailable')}
-            </div>
-          `}
+          ${canRenderPicker 
+            ? html`<ha-entity-picker
+                .hass=${this.editor.hass}
+                .value=${applyEntity}
+                .includeDomains=${domains}
+                .label=${this.editor.i18n._t('fields.target_entity_label')}
+                allow-custom-entity
+                @value-changed=${(e) => {
+                  const v = e?.detail?.value;
+                  this.editor._updateConfig('target_entity', v);
+                  this.editor._dispatchConfigChanged(true);
+                }}
+              ></ha-entity-picker>`
+            : this.editor._renderTextInput('target_entity', applyEntity, 'domain.entity_id')
+          }
         </div>
 
         <div class="field-group">
@@ -134,8 +131,6 @@ export class Step1Preset {
     this.editor._updateConfig('global_prefix', newPrefix);
 
     const config = this.editor._config;
-    // Standard checks for enabled and select entities
-    // Improved isStandard to handle full entity IDs (e.g. switch.cronostar_..._enabled)
     const isStandard = (val, suffix) => {
       if (!val) return true;
       return val.includes('cronostar_') && (val.endsWith(suffix) || val.endsWith(suffix.replace('d', '')));
@@ -155,67 +150,87 @@ export class Step1Preset {
   _handlePrefixChange(value, event) {
     const editor = this.editor;
     const target = event.target;
-    let start = target.selectionStart;
-    let end = target.selectionEnd;
+    const cursor = target.selectionStart;
     
-    // Normalize: lowercase and valid characters only. Don't force trailing underscore while typing.
-    let normalizedValue = value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (!this._logCounter) this._logCounter = 0;
+    this._logCounter++;
+    const cid = this._logCounter;
+
+    // 1. Pulizia caratteri ammessi
+    let clean = value.toLowerCase().replace(/[^a-z0-9_]/g, '');
     
-    let newConfig = { ...editor._config, global_prefix: normalizedValue };
+    // Identifichiamo il prefisso di default (es. cronostar_thermostat_)
     const presetId = editor._selectedPreset || 'thermostat';
+    const tags = { 'thermostat': 'thermostat', 'ev_charging': 'ev_charging', 'generic_kwh': 'generic_kwh', 'generic_temperature': 'generic_temperature', 'generic_switch': 'generic_switch' };
+    const defaultPrefix = `cronostar_${tags[presetId] || presetId}_`;
+    const oldPrefix = editor._config.global_prefix || '';
+
+    // Automazione SOLO se il cursore è alla fine della stringa e stiamo aggiungendo
+    const isAtEnd = cursor >= value.length;
+    let normalizedValue = clean;
+    let opName = "NONE";
+
+    if (isAtEnd && clean.length > oldPrefix.length) {
+      const lastChar = clean.slice(-1);
+      if (lastChar !== '_') {
+        if (oldPrefix === defaultPrefix) {
+          // Caso: base_ + a -> base_a_ (Preserva underscore base)
+          normalizedValue = clean + '_';
+          opName = "FIRST_CHAR_KEEP_BASE";
+        } else if (oldPrefix.endsWith('_')) {
+          // Caso: ...a_ + b -> ...ab_ (Collassa underscore auto precedente)
+          normalizedValue = oldPrefix.slice(0, -1) + lastChar + '_';
+          opName = "SUBSEQUENT_CHAR_COLLAPSE";
+        } else {
+          normalizedValue = clean + '_';
+          opName = "ADD_TRAILING";
+        }
+      }
+    }
+
+    console.log(`[PREFIX-LOG] #${cid} - OP: ${opName} | OLD: "${oldPrefix}" | INPUT: "${value}" | RES: "${normalizedValue}" | CURSOR: ${cursor}`);
+
+    // Aggiornamento config
+    let newConfig = { ...editor._config, global_prefix: normalizedValue };
     const presetConfig = CARD_CONFIG_PRESETS[presetId];
     const baseTitle = presetConfig ? presetConfig.title : 'CronoStar Schedule';
-    const tags = {
-      'thermostat': 'thermostat',
-      'ev_charging': 'ev_charging',
-      'generic_kwh': 'generic_kwh',
-      'generic_temperature': 'generic_temperature',
-      'generic_switch': 'generic_switch'
-    };
-    const tag = tags[presetId] || presetId;
-    // const basePrefix = `cronostar_${tag}_`; // Not used
     
-    // Use the full prefix as title, replacing underscores with spaces
-    let newTitle = normalizedValue.replace(/_/g, ' ').trim();
-    if (!newTitle) newTitle = baseTitle;
-    newConfig.title = newTitle;
+    let titleBase = normalizedValue.replace(/_+$/, '').replace(/_/g, ' ').trim();
+    newConfig.title = (titleBase || baseTitle).charAt(0).toUpperCase() + (titleBase || baseTitle).slice(1);
     
-    // Update enabled and select entities if they look like defaults
     const isStandard = (val, suffix) => {
       if (!val) return true;
       return val.includes('cronostar_') && (val.endsWith(suffix) || val.endsWith(suffix.replace('d', '')));
     };
-
-    if (isStandard(newConfig.enabled_entity, 'enabled')) {
-      newConfig.enabled_entity = `switch.${normalizedValue}enabled`;
-    }
-    if (isStandard(newConfig.profiles_select_entity, 'current_profile') || isStandard(newConfig.profiles_select_entity, 'profiles')) {
-      newConfig.profiles_select_entity = `select.${normalizedValue}current_profile`;
-    }
+    if (isStandard(newConfig.enabled_entity, 'enabled')) newConfig.enabled_entity = `switch.${normalizedValue}enabled`;
+    if (isStandard(newConfig.profiles_select_entity, 'current_profile')) newConfig.profiles_select_entity = `select.${normalizedValue}current_profile`;
 
     editor._config = newConfig;
     target.value = normalizedValue;
+    
+    // Ripristino Cursore prima dell'ultimo underscore
     try {
-      target.setSelectionRange(start, end);
+      if (isAtEnd && normalizedValue.length > 0) {
+        const pos = normalizedValue.length - 1;
+        target.setSelectionRange(pos, pos);
+      } else {
+        target.setSelectionRange(cursor, cursor);
+      }
     } catch (e) {}
+    
     editor.requestUpdate();
   }
 
   async _handleSaveAndClose() {
-    console.log('[Step1] Save & Close clicked');
     const currentPrefix = this.editor._config.global_prefix || getEffectivePrefix(this.editor._config);
     this.editor._updateConfig('global_prefix', currentPrefix, true);
     await this.editor.updateComplete;
     if (this.editor.hass) {
       try {
-        console.log('[Step1] Triggering finish click');
         await this.editor._handleFinishClick({ force: true });
-        console.log('[Step1] Finish click completed');
       } catch (e) {
         console.error("Save & Close failed:", e);
       }
-    } else {
-      console.warn('[Step1] Hass not available');
     }
   }
 
@@ -237,13 +252,14 @@ export class Step1Preset {
   }
 
   getApplyIncludeDomains() {
-    switch (this.editor._selectedPreset) {
+    const preset = this.editor._selectedPreset || this.editor._config?.preset_type || 'thermostat';
+    switch (preset) {
       case 'thermostat': return ['climate'];
       case 'ev_charging': return ['number', 'input_number'];
       case 'generic_switch': return ['switch', 'input_boolean'];
       case 'generic_kwh': return ['number', 'input_number'];
       case 'generic_temperature': return ['number', 'input_number', 'sensor'];
-      default: return [];
+      default: return ['climate', 'number', 'input_number', 'switch', 'input_boolean', 'sensor'];
     }
   }
 }

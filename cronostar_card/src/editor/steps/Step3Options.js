@@ -76,16 +76,19 @@ export class Step3Options {
               if (!this.editor._config.meta) {
                 this.editor._config.meta = {};
               }
-              this.editor._config.meta.language = e.target.value;
-              this.editor._language = e.target.value; // Update editor's active language immediately
-              this.editor.i18n = new EditorI18n(this.editor); // Re-initialize i18n with new language
-              this.editor.requestUpdate(); // Force editor to re-render with new language
-              this.editor._dispatchConfigChanged(true); // Save config
+              const val = e.target.value;
+              if (val && val !== this.editor._language) {
+                this.editor._config.meta.language = val;
+                this.editor._language = val; // Update editor's active language immediately
+                this.editor.i18n = new EditorI18n(this.editor); // Re-initialize i18n with new language
+                this.editor.requestUpdate(); // Force editor to re-render with new language
+                this.editor._dispatchConfigChanged(true); // Save config
+              }
             }}
             fixedMenuPosition
           >
-            <mwc-list-item value="en" .activated=${(this.editor._config.meta?.language || this.editor._language) === 'en'}>English</mwc-list-item>
-            <mwc-list-item value="it" .activated=${(this.editor._config.meta?.language || this.editor._language) === 'it'}>Italiano</mwc-list-item>
+            <mwc-list-item value="en" ?selected=${(this.editor._config.meta?.language || this.editor._language) === 'en'}>English</mwc-list-item>
+            <mwc-list-item value="it" ?selected=${(this.editor._config.meta?.language || this.editor._language) === 'it'}>Italiano</mwc-list-item>
           </ha-select>
         </div>
 

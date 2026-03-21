@@ -44,6 +44,22 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         self._controller_data = {}
 
+    async def async_step_create_controller(self, user_input=None):
+        """Step to create a controller programmatically (e.g. from service)."""
+        if user_input is not None:
+            # Check if entry already exists for this prefix
+            prefix = user_input.get(CONF_GLOBAL_PREFIX)
+            for entry in self._async_current_entries():
+                if entry.data.get(CONF_GLOBAL_PREFIX) == prefix:
+                    return self.async_abort(reason="already_configured")
+
+            name = user_input.get(CONF_NAME, "New Controller")
+            title = f"CronoStar: {name}"
+            # Ensure it doesn't get version tag yet, __init__ will add it
+            return self.async_create_entry(title=title, data=user_input)
+        
+        return self.async_abort(reason="unknown")
+
     async def async_step_user(self, user_input=None):
         """Entry point: choose installation type or proceed with component install."""
         # If component not yet installed, offer install first
@@ -63,7 +79,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             # Added version tag to label
-            return self.async_create_entry(title="CronoStar [v5.4.73]", data={"component_installed": True})
+            return self.async_create_entry(title="CronoStar [v5.4.74]", data={"component_installed": True})
 
         return self.async_show_form(
             step_id="install_component",
@@ -119,7 +135,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             self._controller_data.update(user_input)
-            # Move to dashboard selection step
+            # ✅ CORRECT TRANSITION: Move to dashboard selection step
             return await self.async_step_dashboard()
 
         # Pre-fill with preset defaults
@@ -163,19 +179,19 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_success()
 
         # Get list of dashboards
-        dashboards = []
+        dashboards = [{"value": "none", "label": "Main Dashboard (Overview)"}]
         try:
-            # Main dashboard is None
-            dashboards.append({"value": "none", "label": "Main Dashboard (Overview)"})
+            # Import Lovelace constants to get the data key
+            from homeassistant.components.lovelace.const import LOVELACE_DATA
             
-            # Additional dashboards
-            if "lovelace" in self.hass.data:
-                lovelace_manager = self.hass.data["lovelace"]
-                if hasattr(lovelace_manager, "dashboards"):
-                    for dash in lovelace_manager.dashboards.values():
+            if LOVELACE_DATA in self.hass.data:
+                lovelace_data = self.hass.data[LOVELACE_DATA]
+                if hasattr(lovelace_data, "dashboards"):
+                    for url_path, dash in lovelace_data.dashboards.items():
+                        title = getattr(dash, "title", url_path)
                         dashboards.append({
-                            "value": dash.url_path,
-                            "label": f"{dash.config.get('title', dash.url_path)} ({dash.url_path})"
+                            "value": url_path,
+                            "label": f"{title} ({url_path})"
                         })
         except Exception as e:
             _LOGGER.warning("Error fetching dashboards: %s", e)
@@ -202,7 +218,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_success(self, user_input=None):
         """Final Step: Success confirmation dialog."""
         if user_input is not None:
-            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.73]"
+            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.4.74]"
             
             # Handle dashboard addition
             if self._controller_data.get("dashboard_path"):
@@ -353,7 +369,6 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
         
         if user_input is not None:
             self._options_data.update(user_input)
-            _LOGGER.debug("[OptionsFlow] card_config step submitted. Data so far: %s", self._options_data)
             # Move to success confirmation
             return await self.async_step_success()
 
@@ -419,7 +434,7 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
             if clean_name.startswith("CronoStar: "):
                 clean_name = clean_name[len("CronoStar: "):]
             
-            new_title = f"CronoStar: {clean_name} [v5.4.73]"
+            new_title = f"CronoStar: {clean_name} [v5.4.74]"
             
             _LOGGER.debug("[OptionsFlow] Updating entry. Title: %s, Data: %s", new_title, new_data)
 

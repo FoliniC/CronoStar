@@ -9,6 +9,34 @@ export class CardRenderer {
   render() {
     if (!this.card.config) return html``;
 
+    // ✅ FIX: Internal Editor Fallback (for panels where standard editor won't open)
+    if (this.card.isEditorInternal) {
+      return html`
+        <ha-card class="editor-internal-container" style="width: 100% !important; max-width: none !important; margin: 0 !important; border-radius: 0;">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--divider-color); background: rgba(255,255,255,0.05);">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <img src="/cronostar_card/cronostar-logo.png" style="height: 24px;">
+              <span style="font-weight: 700; color: var(--primary-color);">WIZARD CONFIGURAZIONE</span>
+            </div>
+            <ha-icon-button @click=${() => { this.card.isEditorInternal = false; this.card.requestUpdate(); }} title="Chiudi">
+              <ha-icon icon="mdi:close"></ha-icon>
+            </ha-icon-button>
+          </div>
+          <div style="padding: 16px; width: 100%; box-sizing: border-box;">
+            <cronostar-card-editor
+              .hass=${this.card.hass}
+              .config=${this.card.config}
+              @config-changed=${(ev) => {
+                // Quando la config cambia nell'editor interno, aggiorniamo la card
+                this.card.setConfig(ev.detail.config);
+                this.card.requestUpdate();
+              }}
+            ></cronostar-card-editor>
+          </div>
+        </ha-card>
+      `;
+    }
+
     const localize = (key, search, replace) => this.card.localizationManager.localize(this.card.language, key, search, replace);
     
     // ✅ IMPROVED: Dynamic title logic
@@ -29,10 +57,11 @@ export class CardRenderer {
       }
     }
 
-    // ✅ FIX: Fallback if global_prefix is missing (New card state)
-    if (!this.card.config?.global_prefix) {
+    // ✅ FIX: Show setup UI if explicitly not configured
+    if (this.card.config?.not_configured === true) {
+      const isEditor = this.card.cardLifecycle?.isEditorContext() || false;
       return html`
-        <ha-card @click=${(e) => this.card.eventHandlers.handleCardClick(e)}>
+        <ha-card>
           <div class="card-header">
             <div class="header-left">
               <img src="/cronostar_card/cronostar-logo.png" class="header-logo" alt="CronoStar">
@@ -42,13 +71,18 @@ export class CardRenderer {
           <div style="padding: 24px; text-align: center; color: var(--secondary-text-color);">
             <ha-icon icon="mdi:cog-transfer-outline" style="--mdc-icon-size: 48px; opacity: 0.5; margin-bottom: 16px;"></ha-icon>
             <p style="font-size: 1.1em; font-weight: 500; margin: 0 0 8px 0; color: var(--primary-text-color);">
-              ${this.card.language === 'it' ? 'Configurazione Incompleta' : 'Configuration Incomplete'}
+              ${this.card.language === 'it' ? 'Nessun controller configurato' : 'No controller configured'}
             </p>
-            <p style="margin: 0; font-size: 0.9em;">
+            <p style="margin: 0 0 20px 0; font-size: 0.9em;">
               ${this.card.language === 'it' 
-                ? 'Usa l\'editor per impostare il prefisso e l\'entità di destinazione.' 
-                : 'Please use the card editor to set the identification prefix and target entity.'}
+                ? (isEditor ? 'Usa il pannello di configurazione per impostare la card.' : 'Aggiungi un controller per iniziare a gestire i tuoi orari.')
+                : (isEditor ? 'Use the configuration panel to set up the card.' : 'Add a controller to start managing your schedules.')}
             </p>
+            ${!isEditor ? html`` : html`
+              <div style="font-size: 0.85em; opacity: 0.7; padding: 8px; border: 1px dashed var(--divider-color); border-radius: 4px;">
+                ${this.card.language === 'it' ? 'Configurazione necessaria' : 'Configuration required'}
+              </div>
+            `}
           </div>
         </ha-card>
       `;

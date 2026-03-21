@@ -111,7 +111,12 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
                     if preset_type not in profiles_by_preset:
                         profiles_by_preset[preset_type] = {"files": []}
 
-                    file_info = {"filename": filename, "global_prefix": global_prefix, "profiles": []}
+                    file_info = {
+                        "filename": filename,
+                        "global_prefix": global_prefix,
+                        "meta": data.get("meta", {}),
+                        "profiles": [],
+                    }
 
                     for profile_name, profile_content in data["profiles"].items():
                         file_info["profiles"].append(

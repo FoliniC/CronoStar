@@ -1,21 +1,20 @@
 {
   "domain": "cronostar",
-  "name": "CronoStar [v5.4.73]",
-  "after_dependencies": [
-    "http",
-    "frontend"
-  ],
-  "codeowners": [
-    "@FoliniC"
-  ],
-  "config_flow": true,
+  "name": "CronoStar [v5.5.7]",
   "dependencies": [
+    "http",
+    "frontend",
+    "panel_custom",
     "input_number",
     "input_select",
     "input_boolean",
     "input_text",
     "lovelace"
   ],
+  "codeowners": [
+    "@FoliniC"
+  ],
+  "config_flow": true,
   "documentation": "https://github.com/FoliniC/CronoStar",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/FoliniC/CronoStar/issues",
@@ -24,5 +23,5 @@
   ],
   "quality_scale": "gold",
   "requirements": [],
-  "version": "5.4.73"
+  "version": "5.5.7"
 }

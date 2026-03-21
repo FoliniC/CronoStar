@@ -1,48 +1,91 @@
 # GEMINI.md
 
-## Project Overview
+# Gemini - CronoStar Development Workflow
 
-The project under @cronostar is a custom component composed of a backend and frontend lovelace card. Code files are in windows environment so don't use grep, ls and other linux commands.
+This document outlines the standard procedures for developing, building, and deploying the CronoStar custom component.
 
-## Building and Running
+## 1. Source Code Management
 
-This is a Home Assistant custom component and should be installed in the `<config>/custom_components/cronostar` directory of your Home Assistant instance, where `<config>` is the main Home Assistant configuration directory.
+### Local Repository
+- **Location**: `/home/carlo/cronostar_git`
+- **Main Branch**: `main`
+
+### GitHub Repository
+- **URL**: `https://github.com/FoliniC/CronoStar`
+
+**Workflow**:
+1.  Always work on the `main` branch for simplicity, as this is a local-first workflow.
+2.  After completing a feature or fix, commit the changes with a descriptive message.
+3.  Pushing to GitHub is a manual step to back up the code.
+Example commit
+git add .
+git commit -m "feat: Add new feature"
+git push origin main
 
 
+## 2. Frontend Compilation
 
-## Development Conventions
+The CronoStar card is a JavaScript component that must be compiled after any changes to its source files.
 
-*   **Configuration:** The component uses `voluptuous` for configuration schema validation, following standard Home-Assistant practices.
-*   **Logging:** The component uses the standard Python `logging` module for debugging and error reporting. The log level can be configured in the integration's options.
-*   **Code Style:** The code follows general Python and Home Assistant coding conventions.
-*   **Localization:** The component includes English and Italian localization for synonyms and responses.
+- **Frontend Source Directory**: `/home/carlo/cronostar_git/cronostar_card`
+- **Build Command**: This command compiles the JavaScript source and outputs the final `cronostar-card.js` file into the correct backend directory
+(`custom_components/cronostar/www/cronostar_card/`).
+cd /home/carlo/cronostar_git/cronostar_card
+npm run build
 
-## Default System Prompt
 
-Sei il programmatore esperto di home assistant nella sua ultima versione (> 2025.9). Ricorda che dalla versione di home assistant 2024.4 la sintassi prevede actions, triggers e conditions.
-automation:
-  - alias: "Turn on office lights"
-    triggers:
-      - trigger: state
-        entity_id: sensor.office_motion_sensor
-        to: "on"
-    conditions:
-      - or:
-        - condition: numeric_state
-          entity_id: sun.sun
-          attribute: elevation
-          below: 4
-        - condition: numeric_state
-          entity_id: sensor.office_lux_sensor
-          below: 10
-    actions:
-      - action: scene.turn_on
-        target:
-          entity_id: scene.office_lights
-Ogni volta che devi fare una modifica ad un file (python, template, automazione) riscrivi completamente il file e cerca di mantenere costante la formattazione dei sorgenti che ti vengono forniti, mantieni anche i commenti preesistenti. Assicurati che non ci siano spazi alla fine delle righe.
-Se devi visualizzare del codice usa tre backtick per delimitarlo. Al termine del messaggio scrivi sempre "ho finito" in modo da assicurare che non hai interrotto la generazione per mancanza di token.
-Istruzioni:
-- Non inventare entità o stati che non conosci.
-- Se non hai abbastanza contesto, chiedi una breve chiarificazione.
-- Se la richiesta non riguarda la casa, rispondi comunque in modo utile e sintetico.
-- la lingua dei sorgenti e dei commenti deve essere inglese salvo eplicita richiesta
+**Important**: Run this command every time you modify files in `cronostar_git/cronostar_card/src/`.
+
+## 3. Deployment to Home Assistant
+
+There are two Home Assistant instances:
+- **Main Instance**: Running on port `8123`.
+- **Test Instance**: Running on port `8125`.
+
+### Deployment to Main Instance
+- **Configuration Directory**: `/home/carlo/docker/homeassistant/config`
+- **Command**: This copies the compiled backend and frontend code to your main Home Assistant instance.
+Ensure you are in the root of the repo
+cd /home/carlo/cronostar_git
+
+Copy component files
+cp -r custom_components/cronostar/* /home/carlo/docker/homeassistant/config/custom_components/cronostar/
+
+Restart Home Assistant
+docker restart homeassistant
+
+### Deployment to Test Instance
+- **Configuration Directory**: `/home/carlo/docker/homeassistant_test/config`
+- **Command**: This copies the compiled backend and frontend code to your test Home Assistant instance.
+Ensure you are in the root of the repo
+cd /home/carlo/cronostar_git
+
+Copy component files
+cp -r custom_components/cronostar/* /home/carlo/docker/homeassistant_test/config/custom_components/cronostar/
+
+Restart the test container
+docker restart homeassistant_test_cronostar
+
+## Full Workflow Example (Frontend Change)
+
+From the `/home/carlo` directory:
+1. Go to card directory and build
+cd cronostar_git/cronostar_card
+npm run build
+
+2. Go back to repo root
+cd ..
+
+3. Deploy to test instance
+cp -r custom_components/cronostar/* /home/carlo/docker/homeassistant_test/config/custom_components/cronostar/
+docker restart homeassistant_test_cronostar
+
+4. Verify changes in test instance, then commit
+git add .
+git commit -m "feat(frontend): Update card layout"
+
+Instructions:
+Do not make up entities or states you don't know about.
+If you don't have enough context, ask for a brief clarification.
+If the request is not related to the home, still respond in a helpful and concise way.
+The language of source code and comments must be English unless explicitly requested otherwise

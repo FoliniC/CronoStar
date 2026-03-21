@@ -1,6 +1,6 @@
 /** Configuration management for CronoStar Card */
 import { log } from './utils/logger_utils.js';
-export const VERSION = window.CRONOSTAR_CARD_VERSION || '5.4.73';
+export const VERSION = window.CRONOSTAR_CARD_VERSION || '0.0.0';
 
 export const COLORS = {
   primary: "#03a9f4",
@@ -23,7 +23,7 @@ export const CARD_CONFIG_PRESETS = {
     step_value: 0.5,
     enabled_entity: null,
     profiles_select_entity: null,
-    target_entity: "climate.climatizzazione_appartamento",
+    target_entity: null,
     is_switch_preset: false,
     allow_max_value: false
   },
@@ -36,7 +36,7 @@ export const CARD_CONFIG_PRESETS = {
     step_value: 0.5,
     enabled_entity: null,
     profiles_select_entity: null,
-    target_entity: "number.your_ev_charger_power",
+    target_entity: null,
     is_switch_preset: false,
     allow_max_value: true
   },
@@ -75,7 +75,7 @@ export const CARD_CONFIG_PRESETS = {
     step_value: 1,
     enabled_entity: null,
     profiles_select_entity: null,
-    target_entity: "switch.your_generic_switch",
+    target_entity: null,
     is_switch_preset: true,
     allow_max_value: false
   }
@@ -89,7 +89,8 @@ export const DEFAULT_CONFIG = {
   enabled_entity: null,
   profiles_select_entity: null,
   target_entity: null,
-  allow_max_value: false
+  allow_max_value: false,
+  not_configured: true
 };
 
 export const CHART_DEFAULTS = {
@@ -214,7 +215,7 @@ export function extractCardConfig(src = {}) {
     'unit_of_measurement', 'y_axis_label', 'allow_max_value',
     'logging_enabled', 'hour_base', 'title', 'step',
     'kb_ctrl_h', 'kb_ctrl_v', 'kb_shift_h', 'kb_shift_v', 'kb_alt_h', 'kb_alt_v',
-    'kb_def_h', 'kb_def_v'
+    'kb_def_h', 'kb_def_v', 'not_configured'
   ];
   const out = {};
   for (const key of validKeys) {

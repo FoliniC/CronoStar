@@ -284,7 +284,8 @@ export class CronoStarEditor extends LitElement {
     this._isEditing = false;
     this._dashboardView = 'choice';
     // Forza il rendering del picker: la definizione può arrivare dal registry scoped (patch in main.js)
-    this._pickerLoaded = true;
+    // DISATTIVATO: Se il picker non è definito, usiamo il fallback testuale.
+    this._pickerLoaded = false;
 
     this._showStepError = false;
     this._showLlmPrompt = false;
@@ -514,6 +515,13 @@ export class CronoStarEditor extends LitElement {
     } catch (e) {
       log('warn', this._config.logging_enabled, '[PREVIEW] Visibility update failed:', e);
     }
+  }
+
+  _handleResetConfig() {
+    this._config = { ...DEFAULT_CONFIG };
+    this._step = 1;
+    this._selectedPreset = 'thermostat';
+    this.requestUpdate();
   }
 
   _renderWizardSteps() {
@@ -949,7 +957,10 @@ export class CronoStarEditor extends LitElement {
         <div>
           ${this._step > 0 && this._step < 5
         ? html`<mwc-button raised @click=${() => this._handleNextClick()}>${this.i18n._t('actions.next')}</mwc-button>`
-        : html``}
+        : (this._step === 5
+          ? html`<mwc-button raised @click=${() => this._handleFinishClick({ force: true })}>💾 ${this.i18n._t('actions.save_and_close') || 'Save & Close'}</mwc-button>`
+          : html``)
+        }
         </div>
       </div>
     `;
@@ -965,5 +976,3 @@ export class CronoStarEditor extends LitElement {
     `;
   }
 }
-
-customElements.define('cronostar-card-editor', CronoStarEditor);

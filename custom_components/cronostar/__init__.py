@@ -13,17 +13,28 @@ This integration provides:
 import logging
 import re
 
+from homeassistant.components import frontend
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.loader import async_get_integration
 
-from .const import CONF_NAME, CONF_PRESET, CONF_TARGET_ENTITY, DOMAIN, PLATFORMS, CONF_LOGGING_ENABLED, CONF_LANGUAGE
+from .const import (
+    CONF_NAME,
+    CONF_PRESET,
+    CONF_TARGET_ENTITY,
+    DOMAIN,
+    PLATFORMS,
+    CONF_LOGGING_ENABLED,
+    CONF_LANGUAGE,
+    CONF_GLOBAL_PREFIX,
+    STORAGE_DIR,
+)
 from .coordinator import CronoStarCoordinator
 from .setup import async_setup_integration
+from .setup import PANEL_URL_PATH
+from pathlib import Path
 
 _LOGGER = logging.getLogger(__name__)
-
-# CURRENT_VERSION for title tagging
-CURRENT_VERSION = "5.4.73"
 
 async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     """Set up CronoStar component from YAML (deprecated, kept for backward compatibility)."""
@@ -47,6 +58,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
     hass.data.setdefault(DOMAIN, {})
 
+    # Retrieve integration version dynamically
+    integration = await async_get_integration(hass, DOMAIN)
+    current_version = integration.version
+
     # 1. Global Setup (if not already done)
     if not hass.data.get(DOMAIN, {}).get("_global_setup_done"):
         _LOGGER.info("🌟 CronoStar: Installing global component...")
@@ -63,7 +78,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # 2. Identify Entry Type
     if entry.data.get("component_installed"):
         # Auto-update global component title with version tag
-        expected_title = f"CronoStar [v{CURRENT_VERSION}]"
+        expected_title = f"CronoStar [v{current_version}]"
         if entry.title != expected_title:
             _LOGGER.info("Updating global component title: %s -> %s", entry.title, expected_title)
             hass.config_entries.async_update_entry(entry, title=expected_title)
@@ -86,9 +101,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.config_entries.async_update_entry(entry, data=new_data)
 
     # Auto-update controller title with current version tag
-    if f"[v{CURRENT_VERSION}]" not in entry.title:
+    if f"[v{current_version}]" not in entry.title:
         clean_title = re.sub(r"\s*\[v\d+\.\d+\.\d+\]", "", entry.title)
-        new_title = f"{clean_title} [v{CURRENT_VERSION}]"
+        new_title = f"{clean_title} [v{current_version}]"
         _LOGGER.info("Updating controller title: %s -> %s", entry.title, new_title)
         hass.config_entries.async_update_entry(entry, title=new_title)
 
@@ -129,6 +144,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Installation-only entry: remove global data and services will be handled by HA
         if DOMAIN in hass.data:
             hass.data.pop(DOMAIN)
+        
+        # Remove sidebar panel
+        try:
+            frontend.async_remove_panel(hass, PANEL_URL_PATH)
+            _LOGGER.info("✅ CronoStar: Sidebar panel removed")
+        except Exception as e:
+            _LOGGER.warning("⚠️ Failed to remove sidebar panel: %s", e)
+
         _LOGGER.info("✅ CronoStar: Component unloaded")
         return True
 
@@ -141,3 +164,48 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     _LOGGER.info("🔄 CronoStar: Reloading component...")
     await async_unload_entry(hass, entry)
     await async_setup_entry(hass, entry)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Handle removal of an entry."""
+    if entry.data.get("component_installed"):
+        _LOGGER.info("🗑️ CronoStar: Global component entry removed")
+        return
+
+    _LOGGER.info("🗑️ CronoStar: Removing controller entry '%s' and its data...", entry.title)
+
+    preset_type = entry.data.get(CONF_PRESET)
+    global_prefix = entry.data.get(CONF_GLOBAL_PREFIX)
+
+    if preset_type and global_prefix:
+        from .utils.filename_builder import build_profile_filename
+
+        filename = build_profile_filename(preset_type, global_prefix)
+
+        # Paths
+        profiles_dir = Path(hass.config.path(STORAGE_DIR))
+        filepath = profiles_dir / filename
+
+        # Delete main profile file
+        if filepath.exists():
+            try:
+                await hass.async_add_executor_job(filepath.unlink)
+                _LOGGER.info("✅ CronoStar: Deleted profile data file: %s", filename)
+            except Exception as e:
+                _LOGGER.error(
+                    "❌ CronoStar: Failed to delete profile data file %s: %s", filename, e
+                )
+
+        # Also cleanup backups for this file
+        backups_dir = profiles_dir / "backups"
+        if backups_dir.exists():
+            try:
+                stem = filepath.stem
+                for backup_file in backups_dir.glob(f"{stem}_backup_*.json"):
+                    await hass.async_add_executor_job(backup_file.unlink)
+                    _LOGGER.debug("✅ CronoStar: Deleted backup file: %s", backup_file.name)
+            except Exception as e:
+                _LOGGER.warning(
+                    "⚠️ CronoStar: Failed to cleanup backups for %s: %s", filename, e
+                )
+
