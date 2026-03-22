@@ -10,73 +10,84 @@ export class Step3Options {
   render() {
     const presetConfig = CARD_CONFIG_PRESETS[this.editor._config.preset_type || 'thermostat'] || {};
     const effectiveTitle = this.editor._config.title || presetConfig.title || 'CronoStar Schedule';
+console.log('[Step3Options] Rendering. Current editor language:', this.editor._language);
 return html`
-  <style>
-    .step-content { color: #f8fafc; }
-    .field-group { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); }
-    .field-label { color: #38bdf8; font-weight: 800; }
-    ha-select, ha-textfield { 
-      --mdc-theme-primary: #38bdf8;
-      --mdc-select-idle-line-color: rgba(255,255,255,0.3);
-      --mdc-select-hover-line-color: #38bdf8;
-      --mdc-select-label-ink-color: rgba(255,255,255,0.7);
-      --mdc-select-ink-color: #ffffff;
-      --mdc-select-dropdown-icon-color: #38bdf8;
-      --mdc-theme-surface: #1e293b;
-      --mdc-theme-text-primary-on-background: #ffffff;
-    }
-    mwc-list-item {
-      --mdc-theme-text-primary-on-background: #ffffff;
-      color: #ffffff !important;
-    }
-  </style>
-  <div class="step-content">
-    <div class="step-header">${this.editor.i18n._t('headers.step3')} (Step 3)</div>
-    <div class="step-description">${this.editor.i18n._t('descriptions.step3')}</div>
+<style>
+.step-content { color: #f8fafc; }
+.field-group { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); }
+.field-label { color: #38bdf8; font-weight: 800; }
+ha-select, ha-textfield { 
+  --mdc-theme-primary: #38bdf8;
+  --mdc-select-idle-line-color: rgba(255,255,255,0.3);
+  --mdc-select-hover-line-color: #38bdf8;
+  --mdc-select-label-ink-color: rgba(255,255,255,0.7);
+  --mdc-select-ink-color: #ffffff;
+  --mdc-select-dropdown-icon-color: #38bdf8;
+  --mdc-theme-surface: #1e293b;
+  --mdc-theme-text-primary-on-background: #ffffff;
+}
+mwc-list-item {
+  --mdc-theme-text-primary-on-background: #ffffff;
+  color: #ffffff !important;
+}
+</style>
+<div class="step-content">
+<div class="step-header">${this.editor.i18n._t('headers.step3')} (Step 3)</div>
+<div class="step-description">${this.editor.i18n._t('descriptions.step3')}</div>
 
-    <div class="field-group">
-      <label class="field-label">${this.editor.i18n._t('fields.title_label')}</label>
-      ${this.editor.renderTextInput('title', effectiveTitle)}
-    </div>
+<div class="field-group">
+  <label class="field-label">${this.editor.i18n._t('fields.title_label')}</label>
+  ${this.editor.renderTextInput('title', effectiveTitle)}
+</div>
 
-    <div class="field-group">
-      <ha-formfield .label=${this.editor.i18n._t('fields.enable_logging_label')}>
-        <ha-switch
-          .checked=${!!this.editor._config.logging_enabled}
-          @change=${(e) => this.editor._handleLocalUpdate('logging_enabled', e.target.checked)}
-        ></ha-switch>
-      </ha-formfield>
-    </div>
+<div class="field-group">
+  <ha-formfield .label=${this.editor.i18n._t('fields.enable_logging_label')}>
+    <ha-switch
+      .checked=${!!this.editor._config.logging_enabled}
+      @change=${(e) => this.editor._handleLocalUpdate('logging_enabled', e.target.checked)}
+    ></ha-switch>
+  </ha-formfield>
+</div>
 
-    <div class="field-group">
-      <label class="field-label">${this.editor.i18n._t('fields.language_label')} (Step 3)</label>
-      <div class="field-description">${this.editor.i18n._t('fields.language_desc')}</div>
-      <ha-select
-        .label=${this.editor.i18n._t('fields.language_label')}
-        .value=${this.editor._language}
-        @selected=${(e) => {
-          const val = e.target.value || e.detail?.value;
-          if (val && val !== this.editor._language) {
-            console.log('[Step3Options] Language change detected:', val);
-            this.editor._language = val;
-            // Update config meta
-            if (!this.editor._config.meta) this.editor._config.meta = {};
-            this.editor._config.meta.language = val;
-            // Re-init i18n
-            this.editor.i18n = new EditorI18n(this.editor);
-            // Trigger UI update
-            this.editor.requestUpdate();
-            this.editor._dispatchConfigChanged(true);
-          }
-        }}
-        @closed=${(e) => e.stopPropagation()}
-        naturalMenuWidth
-      >
-        <mwc-list-item value="en" ?selected=${this.editor._language === 'en'}>English</mwc-list-item>
-        <mwc-list-item value="it" ?selected=${this.editor._language === 'it'}>Italiano</mwc-list-item>
-      </ha-select>
-    </div>
-  </div>
-`;
-  }
+<div class="field-group">
+  <label class="field-label">${this.editor.i18n._t('fields.language_label')} (Step 3)</label>
+  <div class="field-description">${this.editor.i18n._t('fields.language_desc')}</div>
+  <ha-select
+    .label=${this.editor.i18n._t('fields.language_label')}
+    .value=${this.editor._language}
+    @opened=${() => console.log('[Step3Options] ha-select OPENED')}
+    @closed=${(e) => {
+       console.log('[Step3Options] ha-select CLOSED', e);
+       e.stopPropagation();
+    }}
+    @click=${(e) => console.log('[Step3Options] ha-select CLICK', e)}
+    @selected=${(e) => {
+      console.log('[Step3Options] ha-select SELECTED event fired', e);
+      const val = e.target.value || e.detail?.value;
+      console.log('[Step3Options] Selected value extracted:', val);
+
+      if (val && val !== this.editor._language) {
+        console.log('[Step3Options] Language change detected:', val);
+        this.editor._language = val;
+        // Update config meta
+        if (!this.editor._config.meta) this.editor._config.meta = {};
+        this.editor._config.meta.language = val;
+        // Re-init i18n
+        this.editor.i18n = new EditorI18n(this.editor);
+        // Trigger UI update
+        console.log('[Step3Options] Requesting update and dispatching config...');
+        this.editor.requestUpdate();
+        this.editor._dispatchConfigChanged(true);
+      } else {
+         console.log('[Step3Options] Value is same as current or empty. No update.');
+      }
+    }}
+    naturalMenuWidth
+  >
+    <mwc-list-item value="en" ?selected=${this.editor._language === 'en'}>English</mwc-list-item>
+    <mwc-list-item value="it" ?selected=${this.editor._language === 'it'}>Italiano</mwc-list-item>
+  </ha-select>
+</div>
+</div>
+`;  }
 }
