@@ -55,7 +55,7 @@ return html`
         .label=${this.editor.i18n._t('fields.language_label')}
         .value=${this.editor._language}
         @selected=${(e) => {
-          const val = e.target.value;
+          const val = e.target.value || e.detail?.value;
           if (val && val !== this.editor._language) {
             console.log('[Step3Options] Language change detected:', val);
             this.editor._language = val;
@@ -70,7 +70,6 @@ return html`
           }
         }}
         @closed=${(e) => e.stopPropagation()}
-        fixedMenuPosition
         naturalMenuWidth
       >
         <mwc-list-item value="en" ?selected=${this.editor._language === 'en'}>English</mwc-list-item>

@@ -1025,9 +1025,8 @@ window.CRONOSTAR_CARD_VERSION="5.8.7";const t=window,e=t.ShadowRoot&&(void 0===t
       <ha-select
         .label=${this.editor.i18n._t("fields.language_label")}
         .value=${this.editor._language}
-        @selected=${t=>{const e=t.target.value;e&&e!==this.editor._language&&(console.log("[Step3Options] Language change detected:",e),this.editor._language=e,this.editor._config.meta||(this.editor._config.meta={}),this.editor._config.meta.language=e,this.editor.i18n=new nd(this.editor),this.editor.requestUpdate(),this.editor._dispatchConfigChanged(!0))}}
+        @selected=${t=>{const e=t.target.value||t.detail?.value;e&&e!==this.editor._language&&(console.log("[Step3Options] Language change detected:",e),this.editor._language=e,this.editor._config.meta||(this.editor._config.meta={}),this.editor._config.meta.language=e,this.editor.i18n=new nd(this.editor),this.editor.requestUpdate(),this.editor._dispatchConfigChanged(!0))}}
         @closed=${t=>t.stopPropagation()}
-        fixedMenuPosition
         naturalMenuWidth
       >
         <mwc-list-item value="en" ?selected=${"en"===this.editor._language}>English</mwc-list-item>
