@@ -51,21 +51,11 @@ mwc-list-item {
 <div class="field-group">
   <label class="field-label">${this.editor.i18n._t('fields.language_label')} (Step 3)</label>
   <div class="field-description">${this.editor.i18n._t('fields.language_desc')}</div>
-  <ha-selector
-    .hass=${this.editor.hass}
+  <ha-select
     .label=${this.editor.i18n._t('fields.language_label')}
     .value=${this.editor._language}
-    .selector=${{
-      select: {
-        mode: "dropdown",
-        options: [
-          { value: "en", label: "English" },
-          { value: "it", label: "Italiano" }
-        ]
-      }
-    }}
-    @value-changed=${(e) => {
-      const val = e.detail?.value;
+    @selected=${(e) => {
+      const val = e.target.value || e.detail?.value;
       if (val && val !== this.editor._language) {
         this.editor._language = val;
         if (!this.editor._config.meta) this.editor._config.meta = {};
@@ -75,7 +65,56 @@ mwc-list-item {
         this.editor._dispatchConfigChanged(true);
       }
     }}
-  ></ha-selector>
+    @closed=${(e) => e.stopPropagation()}
+    naturalMenuWidth
+  >
+    <mwc-list-item 
+      value="en" 
+      ?selected=${this.editor._language === 'en'}
+      @click=${(e) => {
+         // Redundant click handler
+         const val = "en";
+         if (val !== this.editor._language) {
+            this.editor._language = val;
+            if (!this.editor._config.meta) this.editor._config.meta = {};
+            this.editor._config.meta.language = val;
+            this.editor.i18n = new EditorI18n(this.editor);
+            this.editor.requestUpdate();
+            this.editor._dispatchConfigChanged(true);
+         }
+         // Aggressive close
+         const selectEl = e.target.closest('ha-select');
+         if (selectEl) {
+           selectEl.open = false;
+           if (selectEl.menuOpen !== undefined) selectEl.menuOpen = false;
+           selectEl.blur();
+         }
+      }}
+    >English</mwc-list-item>
+    <mwc-list-item 
+      value="it" 
+      ?selected=${this.editor._language === 'it'}
+      @click=${(e) => {
+         // Redundant click handler
+         const val = "it";
+         if (val !== this.editor._language) {
+            this.editor._language = val;
+            if (!this.editor._config.meta) this.editor._config.meta = {};
+            this.editor._config.meta.language = val;
+            this.editor.i18n = new EditorI18n(this.editor);
+            this.editor.requestUpdate();
+            this.editor._dispatchConfigChanged(true);
+         }
+         // Aggressive close
+         const selectEl = e.target.closest('ha-select');
+         if (selectEl) {
+           selectEl.open = false;
+           if (selectEl.menuOpen !== undefined) selectEl.menuOpen = false;
+           selectEl.blur();
+         }
+      }}
+    >Italiano</mwc-list-item>
+  </ha-select>
 </div></div>
 `;  }
 }

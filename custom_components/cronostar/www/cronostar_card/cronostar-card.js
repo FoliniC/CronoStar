@@ -1022,13 +1022,24 @@ mwc-list-item {
 <div class="field-group">
   <label class="field-label">${this.editor.i18n._t("fields.language_label")} (Step 3)</label>
   <div class="field-description">${this.editor.i18n._t("fields.language_desc")}</div>
-  <ha-selector
-    .hass=${this.editor.hass}
+  <ha-select
     .label=${this.editor.i18n._t("fields.language_label")}
     .value=${this.editor._language}
-    .selector=${{select:{mode:"dropdown",options:[{value:"en",label:"English"},{value:"it",label:"Italiano"}]}}}
-    @value-changed=${t=>{const e=t.detail?.value;e&&e!==this.editor._language&&(this.editor._language=e,this.editor._config.meta||(this.editor._config.meta={}),this.editor._config.meta.language=e,this.editor.i18n=new nd(this.editor),this.editor.requestUpdate(),this.editor._dispatchConfigChanged(!0))}}
-  ></ha-selector>
+    @selected=${t=>{const e=t.target.value||t.detail?.value;e&&e!==this.editor._language&&(this.editor._language=e,this.editor._config.meta||(this.editor._config.meta={}),this.editor._config.meta.language=e,this.editor.i18n=new nd(this.editor),this.editor.requestUpdate(),this.editor._dispatchConfigChanged(!0))}}
+    @closed=${t=>t.stopPropagation()}
+    naturalMenuWidth
+  >
+    <mwc-list-item 
+      value="en" 
+      ?selected=${"en"===this.editor._language}
+      @click=${t=>{const e="en";e!==this.editor._language&&(this.editor._language=e,this.editor._config.meta||(this.editor._config.meta={}),this.editor._config.meta.language=e,this.editor.i18n=new nd(this.editor),this.editor.requestUpdate(),this.editor._dispatchConfigChanged(!0));const i=t.target.closest("ha-select");i&&(i.open=!1,void 0!==i.menuOpen&&(i.menuOpen=!1),i.blur())}}
+    >English</mwc-list-item>
+    <mwc-list-item 
+      value="it" 
+      ?selected=${"it"===this.editor._language}
+      @click=${t=>{const e="it";e!==this.editor._language&&(this.editor._language=e,this.editor._config.meta||(this.editor._config.meta={}),this.editor._config.meta.language=e,this.editor.i18n=new nd(this.editor),this.editor.requestUpdate(),this.editor._dispatchConfigChanged(!0));const i=t.target.closest("ha-select");i&&(i.open=!1,void 0!==i.menuOpen&&(i.menuOpen=!1),i.blur())}}
+    >Italiano</mwc-list-item>
+  </ha-select>
 </div></div>
 `}}function fd(t){console.log("[yaml_generators] buildAutomationTemplate config:",t);const e=Lt(t);t.preset_type||t.preset,t.target_entity;const i=t.profiles_select_entity||`select.${e}current_profile`,n=`\nalias: "CronoStar - Smart Presence & Safety Profile"\ndescription: "Switch CronoStar profile based on occupancy or safety threshold."\ntriggers:\n  - trigger: state\n    entity_id: zone.home\n    to: "0"\n    id: "away"\n  - trigger: numeric_state\n    entity_id: zone.home\n    above: 0\n    id: "home"\n  - trigger: numeric_state\n    entity_id: ${`sensor.${e}current`}\n    below: 13\n    id: "safety"\nactions:\n  - choose:\n      - conditions:\n          - condition: trigger\n            id: "away"\n        sequence:\n          - action: select.select_option\n            target:\n              entity_id: ${i}\n            data:\n              option: "Away"\n      - conditions:\n          - or:\n              - condition: trigger\n                id: "home"\n              - condition: trigger\n                id: "safety"\n        sequence:\n          - action: select.select_option\n            target:\n              entity_id: ${i}\n            data:\n              option: "Default"\n`.trim();return console.log("[yaml_generators] Generated YAML:",n),n}class md{constructor(t){this.editor=t}render(){const t=this.editor._automationYaml||fd(this.editor._config),e="it"===this.editor._language,i=()=>{this.editor._showLlmPrompt=!this.editor._showLlmPrompt,this.editor.requestUpdate()};return this.editor._showLlmPrompt?this._renderLlmPromptView(e,i):R`
       <div class="step-content">
