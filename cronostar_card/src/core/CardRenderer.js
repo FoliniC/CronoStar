@@ -72,10 +72,14 @@ export class CardRenderer {
               .step=${this.card.editorStep || 0}
               @config-changed=${(ev) => {
                 // Quando la config cambia nell'editor interno, aggiorniamo la card
-                this.card.setConfig(ev.detail.config);
+                const newConfig = { ...ev.detail.config };
+                const shouldClose = newConfig._close_wizard;
+                if (shouldClose) delete newConfig._close_wizard;
+                
+                this.card.setConfig(newConfig);
                 
                 // Se abbiamo finito (siamo allo step 5 e viene inviato un cambio definitivo), chiudiamo l'editor
-                if (ev.detail.config.step === 5) {
+                if (shouldClose) {
                   this.card.isEditorInternal = false;
                 }
                 

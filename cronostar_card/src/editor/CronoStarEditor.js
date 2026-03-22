@@ -902,7 +902,7 @@ updated(changedProps) {
       // Log what should be saved to YAML, then dispatch immediately so HA can persist
       Logger.log('CONFIG', '[EDITOR] YAML save intent (wizard Finish):', finalConfig);
       this.dispatchEvent(new CustomEvent('config-changed', {
-        detail: { config: { ...finalConfig, step: 5 } },
+        detail: { config: { ...finalConfig, step: 5, _close_wizard: true } },
         bubbles: true,
         composed: true
       }));
