@@ -88,6 +88,7 @@ mwc-list-item {
            selectEl.open = false;
            if (selectEl.menuOpen !== undefined) selectEl.menuOpen = false;
            selectEl.blur();
+           document.body.focus();
          }
       }}
     >English</mwc-list-item>
@@ -111,6 +112,7 @@ mwc-list-item {
            selectEl.open = false;
            if (selectEl.menuOpen !== undefined) selectEl.menuOpen = false;
            selectEl.blur();
+           document.body.focus();
          }
       }}
     >Italiano</mwc-list-item>

@@ -1032,12 +1032,12 @@ mwc-list-item {
     <mwc-list-item 
       value="en" 
       ?selected=${"en"===this.editor._language}
-      @click=${t=>{const e="en";e!==this.editor._language&&(this.editor._language=e,this.editor._config.meta||(this.editor._config.meta={}),this.editor._config.meta.language=e,this.editor.i18n=new nd(this.editor),this.editor.requestUpdate(),this.editor._dispatchConfigChanged(!0));const i=t.target.closest("ha-select");i&&(i.open=!1,void 0!==i.menuOpen&&(i.menuOpen=!1),i.blur())}}
+      @click=${t=>{const e="en";e!==this.editor._language&&(this.editor._language=e,this.editor._config.meta||(this.editor._config.meta={}),this.editor._config.meta.language=e,this.editor.i18n=new nd(this.editor),this.editor.requestUpdate(),this.editor._dispatchConfigChanged(!0));const i=t.target.closest("ha-select");i&&(i.open=!1,void 0!==i.menuOpen&&(i.menuOpen=!1),i.blur(),document.body.focus())}}
     >English</mwc-list-item>
     <mwc-list-item 
       value="it" 
       ?selected=${"it"===this.editor._language}
-      @click=${t=>{const e="it";e!==this.editor._language&&(this.editor._language=e,this.editor._config.meta||(this.editor._config.meta={}),this.editor._config.meta.language=e,this.editor.i18n=new nd(this.editor),this.editor.requestUpdate(),this.editor._dispatchConfigChanged(!0));const i=t.target.closest("ha-select");i&&(i.open=!1,void 0!==i.menuOpen&&(i.menuOpen=!1),i.blur())}}
+      @click=${t=>{const e="it";e!==this.editor._language&&(this.editor._language=e,this.editor._config.meta||(this.editor._config.meta={}),this.editor._config.meta.language=e,this.editor.i18n=new nd(this.editor),this.editor.requestUpdate(),this.editor._dispatchConfigChanged(!0));const i=t.target.closest("ha-select");i&&(i.open=!1,void 0!==i.menuOpen&&(i.menuOpen=!1),i.blur(),document.body.focus())}}
     >Italiano</mwc-list-item>
   </ha-select>
 </div></div>
