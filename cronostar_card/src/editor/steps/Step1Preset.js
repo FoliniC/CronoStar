@@ -1,6 +1,6 @@
 import { html } from 'lit';
 import { CARD_CONFIG_PRESETS } from '../../config.js';
-import { getEffectivePrefix, isValidPrefix } from '../../utils/prefix_utils.js';
+import { getEffectivePrefix, isValidPrefix, normalizePrefix } from '../../utils/prefix_utils.js';
 
 export class Step1Preset {
   constructor(editor) {
@@ -22,15 +22,18 @@ export class Step1Preset {
     const minimalConfigComplete = prefixValid && !!applyEntity;
 
     const domains = this.getApplyIncludeDomains();
-    const headerKey = this.editor._isEditing ? 'headers.step1_edit' : 'headers.step1';
+    const hasStates = !!this.editor.hass?.states;
+    const matchingEntities = hasStates ? Object.keys(this.editor.hass.states).filter(eid => 
+      domains.some(d => eid.startsWith(`${d}.`))
+    ) : [];
+    const noEntitiesFound = hasStates && matchingEntities.length === 0;
 
-    const isPickerDefined = !!customElements.get('ha-entity-picker');
-    const canRenderPicker = isPickerDefined || this.editor._pickerLoaded;
+    const headerKey = this.editor._isEditing ? 'headers.step1_edit' : 'headers.step1';
 
     return html`
       <div class="step-content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-          <div class="step-header" style="margin-bottom: 0;">${this.editor.i18n._t(headerKey)}</div>
+          <div class="step-header" style="margin-bottom: 0;">${this.editor.i18n._t(headerKey)} (Step 1)</div>
           <mwc-button outlined @click=${() => this.editor.handleShowHelp()}>
             ℹ️ ${this.editor.i18n._t('actions.component_info')}
           </mwc-button>
@@ -55,21 +58,18 @@ export class Step1Preset {
         <div class="field-group">
           <label class="field-label">1. ${this.editor.i18n._t('fields.target_entity_label')}</label>
           <div class="field-description">${this.editor.i18n._t('fields.target_entity_desc')}</div>
-          ${canRenderPicker 
-            ? html`<ha-entity-picker
-                .hass=${this.editor.hass}
-                .value=${applyEntity}
-                .includeDomains=${domains}
-                .label=${this.editor.i18n._t('fields.target_entity_label')}
-                allow-custom-entity
-                @value-changed=${(e) => {
-                  const v = e?.detail?.value;
-                  this.editor._updateConfig('target_entity', v);
-                  this.editor._dispatchConfigChanged(true);
-                }}
-              ></ha-entity-picker>`
-            : this.editor._renderTextInput('target_entity', applyEntity, 'domain.entity_id')
-          }
+          ${this.editor.renderEntityPicker(
+            'target_entity',
+            applyEntity,
+            this.editor.i18n._t('fields.target_entity_label'),
+            domains
+          )}
+          ${noEntitiesFound ? html`
+            <div style="color: #ef4444; font-size: 0.85rem; margin-top: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; padding: 12px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3);">
+              <ha-icon icon="mdi:alert-circle" style="--mdc-icon-size: 20px; flex-shrink: 0;"></ha-icon>
+              <span>${this.editor.i18n._t('ui.no_matching_entities', { '{domains}': domains.join(', ') })}</span>
+            </div>
+          ` : ''}
         </div>
 
         <div class="field-group">
@@ -150,79 +150,64 @@ export class Step1Preset {
   _handlePrefixChange(value, event) {
     const editor = this.editor;
     const target = event.target;
-    const cursor = target.selectionStart;
-    
-    if (!this._logCounter) this._logCounter = 0;
-    this._logCounter++;
-    const cid = this._logCounter;
+    // For ha-textfield, we might need to access the underlying input for selection
+    const input = target.shadowRoot?.querySelector('input') || target;
+    const cursor = input.selectionStart;
+    const oldPrefix = editor._config.global_prefix || '';
+    const isDeleting = value.length < oldPrefix.length;
 
-    // 1. Pulizia caratteri ammessi
+    // 1. Pulizia: solo minuscole, numeri e underscore
     let clean = value.toLowerCase().replace(/[^a-z0-9_]/g, '');
     
-    // Identifichiamo il prefisso di default (es. cronostar_thermostat_)
-    const presetId = editor._selectedPreset || 'thermostat';
-    const tags = { 'thermostat': 'thermostat', 'ev_charging': 'ev_charging', 'generic_kwh': 'generic_kwh', 'generic_temperature': 'generic_temperature', 'generic_switch': 'generic_switch' };
-    const defaultPrefix = `cronostar_${tags[presetId] || presetId}_`;
-    const oldPrefix = editor._config.global_prefix || '';
+    let normalized = clean;
+    let targetCursor = cursor;
+    let addedUnderscore = false;
 
-    // Automazione SOLO se il cursore è alla fine della stringa e stiamo aggiungendo
-    const isAtEnd = cursor >= value.length;
-    let normalizedValue = clean;
-    let opName = "NONE";
-
-    if (isAtEnd && clean.length > oldPrefix.length) {
-      const lastChar = clean.slice(-1);
-      if (lastChar !== '_') {
-        if (oldPrefix === defaultPrefix) {
-          // Caso: base_ + a -> base_a_ (Preserva underscore base)
-          normalizedValue = clean + '_';
-          opName = "FIRST_CHAR_KEEP_BASE";
-        } else if (oldPrefix.endsWith('_')) {
-          // Caso: ...a_ + b -> ...ab_ (Collassa underscore auto precedente)
-          normalizedValue = oldPrefix.slice(0, -1) + lastChar + '_';
-          opName = "SUBSEQUENT_CHAR_COLLAPSE";
-        } else {
-          normalizedValue = clean + '_';
-          opName = "ADD_TRAILING";
-        }
+    // 2. Logica Real-time: aggiunta underscore finale se mancante
+    // Solo se NON stiamo cancellando e se il cursore è alla fine
+    if (!isDeleting && clean.length > 0 && !clean.endsWith('_')) {
+      normalized = clean + '_';
+      if (cursor >= clean.length) {
+        targetCursor = normalized.length - 1;
+        addedUnderscore = true;
       }
     }
 
-    console.log(`[PREFIX-LOG] #${cid} - OP: ${opName} | OLD: "${oldPrefix}" | INPUT: "${value}" | RES: "${normalizedValue}" | CURSOR: ${cursor}`);
-
     // Aggiornamento config
-    let newConfig = { ...editor._config, global_prefix: normalizedValue };
+    let newConfig = { ...editor._config, global_prefix: normalized };
+    
+    const presetId = editor._selectedPreset || 'thermostat';
     const presetConfig = CARD_CONFIG_PRESETS[presetId];
     const baseTitle = presetConfig ? presetConfig.title : 'CronoStar Schedule';
     
-    let titleBase = normalizedValue.replace(/_+$/, '').replace(/_/g, ' ').trim();
-    newConfig.title = (titleBase || baseTitle).charAt(0).toUpperCase() + (titleBase || baseTitle).slice(1);
+    let titleBase = normalized.replace(/_+$/, '').replace(/_/g, ' ').trim();
+    if (titleBase) {
+        newConfig.title = titleBase.charAt(0).toUpperCase() + titleBase.slice(1);
+    }
     
     const isStandard = (val, suffix) => {
       if (!val) return true;
       return val.includes('cronostar_') && (val.endsWith(suffix) || val.endsWith(suffix.replace('d', '')));
     };
-    if (isStandard(newConfig.enabled_entity, 'enabled')) newConfig.enabled_entity = `switch.${normalizedValue}enabled`;
-    if (isStandard(newConfig.profiles_select_entity, 'current_profile')) newConfig.profiles_select_entity = `select.${normalizedValue}current_profile`;
+    if (isStandard(newConfig.enabled_entity, 'enabled')) newConfig.enabled_entity = `switch.${normalized}enabled`;
+    if (isStandard(newConfig.profiles_select_entity, 'current_profile')) newConfig.profiles_select_entity = `select.${normalized}current_profile`;
 
     editor._config = newConfig;
-    target.value = normalizedValue;
+    target.value = normalized;
     
-    // Ripristino Cursore prima dell'ultimo underscore
-    try {
-      if (isAtEnd && normalizedValue.length > 0) {
-        const pos = normalizedValue.length - 1;
-        target.setSelectionRange(pos, pos);
-      } else {
-        target.setSelectionRange(cursor, cursor);
-      }
-    } catch (e) {}
+    // Ripristino cursore differito per evitare interferenze con il ciclo di rendering di Lit
+    setTimeout(() => {
+      try {
+        input.setSelectionRange(targetCursor, targetCursor);
+        if (addedUnderscore) input.focus();
+      } catch (e) {}
+    }, 0);
     
     editor.requestUpdate();
   }
 
   async _handleSaveAndClose() {
-    const currentPrefix = this.editor._config.global_prefix || getEffectivePrefix(this.editor._config);
+    const currentPrefix = normalizePrefix(this.editor._config.global_prefix || getEffectivePrefix(this.editor._config));
     this.editor._updateConfig('global_prefix', currentPrefix, true);
     await this.editor.updateComplete;
     if (this.editor.hass) {
@@ -235,20 +220,14 @@ export class Step1Preset {
   }
 
   async _handleAdvancedConfig() {
-    const currentPrefix = this.editor._config.global_prefix || getEffectivePrefix(this.editor._config);
+    const currentPrefix = normalizePrefix(this.editor._config.global_prefix || getEffectivePrefix(this.editor._config));
     this.editor._updateConfig('global_prefix', currentPrefix, true);
-    await this.editor.updateComplete;
-    if (this.editor.hass) {
-      try {
-        await this.editor._handleFinishClick({ force: true });
-        this.editor._step = 2;
-        this.editor.requestUpdate();
-      } catch (e) {
-        console.error("Advanced Config failed:", e);
-        this.editor._step = 2;
-        this.editor.requestUpdate();
-      }
-    }
+    await this.editor.updateComplete; // Ensure config is updated before proceeding
+    
+    // Do NOT call _handleFinishClick as it tries to finish the entire wizard.
+    // Instead, just move to the next step.
+    this.editor._step = 2;
+    this.editor.requestUpdate();
   }
 
   getApplyIncludeDomains() {

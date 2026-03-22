@@ -68,7 +68,7 @@ export class Step5Summary {
 
     return html`
       <div class="step-content">
-        <div class="step-header">${this.editor.i18n._t('headers.step5')}</div>
+        <div class="step-header">${this.editor.i18n._t('headers.step5')} (Step 5)</div>
         <div class="step-description">${this.editor.i18n._t('descriptions.step5')}</div>
 
         <!-- CARD CONFIGURATION SECTION -->

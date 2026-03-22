@@ -25,6 +25,7 @@ export class CronoStarEditor extends LitElement {
       hass: { type: Object },
       _config: { type: Object },
       _step: { type: Number },
+      step: { type: Number },
       _selectedPreset: { type: String },
       _automationYaml: { type: String },
       _showLlmPrompt: { type: Boolean },
@@ -64,6 +65,8 @@ export class CronoStarEditor extends LitElement {
         border-radius: 12px;
         color: #f8fafc;
         font-family: 'Inter', -apple-system, sans-serif;
+        width: 100%; /* Explicitly ensure full width */
+        box-sizing: border-box; /* Include padding/border in width */
       }
       
       .wizard-steps { 
@@ -189,6 +192,15 @@ export class CronoStarEditor extends LitElement {
         --primary-text-color: #ffffff;
         --secondary-text-color: #cbd5e1;
         --primary-color: #38bdf8;
+
+        /* CronoStar: Improved contrast for dropdowns/pickers */
+        --paper-listbox-background-color: #1e293b;
+        --paper-item-body-color: #ffffff;
+        --paper-item-body-secondary-color: #cbd5e1;
+        --paper-item-icon-color: #38bdf8;
+        --mdc-menu-item-graphic-color: #38bdf8;
+        --mdc-theme-text-primary-on-background: #ffffff;
+        --mdc-theme-text-secondary-on-background: #cbd5e1;
       }
 
       ha-formfield {
@@ -252,8 +264,12 @@ export class CronoStarEditor extends LitElement {
       }
 
       .preset-card.selected {
-        background: rgba(14, 165, 233, 0.1);
+        background: #0ea5e9; /* Stronger blue */
+        color: #ffffff; /* White text */
+        box-shadow: 0 0 20px rgba(14, 165, 233, 0.7); /* Even more prominent shadow */
         border-color: #0ea5e9;
+        transform: scale(1.03); /* Slightly larger */
+        font-weight: 800; /* Bolder text */
       }
 
       .preset-icon { font-size: 2rem; margin-bottom: 8px; }
@@ -359,10 +375,14 @@ export class CronoStarEditor extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
   }
+updated(changedProps) {
+  super.updated(changedProps);
 
-  updated(changedProps) {
-    super.updated?.(changedProps);
-    if (changedProps.has('hass')) {
+  if (changedProps.has('step') && this.step !== undefined) {
+    this._step = this.step;
+  }
+
+  if (changedProps.has('hass')) {
       if (this.hass) {
         // Only update from HASS language if no language is explicitly set in config.meta
         if (!this._config.meta?.language) {
@@ -594,12 +614,14 @@ export class CronoStarEditor extends LitElement {
       }
     }
 
+    // Refresh automation template whenever config is updated
+    this._updateAutomationYaml();
+
     // Persist whatever we decided into config meta to prevent flips
     this._config.meta = { ...(this._config.meta || {}), language: this._language || 'en' };
     this.i18n = new EditorI18n(this);
 
     this._syncConfigAliases();
-    this._updateAutomationYaml();
   }
 
   _isElDefined(tag) {
@@ -611,7 +633,9 @@ export class CronoStarEditor extends LitElement {
   }
 
   _updateAutomationYaml() {
+    console.log('[CronoStarEditor] _updateAutomationYaml called. Current config:', this._config);
     this._automationYaml = buildAutomationTemplate(this._config);
+    console.log('[CronoStarEditor] _automationYaml set to:', this._automationYaml);
   }
 
   // Ensure dispatched/saved config contains required fields and omits nulls
@@ -620,8 +644,8 @@ export class CronoStarEditor extends LitElement {
     // Ensure type
     if (!out.type) out.type = 'custom:cronostar-card';
 
-    // Always remove not_configured once we are in the editor and about to persist
-    delete out.not_configured;
+    // Force not_configured to false once we are in the editor and about to persist
+    out.not_configured = false;
 
     // Remove null/undefined/empty-string values
     for (const key of Object.keys(out)) {
@@ -750,31 +774,44 @@ export class CronoStarEditor extends LitElement {
     }
   }
 
-  _renderEntityPicker(key, value, label = "Entity") {
-    // fallback se il picker non c'è (o non è ancora definito)
-    if (!this._pickerLoaded) {
-      return this._renderTextInput(key, value, label);
+  renderEntityPicker(key, value, label = "Entity", includeDomains = null) {
+    if (!this.hass) return html``;
+
+    const hasSelector = !!customElements.get('ha-selector');
+    const hasPicker = !!customElements.get('ha-entity-picker');
+
+    if (hasSelector) {
+      return html`
+        <ha-selector
+          .hass=${this.hass}
+          .label=${label}
+          .value=${value || ""}
+          .selector=${{ entity: { domain: includeDomains } }}
+          @value-changed=${(ev) => {
+            const v = ev?.detail?.value || "";
+            this._updateConfig(key, v === "" ? null : v);
+          }}
+        ></ha-selector>
+      `;
     }
 
-    return html`
-      <ha-entity-picker
-        .hass=${this.hass}
-        .label=${label}
-        .value=${value ?? ""}
-        allow-custom-entity
-        @value-changed=${(ev) => {
-        const v = ev?.detail?.value ?? "";
-        // se vuoi salvare null quando vuoto:
-        this._handleLocalUpdate(key, v === "" ? null : v);
-        this._dispatchConfigChanged(true);
-      }}
-      ></ha-entity-picker>
-    `;
-  }
+    if (hasPicker) {
+      return html`
+        <ha-entity-picker
+          .hass=${this.hass}
+          .label=${label}
+          .value=${value || ""}
+          .includeDomains=${includeDomains}
+          allow-custom-entity
+          @value-changed=${(ev) => {
+            const v = ev?.detail?.value || "";
+            this._updateConfig(key, v === "" ? null : v);
+          }}
+        ></ha-entity-picker>
+      `;
+    }
 
-  // opzionale: wrapper pubblico come hai fatto per renderTextInput
-  renderEntityPicker(key, value, label) {
-    return this._renderEntityPicker(key, value, label);
+    return this.renderTextInput(key, value, label);
   }
 
   _renderTextInput(key, value, placeholder = '') {
@@ -865,7 +902,7 @@ export class CronoStarEditor extends LitElement {
       // Log what should be saved to YAML, then dispatch immediately so HA can persist
       Logger.log('CONFIG', '[EDITOR] YAML save intent (wizard Finish):', finalConfig);
       this.dispatchEvent(new CustomEvent('config-changed', {
-        detail: { config: finalConfig },
+        detail: { config: { ...finalConfig, step: 5 } },
         bubbles: true,
         composed: true
       }));

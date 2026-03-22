@@ -78,10 +78,23 @@ if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
         registerInRegistry(registry, 'cronostar-card-editor', CronoStarEditor, `${ctx} / editor`);
 
         // Ensure essential HA components are available in the scoped registry
-        const haEntityPickerCtor = customElements.get('ha-entity-picker');
-        if (haEntityPickerCtor) {
-          registerInRegistry(registry, 'ha-entity-picker', haEntityPickerCtor, `${ctx} / ha-entity-picker`);
-        }
+        const haElements = [
+          'ha-entity-picker',
+          'ha-textfield',
+          'ha-selector',
+          'ha-switch',
+          'ha-formfield',
+          'ha-select',
+          'ha-icon-button',
+          'ha-icon',
+          'ha-checkbox'
+        ];
+        haElements.forEach(name => {
+          const ctor = customElements.get(name);
+          if (ctor) {
+            registerInRegistry(registry, name, ctor, `${ctx} / ${name}`);
+          }
+        });
       }
     } catch (e) {
       console.error('CRONOSTAR: errore registrazione in scoped registry:', e);

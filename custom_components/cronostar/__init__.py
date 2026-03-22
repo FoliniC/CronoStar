@@ -167,12 +167,22 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Handle removal of an entry."""
+    """Handle removal of an entry.
+
+    Instead of permanently deleting profile data, marks files with a deletion
+    timestamp and preserves them under a renamed path (e.g. filename_deleted_<ts>.json).
+    A subsequent config flow installation can detect these marked files and offer
+    the user the option to import/restore them.
+    Backup files are always preserved to allow manual recovery.
+    """
+    import json
+    from datetime import datetime, timezone
+
     if entry.data.get("component_installed"):
         _LOGGER.info("🗑️ CronoStar: Global component entry removed")
         return
 
-    _LOGGER.info("🗑️ CronoStar: Removing controller entry '%s' and its data...", entry.title)
+    _LOGGER.info("🗑️ CronoStar: Marking data of controller '%s' as deleted...", entry.title)
 
     preset_type = entry.data.get(CONF_PRESET)
     global_prefix = entry.data.get(CONF_GLOBAL_PREFIX)
@@ -181,31 +191,48 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         from .utils.filename_builder import build_profile_filename
 
         filename = build_profile_filename(preset_type, global_prefix)
-
-        # Paths
         profiles_dir = Path(hass.config.path(STORAGE_DIR))
         filepath = profiles_dir / filename
 
-        # Delete main profile file
+        # ── Mark the profile file as deleted (preserving data for future import) ──
         if filepath.exists():
             try:
-                await hass.async_add_executor_job(filepath.unlink)
-                _LOGGER.info("✅ CronoStar: Deleted profile data file: %s", filename)
+                def _mark_as_deleted() -> str:
+                    """Read, annotate and rename the profile file."""
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+
+                    # Inject deletion metadata so the config flow can recognise
+                    # this file and offer the user an import option
+                    data.setdefault("meta", {})
+                    data["meta"]["_deleted_at"] = datetime.now(timezone.utc).isoformat()
+                    data["meta"]["_deleted_entry_title"] = entry.title
+                    data["meta"]["_deleted_global_prefix"] = global_prefix
+                    data["meta"]["_deleted_preset_type"] = preset_type
+
+                    # Rename to <stem>_deleted_<timestamp>.json to prevent
+                    # automatic re-loading while keeping it discoverable
+                    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+                    deleted_path = filepath.parent / f"{filepath.stem}_deleted_{timestamp}.json"
+
+                    with open(deleted_path, "w", encoding="utf-8") as f:
+                        json.dump(data, f, indent=2, ensure_ascii=False)
+
+                    filepath.unlink()
+                    return deleted_path.name
+
+                deleted_name = await hass.async_add_executor_job(_mark_as_deleted)
+                _LOGGER.info(
+                    "✅ CronoStar: Profile marked as deleted and preserved as: %s", deleted_name
+                )
             except Exception as e:
                 _LOGGER.error(
-                    "❌ CronoStar: Failed to delete profile data file %s: %s", filename, e
+                    "❌ CronoStar: Failed to mark profile '%s' as deleted: %s", filename, e
                 )
 
-        # Also cleanup backups for this file
+        # ── Backup files are intentionally preserved for manual recovery ──
         backups_dir = profiles_dir / "backups"
         if backups_dir.exists():
-            try:
-                stem = filepath.stem
-                for backup_file in backups_dir.glob(f"{stem}_backup_*.json"):
-                    await hass.async_add_executor_job(backup_file.unlink)
-                    _LOGGER.debug("✅ CronoStar: Deleted backup file: %s", backup_file.name)
-            except Exception as e:
-                _LOGGER.warning(
-                    "⚠️ CronoStar: Failed to cleanup backups for %s: %s", filename, e
-                )
-
+            _LOGGER.info(
+                "ℹ️ CronoStar: Backup files for '%s' preserved in: %s", filename, backups_dir
+            )

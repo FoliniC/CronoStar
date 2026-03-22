@@ -4,6 +4,7 @@
 import { getEffectivePrefix } from '../../utils/prefix_utils.js';
 
 export function buildAutomationTemplate(config) {
+  console.log('[yaml_generators] buildAutomationTemplate config:', config);
   const prefix = getEffectivePrefix(config);
   const preset = config.preset_type || config.preset || 'thermostat';
   const target = config.target_entity || 'your_entity_id';
@@ -11,7 +12,7 @@ export function buildAutomationTemplate(config) {
 
   const currentSensor = `sensor.${prefix}current`;
 
-  return `
+  const yaml_string = `
 alias: "CronoStar - Smart Presence & Safety Profile"
 description: "Switch CronoStar profile based on occupancy or safety threshold."
 triggers:
@@ -51,4 +52,6 @@ actions:
             data:
               option: "Default"
 `.trim();
+  console.log('[yaml_generators] Generated YAML:', yaml_string);
+  return yaml_string;
 }

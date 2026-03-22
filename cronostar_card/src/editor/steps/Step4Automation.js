@@ -1,4 +1,5 @@
 import { html } from 'lit';
+import { buildAutomationTemplate } from '../yaml/yaml_generators.js';
 
 export class Step4Automation {
   constructor(editor) {
@@ -6,7 +7,7 @@ export class Step4Automation {
   }
 
   render() {
-    const yaml = this.editor._automationYaml || '';
+    const yaml = this.editor._automationYaml || buildAutomationTemplate(this.editor._config);
     const isIt = this.editor._language === "it";
     
     // Toggle handler for LLM prompt view
@@ -21,7 +22,7 @@ export class Step4Automation {
 
     return html`
       <div class="step-content">
-        <div class="step-header">${this.editor.i18n._t('headers.step4')}</div>
+        <div class="step-header">${this.editor.i18n._t('headers.step4')} (Step 4)</div>
         
         <div class="success-box" style="margin-top: 0; margin-bottom: 32px;">
           <div style="display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 1.1rem;">

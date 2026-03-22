@@ -6,6 +6,46 @@ export class CardRenderer {
     this.card = card;
   }
 
+  _renderAdminBox(title) {
+    if (this.card.config?.not_configured) {
+      return html`
+        <ha-card style="padding: 16px; border: 2px dashed var(--primary-color); background: rgba(var(--rgb-primary-color), 0.05); cursor: pointer;" @click=${() => this.card.handleEditConfig(1)}>
+          <div style="display: flex; justify-content: center; align-items: center; height: 60px; gap: 12px; color: var(--primary-color);">
+            <ha-icon icon="mdi:plus-circle-outline" style="--mdc-icon-size: 32px;"></ha-icon>
+            <div style="font-weight: 700; font-size: 1.2rem;">
+              ${title || (this.card.language === 'it' ? 'Aggiungi Nuovo Controller' : 'Add New Controller')}
+            </div>
+          </div>
+        </ha-card>
+      `;
+    }
+
+    return html`
+      <ha-card style="padding: 16px; cursor: pointer; border: 1px solid var(--divider-color); transition: border-color 0.2s;" @click=${() => this.card.handleEditConfig(1)}>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <img src="/cronostar_card/cronostar-logo.png" style="width: 24px; height: auto;" alt="CronoStar">
+            <div style="font-weight: 700; font-size: 1.1rem; color: var(--primary-text-color);">
+              ${title}
+            </div>
+          </div>
+          <mwc-button 
+            raised 
+            @click=${(e) => { e.stopPropagation(); this.card.handleEditConfig(1); }}
+            style="--mdc-theme-primary: var(--primary-color); --mdc-theme-on-primary: white;"
+          >
+            <ha-icon icon="mdi:cog" style="margin-right: 8px; --mdc-icon-size: 18px;"></ha-icon>
+            ${this.card.language === 'it' ? 'Configura' : 'Configure'}
+          </mwc-button>
+        </div>
+        <div style="margin-top: 12px; font-size: 0.85rem; color: var(--secondary-text-color); opacity: 0.9; display: flex; gap: 16px;">
+           <span style="background: rgba(var(--rgb-primary-color), 0.1); padding: 2px 8px; border-radius: 4px;"><strong>Entity:</strong> ${this.card.config.target_entity || 'N/A'}</span>
+           <span style="background: rgba(var(--rgb-primary-color), 0.1); padding: 2px 8px; border-radius: 4px;"><strong>Prefix:</strong> ${this.card.config.global_prefix || 'N/A'}</span>
+        </div>
+      </ha-card>
+    `;
+  }
+
   render() {
     if (!this.card.config) return html``;
 
@@ -16,7 +56,10 @@ export class CardRenderer {
           <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--divider-color); background: rgba(255,255,255,0.05);">
             <div style="display: flex; align-items: center; gap: 12px;">
               <img src="/cronostar_card/cronostar-logo.png" style="height: 24px;">
-              <span style="font-weight: 700; color: var(--primary-color);">WIZARD CONFIGURAZIONE</span>
+              <span style="font-weight: 700; color: var(--primary-color);">
+                ${this.card.language === 'it' ? 'WIZARD CONFIGURAZIONE' : 'CONFIGURATION WIZARD'}
+                ${this.card.editorStep !== undefined && this.card.editorStep !== null ? ` (Step ${this.card.editorStep})` : ''}
+              </span>
             </div>
             <ha-icon-button @click=${() => { this.card.isEditorInternal = false; this.card.requestUpdate(); }} title="Chiudi">
               <ha-icon icon="mdi:close"></ha-icon>
@@ -26,9 +69,16 @@ export class CardRenderer {
             <cronostar-card-editor
               .hass=${this.card.hass}
               .config=${this.card.config}
+              .step=${this.card.editorStep || 0}
               @config-changed=${(ev) => {
                 // Quando la config cambia nell'editor interno, aggiorniamo la card
                 this.card.setConfig(ev.detail.config);
+                
+                // Se abbiamo finito (siamo allo step 5 e viene inviato un cambio definitivo), chiudiamo l'editor
+                if (ev.detail.config.step === 5) {
+                  this.card.isEditorInternal = false;
+                }
+                
                 this.card.requestUpdate();
               }}
             ></cronostar-card-editor>
@@ -55,6 +105,10 @@ export class CardRenderer {
           title = `${title} ${suffix}`;
         }
       }
+    }
+
+    if (this.card.config?.view_mode === 'admin') {
+      return this._renderAdminBox(title);
     }
 
     // ✅ FIX: Show setup UI if explicitly not configured
@@ -107,6 +161,40 @@ export class CardRenderer {
 
     const enRaised = this.card.language === 'en';
     const itRaised = this.card.language === 'it';
+
+    // ✅ FIX: Hide chart if not operational
+    const isBroken = !this.card.config?.target_entity && !isEditor && !isPickerPreview && this.card.initialLoadComplete;
+    if (isBroken) {
+      return html`
+        <ha-card style="padding: 16px; text-align: center; border: 1px solid var(--divider-color);">
+          <div class="card-header" style="justify-content: center; margin-bottom: 16px; border-bottom: none;">
+            <div class="header-left">
+              <img src="/cronostar_card/cronostar-logo.png" class="header-logo" alt="CronoStar">
+              <div class="title">${title}</div>
+            </div>
+          </div>
+          <div style="padding: 24px 16px;">
+            <ha-icon icon="mdi:alert-circle-outline" style="--mdc-icon-size: 48px; color: #ef4444; margin-bottom: 12px; opacity: 0.8;"></ha-icon>
+            <p style="font-weight: 700; font-size: 1.1rem; margin: 0 0 8px 0; color: var(--primary-text-color);">
+              ${this.card.language === 'it' ? 'Controller non operativo' : 'Controller not operational'}
+            </p>
+            <p style="font-size: 0.95rem; color: var(--secondary-text-color); margin: 0 0 24px 0; line-height: 1.4;">
+              ${this.card.language === 'it' 
+                ? 'L\'entità di destinazione non è stata configurata. Il grafico è nascosto finché il controller non è attivo.' 
+                : 'The target entity has not been configured. The chart is hidden until the controller is active.'}
+            </p>
+            <mwc-button
+              raised
+              @click=${() => this.card.handleEditConfig(1)}
+              style="--mdc-theme-primary: var(--primary-color);"
+            >
+              <ha-icon icon="mdi:cog" style="margin-right: 8px; --mdc-icon-size: 18px;"></ha-icon>
+              ${this.card.language === 'it' ? 'Configura ora' : 'Configure now'}
+            </mwc-button>
+          </div>
+        </ha-card>
+      `;
+    }
 
     const isMenuVisible = this.card.isMenuOpen;
 
@@ -202,6 +290,10 @@ export class CardRenderer {
             <mwc-list-item @click=${() => this.card.eventHandlers.handleHelp()}>
               <ha-icon icon="mdi:help-circle-outline"></ha-icon>
               ${localize('menu.help')}
+            </mwc-list-item>
+            <mwc-list-item @click=${() => this.card.handleEditConfig(1)}>
+              <ha-icon icon="mdi:cog-outline"></ha-icon>
+              ${this.card.language === 'it' ? 'Configura Controller' : 'Configure Controller'}
             </mwc-list-item>
             <div class="menu-item-with-switch" @click=${(e) => e.stopPropagation()}>
               <div style="display: flex; align-items: center; gap: 8px;">

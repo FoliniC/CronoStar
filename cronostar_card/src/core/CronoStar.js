@@ -50,6 +50,8 @@ export class CronoStarCard extends LitElement {
       modificationCounter: { type: Number },
       globalSettings: { type: Object },
       isStartup: { type: Boolean },
+      isEditorInternal: { type: Boolean },
+      editorStep: { type: Number },
     };
   }
 
@@ -148,6 +150,8 @@ export class CronoStarCard extends LitElement {
     this.isExpandedV = false;
     this.isExpandedH = false;
     this.isStartup = true;
+    this.isEditorInternal = false;
+    this.editorStep = 0;
     this.contextMenu = { show: false, x: 0, y: 0 };
     this.modificationCounter = 0;
     this.globalSettings = {
@@ -323,5 +327,12 @@ export class CronoStarCard extends LitElement {
     try {
       return this.eventHandlers?.handleDeleteProfile?.();
     } catch (e) { /* ignore */ }
+  }
+
+  handleEditConfig(step = 0) {
+    this.isMenuOpen = false;
+    this.editorStep = step;
+    this.isEditorInternal = true;
+    this.requestUpdate();
   }
 }

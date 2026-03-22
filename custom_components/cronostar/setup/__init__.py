@@ -5,6 +5,7 @@ Handles one-time setup tasks (services, storage, frontend resources, panel)
 
 import logging
 import json
+import yaml
 import os
 from pathlib import Path
 
@@ -28,9 +29,12 @@ from .validators import validate_environment
 _LOGGER = logging.getLogger(__name__)
 
 # URL stabile
-PANEL_URL_PATH  = "cronostar-admin"
-PANEL_TITLE     = "CronoStar (Dev)"
-PANEL_ICON      = "mdi:thermostat"
+PANEL_URL_PATH  = "cronostar-panel-v573"
+PANEL_TITLE     = "CronoStar Dashboard"
+PANEL_ICON      = "mdi:clock-edit"
+
+# File YAML della dashboard (relativo alla config dir di HA)
+DASHBOARD_YAML_FILENAME = "cronostar_dashboard_v573.yaml"
 
 
 async def async_setup_integration(hass: HomeAssistant, config: dict) -> bool:
@@ -65,132 +69,208 @@ async def async_setup_integration(hass: HomeAssistant, config: dict) -> bool:
 
 async def _setup_dashboard(hass: HomeAssistant) -> None:
     """Registra la dashboard Lovelace e pulisce vecchie registrazioni."""
-    
-    # 1. Pulizia vecchi pannelli
-    old_paths = ["cronostar", "cronostar-dashboard", "cronostar-v5"]
-    for path in old_paths:
-        try:
-            async_remove_panel(hass, path)
-        except Exception: pass
+    _LOGGER.warning("[DASHBOARD] Executing _setup_dashboard v5.7.9")
 
-    # 2. Inizializza il file di configurazione della dashboard
-    await _init_dashboard_storage(hass, PANEL_URL_PATH)
-
-    # 3. Registra il pannello sidebar
     try:
+        # 1. Pulizia massiva di TUTTI i possibili vecchi percorsi
+        all_possible_paths = [
+            "cronostar", "cronostar-dashboard", "cronostar-v5",
+            "cronostar-admin", "cronostar-v6", "cronostar-admin-final",
+            "cronostar-admin-v57", "cronostar-v572", "cronostar-panel-v573", PANEL_URL_PATH
+        ]
+
+        # Rimuove tutti i file .storage lovelace.cronostar* per evitare
+        # che HA dia loro priorità sul file YAML
+        def _purge_old_storage_files():
+            storage_dir = Path(hass.config.path(".storage"))
+            if storage_dir.exists():
+                for storage_file in storage_dir.glob("lovelace.cronostar*"):
+                    try:
+                        os.remove(storage_file)
+                        _LOGGER.warning("[DASHBOARD] PURGED OLD STORAGE FILE: %s", storage_file)
+                    except Exception as e:
+                        _LOGGER.error("[DASHBOARD] Failed to purge %s: %s", storage_file, e)
+
+        await hass.async_add_executor_job(_purge_old_storage_files)
+
+        for path in all_possible_paths:
+            try:
+                async_remove_panel(hass, path)
+            except Exception:
+                pass
+
+        # 2. Scrivi il file YAML fisico sul disco
+        await _write_dashboard_yaml(hass, DASHBOARD_YAML_FILENAME)
+
+        # 3. Registra il pannello sidebar
+        abs_yaml_path = hass.config.path(DASHBOARD_YAML_FILENAME)
         async_register_built_in_panel(
             hass,
             component_name="lovelace",
             sidebar_title=PANEL_TITLE,
             sidebar_icon=PANEL_ICON,
             frontend_url_path=PANEL_URL_PATH,
-            config={"mode": "storage"},
+            config={"mode": "yaml", "filename": abs_yaml_path},
             require_admin=False,
             update=True,
         )
-        _LOGGER.info("✅ CronoStar panel registered at /%s", PANEL_URL_PATH)
-    except Exception as e:
-        _LOGGER.error("❌ Error registering sidebar panel: %s", e)
+        _LOGGER.warning(
+            "✅ [DASHBOARD] Panel registered at /%s using %s",
+            PANEL_URL_PATH, abs_yaml_path
+        )
 
-async def _init_dashboard_storage(hass: HomeAssistant, url_path: str):
-    """Crea o aggiorna il file di storage della dashboard (Logica v5.4.97)."""
+        # 4. Registra nel backend Lovelace
+        await _register_lovelace_dashboard(hass, abs_yaml_path)
+
+    except Exception as e:
+        _LOGGER.error("❌ [DASHBOARD] Critical failure: %s", e, exc_info=True)
+
+
+async def _register_lovelace_dashboard(hass: HomeAssistant, abs_yaml_path: str) -> None:
+    """Registra la dashboard nella collezione interna del componente lovelace."""
+    try:
+        from homeassistant.components.lovelace.dashboard import LovelaceYAML
+
+        if "lovelace" not in hass.data:
+            _LOGGER.error("[DASHBOARD] 'lovelace' non presente in hass.data")
+            return
+
+        lovelace_data = hass.data["lovelace"]
+        _LOGGER.warning("[DASHBOARD] DEBUG: hass.data['lovelace'] type: %s", type(lovelace_data))
+        
+        # Gestisce sia oggetto LovelaceData che eventuale dizionario
+        dashboards = getattr(lovelace_data, "dashboards", None)
+        if dashboards is None and isinstance(lovelace_data, dict):
+            dashboards = lovelace_data.get("dashboards")
+
+        if dashboards is None:
+            _LOGGER.error("[DASHBOARD] 'dashboards' non trovato nei dati Lovelace")
+            return
+
+        # Rimuove eventuale registrazione precedente per lo stesso path
+        if PANEL_URL_PATH in dashboards:
+            _LOGGER.debug("[DASHBOARD] Removing previous lovelace dashboard entry for %s", PANEL_URL_PATH)
+            dashboards.pop(PANEL_URL_PATH)
+
+        # FIX: L'ordine corretto dei parametri per LovelaceYAML è (hass, url_path, config)
+        dashboards[PANEL_URL_PATH] = LovelaceYAML(
+            hass,
+            PANEL_URL_PATH,
+            {"mode": "yaml", "filename": abs_yaml_path},
+        )
+        _LOGGER.warning(
+            "✅ [DASHBOARD] Lovelace backend registration successful: %s",
+            PANEL_URL_PATH
+        )
+
+    except Exception as e:
+        _LOGGER.error("[DASHBOARD] Failed to register dashboard: %s", e, exc_info=True)
+
+
+async def _write_dashboard_yaml(hass: HomeAssistant, filename: str) -> None:
+    """Scrive la configurazione della dashboard su file.
+
+    FIX: usa json.dump invece di yaml.dump — JSON è YAML valido al 100% e
+    non presenta edge case di formattazione (stringhe multiline, caratteri
+    Unicode, valori None) che causano la vista vuota 'Nuova sezione'.
+    """
+    import json
     import time
     now_str = time.strftime("%H:%M:%S")
-    
-    storage_id = url_path.replace("-", "_")
-    storage_path = hass.config.path(".storage", f"lovelace.{storage_id}")
-    
-    _LOGGER.warning("!!! [DASHBOARD] Writing storage to %s at %s !!!", storage_path, now_str)
-    
-    # 1. Recupera controller reali esistenti
-    entries = hass.config_entries.async_entries(DOMAIN)
-    real_controllers = [e for e in entries if not e.data.get("component_installed")]
-    controller_count = len(real_controllers)
+    yaml_path = hass.config.path(filename)
+    _LOGGER.warning("!!! [DASHBOARD] WRITING YAML TO DISK: %s at %s !!!", yaml_path, now_str)
 
-    cards = []
-    
-    # Card di benvenuto / Intestazione
-    cards.append({
-        "type": "markdown",
-        "content": f"## 🌟 CronoStar Admin Dashboard\nGenerata alle: **{now_str}** | Versione: **v5.5.6**"
-    })
-    
-    # 2. LOGICA v5.4.97
-    if controller_count == 0:
-        # Se zero, mostra card Wizard per iniziare
+    try:
+        integration = await async_get_integration(hass, DOMAIN)
+        version = integration.version
+
+        # Recupera controller reali
+        entries = hass.config_entries.async_entries(DOMAIN)
+        real_controllers = [e for e in entries if not e.data.get("component_installed")]
+        controller_count = len(real_controllers)
+
+        cards = []
+
+        # Intestazione
         cards.append({
-            "type": "custom:cronostar-card",
-            "title": "Configura il tuo Primo Controller",
-            "not_configured": True,
-            "preset_type": "thermostat"
+            "type": "markdown",
+            "content": (
+                f"## CronoStar Admin Dashboard\n"
+                f"Versione: **v{version}** | Aggiornato: **{now_str}**\n"
+                f"*Dashboard in modalita YAML (Read-only UI)*"
+            ),
         })
-    else:
-        # Se > 0, mostra lista card reali + pulsante ConfigFlow
+
+        # Controllers
         for entry in real_controllers:
-            cards.append({
+            # FIX: filtra i valori None — evita chiavi null nel JSON/YAML
+            # che alcuni parser HA non gestiscono correttamente
+            card = {
                 "type": "custom:cronostar-card",
+                "view_mode": "admin", # ← FIX: attiva la modalità box compatto
+                "not_configured": False, # ← FIX: forza lo stato configurato per evitare il default 'true'
                 "preset_type": entry.data.get("preset_type"),
                 "global_prefix": entry.data.get("global_prefix"),
                 "target_entity": entry.data.get("target_entity"),
                 "title": entry.data.get("title") or entry.title,
+            }
+            optional_fields = {
                 "min_value": entry.data.get("min_value"),
                 "max_value": entry.data.get("max_value"),
                 "step_value": entry.data.get("step_value"),
                 "unit_of_measurement": entry.data.get("unit_of_measurement"),
                 "y_axis_label": entry.data.get("y_axis_label"),
-            })
-        
-        # Pulsante aggiuntivo per nuovi controller (ConfigFlow)
+            }
+            # Aggiunge i campi opzionali solo se valorizzati
+            card.update({k: v for k, v in optional_fields.items() if v is not None})
+            cards.append(card)
+
+        # Aggiunge SEMPRE un box 'Aggiungi Nuovo' alla fine della lista (stile Admin Box)
         cards.append({
-            "type": "button",
-            "name": "Aggiungi Altro Controller",
-            "icon": "mdi:plus-circle",
-            "tap_action": {
-                "action": "navigate",
-                "navigation_path": "/config/integrations/dashboard/add?domain=cronostar"
-            },
-            "show_name": True
+            "type": "custom:cronostar-card",
+            "view_mode": "admin",
+            "not_configured": True,
+            "preset_type": "thermostat",
+            "title": "Nuovo Controller"
         })
 
-    # Struttura dati Lovelace standard - USIAMO 'panel' per larghezza piena
-    dashboard_data = {
-        "version": 1,
-        "minor_version": 1,
-        "key": f"lovelace.{storage_id}",
-        "data": {
-            "config": {
-                "title": "CronoStar Admin",
-                "views": [
-                    {
-                        "title": "Home",
-                        "path": "home",
-                        "type": "panel",
-                        "cards": [
-                            {
-                                "type": "vertical-stack",
-                                "cards": cards
-                            }
-                        ]
-                    }
-                ]
-            }
+        # Struttura Lovelace — view standard senza 'type: panel' o 'type: sections'
+        # per massima compatibilità con tutte le versioni di HA
+        dashboard_config = {
+            "title": "CronoStar Admin Dashboard",
+            "views": [
+                {
+                    "title": "Overview",
+                    "path": "overview",
+                    "cards": [
+                        {
+                            "type": "vertical-stack",
+                            "cards": cards,
+                        }
+                    ],
+                }
+            ],
         }
-    }
 
-    try:
-        def _write():
-            with open(storage_path, "w") as f:
-                json.dump(dashboard_data, f, indent=2)
+        def _write() -> None:
+            # Scrive JSON con pretty-print: è YAML valido, zero ambiguità
+            # di formattazione rispetto a yaml.dump
+            with open(yaml_path, "w", encoding="utf-8") as f:
+                json.dump(dashboard_config, f, indent=2, ensure_ascii=False)
+
         await hass.async_add_executor_job(_write)
+        _LOGGER.warning("✅ [DASHBOARD] FILE WRITTEN SUCCESSFULLY: %s", yaml_path)
+
     except Exception as e:
-        _LOGGER.error("Failed to write dashboard: %s", e)
+        _LOGGER.error("❌ [DASHBOARD] Failed to write dashboard file: %s", e, exc_info=True)
 
 
 async def _setup_static_resources(hass: HomeAssistant) -> bool:
     """Register static resources."""
     try:
         www_path = Path(hass.config.path("custom_components/cronostar/www/cronostar_card"))
-        if not www_path.exists(): return False
+        if not www_path.exists():
+            return False
 
         if "http" in hass.config.components:
             if HAS_STATIC_PATH_CONFIG:
@@ -217,10 +297,12 @@ async def _preload_profile_cache(hass: HomeAssistant, storage_manager: StorageMa
     """Preload profile containers."""
     try:
         files = await storage_manager.list_profiles()
-        if not files: return
+        if not files:
+            return
         for filename in files:
             try:
                 await storage_manager.load_profile_cached(filename, force_reload=True)
-            except Exception: pass
+            except Exception:
+                pass
     except Exception as e:
         _LOGGER.warning("Preload error: %s", e)

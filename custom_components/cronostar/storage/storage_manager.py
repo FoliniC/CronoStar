@@ -236,7 +236,13 @@ class StorageManager:
             if prefix:
                 norm_prefix_meta = prefix if prefix.endswith("_") else f"{prefix}_"
 
-            for filepath in self.profiles_dir.glob("cronostar_*.json"):
+            def _get_files():
+                return list(self.profiles_dir.glob("cronostar_*.json"))
+
+            # Must run on executor because glob is I/O blocking
+            filepaths = await self.hass.async_add_executor_job(_get_files)
+
+            for filepath in filepaths:
                 filename = filepath.name
 
                 # If no filters, include quickly
