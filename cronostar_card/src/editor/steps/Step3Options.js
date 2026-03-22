@@ -10,7 +10,6 @@ export class Step3Options {
   render() {
     const presetConfig = CARD_CONFIG_PRESETS[this.editor._config.preset_type || 'thermostat'] || {};
     const effectiveTitle = this.editor._config.title || presetConfig.title || 'CronoStar Schedule';
-console.log('[Step3Options] Rendering. Current editor language:', this.editor._language);
 return html`
 <style>
 .step-content { color: #f8fafc; }
@@ -52,42 +51,31 @@ mwc-list-item {
 <div class="field-group">
   <label class="field-label">${this.editor.i18n._t('fields.language_label')} (Step 3)</label>
   <div class="field-description">${this.editor.i18n._t('fields.language_desc')}</div>
-  <ha-select
+  <ha-selector
+    .hass=${this.editor.hass}
     .label=${this.editor.i18n._t('fields.language_label')}
     .value=${this.editor._language}
-    @opened=${() => console.log('[Step3Options] ha-select OPENED')}
-    @closed=${(e) => {
-       console.log('[Step3Options] ha-select CLOSED', e);
-       e.stopPropagation();
-    }}
-    @click=${(e) => console.log('[Step3Options] ha-select CLICK', e)}
-    @selected=${(e) => {
-      console.log('[Step3Options] ha-select SELECTED event fired', e);
-      const val = e.target.value || e.detail?.value;
-      console.log('[Step3Options] Selected value extracted:', val);
-
-      if (val && val !== this.editor._language) {
-        console.log('[Step3Options] Language change detected:', val);
-        this.editor._language = val;
-        // Update config meta
-        if (!this.editor._config.meta) this.editor._config.meta = {};
-        this.editor._config.meta.language = val;
-        // Re-init i18n
-        this.editor.i18n = new EditorI18n(this.editor);
-        // Trigger UI update
-        console.log('[Step3Options] Requesting update and dispatching config...');
-        this.editor.requestUpdate();
-        this.editor._dispatchConfigChanged(true);
-      } else {
-         console.log('[Step3Options] Value is same as current or empty. No update.');
+    .selector=${{
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "en", label: "English" },
+          { value: "it", label: "Italiano" }
+        ]
       }
     }}
-    naturalMenuWidth
-  >
-    <mwc-list-item value="en" ?selected=${this.editor._language === 'en'}>English</mwc-list-item>
-    <mwc-list-item value="it" ?selected=${this.editor._language === 'it'}>Italiano</mwc-list-item>
-  </ha-select>
-</div>
-</div>
+    @value-changed=${(e) => {
+      const val = e.detail?.value;
+      if (val && val !== this.editor._language) {
+        this.editor._language = val;
+        if (!this.editor._config.meta) this.editor._config.meta = {};
+        this.editor._config.meta.language = val;
+        this.editor.i18n = new EditorI18n(this.editor);
+        this.editor.requestUpdate();
+        this.editor._dispatchConfigChanged(true);
+      }
+    }}
+  ></ha-selector>
+</div></div>
 `;  }
 }
