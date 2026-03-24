@@ -14,6 +14,7 @@ export const cardStyles = css`
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     will-change: transform, width, height, top, left;
     overflow: hidden;
+    border: 1px solid var(--divider-color, rgba(128, 128, 128, 0.15)) !important;
   }
 
   ha-card.expanded-v.expanded-h {
@@ -24,11 +25,14 @@ export const cardStyles = css`
     width: 94vw !important;
     height: 94vh !important;
     z-index: 1000 !important;
-    box-shadow: 0 0 50px rgba(0,0,0,0.5);
-    background: var(--card-background-color, white);
+    box-shadow: 0 12px 48px rgba(0,0,0,0.12) !important;
+    background: var(--ha-card-background, var(--card-background-color, white)) !important;
+    border: 1px solid var(--divider-color, rgba(128, 128, 128, 0.15)) !important;
+    outline: none !important;
     max-width: none !important;
     max-height: none !important;
     transition: none !important; /* Prevent jump during expansion */
+    color: var(--primary-text-color);
   }
 
   /* Overlay backdrop when expanded */
@@ -39,9 +43,10 @@ export const cardStyles = css`
     left: -100vw;
     right: -100vw;
     bottom: -100vh;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.85);
     z-index: -1;
     pointer-events: all;
+    backdrop-filter: blur(5px);
   }
 
   .card-header {
@@ -49,6 +54,7 @@ export const cardStyles = css`
     justify-content: space-between;
     align-items: center;
     padding-bottom: 8px;
+    background: var(--ha-card-background, var(--card-background-color, white)) !important;
   }
 
   .header-left {
@@ -189,6 +195,7 @@ export const cardStyles = css`
     flex-direction: column;
     overflow-y: auto;
     min-height: 0;
+    background: var(--ha-card-background, var(--card-background-color, white)) !important;
   }
 
   .chart-container {
@@ -200,6 +207,7 @@ export const cardStyles = css`
     border-radius: 4px;
     overflow: hidden;
     transition: box-shadow 0.2s ease, min-height 0.3s ease;
+    background: var(--ha-card-background, var(--card-background-color, transparent));
   }
 
   ha-card.expanded-v .chart-container {
@@ -267,12 +275,12 @@ export const cardStyles = css`
     text-align: center !important;
     padding: 12px !important;
     gap: 4px !important;
-    background: #3c3c3c !important;
+    background: var(--ha-card-background, var(--card-background-color, #3c3c3c)) !important;
     border-radius: 8px !important;
-    border: 1px solid #555 !important;
+    border: 1px solid var(--divider-color, #555) !important;
     transition: all 0.2s ease !important;
     cursor: pointer !important;
-    color: #ffffff !important;
+    color: var(--primary-text-color, #ffffff) !important;
     width: 100% !important;
     box-sizing: border-box !important;
     min-height: 100px !important;
@@ -283,6 +291,7 @@ export const cardStyles = css`
     font-size: 1.8rem !important;
     margin-bottom: 2px !important;
     display: block !important;
+    color: var(--primary-color) !important;
   }
 
   .preset-card .preset-title {
@@ -294,20 +303,20 @@ export const cardStyles = css`
 
   .preset-card .preset-description {
     font-size: 0.75rem !important;
-    color: #b0b0b0 !important;
+    color: var(--secondary-text-color, #b0b0b0) !important;
     line-height: 1.2 !important;
     display: block !important;
   }
 
   .preset-card:hover {
-    background: #4a4a4a !important;
-    border-color: #777 !important;
+    background: var(--secondary-background-color, #4a4a4a) !important;
+    border-color: var(--primary-color) !important;
   }
 
   .preset-card.selected {
-    border: 2px solid #00b0ff !important;
-    background: #3c3c3c !important;
-    box-shadow: 0 0 10px rgba(0, 176, 255, 0.5) !important;
+    border: 2px solid var(--primary-color, #00b0ff) !important;
+    background: var(--ha-card-background, #3c3c3c) !important;
+    box-shadow: 0 0 10px var(--primary-color, rgba(0, 176, 255, 0.5)) !important;
   }
 
   .preset-card:focus-visible {
@@ -321,14 +330,16 @@ export const cardStyles = css`
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--ha-card-background, var(--card-background-color, white)) !important;
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 10;
+    z-index: 1000;
     font-size: 14px;
     color: var(--primary-text-color);
     pointer-events: none;
+    opacity: 1 !important;
+    visibility: visible !important;
   }
 
   .startup-overlay {
@@ -406,7 +417,7 @@ export const cardStyles = css`
 
   .chart-tooltip {
     position: absolute;
-    background: var(--card-background-color, white);
+    background: var(--ha-card-background, var(--card-background-color, white));
     border: 1px solid var(--primary-color, #03a9f4);
     color: var(--primary-text-color, black);
     padding: 4px 8px;
@@ -469,6 +480,50 @@ export const cardStyles = css`
     gap: 4px;
     font-size: 12px;
     color: var(--warning-color, #ff9800);
+  }
+
+  .dialog-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    border-radius: 12px;
+    backdrop-filter: blur(2px);
+  }
+
+  .dialog-content {
+    background: var(--ha-card-background, var(--card-background-color, white));
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    max-width: 90%;
+    width: 400px;
+    text-align: center;
+    border: 1px solid var(--divider-color, rgba(128, 128, 128, 0.2));
+  }
+
+  .dialog-content h3 {
+    margin: 0 0 16px 0;
+    color: var(--primary-text-color);
+  }
+
+  .dialog-content p {
+    margin: 0 0 24px 0;
+    color: var(--primary-text-color);
+    line-height: 1.4;
+  }
+
+  .dialog-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
   @media (max-width: 600px) {

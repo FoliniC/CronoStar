@@ -125,6 +125,24 @@ delete_profile:
       selector:
         text:
 
+delete_controller:
+  name: Delete Controller
+  description: "Deletes a CronoStar controller and all its profiles."
+  fields:
+    global_prefix:
+      name: Global Prefix
+      description: "The global prefix of the controller to delete."
+      required: true
+      selector:
+        text:
+    preset_type:
+      name: Preset Type
+      description: "The preset type of the controller."
+      required: false
+      default: "thermostat"
+      selector:
+        text:
+
 list_all_profiles:
   name: List All Profiles
   description: Lists all available CronoStar schedule profiles across all preset types.

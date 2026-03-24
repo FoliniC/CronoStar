@@ -1,7 +1,7 @@
 // cronostar_card/src/utils/logger_utils.js
 
 export function log(level, isLoggingEnabled, ...args) {
-    if (isLoggingEnabled) {
+    if (isLoggingEnabled || level === 'error' || level === 'warn') {
         switch (level) {
             case 'debug': console.debug('[CronoStar]', ...args); break;
             case 'info': console.info('[CronoStar]', ...args); break;

@@ -101,7 +101,7 @@ class StorageManager:
             container["profiles"][profile_name] = profile_entry
 
             # Backup if enabled
-            if self.enable_backups and filepath.exists():
+            if self.enable_backups and await self.hass.async_add_executor_job(filepath.exists):
                 await self._create_backup(filepath)
 
             # Write to disk
@@ -111,7 +111,7 @@ class StorageManager:
             async with self._cache_lock:
                 self._cache[filename] = container
                 try:
-                    self._cache_mtimes[filename] = os.path.getmtime(filepath)
+                    self._cache_mtimes[filename] = await self.hass.async_add_executor_job(os.path.getmtime, filepath)
                 except OSError:
                     self._cache_mtimes[filename] = 0
 
@@ -140,7 +140,7 @@ class StorageManager:
             # Check cache if not forcing reload
             if not force_reload and filename in self._cache:
                 try:
-                    current_mtime = os.path.getmtime(filepath)
+                    current_mtime = await self.hass.async_add_executor_job(os.path.getmtime, filepath)
                     if current_mtime <= self._cache_mtimes.get(filename, 0):
                         return self._cache[filename]
                 except OSError:
@@ -153,7 +153,7 @@ class StorageManager:
             if container:
                 self._cache[filename] = container
                 try:
-                    self._cache_mtimes[filename] = os.path.getmtime(filepath)
+                    self._cache_mtimes[filename] = await self.hass.async_add_executor_job(os.path.getmtime, filepath)
                 except OSError:
                     self._cache_mtimes[filename] = 0
 
@@ -191,7 +191,7 @@ class StorageManager:
 
             # If empty, delete file
             if not container["profiles"]:
-                filepath.unlink(missing_ok=True)
+                await self.hass.async_add_executor_job(filepath.unlink, True)
                 _LOGGER.info("Deleted empty container: %s", filename)
 
                 # Clear cache
@@ -206,7 +206,7 @@ class StorageManager:
                 async with self._cache_lock:
                     self._cache[filename] = container
                     try:
-                        self._cache_mtimes[filename] = os.path.getmtime(filepath)
+                        self._cache_mtimes[filename] = await self.hass.async_add_executor_job(os.path.getmtime, filepath)
                     except OSError:
                         self._cache_mtimes[filename] = 0
 
@@ -383,7 +383,7 @@ class StorageManager:
             async with self._cache_lock:
                 self._cache[filename] = container
                 try:
-                    self._cache_mtimes[filename] = os.path.getmtime(filepath)
+                    self._cache_mtimes[filename] = await self.hass.async_add_executor_job(os.path.getmtime, filepath)
                 except OSError:
                     self._cache_mtimes[filename] = 0
                     
@@ -403,7 +403,7 @@ class StorageManager:
         Returns:
             Profile container or empty dict
         """
-        if not filepath.exists():
+        if not await self.hass.async_add_executor_job(filepath.exists):
             return {}
 
         try:
@@ -473,12 +473,17 @@ class StorageManager:
         try:
             backup_dir = self.profiles_dir / "backups"
 
-            if not backup_dir.exists():
-                return
+            def _get_sorted_backups():
+                if not backup_dir.exists():
+                    return []
+                # Find matching backups
+                backups = list(backup_dir.glob(f"{stem}_backup_*.json"))
+                # Sort by mtime (stat is blocking)
+                backups.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                return backups
 
-            # Find matching backups
-            backups = list(backup_dir.glob(f"{stem}_backup_*.json"))
-            backups.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            # Must run on executor because glob/stat are I/O blocking
+            backups = await self.hass.async_add_executor_job(_get_sorted_backups)
 
             # Keep only last 10
             for old_backup in backups[10:]:
@@ -513,8 +518,13 @@ class StorageManager:
 
         try:
             # List all cronostar profile JSON files
+            def _get_files():
+                return list(self.profiles_dir.glob("cronostar_*.json"))
 
-            for filepath in self.profiles_dir.glob("cronostar_*.json"):
+            # Must run on executor because glob is I/O blocking
+            filepaths = await self.hass.async_add_executor_job(_get_files)
+
+            for filepath in filepaths:
                 filename = filepath.name
 
                 # Load the container data

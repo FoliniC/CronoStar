@@ -147,6 +147,12 @@ export function validateConfig(config, isLoggingEnabled = false) {
   const presetConfig = CARD_CONFIG_PRESETS[presetName] || CARD_CONFIG_PRESETS.thermostat;
   const mergedConfig = { ...DEFAULT_CONFIG, ...presetConfig, ...normalized };
 
+  // ✅ FIX: If the card has a prefix and target entity, it's definitely configured.
+  // This prevents existing cards from showing the "Not Configured" UI after the v5.8.8 update.
+  if (normalized.global_prefix && normalized.target_entity) {
+    mergedConfig.not_configured = false;
+  }
+
   // Preserve meta object if provided (including language preference)
   if (config && typeof config.meta === 'object') {
     mergedConfig.meta = { ...config.meta };
@@ -213,7 +219,7 @@ export function extractCardConfig(src = {}) {
     'type', 'preset_type', 'global_prefix', 'target_entity', 'enabled_entity',
     'profiles_select_entity', 'min_value', 'max_value', 'step_value',
     'unit_of_measurement', 'y_axis_label', 'allow_max_value',
-    'logging_enabled', 'hour_base', 'title', 'step',
+    'logging_enabled', 'hour_base', 'title', 'step', 'language',
     'kb_ctrl_h', 'kb_ctrl_v', 'kb_shift_h', 'kb_shift_v', 'kb_alt_h', 'kb_alt_v',
     'kb_def_h', 'kb_def_v', 'not_configured'
   ];

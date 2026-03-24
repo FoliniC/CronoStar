@@ -7,13 +7,21 @@ export class CardRenderer {
   }
 
   _renderAdminBox(title) {
-    if (this.card.config?.not_configured) {
+    const isIt = this.card.language === 'it';
+    const config = this.card.config || {};
+    
+    // Recupera informazioni di validazione se presenti
+    const validInfo = config.validation || { valid: true, errors: [] };
+    const borderColor = validInfo.valid ? 'var(--divider-color)' : '#ef4444';
+    const bgColor = validInfo.valid ? 'transparent' : 'rgba(239, 68, 68, 0.05)';
+
+    if (config.not_configured) {
       return html`
         <ha-card style="padding: 16px; border: 2px dashed var(--primary-color); background: rgba(var(--rgb-primary-color), 0.05); cursor: pointer;" @click=${() => this.card.handleEditConfig(1)}>
           <div style="display: flex; justify-content: center; align-items: center; height: 60px; gap: 12px; color: var(--primary-color);">
             <ha-icon icon="mdi:plus-circle-outline" style="--mdc-icon-size: 32px;"></ha-icon>
             <div style="font-weight: 700; font-size: 1.2rem;">
-              ${title || (this.card.language === 'it' ? 'Aggiungi Nuovo Controller' : 'Add New Controller')}
+              ${title || (isIt ? 'Aggiungi Nuovo Controller' : 'Add New Controller')}
             </div>
           </div>
         </ha-card>
@@ -21,27 +29,60 @@ export class CardRenderer {
     }
 
     return html`
-      <ha-card style="padding: 16px; cursor: pointer; border: 1px solid var(--divider-color); transition: border-color 0.2s;" @click=${() => this.card.handleEditConfig(1)}>
+      <ha-card style="padding: 16px; background: ${bgColor}; transition: all 0.2s;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 12px; cursor: pointer;" @click=${() => this.card.handleEditConfig(1)}>
             <img src="/cronostar_card/cronostar-logo.png" style="width: 24px; height: auto;" alt="CronoStar">
             <div style="font-weight: 700; font-size: 1.1rem; color: var(--primary-text-color);">
               ${title}
+              ${!validInfo.valid ? html`<ha-icon icon="mdi:alert-circle" style="color: #ef4444; margin-left: 8px; --mdc-icon-size: 20px; vertical-align: middle;"></ha-icon>` : ''}
             </div>
           </div>
-          <mwc-button 
-            raised 
-            @click=${(e) => { e.stopPropagation(); this.card.handleEditConfig(1); }}
-            style="--mdc-theme-primary: var(--primary-color); --mdc-theme-on-primary: white;"
-          >
-            <ha-icon icon="mdi:cog" style="margin-right: 8px; --mdc-icon-size: 18px;"></ha-icon>
-            ${this.card.language === 'it' ? 'Configura' : 'Configure'}
-          </mwc-button>
+          <div style="display: flex; gap: 8px;">
+            <mwc-button 
+              raised 
+              @click=${(e) => { e.stopPropagation(); this.card.handleEditConfig(1); }}
+              style="--mdc-theme-primary: var(--primary-color); --mdc-theme-on-primary: white;"
+            >
+              <ha-icon icon="mdi:cog" style="margin-right: 8px; --mdc-icon-size: 18px;"></ha-icon>
+              ${isIt ? 'Configura' : 'Configure'}
+            </mwc-button>
+            <mwc-button 
+              outlined
+              @click=${(e) => { e.stopPropagation(); this.card.handleDeleteController(); }}
+              style="--mdc-theme-primary: #ef4444; min-width: 48px;"
+              title="${isIt ? 'Elimina Controller' : 'Delete Controller'}"
+            >
+              🗑️
+            </mwc-button>
+          </div>
         </div>
-        <div style="margin-top: 12px; font-size: 0.85rem; color: var(--secondary-text-color); opacity: 0.9; display: flex; gap: 16px;">
-           <span style="background: rgba(var(--rgb-primary-color), 0.1); padding: 2px 8px; border-radius: 4px;"><strong>Entity:</strong> ${this.card.config.target_entity || 'N/A'}</span>
-           <span style="background: rgba(var(--rgb-primary-color), 0.1); padding: 2px 8px; border-radius: 4px;"><strong>Prefix:</strong> ${this.card.config.global_prefix || 'N/A'}</span>
+        
+        <div style="margin-top: 12px; font-size: 0.85rem; color: var(--secondary-text-color); opacity: 0.9; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+           <div style="background: rgba(var(--rgb-primary-color), 0.07); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(var(--rgb-primary-color), 0.1);">
+              <strong>Entity:</strong> <span style="font-family: monospace; margin-left: 4px;">${config.target_entity || 'N/A'}</span>
+           </div>
+           <div style="background: rgba(var(--rgb-primary-color), 0.07); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(var(--rgb-primary-color), 0.1);">
+              <strong>Prefix:</strong> <span style="font-family: monospace; margin-left: 4px;">${config.global_prefix || 'N/A'}</span>
+           </div>
         </div>
+
+        ${!validInfo.valid ? html`
+          <div style="margin-top: 12px; padding: 12px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2); color: #fca5a5; font-size: 0.85rem;">
+            <div style="font-weight: 800; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+              <ha-icon icon="mdi:alert-box" style="--mdc-icon-size: 18px;"></ha-icon>
+              ${isIt ? 'PROBLEMI DI CONFIGURAZIONE' : 'CONFIGURATION ISSUES'}
+            </div>
+            <ul style="margin: 0; padding-left: 20px;">
+              ${validInfo.errors.map(err => html`<li>${err}</li>`)}
+            </ul>
+          </div>
+        ` : html`
+          <div style="margin-top: 12px; font-size: 0.8rem; color: #86efac; display: flex; align-items: center; gap: 6px; opacity: 0.8;">
+            <ha-icon icon="mdi:check-decagram" style="--mdc-icon-size: 16px;"></ha-icon>
+            <span>${isIt ? 'Controller Attivo e Valido' : 'Controller Active and Valid'}</span>
+          </div>
+        `}
       </ha-card>
     `;
   }
@@ -61,22 +102,52 @@ export class CardRenderer {
                 ${this.card.editorStep !== undefined && this.card.editorStep !== null ? ` (Step ${this.card.editorStep})` : ''}
               </span>
             </div>
-            <ha-icon-button @click=${() => { this.card.isEditorInternal = false; this.card.requestUpdate(); }} title="Chiudi">
+            <ha-icon-button @click=${async () => { 
+              console.info("[CronoStar] Wizard closed via X. Restoring previous state...");
+              
+              // 1. Reset editor flag
+              this.card.isEditorInternal = false; 
+              
+              // 2. Restore config if backup exists
+              if (this.card._lastGoodConfig) {
+                this.card.setConfig(this.card._lastGoodConfig);
+              }
+              
+              // 3. Request update and wait for DOM to reflect the change (returning to standard card view)
+              this.card.requestUpdate();
+              await this.card.updateComplete;
+              
+              // 4. Now that the canvas is back in DOM, reinitialize the chart
+              if (this.card.cardLifecycle) {
+                console.info("[CronoStar] DOM ready, reinitializing chart...");
+                this.card.cardLifecycle.reinitializeCard();
+                
+                // 5. Force a backend sync to ensure data is fresh
+                if (this.card.hass) {
+                   this.card.cardLifecycle.registerCard(this.card.hass);
+                }
+              }
+            }} title="Chiudi">
               <ha-icon icon="mdi:close"></ha-icon>
             </ha-icon-button>
           </div>
           <div style="padding: 16px; width: 100%; box-sizing: border-box;">
+            ${console.info(`[CronoStar] Rendering Editor with language: ${this.card.language}`)}
             <cronostar-card-editor
               .hass=${this.card.hass}
               .config=${this.card.config}
               .step=${this.card.editorStep || 0}
+              .language=${this.card.language}
               @config-changed=${(ev) => {
                 // Quando la config cambia nell'editor interno, aggiorniamo la card
                 const newConfig = { ...ev.detail.config };
                 const shouldClose = newConfig._close_wizard;
                 if (shouldClose) delete newConfig._close_wizard;
                 
-                this.card.setConfig(newConfig);
+                // Shallow compare to avoid redundant updates if config hasn't actually changed
+                if (JSON.stringify(this.card.config) !== JSON.stringify(newConfig)) {
+                   this.card.setConfig(newConfig);
+                }
                 
                 // Se abbiamo finito (siamo allo step 5 e viene inviato un cambio definitivo), chiudiamo l'editor
                 if (shouldClose) {
@@ -167,10 +238,10 @@ export class CardRenderer {
     const itRaised = this.card.language === 'it';
 
     // ✅ FIX: Hide chart if not operational
-    const isBroken = !this.card.config?.target_entity && !isEditor && !isPickerPreview && this.card.initialLoadComplete;
+    const isBroken = !this.card.config?.target_entity && !isEditor && !isPickerPreview && this.card.initialLoadComplete && !this.card.isEditorInternal;
     if (isBroken) {
       return html`
-        <ha-card style="padding: 16px; text-align: center; border: 1px solid var(--divider-color);">
+        <ha-card style="padding: 16px; text-align: center;">
           <div class="card-header" style="justify-content: center; margin-bottom: 16px; border-bottom: none;">
             <div class="header-left">
               <img src="/cronostar_card/cronostar-logo.png" class="header-logo" alt="CronoStar">

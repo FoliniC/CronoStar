@@ -69,6 +69,42 @@ export class Step0Dashboard {
     this.editor._dispatchConfigChanged(true);
   }
 
+  async _handleDeleteController(fileInfo) {
+    const meta = fileInfo.meta || {};
+    const prefix = fileInfo.global_prefix || meta.global_prefix;
+    const preset = meta.preset_type || meta.preset || 'thermostat';
+    const isIt = this.editor._language === 'it';
+
+    const confirmMsg = isIt 
+      ? 'Sei sicuro di voler eliminare questo controller? Questa azione non può essere annullata.'
+      : 'Are you sure you want to delete this controller? This cannot be undone.';
+
+    if (!confirm(confirmMsg)) {
+      return;
+    }
+
+    try {
+      this.editor._dashboardLoading = true;
+      this.editor.requestUpdate();
+
+      await this.editor.hass.callService('cronostar', 'delete_controller', {
+        global_prefix: prefix,
+        preset_type: preset
+      });
+
+      this.editor.showToast(isIt ? 'Controller eliminato' : 'Controller deleted', false);
+      
+      // Reload list
+      setTimeout(() => { this._loadAllProfiles(); }, 1000);
+
+    } catch (e) {
+      console.error('Failed to delete controller:', e);
+      this.editor.showToast((isIt ? 'Errore eliminazione: ' : 'Failed to delete controller: ') + e.message, true);
+      this.editor._dashboardLoading = false;
+      this.editor.requestUpdate();
+    }
+  }
+
   async _primeLanguageFromCurrentProfile() {
     try {
       if (!this.editor?.hass) return;
@@ -122,24 +158,61 @@ export class Step0Dashboard {
 
     return html`
       <div class="controllers-grid">
-        ${allFiles.map(fileInfo => html`
-          <div class="controller-box">
+        ${allFiles.map(fileInfo => {
+          const validInfo = fileInfo.validation || { valid: true, errors: [] };
+          const borderColor = validInfo.valid ? 'rgba(255, 255, 255, 0.08)' : '#ef4444';
+          const bgColor = validInfo.valid ? 'rgba(255, 255, 255, 0.03)' : 'rgba(239, 68, 68, 0.1)';
+          
+          return html`
+          <div class="controller-box" style="border-color: ${borderColor}; background: ${bgColor};">
             <div class="controller-header">
               <div class="controller-title">${this._getControllerTitle(fileInfo)}</div>
-              <mwc-button 
-                outlined 
-                @click=${() => this._handleEditControllerConfig(fileInfo)}
-                style="--mdc-theme-primary: #0ea5e9;"
-              >
-                ⚙️ Configura
-              </mwc-button>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <mwc-button 
+                  outlined 
+                  @click=${() => this._handleEditControllerConfig(fileInfo)}
+                  style="--mdc-theme-primary: ${validInfo.valid ? '#0ea5e9' : '#fca5a5'};"
+                >
+                  ⚙️ Configura
+                </mwc-button>
+                <mwc-button 
+                  outlined
+                  @click=${() => this._handleDeleteController(fileInfo)}
+                  style="--mdc-theme-primary: #ef4444; min-width: 40px;"
+                  title="Elimina / Delete"
+                >
+                  🗑️
+                </mwc-button>
+              </div>
             </div>
             <div class="controller-info">
-              <span><strong>Prefix:</strong> ${fileInfo.global_prefix}</span>
-              <span><strong>Profiles:</strong> ${fileInfo.profiles?.length || 0}</span>
+              <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px;">
+                <span><strong>Prefix:</strong></span> 
+                <span style="font-family: monospace;">${fileInfo.global_prefix}</span>
+                
+                <span><strong>Target:</strong></span> 
+                <span style="font-family: monospace;">${fileInfo.meta?.target_entity || 'N/A'}</span>
+                
+                <span><strong>Profiles:</strong></span> 
+                <span>${fileInfo.profiles?.length || 0}</span>
+              </div>
+              
+              ${!validInfo.valid ? html`
+                <div style="margin-top: 12px; color: #fca5a5; font-size: 0.8rem; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; border: 1px solid rgba(255,0,0,0.2);">
+                  <div style="font-weight: bold; margin-bottom: 4px;">⚠️ Problemi rilevati:</div>
+                  <ul style="margin: 0; padding-left: 16px;">
+                    ${validInfo.errors.map(err => html`<li>${err}</li>`)}
+                  </ul>
+                </div>
+              ` : html`
+                <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05); color: #86efac; font-size: 0.8rem; display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 1rem;">✅</span> 
+                  <span>Configurazione Attiva</span>
+                </div>
+              `}
             </div>
           </div>
-        `)}
+        `})}
       </div>
     `;
   }

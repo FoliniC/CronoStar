@@ -26,7 +26,18 @@ export class CardLifecycle {
     this.card.isMenuOpen = false;
 
     try {
-      this.card.config = validateConfig(config);
+      let validated = validateConfig(config);
+      
+      // RE-APPLY CACHED METADATA: If we have cached backend data and YAML is empty/default, protect our state
+      if (this.card._backendMetaCache) {
+         const hasIncomingPrefix = !!config.global_prefix;
+         if (!hasIncomingPrefix || config.global_prefix === this.card._backendMetaCache.global_prefix) {
+            validated = { ...validated, ...this.card._backendMetaCache };
+            Logger.log('SYNC', "[CronoStar] setConfig: Protected state by re-applying cached backend metadata");
+         }
+      }
+
+      this.card.config = validated;
       Logger.log('CONFIG', 'CronoStar setConfig validated config:', this.card.config);
 
       this.card.loggingEnabled = this.card.config.logging_enabled !== false;
@@ -492,6 +503,18 @@ export class CardLifecycle {
         this.card.config = { ...this.card.config, ...response.preset_defaults };
       }
 
+      // Capture validation info
+      if (response?.validation) {
+        this.card.config = { ...this.card.config, validation: response.validation };
+        
+        // ✅ FIX: If backend says it's valid, it's definitely configured
+        if (response.validation.valid) {
+          this.card.config.not_configured = false;
+        }
+        
+        Logger.log('LOAD', '[CronoStar] Validation info updated:', response.validation);
+      }
+
       const profileData = response?.profile_data;
 
       // Robust profile name extraction
@@ -517,29 +540,15 @@ export class CardLifecycle {
         const oldSelect = this.card.config?.profiles_select_entity;
         const cleanMeta = extractCardConfig(profileData.meta);
         
-        // ✅ FORCE SYNC: Aggressively update local config with backend metadata
-        // This ensures changes made in the Integration Options Flow are reflected in the card
-        let hasChanges = false;
-        const syncKeys = ['min_value', 'max_value', 'step_value', 'title', 'unit_of_measurement', 'y_axis_label', 'allow_max_value', 'target_entity', 'logging_enabled'];
+        // Store in cache for setConfig persistence
+        this.card._backendMetaCache = { ...cleanMeta };
         
-        for (const key of syncKeys) {
-          if (cleanMeta[key] !== undefined && cleanMeta[key] !== this.card.config[key]) {
-             Logger.log('SYNC', `[CronoStar] Updating config.${key} from backend: ${this.card.config[key]} -> ${cleanMeta[key]}`);
-             hasChanges = true;
-          }
-        }
-
-        if (hasChanges) {
-             this.card.config = { ...this.card.config, ...cleanMeta };
-        } else {
-             // Still merge to catch other keys
-             this.card.config = { ...this.card.config, ...cleanMeta };
-        }
+        // ✅ FORCE SYNC: Aggressively update local config with backend metadata
+        this.card.config = { ...this.card.config, ...cleanMeta };
+        Logger.log('SYNC', "[CronoStar] Backend metadata cached and applied:", cleanMeta);
         
         const newEnabled = this.card.config?.enabled_entity;
         const newSelect = this.card.config?.profiles_select_entity;
-        
-        Logger.log('LOAD', `CronoStar updated card config from register_card metadata. enabled_entity: ${oldEnabled} -> ${newEnabled}`);
         
         // Reset warnings if entities changed
         if (oldEnabled !== newEnabled) this.loggedPauseEntityMissing = false;

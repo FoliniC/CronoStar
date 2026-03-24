@@ -23,6 +23,7 @@ export class CronoStarEditor extends LitElement {
   static get properties() {
     return {
       hass: { type: Object },
+      config: { type: Object },
       _config: { type: Object },
       _step: { type: Number },
       step: { type: Number },
@@ -30,6 +31,7 @@ export class CronoStarEditor extends LitElement {
       _automationYaml: { type: String },
       _showLlmPrompt: { type: Boolean },
       _language: { type: String },
+      language: { type: String },
       _creatingAutomation: { type: Boolean },
       _showStepError: { type: Boolean },
       // NUOVO: Proprietà reattive per Step 0 Dashboard
@@ -281,10 +283,12 @@ export class CronoStarEditor extends LitElement {
   constructor() {
     super();
     this._step = 0;
+    this.config = null;
     this._config = { ...DEFAULT_CONFIG };
     // Initialize logging preference for the editor
     this._config.logging_enabled = DEFAULT_CONFIG.logging_enabled;
-    this._language = this._config.meta?.language || (this.hass?.language ? this.hass.language.split('-')[0] : 'en');
+    this._language = 'en'; 
+    this._initialized = false; // Flag to prevent early dispatches
     this.i18n = new EditorI18n(this);
     this.wizard = new EditorWizard(this);
 
@@ -569,62 +573,84 @@ updated(changedProps) {
     `;
   }
 
-  setConfig(config) {
-    try {
-      this._config = validateConfig(config, config.logging_enabled);
+  updated(changedProperties) {
+    super.updated(changedProperties);
 
-      // IMPROVED: Check the normalized configuration
-      this._isEditing = this._config && !config.not_configured && !!this._config.global_prefix && !!this._config.target_entity;
+    // Sync step property to internal _step
+    if (changedProperties.has('step') && this.step !== undefined) {
+      console.log(`[CronoStar Editor] Step property changed to: ${this.step}`);
+      this._step = this.step;
+    }
 
-      Logger.log('CONFIG', `[Editor] setConfig - isEditing: ${this._isEditing}`, {
-        not_configured: config?.not_configured,
-        has_prefix: !!this._config.global_prefix,
-        has_target: !!this._config.target_entity
+    if (changedProperties.has('config') || changedProperties.has('language')) {      console.log("[CronoStar Editor] Component updated with properties:", { 
+        configChanged: changedProperties.has('config'), 
+        langChanged: changedProperties.has('language'),
+        passedLang: this.language 
       });
+      this.setConfig(this.config || this._config);
+    }
+  }
+
+  setConfig(config) {
+    if (!config) return;
+
+    // Detailed F12 debug log to trace the incoming configuration
+    console.group("[CronoStar Editor] setConfig Trace");
+    console.info("Target config object:", config);
+    console.info("Editor property .language:", this.language);
+
+    try {
+      // 1. Validate the incoming config
+      const validated = validateConfig(config, config.logging_enabled);
+
+      // 2. Resolve initialization logic
+      if (!this._config || this._config.not_configured || (validated.target_entity && !this._config.target_entity)) {
+         console.info("Adopting incoming config as primary source");
+         this._config = { ...validated };
+      } else {
+         console.info("Syncing incoming config with current state");
+         this._config = { ...this._config, ...validated };
+      }
+
+      // 3. Mark as editing if we have core fields
+      this._isEditing = !!this._config.target_entity && !!this._config.global_prefix;
+
+      // 4. Resolve Language immediately
+      const oldLang = this._language;
+      const metaLang = this._config.meta?.language || config.meta?.language;
+
+      if (this.language) {
+        this._language = this.language;
+      } else if (metaLang) {
+        this._language = metaLang;
+      } else if (this.hass?.language) {
+        this._language = this.hass.language.split('-')[0];
+      }
+
+      if (this._language !== oldLang) {
+        // Prevent reverting 'it' to 'en' if we are receiving a generic update
+        if (oldLang === 'it' && this._language === 'en' && !config.meta?.language) {
+           this._language = 'it';
+        } else {
+           console.info(`Language changed from ${oldLang} to ${this._language}`);
+           this.i18n = new EditorI18n(this);
+        }
+      }
+
+      this._initialized = true; 
+      console.info(`Final resolved language: ${this._language}`);
+      console.groupEnd();
+
     } catch (e) {
-      log('warn', this._config.logging_enabled, "Config validation warning:", e);
+      console.warn("[CronoStar Editor] setConfig error:", e);
+      console.groupEnd();
       this._config = { ...DEFAULT_CONFIG, ...config };
-      this._isEditing = false;
     }
 
     if (this._config.preset_type) this._selectedPreset = this._config.preset_type;
-
-    // Language resolution for editor: prefer stored meta.language, else keep current,
-    // and only fall back to hass.language if we have nothing else.
-    const storedLanguage = this._config.meta?.language;
-    if (storedLanguage) {
-      if (this._language !== storedLanguage) {
-        this._language = storedLanguage;
-      }
-    } else {
-      // Try to adopt live card language (profile meta) before hass
-      try {
-        const cardEl = this.shadowRoot?.querySelector('cronostar-card') || document.querySelector('cronostar-card');
-        const cardLang = cardEl?.language;
-        if (cardLang && this._language !== cardLang) {
-          this._language = cardLang;
-        }
-      } catch { /* ignore */ }
-
-      if (this.hass) {
-        const hassLanguage = this.hass.language ? this.hass.language.split('-')[0] : 'en';
-        if (!this._language) {
-          this._language = hassLanguage;
-        }
-      }
-    }
-
-    // Refresh automation template whenever config is updated
     this._updateAutomationYaml();
-
-    // Persist whatever we decided into config meta to prevent flips
-    this._config.meta = { ...(this._config.meta || {}), language: this._language || 'en' };
-    this.i18n = new EditorI18n(this);
-
     this._syncConfigAliases();
-  }
-
-  _isElDefined(tag) {
+  }  _isElDefined(tag) {
     return customElements.get(tag) !== undefined;
   }
 
@@ -644,13 +670,27 @@ updated(changedProps) {
     // Ensure type
     if (!out.type) out.type = 'custom:cronostar-card';
 
-    // Force not_configured to false once we are in the editor and about to persist
-    out.not_configured = false;
+    // If we are editing an existing valid config, ensure we don't accidentally mark it as not_configured
+    // unless we are explicitly resetting.
+    if (this._isEditing && !out.target_entity && this._config.target_entity) {
+       out.target_entity = this._config.target_entity;
+    }
+    if (this._isEditing && !out.global_prefix && this._config.global_prefix) {
+       out.global_prefix = this._config.global_prefix;
+    }
 
-    // Remove null/undefined/empty-string values
+    // IMPROVED: Logic for not_configured flag
+    if (cfg.not_configured === true) {
+      out.not_configured = true;
+    } else {
+      // If we have a target entity and prefix, we are definitely configured
+      const hasCore = !!out.target_entity && !!out.global_prefix;
+      out.not_configured = !hasCore;
+    }
+
+    // Remove empty-string values but preserve nulls for core keys to avoid defaulting
     for (const key of Object.keys(out)) {
-      const val = out[key];
-      if (val === null || val === undefined || val === '') {
+      if (out[key] === '') {
         delete out[key];
       }
     }
@@ -658,6 +698,15 @@ updated(changedProps) {
   }
 
   _dispatchConfigChanged(immediate = false) {
+    // PROTECT INITIALIZATION: Don't dispatch if not initialized or if we're pushing an empty config over a valid one
+    if (!this._initialized || (!this._config.target_entity && this._isEditing)) {
+       return;
+    }
+
+    if (this._step === 0 && !this._isEditing && !immediate) {
+       return;
+    }
+
     if (immediate) {
       if (this._debounceTimer) clearTimeout(this._debounceTimer);
       // Ensure type is present and correct, and pass current step

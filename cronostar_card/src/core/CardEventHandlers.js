@@ -733,6 +733,9 @@ Enabled Entity: ${enabledEntity}${stEnabled}
 === Configuration ===
 Interval: Dynamic (Time-based)
 Points in Profile: ${actualPoints}
+Min Value: ${this.card.config?.min_value ?? 'N/A'}
+Max Value: ${this.card.config?.max_value ?? 'N/A'}
+Allow Max Value: ${this.card.config?.allow_max_value ?? 'false'}
 
 === Configuration Files ===
 1. Profiles: /config/cronostar/profiles/${prefixBase}_data.json`;

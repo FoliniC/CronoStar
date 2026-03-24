@@ -24,6 +24,7 @@ from ..const import (
     CONF_Y_AXIS_LABEL,
 )
 from ..utils.error_handler import log_operation
+from ..utils.filename_builder import build_profile_filename
 from ..utils.prefix_normalizer import get_effective_prefix, normalize_preset_type
 
 _LOGGER = logging.getLogger(__name__)
@@ -443,6 +444,75 @@ class ProfileService:
             _LOGGER.error("Error deleting profile: %s", e)
             raise HomeAssistantError(f"Failed to delete profile: {e}") from e
 
+    async def delete_controller(self, call: ServiceCall) -> None:
+        """
+        Delete a controller (all profiles + config entry)
+
+        Expected data:
+            - global_prefix: str
+            - preset_type: str (optional)
+        """
+        _LOGGER.info("🚀 [DELETE_CONTROLLER] STARTING for prefix: %s", call.data.get("global_prefix"))
+        try:
+            global_prefix = call.data.get("global_prefix")
+            preset_type = call.data.get("preset_type")
+
+            if not global_prefix:
+                _LOGGER.error("❌ [DELETE_CONTROLLER] Missing global_prefix in service call data")
+                raise HomeAssistantError("global_prefix is required")
+
+            _LOGGER.debug("[DELETE_CONTROLLER] Processing prefix: %s (preset: %s)", global_prefix, preset_type)
+
+            # 1. Remove Config Entry (and associated entities)
+            found_entry = None
+            _LOGGER.debug("[DELETE_CONTROLLER] Searching config entries for prefix: %s", global_prefix)
+            for entry in self.hass.config_entries.async_entries("cronostar"):
+                _LOGGER.debug("  Checking entry: %s, data prefix: %s", entry.title, entry.data.get("global_prefix"))
+                if entry.data.get("global_prefix") == global_prefix:
+                    found_entry = entry
+                    break
+            
+            if found_entry:
+                _LOGGER.info("♻️ [DELETE_CONTROLLER] Removing Config Entry '%s' (entry_id=%s, prefix=%s)", found_entry.title, found_entry.entry_id, global_prefix)
+                await self.hass.config_entries.async_remove(found_entry.entry_id)
+                _LOGGER.info("✅ [DELETE_CONTROLLER] Config Entry removed successfully")
+            else:
+                _LOGGER.warning("⚠️ [DELETE_CONTROLLER] Config Entry not found for prefix '%s'", global_prefix)
+
+            # 2. Delete JSON file (all profiles)
+            _LOGGER.info("[DELETE_CONTROLLER] Attempting to delete storage file(s)")
+            if preset_type:
+                filename = build_profile_filename(preset_type, global_prefix)
+                filepath = self.storage.profiles_dir / filename
+                _LOGGER.debug("[DELETE_CONTROLLER] Target file: %s", filepath)
+                if filepath.exists():
+                     await self.hass.async_add_executor_job(filepath.unlink)
+                     async with self.storage._cache_lock:
+                        self.storage._cache.pop(filename, None)
+                     _LOGGER.info("✅ [DELETE_CONTROLLER] Deleted profile file: %s", filename)
+                else:
+                     _LOGGER.warning("⚠️ [DELETE_CONTROLLER] Profile file does not exist: %s", filename)
+            else:
+                # Search by prefix if preset unknown
+                 _LOGGER.info("[DELETE_CONTROLLER] Preset unknown, searching all profile files for prefix: %s", global_prefix)
+                 all_files = await self.storage.list_profiles(prefix=global_prefix)
+                 _LOGGER.debug("[DELETE_CONTROLLER] Found %d matching files", len(all_files))
+                 for filename in all_files:
+                     filepath = self.storage.profiles_dir / filename
+                     if filepath.exists():
+                         await self.hass.async_add_executor_job(filepath.unlink)
+                         async with self.storage._cache_lock:
+                            self.storage._cache.pop(filename, None)
+                         _LOGGER.info("✅ [DELETE_CONTROLLER] Deleted profile file by prefix match: %s", filename)
+
+            log_operation("Delete controller", True, prefix=global_prefix)
+            _LOGGER.info("🏁 [DELETE_CONTROLLER] COMPLETED for prefix: %s", global_prefix)
+
+        except Exception as e:
+            log_operation("Delete controller", False, prefix=global_prefix, error=str(e))
+            _LOGGER.error("❌ [DELETE_CONTROLLER] CRITICAL ERROR deleting controller: %s", e, exc_info=True)
+            raise HomeAssistantError(f"Failed to delete controller: {e}") from e
+
     async def register_card(self, call: ServiceCall) -> ServiceResponse:
         """
         Register a frontend card and return active profile and entity states.
@@ -533,10 +603,49 @@ class ProfileService:
                 # Merge config entry data into profile metadata
                 # This ensures the card gets the latest backend-configured values
                 if "meta" in data:
+                    # Get preset defaults to check if entry_data just contains defaults
+                    from ..utils.prefix_normalizer import PRESETS_CONFIG
+                    presets_defaults = PRESETS_CONFIG.get(preset, {})
+
                     for key in [CONF_TITLE, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_STEP_VALUE, 
                                CONF_UNIT_OF_MEASUREMENT, CONF_Y_AXIS_LABEL, CONF_ALLOW_MAX_VALUE]:
-                        if key in entry_data and entry_data[key] is not None:
-                            data["meta"][key] = entry_data[key]
+                        val = entry_data.get(key)
+                        if val is not None:
+                            # 1. Skip if it's an empty string and we have a value in profile
+                            if isinstance(val, str) and val.strip() == "" and data["meta"].get(key):
+                                continue
+                            
+                            # 2. Skip 'Suspicious Defaults' from ConfigEntry that likely haven't been intentionally set
+                            # (They override valid profile data because they differ from preset defaults, but they are generic junk)
+                            
+                            # Case A: max_value is 100.0 (generic config_flow default)
+                            if key == CONF_MAX_VALUE and val == 100.0 and presets_defaults.get(CONF_MAX_VALUE) != 100.0:
+                                continue
+                            
+                            # Case A2: min_value is 0.0 (common generic default)
+                            if key == CONF_MIN_VALUE and val == 0.0 and presets_defaults.get(CONF_MIN_VALUE) != 0.0:
+                                if data["meta"].get(key) is not None and data["meta"].get(key) != 0.0:
+                                    continue
+
+                            # Case B: allow_max_value is False but preset default is True (common for EV Charging)
+                            if key == CONF_ALLOW_MAX_VALUE and val is False and presets_defaults.get(CONF_ALLOW_MAX_VALUE) is True:
+                                # Only skip if profile ALSO says True (meaning it's definitely an unwanted override)
+                                if data["meta"].get(key) is True:
+                                    continue
+
+                            # Case C: step_value is 1.0 (common generic default) but preset default is different (e.g. 0.5)
+                            if key == CONF_STEP_VALUE and val == 1.0 and presets_defaults.get(CONF_STEP_VALUE) != 1.0:
+                                if data["meta"].get(key) is not None and data["meta"].get(key) != 1.0:
+                                    continue
+
+                            # 3. Skip if it matches the preset default (already handled by preset_defaults in frontend)
+                            # to avoid overwriting profile-specific values with preset-defaults
+                            preset_def = presets_defaults.get(key if key != CONF_UNIT_OF_MEASUREMENT else "unit")
+                            if val == preset_def and data["meta"].get(key) is not None:
+                                if val != data["meta"].get(key):
+                                    continue
+
+                            data["meta"][key] = val
                 
                 response["profile_data"] = data
             else:
@@ -546,7 +655,27 @@ class ProfileService:
         except Exception as e:
             _LOGGER.error("[REGISTER] Critical error loading profile: %s", e)
 
-        # 3. Populate entity states using Entity Registry for accurate lookups
+        # 4. Perform dynamic validation for the card
+        validation_errors = []
+        if not global_prefix:
+            validation_errors.append("Missing global prefix")
+        
+        target_ent_check = None
+        if response.get("profile_data") and "meta" in response["profile_data"]:
+             target_ent_check = response["profile_data"]["meta"].get("target_entity")
+        
+        if not target_ent_check:
+             validation_errors.append("Target entity not configured")
+        elif not self.hass.states.get(target_ent_check):
+             if self.hass.is_running:
+                 validation_errors.append(f"Target entity '{target_ent_check}' not found")
+        
+        response["validation"] = {
+            "valid": len(validation_errors) == 0,
+            "errors": validation_errors
+        }
+
+        # 5. Populate entity states using Entity Registry for accurate lookups
         try:
             er = er_helper.async_get(self.hass)
             

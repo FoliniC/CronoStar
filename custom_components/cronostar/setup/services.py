@@ -65,6 +65,13 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
     hass.services.async_register(DOMAIN, "delete_profile", delete_profile_handler)
 
+    async def delete_controller_handler(call: ServiceCall):
+        """Handle delete_controller service call."""
+        await profile_service.delete_controller(call)
+        _LOGGER.info("Controller deleted: %s", call.data.get("global_prefix"))
+
+    hass.services.async_register(DOMAIN, "delete_controller", delete_controller_handler)
+
     async def register_card_handler(call: ServiceCall) -> ServiceResponse:
         """Handle register_card service call."""
         return await profile_service.register_card(call)
@@ -116,6 +123,24 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
                         "global_prefix": global_prefix,
                         "meta": data.get("meta", {}),
                         "profiles": [],
+                    }
+
+                    # Basic validation logic
+                    validation_errors = []
+                    if not global_prefix:
+                        validation_errors.append("Missing global prefix")
+                    
+                    target_entity = data["meta"].get("target_entity")
+                    if not target_entity:
+                        validation_errors.append("Target entity not configured")
+                    elif not hass.states.get(target_entity):
+                        # Only flag as error if HA is fully started, to avoid false positives during startup
+                        if hass.is_running:
+                            validation_errors.append(f"Target entity '{target_entity}' not found")
+
+                    file_info["validation"] = {
+                        "valid": len(validation_errors) == 0,
+                        "errors": validation_errors
                     }
 
                     for profile_name, profile_content in data["profiles"].items():

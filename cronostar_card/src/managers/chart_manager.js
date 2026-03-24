@@ -406,6 +406,7 @@ export class ChartManager {
           min: 0,
           max: 1440,
           ticks: {
+            color: 'var(--primary-text-color)',
             stepSize: 120,
             maxRotation: 90,
             minRotation: 0,
@@ -413,13 +414,20 @@ export class ChartManager {
             includeBounds: true,
             callback: (v) => (v === 1439 || v === 1440) ? '23:59' : minutesToTime(v)
           },
-          grid: { color: 'rgba(0, 0, 0, 0.05)' },
-          title: { display: true, text: this._getLocalizedLabel('Time') }
+          grid: { 
+            display: true,
+            color: 'rgba(128, 128, 128, 0.35)',
+            drawOnChartArea: true,
+            drawTicks: true,
+            lineWidth: 1
+          },
+          title: { display: true, text: this._getLocalizedLabel('Time'), color: 'var(--primary-text-color)' }
         },
         y: {
           min: isSwitch ? -0.1 : minValue,
           max: isSwitch ? 1.1 : maxValue,
           ticks: {
+            color: 'var(--primary-text-color)',
             stepSize: isSwitch ? 1 : undefined,
             precision: 1,
             callback: (value) => {
@@ -435,8 +443,14 @@ export class ChartManager {
               return '';
             }
           },
-          grid: { color: 'rgba(0, 0, 0, 0.1)' },
-          title: { display: true, text: this._getLocalizedLabel(config.y_axis_label || 'Value') }
+          grid: { 
+            display: true,
+            color: 'rgba(128, 128, 128, 0.35)',
+            drawOnChartArea: true,
+            drawTicks: true,
+            lineWidth: 1
+          },
+          title: { display: true, text: this._getLocalizedLabel(config.y_axis_label || 'Value'), color: 'var(--primary-text-color)' }
         }
       },
       plugins: {

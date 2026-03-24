@@ -154,6 +154,7 @@ export class CronoStarCard extends LitElement {
     this.editorStep = 0;
     this.contextMenu = { show: false, x: 0, y: 0 };
     this.modificationCounter = 0;
+    this._backendMetaCache = null;
     this.globalSettings = {
       keyboard: {
         def: { horizontal: 5, vertical: 0.5 },
@@ -309,6 +310,18 @@ export class CronoStarCard extends LitElement {
   }
 
   render() {
+    const isEditor = this.isEditorContext();
+    const isPreview = this.isPreview;
+    const isWaitingForData = !isEditor && !isPreview && !this.initialLoadComplete;
+    
+    if (isWaitingForData && !this._loggedWait) {
+       console.info("[CronoStar] Render: Waiting for data overlay active", { initialLoadComplete: this.initialLoadComplete });
+       this._loggedWait = true;
+    } else if (!isWaitingForData && this._loggedWait) {
+       console.info("[CronoStar] Render: Data loaded, hiding overlay", { initialLoadComplete: this.initialLoadComplete });
+       this._loggedWait = false;
+    }
+
     return this.cardRenderer ? this.cardRenderer.render() : null;
   }
 
@@ -330,9 +343,53 @@ export class CronoStarCard extends LitElement {
   }
 
   handleEditConfig(step = 0) {
+    console.info("[CronoStar] Opening internal wizard. Saving config backup.");
+    this._lastGoodConfig = this.config ? JSON.parse(JSON.stringify(this.config)) : null;
     this.isMenuOpen = false;
     this.editorStep = step;
     this.isEditorInternal = true;
     this.requestUpdate();
+  }
+
+  async handleDeleteController() {
+    const isIt = this.language === 'it';
+    const prefix = this.config?.global_prefix;
+    const preset = this.config?.preset_type || 'thermostat';
+
+    const confirmMsg = isIt 
+      ? `Sei sicuro di voler eliminare definitivamente il controller '${prefix}' e tutti i suoi profili? Questa azione rimuoverà anche le entità associate.`
+      : `Are you sure you want to permanently delete the controller '${prefix}' and all its profiles? This will also remove associated entities.`;
+
+    if (!confirm(confirmMsg)) {
+      return;
+    }
+
+    try {
+      await this.hass.callService('cronostar', 'delete_controller', {
+        global_prefix: prefix,
+        preset_type: preset
+      });
+
+      if (this.eventHandlers) {
+        this.eventHandlers.showNotification(
+          isIt ? 'Controller eliminato con successo' : 'Controller deleted successfully',
+          'success'
+        );
+      }
+      
+      // Ricarica la pagina per aggiornare la dashboard YAML
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+
+    } catch (e) {
+      console.error('Failed to delete controller:', e);
+      if (this.eventHandlers) {
+        this.eventHandlers.showNotification(
+          (isIt ? 'Errore eliminazione: ' : 'Delete failed: ') + e.message,
+          'error'
+        );
+      }
+    }
   }
 }
