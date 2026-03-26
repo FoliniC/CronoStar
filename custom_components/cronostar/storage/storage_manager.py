@@ -87,13 +87,9 @@ class StorageManager:
                 profile_entry["profiles_select_entity"] = metadata["profiles_select_entity"]
             if "target_entity" in metadata:
                 profile_entry["target_entity"] = metadata["target_entity"]
-            
+
             # Consolidated entities list for easy discovery
-            profile_entry["entities"] = [
-                metadata.get("target_entity"),
-                metadata.get("enabled_entity"),
-                metadata.get("profiles_select_entity")
-            ]
+            profile_entry["entities"] = [metadata.get("target_entity"), metadata.get("enabled_entity"), metadata.get("profiles_select_entity")]
             # Filter out None values
             profile_entry["entities"] = [e for e in profile_entry["entities"] if e]
 
@@ -135,7 +131,7 @@ class StorageManager:
             Profile container or None
         """
         filepath = self.profiles_dir / filename
-        
+
         async with self._cache_lock:
             # Check cache if not forcing reload
             if not force_reload and filename in self._cache:
@@ -366,19 +362,20 @@ class StorageManager:
         """Update the active profile in the container metadata."""
         try:
             from ..utils.filename_builder import build_profile_filename
+
             filename = build_profile_filename(preset_type, global_prefix)
             filepath = self.profiles_dir / filename
-            
+
             container = await self._load_container(filepath)
             if not container:
                 return False
-                
+
             container.setdefault("meta", {})
             container["meta"]["last_active_profile"] = active_profile
             container["meta"]["updated_at"] = datetime.now().isoformat()
-            
+
             await self._write_json(filepath, container)
-            
+
             # Update cache
             async with self._cache_lock:
                 self._cache[filename] = container
@@ -386,7 +383,7 @@ class StorageManager:
                     self._cache_mtimes[filename] = await self.hass.async_add_executor_job(os.path.getmtime, filepath)
                 except OSError:
                     self._cache_mtimes[filename] = 0
-                    
+
             _LOGGER.debug("Updated active profile to '%s' in %s", active_profile, filename)
             return True
         except Exception as e:

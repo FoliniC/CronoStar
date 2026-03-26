@@ -14,12 +14,9 @@ from homeassistant.core import HomeAssistant
 _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_SETTINGS = {
-    "keyboard": {
-        "ctrl": {"horizontal": 1, "vertical": 0.1},
-        "shift": {"horizontal": 30, "vertical": 1.0},
-        "alt": {"horizontal": 60, "vertical": 5.0}
-    }
+    "keyboard": {"ctrl": {"horizontal": 1, "vertical": 0.1}, "shift": {"horizontal": 30, "vertical": 1.0}, "alt": {"horizontal": 60, "vertical": 5.0}}
 }
+
 
 class SettingsManager:
     """Manages global settings for CronoStar"""
@@ -44,14 +41,12 @@ class SettingsManager:
                 return self._settings
 
             try:
-                content = await self.hass.async_add_executor_job(
-                    self.settings_file.read_text, "utf-8"
-                )
+                content = await self.hass.async_add_executor_job(self.settings_file.read_text, "utf-8")
                 self._settings = json.loads(content)
-                
+
                 # Merge with defaults to ensure all keys exist
                 self._settings = self._deep_merge(DEFAULT_SETTINGS, self._settings)
-                
+
                 return self._settings
             except Exception as e:
                 _LOGGER.error("Error loading settings: %s", e)
@@ -67,9 +62,7 @@ class SettingsManager:
         """Save settings while holding the lock"""
         try:
             json_str = json.dumps(self._settings, indent=2, ensure_ascii=False)
-            await self.hass.async_add_executor_job(
-                self.settings_file.write_text, json_str, "utf-8"
-            )
+            await self.hass.async_add_executor_job(self.settings_file.write_text, json_str, "utf-8")
             return True
         except Exception as e:
             _LOGGER.error("Error saving settings: %s", e)

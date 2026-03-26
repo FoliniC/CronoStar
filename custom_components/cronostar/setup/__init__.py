@@ -3,15 +3,16 @@ CronoStar Setup - Global component initialization
 Handles one-time setup tasks (services, storage, frontend resources, panel)
 """
 
-import logging
 import json
-import yaml
+import logging
 import os
 from pathlib import Path
 
 from homeassistant.components.frontend import add_extra_js_url, async_register_built_in_panel, async_remove_panel
+
 try:
     from homeassistant.components.http import StaticPathConfig
+
     HAS_STATIC_PATH_CONFIG = True
 except ImportError:
     HAS_STATIC_PATH_CONFIG = False
@@ -19,19 +20,19 @@ except ImportError:
 from homeassistant.core import HomeAssistant
 from homeassistant.loader import async_get_integration
 
-from ..storage.storage_manager import StorageManager
-from ..storage.settings_manager import SettingsManager
 from ..const import DOMAIN
-from .services import setup_services
+from ..storage.settings_manager import SettingsManager
+from ..storage.storage_manager import StorageManager
 from .events import setup_event_handlers
+from .services import setup_services
 from .validators import validate_environment
 
 _LOGGER = logging.getLogger(__name__)
 
 # URL stabile
-PANEL_URL_PATH  = "cronostar-panel-v5841"
-PANEL_TITLE     = "CronoStar Dashboard"
-PANEL_ICON      = "mdi:clock-edit"
+PANEL_URL_PATH = "cronostar-panel-v5841"
+PANEL_TITLE = "CronoStar Dashboard"
+PANEL_ICON = "mdi:clock-edit"
 
 # File YAML della dashboard (relativo alla config dir di HA)
 DASHBOARD_YAML_FILENAME = "cronostar_dashboard_v5841.yaml"
@@ -48,14 +49,14 @@ async def async_setup_integration(hass: HomeAssistant, config: dict) -> bool:
         return False
 
     cronostar_dir = hass.config.path("cronostar")
-    profiles_dir  = hass.config.path("cronostar/profiles")
-    storage_manager  = StorageManager(hass, profiles_dir)
+    profiles_dir = hass.config.path("cronostar/profiles")
+    storage_manager = StorageManager(hass, profiles_dir)
     settings_manager = SettingsManager(hass, cronostar_dir)
 
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN]["storage_manager"]  = storage_manager
+    hass.data[DOMAIN]["storage_manager"] = storage_manager
     hass.data[DOMAIN]["settings_manager"] = settings_manager
-    
+
     # Store version passed from __init__.py
     if "version" in config:
         hass.data[DOMAIN]["version"] = config["version"]
@@ -79,9 +80,16 @@ async def _setup_dashboard(hass: HomeAssistant) -> None:
     try:
         # 1. Pulizia massiva di TUTTI i possibili vecchi percorsi
         all_possible_paths = [
-            "cronostar", "cronostar-dashboard", "cronostar-v5",
-            "cronostar-admin", "cronostar-v6", "cronostar-admin-final",
-            "cronostar-admin-v57", "cronostar-v572", "cronostar-panel-v573", PANEL_URL_PATH
+            "cronostar",
+            "cronostar-dashboard",
+            "cronostar-v5",
+            "cronostar-admin",
+            "cronostar-v6",
+            "cronostar-admin-final",
+            "cronostar-admin-v57",
+            "cronostar-v572",
+            "cronostar-panel-v573",
+            PANEL_URL_PATH,
         ]
 
         # Rimuove tutti i file .storage lovelace.cronostar* per evitare
@@ -119,10 +127,7 @@ async def _setup_dashboard(hass: HomeAssistant) -> None:
             require_admin=False,
             update=True,
         )
-        _LOGGER.warning(
-            "✅ [DASHBOARD] Panel registered at /%s using %s",
-            PANEL_URL_PATH, abs_yaml_path
-        )
+        _LOGGER.warning("✅ [DASHBOARD] Panel registered at /%s using %s", PANEL_URL_PATH, abs_yaml_path)
 
         # 4. Registra nel backend Lovelace
         await _register_lovelace_dashboard(hass, abs_yaml_path)
@@ -142,7 +147,7 @@ async def _register_lovelace_dashboard(hass: HomeAssistant, abs_yaml_path: str) 
 
         lovelace_data = hass.data["lovelace"]
         _LOGGER.warning("[DASHBOARD] DEBUG: hass.data['lovelace'] type: %s", type(lovelace_data))
-        
+
         # Gestisce sia oggetto LovelaceData che eventuale dizionario
         dashboards = getattr(lovelace_data, "dashboards", None)
         if dashboards is None and isinstance(lovelace_data, dict):
@@ -163,10 +168,7 @@ async def _register_lovelace_dashboard(hass: HomeAssistant, abs_yaml_path: str) 
             PANEL_URL_PATH,
             {"mode": "yaml", "filename": abs_yaml_path},
         )
-        _LOGGER.warning(
-            "✅ [DASHBOARD] Lovelace backend registration successful: %s",
-            PANEL_URL_PATH
-        )
+        _LOGGER.warning("✅ [DASHBOARD] Lovelace backend registration successful: %s", PANEL_URL_PATH)
 
     except Exception as e:
         _LOGGER.error("[DASHBOARD] Failed to register dashboard: %s", e, exc_info=True)
@@ -179,8 +181,8 @@ async def _write_dashboard_yaml(hass: HomeAssistant, filename: str) -> None:
     non presenta edge case di formattazione (stringhe multiline, caratteri
     Unicode, valori None) che causano la vista vuota 'Nuova sezione'.
     """
-    import json
     import time
+
     now_str = time.strftime("%H:%M:%S")
     yaml_path = hass.config.path(filename)
     _LOGGER.warning("!!! [DASHBOARD] WRITING YAML TO DISK: %s at %s !!!", yaml_path, now_str)
@@ -192,19 +194,16 @@ async def _write_dashboard_yaml(hass: HomeAssistant, filename: str) -> None:
         # Recupera controller reali
         entries = hass.config_entries.async_entries(DOMAIN)
         real_controllers = [e for e in entries if not e.data.get("component_installed")]
-        controller_count = len(real_controllers)
 
         cards = []
 
         # Intestazione
-        cards.append({
-            "type": "markdown",
-            "content": (
-                f"## CronoStar Admin Dashboard\n"
-                f"Versione: **v{version}** | Aggiornato: **{now_str}**\n"
-                f"*Dashboard in modalita YAML (Read-only UI)*"
-            ),
-        })
+        cards.append(
+            {
+                "type": "markdown",
+                "content": (f"## CronoStar Admin Dashboard\nVersione: **v{version}** | Aggiornato: **{now_str}**\n*Dashboard in modalita YAML (Read-only UI)*"),
+            }
+        )
 
         # Controllers
         for entry in real_controllers:
@@ -212,8 +211,8 @@ async def _write_dashboard_yaml(hass: HomeAssistant, filename: str) -> None:
             # che alcuni parser HA non gestiscono correttamente
             card = {
                 "type": "custom:cronostar-card",
-                "view_mode": "admin", # ← FIX: attiva la modalità box compatto
-                "not_configured": False, # ← FIX: forza lo stato configurato per evitare il default 'true'
+                "view_mode": "admin",  # ← FIX: attiva la modalità box compatto
+                "not_configured": False,  # ← FIX: forza lo stato configurato per evitare il default 'true'
                 "preset_type": entry.data.get("preset_type"),
                 "global_prefix": entry.data.get("global_prefix"),
                 "target_entity": entry.data.get("target_entity"),
@@ -231,13 +230,7 @@ async def _write_dashboard_yaml(hass: HomeAssistant, filename: str) -> None:
             cards.append(card)
 
         # Aggiunge SEMPRE un box 'Aggiungi Nuovo' alla fine della lista (stile Admin Box)
-        cards.append({
-            "type": "custom:cronostar-card",
-            "view_mode": "admin",
-            "not_configured": True,
-            "preset_type": "thermostat",
-            "title": "Nuovo Controller"
-        })
+        cards.append({"type": "custom:cronostar-card", "view_mode": "admin", "not_configured": True, "preset_type": "thermostat", "title": "Nuovo Controller"})
 
         # Struttura Lovelace — view standard senza 'type: panel' o 'type: sections'
         # per massima compatibilità con tutte le versioni di HA
@@ -286,6 +279,7 @@ async def _setup_static_resources(hass: HomeAssistant) -> bool:
         integration = await async_get_integration(hass, "cronostar")
         version = integration.version
         import time
+
         boot_id = int(time.time())
 
         if "frontend" in hass.config.components:

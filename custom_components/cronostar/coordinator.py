@@ -9,12 +9,12 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     CONF_ALLOW_MAX_VALUE,
+    CONF_FRONTEND_VERSION_CHECK,
     CONF_LOGGING_ENABLED,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_NAME,
     CONF_PRESET_TYPE,
-    CONF_FRONTEND_VERSION_CHECK,
     CONF_STEP_VALUE,
     CONF_TARGET_ENTITY,
     CONF_TITLE,
@@ -44,16 +44,13 @@ class CronoStarCoordinator(DataUpdateCoordinator):
         # Get logging preference (Global setting overrides/defaults, fallback to entry for legacy)
         global_logging = hass.data.get(DOMAIN, {}).get("logging_enabled", False)
         global_config = hass.data.get(DOMAIN, {}).get("global_config", {})
-        
+
         # Check both options and data for the logging flag
         entry_logging = entry.options.get(CONF_LOGGING_ENABLED, entry.data.get(CONF_LOGGING_ENABLED, False))
         self.logging_enabled = global_logging or entry_logging
-        
+
         # Version check preference
-        self.version_check_enabled = entry.options.get(
-            CONF_FRONTEND_VERSION_CHECK, 
-            global_config.get(CONF_FRONTEND_VERSION_CHECK, True)
-        )
+        self.version_check_enabled = entry.options.get(CONF_FRONTEND_VERSION_CHECK, global_config.get(CONF_FRONTEND_VERSION_CHECK, True))
 
         if self.logging_enabled:
             _LOGGER.info("CronoStarCoordinator initialized for '%s' (entry_id: %s, logging=%s)", entry.title, entry.entry_id, self.logging_enabled)
@@ -162,7 +159,9 @@ class CronoStarCoordinator(DataUpdateCoordinator):
                             self.selected_profile = self.available_profiles[0]
 
                     if self.logging_enabled:
-                        _LOGGER.info("[COORDINATOR] '%s' initialized with %d profiles (active: %s)", self.name, len(self.available_profiles), self.selected_profile)
+                        _LOGGER.info(
+                            "[COORDINATOR] '%s' initialized with %d profiles (active: %s)", self.name, len(self.available_profiles), self.selected_profile
+                        )
             else:
                 if self.logging_enabled:
                     _LOGGER.info("[COORDINATOR] '%s' initialized (no profiles found)", self.name)
@@ -214,16 +213,12 @@ class CronoStarCoordinator(DataUpdateCoordinator):
             return
 
         self.selected_profile = profile_name
-        
+
         # Persist selection to metadata
-        success = await self.storage_manager.update_active_profile(
-            self.preset_type, 
-            self.prefix, 
-            self.selected_profile
-        )
+        success = await self.storage_manager.update_active_profile(self.preset_type, self.prefix, self.selected_profile)
         if self.logging_enabled:
-             _LOGGER.info("[PERSIST_TRACE] update_active_profile result: %s", success)
-        
+            _LOGGER.info("[PERSIST_TRACE] update_active_profile result: %s", success)
+
         await self.async_refresh()
 
     async def set_enabled(self, enabled: bool):
@@ -323,27 +318,35 @@ class CronoStarCoordinator(DataUpdateCoordinator):
 
             if success:
                 status = "ON" if (domain in ["switch", "light", "fan"] and value > 0) else "OFF" if (domain in ["switch", "light", "fan"]) else str(value)
-                
+
                 # Always log the application if it was successful, using INFO level
                 _LOGGER.info(
                     "🔷 [COORDINATOR] Applied '%s' to '%s' (Profile: %s, Status: %s, Service: %s)",
-                    value, entity_id, self.selected_profile, status, service_called
+                    value,
+                    entity_id,
+                    self.selected_profile,
+                    status,
+                    service_called,
                 )
-                
+
                 # Highlighted log line with profile and next scheduled change
                 if next_change:
                     next_time_str, minutes_until = next_change
                     _LOGGER.info(
-                        "🔶⏱️ Next scheduled change for profile '%s' on %s at %s (in %d min)",
-                        self.selected_profile, entity_id, next_time_str, minutes_until
+                        "🔶⏱️ Next scheduled change for profile '%s' on %s at %s (in %d min)", self.selected_profile, entity_id, next_time_str, minutes_until
                     )
                 else:
-                    _LOGGER.info(
-                        "🔶⏱️ No further changes scheduled for profile '%s' on %s",
-                        self.selected_profile, entity_id
-                    )
-                
-                log_operation("Apply scheduled value", True, name=self.name, entity=entity_id, value=value, service=service_called, profile=self.selected_profile)
+                    _LOGGER.info("🔶⏱️ No further changes scheduled for profile '%s' on %s", self.selected_profile, entity_id)
+
+                log_operation(
+                    "Apply scheduled value",
+                    True,
+                    name=self.name,
+                    entity=entity_id,
+                    value=value,
+                    service=service_called,
+                    profile=self.selected_profile,
+                )
 
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Failed to update target entity '%s': %s", entity_id, e)

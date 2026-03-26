@@ -12,6 +12,8 @@ This integration provides:
 
 import logging
 import re
+from datetime import UTC
+from pathlib import Path
 
 from homeassistant.components import frontend
 from homeassistant.config_entries import ConfigEntry
@@ -19,23 +21,22 @@ from homeassistant.core import HomeAssistant
 from homeassistant.loader import async_get_integration
 
 from .const import (
+    CONF_FRONTEND_VERSION_CHECK,
+    CONF_GLOBAL_PREFIX,
+    CONF_LANGUAGE,
+    CONF_LOGGING_ENABLED,
     CONF_NAME,
     CONF_PRESET,
     CONF_TARGET_ENTITY,
     DOMAIN,
     PLATFORMS,
-    CONF_LOGGING_ENABLED,
-    CONF_FRONTEND_VERSION_CHECK,
-    CONF_LANGUAGE,
-    CONF_GLOBAL_PREFIX,
     STORAGE_DIR,
 )
 from .coordinator import CronoStarCoordinator
-from .setup import async_setup_integration
-from .setup import PANEL_URL_PATH
-from pathlib import Path
+from .setup import PANEL_URL_PATH, async_setup_integration
 
 _LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     """Set up CronoStar component from YAML (deprecated, kept for backward compatibility)."""
@@ -85,12 +86,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if entry.title != expected_title:
             _LOGGER.info("Updating global component title: %s -> %s", entry.title, expected_title)
             hass.config_entries.async_update_entry(entry, title=expected_title)
-        
+
         # Store global configuration in hass.data for services to access
         global_config = {
             CONF_LOGGING_ENABLED: entry.options.get(CONF_LOGGING_ENABLED, False),
             CONF_FRONTEND_VERSION_CHECK: entry.options.get(CONF_FRONTEND_VERSION_CHECK, True),
-            CONF_LANGUAGE: entry.options.get(CONF_LANGUAGE, "default")
+            CONF_LANGUAGE: entry.options.get(CONF_LANGUAGE, "default"),
         }
         hass.data[DOMAIN]["global_config"] = global_config
         _LOGGER.info("✅ CronoStar: Global component entry set up. Config: %s", global_config)
@@ -148,7 +149,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Installation-only entry: remove global data and services will be handled by HA
         if DOMAIN in hass.data:
             hass.data.pop(DOMAIN)
-        
+
         # Remove sidebar panel
         try:
             frontend.async_remove_panel(hass, PANEL_URL_PATH)
@@ -180,7 +181,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     Backup files are always preserved to allow manual recovery.
     """
     import json
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     if entry.data.get("component_installed"):
         _LOGGER.info("🗑️ CronoStar: Global component entry removed")
@@ -201,22 +202,23 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         # ── Mark the profile file as deleted (preserving data for future import) ──
         if filepath.exists():
             try:
+
                 def _mark_as_deleted() -> str:
                     """Read, annotate and rename the profile file."""
-                    with open(filepath, "r", encoding="utf-8") as f:
+                    with open(filepath, encoding="utf-8") as f:
                         data = json.load(f)
 
                     # Inject deletion metadata so the config flow can recognise
                     # this file and offer the user an import option
                     data.setdefault("meta", {})
-                    data["meta"]["_deleted_at"] = datetime.now(timezone.utc).isoformat()
+                    data["meta"]["_deleted_at"] = datetime.now(UTC).isoformat()
                     data["meta"]["_deleted_entry_title"] = entry.title
                     data["meta"]["_deleted_global_prefix"] = global_prefix
                     data["meta"]["_deleted_preset_type"] = preset_type
 
                     # Rename to <stem>_deleted_<timestamp>.json to prevent
                     # automatic re-loading while keeping it discoverable
-                    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+                    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
                     deleted_path = filepath.parent / f"{filepath.stem}_deleted_{timestamp}.json"
 
                     with open(deleted_path, "w", encoding="utf-8") as f:
@@ -226,17 +228,11 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
                     return deleted_path.name
 
                 deleted_name = await hass.async_add_executor_job(_mark_as_deleted)
-                _LOGGER.info(
-                    "✅ CronoStar: Profile marked as deleted and preserved as: %s", deleted_name
-                )
+                _LOGGER.info("✅ CronoStar: Profile marked as deleted and preserved as: %s", deleted_name)
             except Exception as e:
-                _LOGGER.error(
-                    "❌ CronoStar: Failed to mark profile '%s' as deleted: %s", filename, e
-                )
+                _LOGGER.error("❌ CronoStar: Failed to mark profile '%s' as deleted: %s", filename, e)
 
         # ── Backup files are intentionally preserved for manual recovery ──
         backups_dir = profiles_dir / "backups"
         if backups_dir.exists():
-            _LOGGER.info(
-                "ℹ️ CronoStar: Backup files for '%s' preserved in: %s", filename, backups_dir
-            )
+            _LOGGER.info("ℹ️ CronoStar: Backup files for '%s' preserved in: %s", filename, backups_dir)

@@ -30,7 +30,7 @@ class CronoStarEnabledSwitch(CoordinatorEntity, SwitchEntity):
         # Unique ID remains based on global_prefix
         self._attr_unique_id = f"{coordinator.prefix}enabled"
         self._attr_name = None  # Handled by translation key
-        
+
         # Explicit entity_id to prevent HA truncation (e.g. switch.cronostar_ev)
         self.entity_id = f"switch.{coordinator.prefix}enabled"
 

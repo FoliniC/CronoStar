@@ -93,20 +93,19 @@ class CronoStarCurrentSensor(CoordinatorEntity, SensorEntity):
                 "is_enabled": True,
                 "target_entity": self.coordinator.target_entity,
             }
-        
+
         attrs = {
             "active_profile": self.coordinator.data.get("selected_profile"),
             "is_enabled": self.coordinator.data.get("is_enabled", True),
             "target_entity": self.coordinator.target_entity,
         }
-        
+
         # Merge card configuration into attributes
         card_config = self.coordinator.data.get("card_config", {})
-        for key in [CONF_TITLE, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_STEP_VALUE, 
-                   CONF_UNIT_OF_MEASUREMENT, CONF_Y_AXIS_LABEL, CONF_ALLOW_MAX_VALUE]:
+        for key in [CONF_TITLE, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_STEP_VALUE, CONF_UNIT_OF_MEASUREMENT, CONF_Y_AXIS_LABEL, CONF_ALLOW_MAX_VALUE]:
             if key in card_config:
                 attrs[key] = card_config[key]
-                
+
         return attrs
 
     @property

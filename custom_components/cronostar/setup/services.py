@@ -7,8 +7,8 @@ from homeassistant.exceptions import HomeAssistantError
 from ..const import DOMAIN
 from ..exceptions import ProfileNotFoundError, ScheduleApplicationError
 from ..services.profile_service import ProfileService
-from ..storage.storage_manager import StorageManager
 from ..storage.settings_manager import SettingsManager
+from ..storage.storage_manager import StorageManager
 from ..utils.error_handler import log_operation
 
 _LOGGER = logging.getLogger(__name__)
@@ -129,7 +129,7 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
                     validation_errors = []
                     if not global_prefix:
                         validation_errors.append("Missing global prefix")
-                    
+
                     target_entity = data["meta"].get("target_entity")
                     if not target_entity:
                         validation_errors.append("Target entity not configured")
@@ -138,10 +138,7 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
                         if hass.is_running:
                             validation_errors.append(f"Target entity '{target_entity}' not found")
 
-                    file_info["validation"] = {
-                        "valid": len(validation_errors) == 0,
-                        "errors": validation_errors
-                    }
+                    file_info["validation"] = {"valid": len(validation_errors) == 0, "errors": validation_errors}
 
                     for profile_name, profile_content in data["profiles"].items():
                         file_info["profiles"].append(
@@ -294,7 +291,11 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
             if next_time_str is not None and next_in_minutes is not None:
                 _LOGGER.info(
                     "🔷⏱️ Manual apply for profile '%s' on %s at %s (graph) → next change at %s (in %d min)",
-                    profile_name, target_entity, current_time_str, next_time_str, next_in_minutes
+                    profile_name,
+                    target_entity,
+                    current_time_str,
+                    next_time_str,
+                    next_in_minutes,
                 )
 
             log_operation(
@@ -336,8 +337,6 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
 
 async def async_unload_services(hass: HomeAssistant) -> None:
-
-
     """
 
 
@@ -346,30 +345,20 @@ async def async_unload_services(hass: HomeAssistant) -> None:
 
     """
 
-
     _LOGGER.info("🗑️ Unregistering CronoStar services...")
-
 
     await hass.services.async_remove(DOMAIN, "save_profile")
 
-
     await hass.services.async_remove(DOMAIN, "load_profile")
-
 
     await hass.services.async_remove(DOMAIN, "add_profile")
 
-
     await hass.services.async_remove(DOMAIN, "delete_profile")
-
 
     await hass.services.async_remove(DOMAIN, "register_card")
 
-
     await hass.services.async_remove(DOMAIN, "list_all_profiles")
-
 
     await hass.services.async_remove(DOMAIN, "apply_now")
 
-
     _LOGGER.info("✅ CronoStar services unregistered.")
-
