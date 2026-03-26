@@ -1,10 +1,10 @@
-import Chart from 'chart.js/auto';
-import dragDataPlugin from 'chartjs-plugin-dragdata';
-import zoomPlugin from 'chartjs-plugin-zoom';
+import Chart from "chart.js/auto";
+import dragDataPlugin from "chartjs-plugin-dragdata";
+import zoomPlugin from "chartjs-plugin-zoom";
 
-import { Logger, timeToMinutes, minutesToTime } from '../utils.js';
-import { Events } from '../core/EventBus.js';
-import { COLORS } from '../config.js';
+import { Logger, timeToMinutes, minutesToTime } from "../utils.js";
+import { Events } from "../core/EventBus.js";
+import { COLORS } from "../config.js";
 
 // Explicitly register plugins (Reference: CronoStar.new)
 Chart.register(dragDataPlugin, zoomPlugin);
@@ -40,7 +40,8 @@ export class ChartManager {
   _onWindowPointerMove(e) {
     try {
       if (!this._hDragActive) return;
-      if (this._hDragPointerId !== null && e.pointerId !== this._hDragPointerId) return;
+      if (this._hDragPointerId !== null && e.pointerId !== this._hDragPointerId)
+        return;
       if (!this.chart) return;
       if (this.context._card.pointerSelecting) return;
 
@@ -76,16 +77,30 @@ export class ChartManager {
 
       minutes = Math.round(minutes / snapMinutes) * snapMinutes;
 
-      const boundsActive = this.dragBounds?.[activeIndex] || { left: 0, right: 1440 };
-      const clampedActive = Math.max(boundsActive.left, Math.min(boundsActive.right, minutes));
-      const dxMinutes = clampedActive - Math.round(Number(this.initialSelectedX?.[activeIndex] ?? this.dragStartX ?? 0));
+      const boundsActive = this.dragBounds?.[activeIndex] || {
+        left: 0,
+        right: 1440,
+      };
+      const clampedActive = Math.max(
+        boundsActive.left,
+        Math.min(boundsActive.right, minutes),
+      );
+      const dxMinutes =
+        clampedActive -
+        Math.round(
+          Number(this.initialSelectedX?.[activeIndex] ?? this.dragStartX ?? 0),
+        );
 
-      const selectedIndices = (Array.isArray(this.dragSelectedPoints) && this.dragSelectedPoints.length > 0)
-        ? this.dragSelectedPoints 
-        : [activeIndex];
+      const selectedIndices =
+        Array.isArray(this.dragSelectedPoints) &&
+        this.dragSelectedPoints.length > 0
+          ? this.dragSelectedPoints
+          : [activeIndex];
 
       // Merge selected points and neighbors, ensuring uniqueness
-      const pointsToMove = [...new Set([...selectedIndices, ...(this.hDragNeighbors || [])])];
+      const pointsToMove = [
+        ...new Set([...selectedIndices, ...(this.hDragNeighbors || [])]),
+      ];
 
       pointsToMove.forEach((i) => {
         const p = dataset.data[i];
@@ -94,30 +109,46 @@ export class ChartManager {
         const origX = this.initialSelectedX?.[i];
         if (origX === undefined) return;
         const bounds = this.dragBounds?.[i] || { left: 0, right: 1440 };
-        let newX = Math.max(bounds.left, Math.min(bounds.right, Math.round(origX + dxMinutes)));
-        
+        let newX = Math.max(
+          bounds.left,
+          Math.min(bounds.right, Math.round(origX + dxMinutes)),
+        );
+
         if (this.context.config?.is_switch_preset) {
-           Logger.log('SWITCH', `[DragMove] Point ${i}: ${origX} -> ${newX} (dx=${dxMinutes})`);
+          Logger.log(
+            "SWITCH",
+            `[DragMove] Point ${i}: ${origX} -> ${newX} (dx=${dxMinutes})`,
+          );
         }
 
         // Clamp to end-of-day boundary at 23:59 (1439 minutes) to avoid 00:00 wrap
         p.x = Math.max(0, Math.min(1439, newX));
       });
 
-      this.chart.update('none');
+      this.chart.update("none");
 
       const activeX = dataset.data[activeIndex]?.x;
       const activeY = dataset.data[activeIndex]?.y;
       this.showDragValueDisplay(activeY, activeX);
-    } catch (err) { /* ignore */ }
+    } catch (err) {
+      /* ignore */
+    }
   }
 
   _onWindowPointerUp(e) {
     try {
       if (!this._hDragActive) return;
       this._hDragActive = false;
-      window.removeEventListener('pointermove', this._boundOnWindowPointerMove, true);
-      window.removeEventListener('pointerup', this._boundOnWindowPointerUp, true);
+      window.removeEventListener(
+        "pointermove",
+        this._boundOnWindowPointerMove,
+        true,
+      );
+      window.removeEventListener(
+        "pointerup",
+        this._boundOnWindowPointerUp,
+        true,
+      );
 
       const dsIndex = this.dragDatasetIndex ?? 0;
       const dataset = this.chart?.data?.datasets?.[dsIndex];
@@ -126,13 +157,16 @@ export class ChartManager {
         const newData = sortedData.map((p) => ({
           // Clamp to 23:59 (1439) to prevent 24:00 -> 00:00 wrap on save
           time: minutesToTime(Math.max(0, Math.min(1439, Number(p.x)))),
-          value: p.y
+          value: p.y,
         }));
-        const stateManager = this.context.getManager('state');
+        const stateManager = this.context.getManager("state");
         stateManager.setData(newData);
         // Expand corners immediately for switch preset
         const cfg = this.context.config || {};
-        if (cfg.is_switch_preset && typeof stateManager.getDataWithChangePoints === 'function') {
+        if (
+          cfg.is_switch_preset &&
+          typeof stateManager.getDataWithChangePoints === "function"
+        ) {
           const expanded = stateManager.getDataWithChangePoints();
           stateManager.setData(expanded, true);
         }
@@ -140,7 +174,9 @@ export class ChartManager {
       this.context._card.isDragging = false;
       this._isDragging = false;
       this.scheduleHideDragValueDisplay(500);
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   _setupEventListeners() {
@@ -156,137 +192,195 @@ export class ChartManager {
     if (!canvas) return false;
     this.canvas = canvas;
 
-    const stateManager = this.context.getManager('state');
+    const stateManager = this.context.getManager("state");
     if (!stateManager) {
-      Logger.error('CHART', 'StateManager not available');
+      Logger.error("CHART", "StateManager not available");
       return false;
     }
 
-    canvas.addEventListener('pointerdown', (e) => {
-      if (!this.chart || this.context._card.pointerSelecting || e.button !== 0) return;
+    canvas.addEventListener(
+      "pointerdown",
+      (e) => {
+        if (
+          !this.chart ||
+          this.context._card.pointerSelecting ||
+          e.button !== 0
+        )
+          return;
 
-      const points = this.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
-      // Only act on hits from the main dataset (index 0); ignore corner markers dataset
-      const mainHit = points.find(p => p.datasetIndex === 0);
-      if (!mainHit) return;
+        const points = this.chart.getElementsAtEventForMode(
+          e,
+          "nearest",
+          { intersect: true },
+          true,
+        );
+        // Only act on hits from the main dataset (index 0); ignore corner markers dataset
+        const mainHit = points.find((p) => p.datasetIndex === 0);
+        if (!mainHit) return;
 
-      const idx = mainHit.index;
-      const selectionManager = this.context.getManager('selection');
+        const idx = mainHit.index;
+        const selectionManager = this.context.getManager("selection");
 
-      if (selectionManager && !selectionManager.isSelected(idx)) {
-        selectionManager.selectPoint(idx);
-        this._updatePointStyles();
-      }
-
-      this.dragBounds = {};
-      this.initialSelectedX = {};
-      const dataset = this.chart.data.datasets[0];
-      const allByTime = dataset.data.map((pt, i) => ({ i, x: Math.round(pt.x) })).sort((a, b) => a.x - b.x);
-      const selected = selectionManager.getSelectedPoints();
-      const selectedSet = new Set(selected);
-
-      selected.forEach(sIdx => {
-        const pos = allByTime.findIndex(ent => ent.i === sIdx);
-        let l = 0, r = 1440;
-        for (let k = pos - 1; k >= 0; k--) {
-          if (!selectedSet.has(allByTime[k].i)) { l = allByTime[k].x + 1; break; }
+        if (selectionManager && !selectionManager.isSelected(idx)) {
+          selectionManager.selectPoint(idx);
+          this._updatePointStyles();
         }
-        for (let k = pos + 1; k < allByTime.length; k++) {
-          if (!selectedSet.has(allByTime[k].i)) { r = allByTime[k].x - 1; break; }
-        }
-        const isEdge = sIdx === allByTime[0].i || sIdx === allByTime[allByTime.length - 1].i;
-        const curX = Math.round(dataset.data[sIdx].x);
-        this.dragBounds[sIdx] = { left: isEdge ? curX : l, right: isEdge ? curX : r };
-        this.initialSelectedX[sIdx] = dataset.data[sIdx].x;
-      });
 
-      this.dragDatasetIndex = 0;
-      this.dragActiveIndex = idx;
-      this.dragStartX = dataset.data[idx].x;
-      this.dragSelectedPoints = [...selected];
-      
-      // Identify neighbors for switch presets to move vertical edges together
-      this.hDragNeighbors = [];
-      const config = this.context.config || {};
-      if (config.is_switch_preset) {
-        const data = dataset.data || [];
-        const sortedData = data.map((p, i) => ({ i, x: Number(p.x) })).sort((a, b) => a.x - b.x);
-        const selectedSet = new Set(selected.map(Number));
+        this.dragBounds = {};
+        this.initialSelectedX = {};
+        const dataset = this.chart.data.datasets[0];
+        const allByTime = dataset.data
+          .map((pt, i) => ({ i, x: Math.round(pt.x) }))
+          .sort((a, b) => a.x - b.x);
+        const selected = selectionManager.getSelectedPoints();
+        const selectedSet = new Set(selected);
 
-        selected.forEach(sIdx => {
-          const sIdxNum = Number(sIdx);
-          const sortedIdx = sortedData.findIndex(p => p.i === sIdxNum);
-          if (sortedIdx === -1) return;
-          
-          const checkAndAdd = (neighborSortedIdx) => {
-            if (neighborSortedIdx >= 0 && neighborSortedIdx < sortedData.length) {
-              const neighbor = sortedData[neighborSortedIdx];
-              const current = sortedData[sortedIdx];
-              
-              // If neighbor is within 1.5 minutes (adjacent) and not already selected
-              if (Math.abs(current.x - neighbor.x) <= 1.5 && !selectedSet.has(neighbor.i)) {
-                // Prevent duplicates
-                if (!this.hDragNeighbors.includes(neighbor.i)) {
-                  this.hDragNeighbors.push(neighbor.i);
-                  this.initialSelectedX[neighbor.i] = data[neighbor.i].x;
-                  this.dragBounds[neighbor.i] = { left: 0, right: 1440 };
-                }
-              }
+        selected.forEach((sIdx) => {
+          const pos = allByTime.findIndex((ent) => ent.i === sIdx);
+          let l = 0,
+            r = 1440;
+          for (let k = pos - 1; k >= 0; k--) {
+            if (!selectedSet.has(allByTime[k].i)) {
+              l = allByTime[k].x + 1;
+              break;
             }
+          }
+          for (let k = pos + 1; k < allByTime.length; k++) {
+            if (!selectedSet.has(allByTime[k].i)) {
+              r = allByTime[k].x - 1;
+              break;
+            }
+          }
+          const isEdge =
+            sIdx === allByTime[0].i ||
+            sIdx === allByTime[allByTime.length - 1].i;
+          const curX = Math.round(dataset.data[sIdx].x);
+          this.dragBounds[sIdx] = {
+            left: isEdge ? curX : l,
+            right: isEdge ? curX : r,
           };
-
-          checkAndAdd(sortedIdx - 1);
-          checkAndAdd(sortedIdx + 1);
+          this.initialSelectedX[sIdx] = dataset.data[sIdx].x;
         });
 
-        Logger.log('SWITCH', `[DragStart] Selected: ${JSON.stringify(this.dragSelectedPoints)}, Neighbors: ${JSON.stringify(this.hDragNeighbors)}`);
-      }
+        this.dragDatasetIndex = 0;
+        this.dragActiveIndex = idx;
+        this.dragStartX = dataset.data[idx].x;
+        this.dragSelectedPoints = [...selected];
 
-      this._hDragActive = true;
-      this._hDragPointerId = e.pointerId;
-      this.context._card.isDragging = true;
-      this._isDragging = true;
+        // Identify neighbors for switch presets to move vertical edges together
+        this.hDragNeighbors = [];
+        const config = this.context.config || {};
+        if (config.is_switch_preset) {
+          const data = dataset.data || [];
+          const sortedData = data
+            .map((p, i) => ({ i, x: Number(p.x) }))
+            .sort((a, b) => a.x - b.x);
+          const selectedSet = new Set(selected.map(Number));
 
-      window.addEventListener('pointermove', this._boundOnWindowPointerMove, { capture: true, passive: false });
-      window.addEventListener('pointerup', this._boundOnWindowPointerUp, { capture: true, passive: false });
-    }, { capture: true, passive: false });
+          selected.forEach((sIdx) => {
+            const sIdxNum = Number(sIdx);
+            const sortedIdx = sortedData.findIndex((p) => p.i === sIdxNum);
+            if (sortedIdx === -1) return;
 
-    canvas.addEventListener('pointermove', (e) => {
-      this.lastMousePosition = this._getCanvasRelativePosition(e);
-      this._showHoverInfo(e);
-    }, { passive: false });
+            const checkAndAdd = (neighborSortedIdx) => {
+              if (
+                neighborSortedIdx >= 0 &&
+                neighborSortedIdx < sortedData.length
+              ) {
+                const neighbor = sortedData[neighborSortedIdx];
+                const current = sortedData[sortedIdx];
 
-    canvas.addEventListener('pointerout', () => this._hideHoverInfo(), { passive: false });
+                // If neighbor is within 1.5 minutes (adjacent) and not already selected
+                if (
+                  Math.abs(current.x - neighbor.x) <= 1.5 &&
+                  !selectedSet.has(neighbor.i)
+                ) {
+                  // Prevent duplicates
+                  if (!this.hDragNeighbors.includes(neighbor.i)) {
+                    this.hDragNeighbors.push(neighbor.i);
+                    this.initialSelectedX[neighbor.i] = data[neighbor.i].x;
+                    this.dragBounds[neighbor.i] = { left: 0, right: 1440 };
+                  }
+                }
+              }
+            };
+
+            checkAndAdd(sortedIdx - 1);
+            checkAndAdd(sortedIdx + 1);
+          });
+
+          Logger.log(
+            "SWITCH",
+            `[DragStart] Selected: ${JSON.stringify(this.dragSelectedPoints)}, Neighbors: ${JSON.stringify(this.hDragNeighbors)}`,
+          );
+        }
+
+        this._hDragActive = true;
+        this._hDragPointerId = e.pointerId;
+        this.context._card.isDragging = true;
+        this._isDragging = true;
+
+        window.addEventListener("pointermove", this._boundOnWindowPointerMove, {
+          capture: true,
+          passive: false,
+        });
+        window.addEventListener("pointerup", this._boundOnWindowPointerUp, {
+          capture: true,
+          passive: false,
+        });
+      },
+      { capture: true, passive: false },
+    );
+
+    canvas.addEventListener(
+      "pointermove",
+      (e) => {
+        this.lastMousePosition = this._getCanvasRelativePosition(e);
+        this._showHoverInfo(e);
+      },
+      { passive: false },
+    );
+
+    canvas.addEventListener("pointerout", () => this._hideHoverInfo(), {
+      passive: false,
+    });
 
     const chartData = this._buildChartData(stateManager.getData());
 
     const currentTimeIndicatorPlugin = {
-      id: 'currentTimeIndicator',
+      id: "currentTimeIndicator",
       afterDatasetsDraw: (chart) => {
         const { ctx, chartArea, scales } = chart;
         if (!ctx || !chartArea || !scales?.x) return;
-        const xPos = scales.x.getPixelForValue(new Date().getHours() * 60 + new Date().getMinutes());
+        const xPos = scales.x.getPixelForValue(
+          new Date().getHours() * 60 + new Date().getMinutes(),
+        );
         if (xPos < chartArea.left || xPos > chartArea.right) return;
         ctx.save();
         ctx.beginPath();
-        ctx.rect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, chartArea.bottom - chartArea.top);
+        ctx.rect(
+          chartArea.left,
+          chartArea.top,
+          chartArea.right - chartArea.left,
+          chartArea.bottom - chartArea.top,
+        );
         ctx.clip();
         ctx.setLineDash([5, 5]);
         ctx.lineWidth = 1;
-        ctx.strokeStyle = 'rgba(255, 82, 82, 0.6)';
+        ctx.strokeStyle = "rgba(255, 82, 82, 0.6)";
         ctx.beginPath();
         ctx.moveTo(xPos, chartArea.top);
         ctx.lineTo(xPos, chartArea.bottom);
         ctx.stroke();
         ctx.restore();
-      }
+      },
     };
 
     const config = {
-      type: 'line',
+      type: "line",
       data: chartData,
       options: this._buildChartOptions(),
-      plugins: [currentTimeIndicatorPlugin]
+      plugins: [currentTimeIndicatorPlugin],
     };
 
     if (this.chart) {
@@ -297,15 +391,15 @@ export class ChartManager {
 
     this._setupResizeObserver(canvas.parentElement);
     this.context.events.emit(Events.CHART_READY);
-    Logger.chart('Chart initialized');
+    Logger.chart("Chart initialized");
     return true;
   }
 
   _buildChartData(schedule) {
     const config = this.context.config || {};
-    const points = schedule.map(point => ({
+    const points = schedule.map((point) => ({
       x: Math.max(0, Math.min(1439, timeToMinutes(point.time))),
-      y: point.value
+      y: point.value,
     }));
     // Build optional corner markers for switch preset
     let cornerDataset = null;
@@ -327,38 +421,38 @@ export class ChartManager {
         }
       }
       cornerDataset = {
-        type: 'scatter',
-        label: 'Corners',
+        type: "scatter",
+        label: "Corners",
         data: corners,
         showLine: false,
         pointRadius: 0, // Hidden as per user request
         pointHoverRadius: 0,
-        pointBackgroundColor: COLORS.accent || '#ff9800',
-        pointBorderColor: '#fff',
+        pointBackgroundColor: COLORS.accent || "#ff9800",
+        pointBorderColor: "#fff",
         pointBorderWidth: 2,
         pointHitRadius: 0,
         clip: false,
-        dragData: false
+        dragData: false,
       };
     }
 
     const mainDataset = {
-      label: config.y_axis_label || 'Value',
+      label: config.y_axis_label || "Value",
       data: points,
       borderColor: COLORS.primary,
-      backgroundColor: COLORS.primaryLight || 'rgba(3, 169, 244, 0.1)',
+      backgroundColor: COLORS.primaryLight || "rgba(3, 169, 244, 0.1)",
       borderWidth: 2,
       clip: false,
       fill: true,
       tension: 0,
-      stepped: config.is_switch_preset ? 'after' : false,
+      stepped: config.is_switch_preset ? "after" : false,
       pointRadius: 6,
       pointHoverRadius: 8,
       pointHitRadius: 15,
       pointBackgroundColor: COLORS.primary,
-      pointBorderColor: '#fff',
+      pointBorderColor: "#fff",
       pointBorderWidth: 2,
-      spanGaps: true
+      spanGaps: true,
     };
 
     const datasets = [mainDataset];
@@ -371,7 +465,9 @@ export class ChartManager {
     const isSwitch = !!config.is_switch_preset;
     const minValue = isSwitch ? 0 : (config.min_value ?? 0);
     const step = config.step_value || 0.5;
-    const maxValue = isSwitch ? 1 : (config.max_value ?? 30) + (config.allow_max_value ? step : 0);
+    const maxValue = isSwitch
+      ? 1
+      : (config.max_value ?? 30) + (config.allow_max_value ? step : 0);
 
     return {
       responsive: true,
@@ -388,70 +484,79 @@ export class ChartManager {
         const overYAxis = pos.x >= y.left && pos.x <= y.right;
 
         if (overXAxis || overYAxis) {
-          canvas.style.cursor = 'zoom-in';
+          canvas.style.cursor = "zoom-in";
         } else if (elements && elements.length > 0) {
-          canvas.style.cursor = 'pointer';
+          canvas.style.cursor = "pointer";
         } else {
-          canvas.style.cursor = 'crosshair';
+          canvas.style.cursor = "crosshair";
         }
       },
       interaction: {
-        mode: 'nearest',
-        axis: 'x',
-        intersect: true
+        mode: "nearest",
+        axis: "x",
+        intersect: true,
       },
       scales: {
         x: {
-          type: 'linear',
+          type: "linear",
           min: 0,
           max: 1440,
           ticks: {
-            color: 'var(--primary-text-color)',
+            color: "var(--primary-text-color)",
             stepSize: 120,
             maxRotation: 90,
             minRotation: 0,
             autoSkip: true,
             includeBounds: true,
-            callback: (v) => (v === 1439 || v === 1440) ? '23:59' : minutesToTime(v)
+            callback: (v) =>
+              v === 1439 || v === 1440 ? "23:59" : minutesToTime(v),
           },
-          grid: { 
+          grid: {
             display: true,
-            color: 'rgba(128, 128, 128, 0.35)',
+            color: "rgba(128, 128, 128, 0.35)",
             drawOnChartArea: true,
             drawTicks: true,
-            lineWidth: 1
+            lineWidth: 1,
           },
-          title: { display: true, text: this._getLocalizedLabel('Time'), color: 'var(--primary-text-color)' }
+          title: {
+            display: true,
+            text: this._getLocalizedLabel("Time"),
+            color: "var(--primary-text-color)",
+          },
         },
         y: {
           min: isSwitch ? -0.1 : minValue,
           max: isSwitch ? 1.1 : maxValue,
           ticks: {
-            color: 'var(--primary-text-color)',
+            color: "var(--primary-text-color)",
             stepSize: isSwitch ? 1 : undefined,
             precision: 1,
             callback: (value) => {
               if (isSwitch) {
-                if (value === 0) return 'off (0)';
-                if (value === 1) return 'on (1)';
-                return '';
+                if (value === 0) return "off (0)";
+                if (value === 1) return "on (1)";
+                return "";
               }
               const numericValue = Number(value);
               if (Number.isFinite(numericValue)) {
-                return `${numericValue.toFixed(1)}${config.unit_of_measurement || ''}`;
+                return `${numericValue.toFixed(1)}${config.unit_of_measurement || ""}`;
               }
-              return '';
-            }
+              return "";
+            },
           },
-          grid: { 
+          grid: {
             display: true,
-            color: 'rgba(128, 128, 128, 0.35)',
+            color: "rgba(128, 128, 128, 0.35)",
             drawOnChartArea: true,
             drawTicks: true,
-            lineWidth: 1
+            lineWidth: 1,
           },
-          title: { display: true, text: this._getLocalizedLabel(config.y_axis_label || 'Value'), color: 'var(--primary-text-color)' }
-        }
+          title: {
+            display: true,
+            text: this._getLocalizedLabel(config.y_axis_label || "Value"),
+            color: "var(--primary-text-color)",
+          },
+        },
       },
       plugins: {
         legend: { display: false },
@@ -460,15 +565,16 @@ export class ChartManager {
           pan: {
             enabled: true,
             onPanStart: (ctx) => {
-              if (this._isDragging || this.context._card.isDragging) return false;
+              if (this._isDragging || this.context._card.isDragging)
+                return false;
               const pos = this.lastMousePosition || { x: 0, y: 0 };
               const { x, y } = this.chart.scales;
-              return (pos.y >= x.top || pos.x <= y.right);
+              return pos.y >= x.top || pos.x <= y.right;
             },
             mode: (ctx) => {
               const pos = this.lastMousePosition || { x: 0, y: 0 };
               const { x } = this.chart.scales;
-              return (pos.y >= x.top) ? 'x' : 'y';
+              return pos.y >= x.top ? "x" : "y";
             },
             onPan: ({ chart }) => {
               // Dynamically adjust tick density while panning to keep labels informative
@@ -476,22 +582,22 @@ export class ChartManager {
             },
             onPanComplete: ({ chart }) => {
               this._updateXAxisTicksDensity(chart);
-            }
+            },
           },
           zoom: {
             wheel: { enabled: true, speed: 0.05 },
             pinch: { enabled: true },
             onZoomStart: (ctx) => {
               if (this._isDragging) return false;
-              this.chart.canvas.style.opacity = '0';
+              this.chart.canvas.style.opacity = "0";
               return true;
             },
             mode: (ctx) => {
               const pos = this.lastMousePosition || { x: 0, y: 0 };
               const { x, y } = this.chart.scales;
-              if (pos.y >= x.top) return 'x';
-              if (pos.x <= y.right) return 'y';
-              return 'xy';
+              if (pos.y >= x.top) return "x";
+              if (pos.x <= y.right) return "y";
+              return "xy";
             },
             onZoom: ({ chart }) => {
               try {
@@ -513,37 +619,43 @@ export class ChartManager {
                 this._updateXAxisTicksDensity(chart);
                 if (needsUpdate) {
                   this.context.requestUpdate();
-                  setTimeout(() => { if (this.chart) this.chart.resize(); }, 410);
+                  setTimeout(() => {
+                    if (this.chart) this.chart.resize();
+                  }, 410);
                 }
               } catch (e) {
-                console.warn('[CronoStar] onZoom error suppressed:', e);
+                console.warn("[CronoStar] onZoom error suppressed:", e);
               }
             },
             onZoomComplete: ({ chart }) => {
-              chart.canvas.style.opacity = '1';
+              chart.canvas.style.opacity = "1";
               this._updateXAxisTicksDensity(chart);
-              chart.update('none');
-            }
+              chart.update("none");
+            },
           },
           limits: {
             x: { min: 0, max: 1440 },
-            y: { min: isSwitch ? -0.1 : minValue, max: isSwitch ? 1.1 : maxValue }
-          }
+            y: {
+              min: isSwitch ? -0.1 : minValue,
+              max: isSwitch ? 1.1 : maxValue,
+            },
+          },
         },
         dragData: {
           round: step,
           magnet: {
             to: (value) => {
               if (isSwitch) {
-                const val = (typeof value === 'object' && value !== null) ? value.y : value;
+                const val =
+                  typeof value === "object" && value !== null ? value.y : value;
                 const snapped = val >= 0.5 ? 1 : 0;
-                if (typeof value === 'object' && value !== null) {
+                if (typeof value === "object" && value !== null) {
                   return { ...value, y: snapped };
                 }
                 return snapped;
               }
               return value;
-            }
+            },
           },
           showTooltip: false,
           dragX: false,
@@ -556,25 +668,27 @@ export class ChartManager {
             this._dragPointIndex = index;
             this.initialSelectedValues = {};
             this.dragNeighbors = [];
-            
+
             const dataset = this.chart.data.datasets[0];
             const data = dataset.data;
-            const selectionManager = this.context.getManager('selection');
+            const selectionManager = this.context.getManager("selection");
             const activeIndices = selectionManager.getSelectedPoints();
-            
-            activeIndices.forEach(idx => {
+
+            activeIndices.forEach((idx) => {
               this.initialSelectedValues[idx] = data[idx].y;
             });
 
             const isSwitch = !!this.context.config?.is_switch_preset;
             if (isSwitch) {
-              const sortedByX = data.map((p, i) => ({ ...p, i })).sort((a, b) => a.x - b.x);
+              const sortedByX = data
+                .map((p, i) => ({ ...p, i }))
+                .sort((a, b) => a.x - b.x);
               const activeSet = new Set(activeIndices);
-              
-              activeIndices.forEach(idx => {
-                const pos = sortedByX.findIndex(p => p.i === idx);
+
+              activeIndices.forEach((idx) => {
+                const pos = sortedByX.findIndex((p) => p.i === idx);
                 const curX = data[idx].x;
-                
+
                 // Segment dragging: ONLY transition partners (exactly 1 min away)
                 if (pos > 0) {
                   const prev = sortedByX[pos - 1];
@@ -591,64 +705,74 @@ export class ChartManager {
               });
             }
 
-            const startVal = (typeof value === 'object' && value !== null) ? value.y : value;
+            const startVal =
+              typeof value === "object" && value !== null ? value.y : value;
             this.dragStartValue = Number(startVal);
             return true;
           },
           onDrag: (e, datasetIndex, index, value) => {
-            const val = (typeof value === 'object' && value !== null) ? value.y : value;
+            const val =
+              typeof value === "object" && value !== null ? value.y : value;
             const isSwitch = !!this.context.config?.is_switch_preset;
-            
+
             const diff = Number(val) - this.dragStartValue;
             const dataset = this.chart.data.datasets[datasetIndex];
             const data = dataset.data;
-            
-            const minValue = isSwitch ? 0 : (this.context.config.min_value ?? 0);
+
+            const minValue = isSwitch
+              ? 0
+              : (this.context.config.min_value ?? 0);
             const step = this.context.config.step_value || 0.5;
-            const maxValue = isSwitch ? 1 : (this.context.config.max_value ?? 30) + (this.context.config.allow_max_value ? step : 0);
+            const maxValue = isSwitch
+              ? 1
+              : (this.context.config.max_value ?? 30) +
+                (this.context.config.allow_max_value ? step : 0);
 
             // Move selected points
-            Object.keys(this.initialSelectedValues).forEach(idx => {
+            Object.keys(this.initialSelectedValues).forEach((idx) => {
               const i = Number(idx);
               let newVal = this.initialSelectedValues[i] + diff;
               if (isSwitch) {
                 newVal = newVal >= 0.5 ? 1 : 0;
               } else {
-                newVal = Math.max(minValue, Math.min(maxValue, Math.round(newVal / step) * step));
+                newVal = Math.max(
+                  minValue,
+                  Math.min(maxValue, Math.round(newVal / step) * step),
+                );
               }
               data[i].y = newVal;
             });
 
             // For switches, also move identified neighbors to visualize rising rectangular area
             if (isSwitch && this.dragNeighbors) {
-              this.dragNeighbors.forEach(idx => {
-                data[idx].y = (val >= 0.5 ? 1 : 0);
+              this.dragNeighbors.forEach((idx) => {
+                data[idx].y = val >= 0.5 ? 1 : 0;
               });
             }
 
-            this.chart.update('none');
+            this.chart.update("none");
             this.showDragValueDisplay(data[index].y, data[index].x);
           },
           onDragEnd: (e, datasetIndex, index, value) => {
             this._isDragging = false;
             this.context._card.isDragging = false;
             this.scheduleHideDragValueDisplay(500);
-            const stateManager = this.context.getManager('state');
+            const stateManager = this.context.getManager("state");
             if (stateManager) {
               const data = this.chart.data.datasets[datasetIndex].data;
-              const schedule = data.map(p => ({
+              const schedule = data.map((p) => ({
                 time: minutesToTime(p.x),
-                value: p.y
+                value: p.y,
               }));
-              
+
               // This triggers finalizeSwitchData internally in stateManager.setData
               stateManager.setData(schedule);
               this.dragNeighbors = [];
             }
-          }
-        }
+          },
+        },
       },
-      onClick: (event, elements) => this._handleClick(event, elements)
+      onClick: (event, elements) => this._handleClick(event, elements),
     };
   }
 
@@ -657,29 +781,39 @@ export class ChartManager {
     const lang = this.context.language;
     const localize = (key) => card.localizationManager.localize(lang, key);
 
-    const l = String(label || '');
-    if (l === 'Time') return localize('ui.time_label');
-    if (l === 'Temperature') return localize('ui.temperature_label');
-    if (l === 'Power') return localize('ui.power_label');
-    if (l === 'Energy') return localize('ui.energy_label');
-    if (l === 'State') return localize('ui.state_label');
-    if (l === 'Position') return localize('ui.position_label');
-    if (l === 'Value') return localize('ui.value_label');
-    
+    const l = String(label || "");
+    if (l === "Time") return localize("ui.time_label");
+    if (l === "Temperature") return localize("ui.temperature_label");
+    if (l === "Power") return localize("ui.power_label");
+    if (l === "Energy") return localize("ui.energy_label");
+    if (l === "State") return localize("ui.state_label");
+    if (l === "Position") return localize("ui.position_label");
+    if (l === "Value") return localize("ui.value_label");
+
     return label;
   }
 
   _showHoverInfo(evt) {
     try {
-      if (this._isDragging || this.context._card.pointerSelecting) { this._hideHoverInfo(); return; }
-      const hoverEl = this.context._card.shadowRoot?.getElementById('hover-value-display');
+      if (this._isDragging || this.context._card.pointerSelecting) {
+        this._hideHoverInfo();
+        return;
+      }
+      const hoverEl = this.context._card.shadowRoot?.getElementById(
+        "hover-value-display",
+      );
       if (!hoverEl || !this.chart || !this.chart.canvas?.isConnected) return;
 
       const pos = this._getCanvasRelativePosition(evt);
       const { x, y } = this.chart.scales;
       if (!x || !y) return;
 
-      if (pos.x < x.left || pos.x > x.right || pos.y < y.top || pos.y > y.bottom) {
+      if (
+        pos.x < x.left ||
+        pos.x > x.right ||
+        pos.y < y.top ||
+        pos.y > y.bottom
+      ) {
         this._hideHoverInfo();
         return;
       }
@@ -690,31 +824,35 @@ export class ChartManager {
 
       const config = this.context.config || {};
       const isSwitch = !!config.is_switch_preset;
-      const textVal = isSwitch ? (val >= 0.5 ? 'On' : 'Off') : val.toFixed(1);
-      const unit = config.unit_of_measurement || '';
+      const textVal = isSwitch ? (val >= 0.5 ? "On" : "Off") : val.toFixed(1);
+      const unit = config.unit_of_measurement || "";
 
-      hoverEl.textContent = `${minutesToTime(minutes)} • ${textVal}${!isSwitch ? unit : ''}`;
+      hoverEl.textContent = `${minutesToTime(minutes)} • ${textVal}${!isSwitch ? unit : ""}`;
 
       hoverEl.style.left = `${Math.round(pos.x + 10)}px`;
       hoverEl.style.top = `${Math.round(pos.y - 24)}px`;
-      hoverEl.style.display = 'block';
+      hoverEl.style.display = "block";
 
       if (this._hoverHideTimer) clearTimeout(this._hoverHideTimer);
       this._hoverHideTimer = setTimeout(() => this._hideHoverInfo(), 1500);
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   _hideHoverInfo() {
-    const hoverEl = this.context._card.shadowRoot?.getElementById('hover-value-display');
+    const hoverEl = this.context._card.shadowRoot?.getElementById(
+      "hover-value-display",
+    );
     if (hoverEl) {
-      hoverEl.style.display = 'none';
+      hoverEl.style.display = "none";
     }
   }
 
   showDragValueDisplay(value, minutes) {
     try {
       const card = this.context._card;
-      const el = card.shadowRoot?.getElementById('drag-value-display');
+      const el = card.shadowRoot?.getElementById("drag-value-display");
       if (!el || !this.chart || !this.chart.canvas?.isConnected) return;
 
       const xScale = this.chart.scales?.x;
@@ -724,16 +862,16 @@ export class ChartManager {
       const pixelX = xScale.getPixelForValue(minutes);
       const pixelY = yScale.getPixelForValue(value);
 
-      const container = card.shadowRoot?.querySelector('.chart-container');
+      const container = card.shadowRoot?.querySelector(".chart-container");
       if (!container) return;
 
       const containerRect = container.getBoundingClientRect();
 
       const config = this.context.config || {};
       const isSwitch = !!config.is_switch_preset;
-      let text = isSwitch ? (value >= 0.5 ? 'On' : 'Off') : value.toFixed(1);
-      const unit = config.unit_of_measurement || '';
-      const label = `${minutesToTime(minutes)} • ${text}${!isSwitch ? unit : ''}`;
+      let text = isSwitch ? (value >= 0.5 ? "On" : "Off") : value.toFixed(1);
+      const unit = config.unit_of_measurement || "";
+      const label = `${minutesToTime(minutes)} • ${text}${!isSwitch ? unit : ""}`;
 
       el.textContent = label;
 
@@ -749,88 +887,109 @@ export class ChartManager {
       }
 
       el.style.top = `${Math.round(topPos - 28)}px`;
-      el.style.display = 'block';
+      el.style.display = "block";
 
       if (this._dragDisplayTimer) clearTimeout(this._dragDisplayTimer);
     } catch (e) {
-      Logger.error('CHART', 'Error showing drag tooltip:', e);
+      Logger.error("CHART", "Error showing drag tooltip:", e);
     }
   }
 
   scheduleHideDragValueDisplay(ms = 2000) {
     if (this._dragDisplayTimer) clearTimeout(this._dragDisplayTimer);
     this._dragDisplayTimer = setTimeout(() => {
-      const el = this.context._card.shadowRoot?.getElementById('drag-value-display');
-      if (el) el.style.display = 'none';
+      const el =
+        this.context._card.shadowRoot?.getElementById("drag-value-display");
+      if (el) el.style.display = "none";
     }, ms);
   }
 
   _handleClick(event, elements) {
     if (Date.now() < (this.context._card.suppressClickUntil || 0)) return;
 
-    const selectionManager = this.context.getManager('selection');
-    const stateManager = this.context.getManager('state');
+    const selectionManager = this.context.getManager("selection");
+    const stateManager = this.context.getManager("state");
     if (!selectionManager || !stateManager) return;
 
     if (event.native.altKey) {
       event.native.preventDefault();
       event.native.stopPropagation();
-      stateManager.alignSelectedPoints('left');
+      stateManager.alignSelectedPoints("left");
       this._updatePointStyles();
       return;
     }
 
     // Prioritize selecting existing points over inserting new ones.
     // Use nearest point detection with a generous radius.
-    const hitElements = this.chart.getElementsAtEventForMode(event, 'nearest', { intersect: false, axis: 'xy' }, false);
+    const hitElements = this.chart.getElementsAtEventForMode(
+      event,
+      "nearest",
+      { intersect: false, axis: "xy" },
+      false,
+    );
     // Prefer hits from the main dataset (index 0)
-    const mainHit = hitElements.find(el => el.datasetIndex === 0);
+    const mainHit = hitElements.find((el) => el.datasetIndex === 0);
 
     // If we have a candidate, verify it's actually near the click (within 25px)
     if (mainHit) {
       const pos = this._getCanvasRelativePosition(event.native);
       const meta = this.chart.getDatasetMeta(0);
       const point = meta.data[mainHit.index];
-      const dist = Math.sqrt(Math.pow(pos.x - point.x, 2) + Math.pow(pos.y - point.y, 2));
-      
+      const dist = Math.sqrt(
+        Math.pow(pos.x - point.x, 2) + Math.pow(pos.y - point.y, 2),
+      );
+
       if (dist <= 25) {
         const index = mainHit.index;
         if (event.native.shiftKey) selectionManager.selectRange(index);
-        else if (event.native.ctrlKey || event.native.metaKey) selectionManager.togglePoint(index);
+        else if (event.native.ctrlKey || event.native.metaKey)
+          selectionManager.togglePoint(index);
         else selectionManager.selectPoint(index);
         this._updatePointStyles();
         return;
       }
     }
 
-    if (!event.native.shiftKey && !event.native.ctrlKey && !event.native.metaKey) {
+    if (
+      !event.native.shiftKey &&
+      !event.native.ctrlKey &&
+      !event.native.metaKey
+    ) {
       if (!this.chart) return;
       const pos = this._getCanvasRelativePosition(event.native);
       const xScale = this.chart.scales.x;
       const yScale = this.chart.scales.y;
 
-      if (pos.x >= xScale.left && pos.x <= xScale.right && pos.y >= yScale.top && pos.y <= yScale.bottom) {
+      if (
+        pos.x >= xScale.left &&
+        pos.x <= xScale.right &&
+        pos.y >= yScale.top &&
+        pos.y <= yScale.bottom
+      ) {
         const minutes = xScale.getValueForPixel(pos.x);
-        
+
         // CRITICAL PROTECTION: Do not insert if very close to an existing milestone point.
         // Base the threshold on the current zoom level (visible range).
         const visibleRange = (xScale.max || 1440) - (xScale.min || 0);
-        
+
         // Gradual threshold: 10 mins at full view (1440), tapering to 2 mins at high zoom (<=180)
         // Linear interpolation: y = mx + c
         // Points: (180, 2) and (1440, 10)
         // m = (10 - 2) / (1440 - 180) = 8 / 1260 ~= 0.00635
         // y = 0.00635 * (visibleRange - 180) + 2
-        let minDiffThreshold = 2 + (Math.max(0, visibleRange - 180) * (8 / 1260));
+        let minDiffThreshold = 2 + Math.max(0, visibleRange - 180) * (8 / 1260);
         minDiffThreshold = Math.max(2, Math.min(10, minDiffThreshold));
 
-        Logger.log('CHART', `[Click] Visible: ${visibleRange.toFixed(0)}m, Threshold: ${minDiffThreshold.toFixed(1)}m`);
+        Logger.log(
+          "CHART",
+          `[Click] Visible: ${visibleRange.toFixed(0)}m, Threshold: ${minDiffThreshold.toFixed(1)}m`,
+        );
 
         // Find the milestone that is TRULY nearest in time, not just the first one in the array
         const data = stateManager.getData();
         let nearestIdx = -1;
         let minDiff = minDiffThreshold;
-        
+
         data.forEach((p, i) => {
           const diff = Math.abs(timeToMinutes(p.time) - minutes);
           if (diff < minDiff) {
@@ -843,70 +1002,80 @@ export class ChartManager {
           selectionManager.selectPoint(nearestIdx);
 
           if (this.context.config?.is_switch_preset) {
-             const p = data[nearestIdx];
-             const tMin = timeToMinutes(p.time);
-             const neighbors = [];
-             data.forEach((other, i) => {
-                 if (i === nearestIdx) return;
-                 if (Math.abs(timeToMinutes(other.time) - tMin) <= 1.5) neighbors.push(i);
-             });
-             Logger.log('SWITCH', `[Select] Point ${nearestIdx} (${p.time}=${p.value}) Paired: [${neighbors.join(', ')}]`);
+            const p = data[nearestIdx];
+            const tMin = timeToMinutes(p.time);
+            const neighbors = [];
+            data.forEach((other, i) => {
+              if (i === nearestIdx) return;
+              if (Math.abs(timeToMinutes(other.time) - tMin) <= 1.5)
+                neighbors.push(i);
+            });
+            Logger.log(
+              "SWITCH",
+              `[Select] Point ${nearestIdx} (${p.time}=${p.value}) Paired: [${neighbors.join(", ")}]`,
+            );
           }
 
           this._updatePointStyles();
           return;
         }
 
-          const interpolatedY = this._interpolateValueAtMinutes(minutes);
-          const config = this.context.config || {};
-          const isSwitch = !!config.is_switch_preset;
+        const interpolatedY = this._interpolateValueAtMinutes(minutes);
+        const config = this.context.config || {};
+        const isSwitch = !!config.is_switch_preset;
 
-          if (interpolatedY !== null) {
-            const pixelY = yScale.getPixelForValue(interpolatedY);
+        if (interpolatedY !== null) {
+          const pixelY = yScale.getPixelForValue(interpolatedY);
 
-            // For switches, click anywhere in the column. For others, must be near the line.
-            if (isSwitch || Math.abs(pos.y - pixelY) < 25) {
-              const time = minutesToTime(minutes);
-              let value = yScale.getValueForPixel(pos.y);
+          // For switches, click anywhere in the column. For others, must be near the line.
+          if (isSwitch || Math.abs(pos.y - pixelY) < 25) {
+            const time = minutesToTime(minutes);
+            let value = yScale.getValueForPixel(pos.y);
 
-              if (isSwitch) {
-                value = value >= 0.5 ? 1 : 0;
-              } else {
-                const step = config.step_value || 0.5;
-                value = Math.round(value / step) * step;
-                const minV = config.min_value ?? 0;
-                const maxV = (config.max_value ?? 30) + (config.allow_max_value ? step : 0);
-                value = Math.max(minV, Math.min(maxV, value));
-              }
-
-              const newIndex = stateManager.insertPoint(time, value);
-              Logger.log('SWITCH', `[Chart] Click inserted point at ${time} = ${value} (index=${newIndex})`);
-              selectionManager.selectPoint(newIndex);
+            if (isSwitch) {
+              value = value >= 0.5 ? 1 : 0;
             } else {
-              selectionManager.clearSelection();
+              const step = config.step_value || 0.5;
+              value = Math.round(value / step) * step;
+              const minV = config.min_value ?? 0;
+              const maxV =
+                (config.max_value ?? 30) + (config.allow_max_value ? step : 0);
+              value = Math.max(minV, Math.min(maxV, value));
             }
+
+            const newIndex = stateManager.insertPoint(time, value);
+            Logger.log(
+              "SWITCH",
+              `[Chart] Click inserted point at ${time} = ${value} (index=${newIndex})`,
+            );
+            selectionManager.selectPoint(newIndex);
+          } else {
+            selectionManager.clearSelection();
           }
-        } else {
-          selectionManager.clearSelection();
         }
-        this._updatePointStyles();
+      } else {
+        selectionManager.clearSelection();
       }
+      this._updatePointStyles();
     }
+  }
 
   _scheduleChartUpdate() {
     if (this._updateTimer) clearTimeout(this._updateTimer);
-    this._updateTimer = setTimeout(() => { this._updateChartData(); }, 16);
+    this._updateTimer = setTimeout(() => {
+      this._updateChartData();
+    }, 16);
   }
 
   _updateChartData() {
     if (!this.chart) return;
-    const stateManager = this.context.getManager('state');
+    const stateManager = this.context.getManager("state");
     if (!stateManager) return;
     const schedule = stateManager.getData();
     const config = this.context.config || {};
-    const points = schedule.map(point => ({
+    const points = schedule.map((point) => ({
       x: Math.max(0, Math.min(1439, timeToMinutes(point.time))),
-      y: point.value
+      y: point.value,
     }));
     this.chart.data.datasets[0].data = points;
     // Update or build corner markers dataset when using switch preset
@@ -922,7 +1091,10 @@ export class ChartManager {
         const leftCorner = Math.max(0, Math.min(1439, Math.round(cur.x - 1)));
         if (leftCorner > Math.round(prev.x)) {
           const keyL = `${leftCorner}`;
-          if (!byMinute.has(keyL)) { byMinute.add(keyL); corners.push({ x: leftCorner, y: Number(prev.y) }); }
+          if (!byMinute.has(keyL)) {
+            byMinute.add(keyL);
+            corners.push({ x: leftCorner, y: Number(prev.y) });
+          }
         }
         // Right corner T+1 (only if before next change/end)
         const next = sorted[i + 1];
@@ -930,24 +1102,27 @@ export class ChartManager {
         const rightCorner = Math.max(0, Math.min(1439, Math.round(cur.x + 1)));
         if (rightCorner < nextMin) {
           const keyR = `${rightCorner}`;
-          if (!byMinute.has(keyR)) { byMinute.add(keyR); corners.push({ x: rightCorner, y: Number(cur.y) }); }
+          if (!byMinute.has(keyR)) {
+            byMinute.add(keyR);
+            corners.push({ x: rightCorner, y: Number(cur.y) });
+          }
         }
       }
       if (this.chart.data.datasets[1]) {
         this.chart.data.datasets[1].data = corners;
       } else {
         this.chart.data.datasets.push({
-          type: 'scatter',
-          label: 'Corners',
+          type: "scatter",
+          label: "Corners",
           data: corners,
           showLine: false,
           pointRadius: 4,
           pointHoverRadius: 5,
-          pointBackgroundColor: COLORS.accent || '#ff9800',
-          pointBorderColor: '#fff',
+          pointBackgroundColor: COLORS.accent || "#ff9800",
+          pointBorderColor: "#fff",
           pointBorderWidth: 2,
           clip: false,
-          dragData: false
+          dragData: false,
         });
       }
     } else {
@@ -956,24 +1131,30 @@ export class ChartManager {
         this.chart.data.datasets = [this.chart.data.datasets[0]];
       }
     }
-    this.chart.update('none');
+    this.chart.update("none");
   }
 
   _updatePointStyles() {
     if (!this.chart) return;
-    const selectionManager = this.context.getManager('selection');
+    const selectionManager = this.context.getManager("selection");
     if (!selectionManager) return;
     const dataset = this.chart.data.datasets[0];
     const selected = selectionManager.getSelectedPoints();
     const anchor = selectionManager.getAnchor();
 
     dataset.pointBackgroundColor = dataset.data.map((_, i) =>
-      i === anchor ? COLORS.anchor : (selected.includes(i) ? COLORS.selected : COLORS.primary)
+      i === anchor
+        ? COLORS.anchor
+        : selected.includes(i)
+          ? COLORS.selected
+          : COLORS.primary,
     );
     dataset.pointBorderColor = dataset.pointBackgroundColor;
-    dataset.pointRadius = dataset.data.map((_, i) => (i === anchor || selected.includes(i)) ? 8 : 6);
+    dataset.pointRadius = dataset.data.map((_, i) =>
+      i === anchor || selected.includes(i) ? 8 : 6,
+    );
 
-    this.chart.update('none');
+    this.chart.update("none");
   }
 
   _setupResizeObserver(container) {
@@ -997,37 +1178,64 @@ export class ChartManager {
     if (this.chart) {
       const canvas = this.chart.canvas;
       if (canvas && this._hoverHandler && this._hoverOutHandler) {
-        canvas.removeEventListener('pointermove', this._hoverHandler);
-        canvas.removeEventListener('pointerout', this._hoverOutHandler);
+        canvas.removeEventListener("pointermove", this._hoverHandler);
+        canvas.removeEventListener("pointerout", this._hoverOutHandler);
       }
-      this._hoverHandler = null; this._hoverOutHandler = null;
+      this._hoverHandler = null;
+      this._hoverOutHandler = null;
       this.chart.destroy();
       this.chart = null;
     }
     this.canvas = null;
     this.context.events.emit(Events.CHART_DESTROYED);
-    Logger.chart('Chart destroyed');
+    Logger.chart("Chart destroyed");
   }
 
-  isInitialized() { return this._initialized && !!this.chart; }
-  getChart() { return this.chart; }
-  updateData(schedule) { this._updateChartData(); }
-  recreateChartOptions() { if (this.chart) { this.chart.options = this._buildChartOptions(); this.chart.update('none'); } }
-  updateChartLabels() { this.recreateChartOptions(); }
-  update(mode) { if (this.chart) this.chart.update(mode); }
-  updatePointStyling(index, indices) { this._updatePointStyles(); }
+  isInitialized() {
+    return this._initialized && !!this.chart;
+  }
+  getChart() {
+    return this.chart;
+  }
+  updateData(schedule) {
+    this._updateChartData();
+  }
+  recreateChartOptions() {
+    if (this.chart) {
+      this.chart.options = this._buildChartOptions();
+      this.chart.update("none");
+    }
+  }
+  updateChartLabels() {
+    this.recreateChartOptions();
+  }
+  update(mode) {
+    if (this.chart) this.chart.update(mode);
+  }
+  updatePointStyling(index, indices) {
+    this._updatePointStyles();
+  }
   getIndicesInArea(minX, minY, maxX, maxY) {
     if (!this.chart) return [];
     const meta = this.chart.getDatasetMeta(0);
-    return (meta.data || []).map((pt, i) => (pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY) ? i : -1).filter(i => i !== -1);
+    return (meta.data || [])
+      .map((pt, i) =>
+        pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY ? i : -1,
+      )
+      .filter((i) => i !== -1);
   }
   deletePointAtEvent(e) {
     if (!this.chart) return false;
-    const elements = this.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false);
+    const elements = this.chart.getElementsAtEventForMode(
+      e,
+      "nearest",
+      { intersect: true },
+      false,
+    );
     // Only delete when clicking on main dataset points
-    const mainEl = elements.find(el => el.datasetIndex === 0);
+    const mainEl = elements.find((el) => el.datasetIndex === 0);
     if (mainEl) {
-      this.context.getManager('state')?.removePoint(mainEl.index);
+      this.context.getManager("state")?.removePoint(mainEl.index);
       return true;
     }
     return false;
@@ -1035,8 +1243,14 @@ export class ChartManager {
 
   _getCanvasRelativePosition(evt) {
     const native = evt?.native || evt;
-    const clientX = native.touches?.[0]?.clientX ?? native.changedTouches?.[0]?.clientX ?? native.clientX;
-    const clientY = native.touches?.[0]?.clientY ?? native.changedTouches?.[0]?.clientY ?? native.clientY;
+    const clientX =
+      native.touches?.[0]?.clientX ??
+      native.changedTouches?.[0]?.clientX ??
+      native.clientX;
+    const clientY =
+      native.touches?.[0]?.clientY ??
+      native.changedTouches?.[0]?.clientY ??
+      native.clientY;
 
     if (!this.canvas) return { x: 0, y: 0 };
     const rect = this.canvas.getBoundingClientRect();
@@ -1086,7 +1300,7 @@ export class ChartManager {
 
       // Snap step to friendly minute increments
       const candidates = [1, 2, 5, 10, 15, 20, 30, 60, 120, 180, 240];
-      step = candidates.find(s => s >= step) || 240;
+      step = candidates.find((s) => s >= step) || 240;
 
       const tickCfg = c.options.scales.x.ticks;
       if (tickCfg.stepSize !== step) {
@@ -1094,8 +1308,10 @@ export class ChartManager {
         // Ensure bounds labels show correctly when very zoomed
         tickCfg.includeBounds = true;
         // Update without animating
-        c.update('none');
+        c.update("none");
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
   }
 }

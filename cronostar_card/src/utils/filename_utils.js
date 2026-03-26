@@ -1,7 +1,7 @@
 /**
  * Utility functions for building filenames in CronoStar Editor
  */
-import { normalizePrefix } from './prefix_utils.js';
+import { normalizePrefix } from "./prefix_utils.js";
 
 /**
  * Builds the profile filename using the correct prefix and preset
@@ -9,7 +9,7 @@ import { normalizePrefix } from './prefix_utils.js';
  */
 export function buildProfileFilename(preset, prefix) {
   const normalizedPrefix = normalizePrefix(prefix);
-  const cleanPrefix = normalizedPrefix.replace(/_+$/, '');
+  const cleanPrefix = normalizedPrefix.replace(/_+$/, "");
   return `cronostar_${preset}_${cleanPrefix}_data.json`;
 }
 
@@ -28,13 +28,13 @@ export function buildHelpersFilename(prefix) {
  */
 export function buildAutomationFilename(prefix) {
   const normalizedPrefix = normalizePrefix(prefix);
-  return `${normalizedPrefix.replace(/_+$/, '')}_automation.yaml`;
+  return `${normalizedPrefix.replace(/_+$/, "")}_automation.yaml`;
 }
 
 /**
  * Gets the expected automation ID
  */
 export function getExpectedAutomationId(prefix) {
-  const base = normalizePrefix(prefix).replace(/_+$/, '');
+  const base = normalizePrefix(prefix).replace(/_+$/, "");
   return `${base}_apply`;
 }

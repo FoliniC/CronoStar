@@ -2,7 +2,7 @@
  * Styles for CronoStar Card
  * @module styles
  */
-import { css } from 'lit';
+import { css } from "lit";
 export const cardStyles = css`
   ha-card {
     padding: 16px;
@@ -25,8 +25,11 @@ export const cardStyles = css`
     width: 94vw !important;
     height: 94vh !important;
     z-index: 1000 !important;
-    box-shadow: 0 12px 48px rgba(0,0,0,0.12) !important;
-    background: var(--ha-card-background, var(--card-background-color, white)) !important;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12) !important;
+    background: var(
+      --ha-card-background,
+      var(--card-background-color, white)
+    ) !important;
     border: 1px solid var(--divider-color, rgba(128, 128, 128, 0.15)) !important;
     outline: none !important;
     max-width: none !important;
@@ -37,7 +40,7 @@ export const cardStyles = css`
 
   /* Overlay backdrop when expanded */
   ha-card.expanded-v.expanded-h::before {
-    content: '';
+    content: "";
     position: fixed;
     top: -100vh;
     left: -100vw;
@@ -54,7 +57,10 @@ export const cardStyles = css`
     justify-content: space-between;
     align-items: center;
     padding-bottom: 8px;
-    background: var(--ha-card-background, var(--card-background-color, white)) !important;
+    background: var(
+      --ha-card-background,
+      var(--card-background-color, white)
+    ) !important;
   }
 
   .header-left {
@@ -111,7 +117,7 @@ export const cardStyles = css`
     border: 1px solid var(--divider-color, #e0e0e0);
     border-radius: 8px;
     z-index: 100;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     padding: 4px 0;
     width: 200px;
   }
@@ -175,7 +181,7 @@ export const cardStyles = css`
     height: 28px;
     font-size: 11px;
   }
-  
+
   .language-menu mwc-button[raised] {
     --mdc-theme-primary: var(--primary-color, #03a9f4);
     --mdc-theme-on-primary: white;
@@ -195,7 +201,10 @@ export const cardStyles = css`
     flex-direction: column;
     overflow-y: auto;
     min-height: 0;
-    background: var(--ha-card-background, var(--card-background-color, white)) !important;
+    background: var(
+      --ha-card-background,
+      var(--card-background-color, white)
+    ) !important;
   }
 
   .chart-container {
@@ -206,8 +215,13 @@ export const cardStyles = css`
     outline: none;
     border-radius: 4px;
     overflow: hidden;
-    transition: box-shadow 0.2s ease, min-height 0.3s ease;
-    background: var(--ha-card-background, var(--card-background-color, transparent));
+    transition:
+      box-shadow 0.2s ease,
+      min-height 0.3s ease;
+    background: var(
+      --ha-card-background,
+      var(--card-background-color, transparent)
+    );
   }
 
   ha-card.expanded-v .chart-container {
@@ -228,8 +242,14 @@ export const cardStyles = css`
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 
   .context-menu mwc-list-item {
@@ -275,7 +295,10 @@ export const cardStyles = css`
     text-align: center !important;
     padding: 12px !important;
     gap: 4px !important;
-    background: var(--ha-card-background, var(--card-background-color, #3c3c3c)) !important;
+    background: var(
+      --ha-card-background,
+      var(--card-background-color, #3c3c3c)
+    ) !important;
     border-radius: 8px !important;
     border: 1px solid var(--divider-color, #555) !important;
     transition: all 0.2s ease !important;
@@ -320,7 +343,8 @@ export const cardStyles = css`
   }
 
   .preset-card:focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--primary-color, #03a9f4) 18%, transparent 82%);
+    outline: 3px solid
+      color-mix(in srgb, var(--primary-color, #03a9f4) 18%, transparent 82%);
     outline-offset: 2px;
   }
 
@@ -330,7 +354,10 @@ export const cardStyles = css`
     left: 0;
     right: 0;
     bottom: 0;
-    background: var(--ha-card-background, var(--card-background-color, white)) !important;
+    background: var(
+      --ha-card-background,
+      var(--card-background-color, white)
+    ) !important;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -394,7 +421,7 @@ export const cardStyles = css`
     left: 50%;
     transform: translate(-50%, -50%) rotate(-25deg);
     font-size: 1.8em;
-    color: rgba(0, 128, 255, 0.10);
+    color: rgba(0, 128, 255, 0.1);
     pointer-events: none;
     user-select: none;
     z-index: 1;
@@ -541,4 +568,4 @@ export const cardStyles = css`
       width: 100%;
     }
   }
-`;  
+`;

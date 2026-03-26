@@ -12,9 +12,9 @@
 export async function waitWithTimeout(promise, timeoutMs) {
   return Promise.race([
     promise,
-    new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Timeout')), timeoutMs)
-    )
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Timeout")), timeoutMs),
+    ),
   ]);
 }
 
@@ -66,7 +66,7 @@ export function clamp(value, min, max) {
  */
 export function formatHourString(hour, base = 0) {
   const num = hour + base;
-  return num.toString().padStart(2, '0');
+  return num.toString().padStart(2, "0");
 }
 
 /**
@@ -111,13 +111,13 @@ export function isDefined(value) {
  * Creates a slug from a string
  */
 export function slugify(str) {
-  if (!str) return '';
+  if (!str) return "";
   return str
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 /**
@@ -126,7 +126,7 @@ export function slugify(str) {
  * @returns {number} Minutes since midnight
  */
 export function timeToMinutes(time) {
-  const parts = String(time || '00:00').split(':');
+  const parts = String(time || "00:00").split(":");
   const h = Number(parts[0]) || 0;
   const m = Number(parts[1]) || 0;
   return (h % 24) * 60 + (m % 60);
@@ -143,7 +143,7 @@ export function minutesToTime(minutes) {
   while (m >= 1440) m -= 1440;
   const h = Math.floor(m / 60) % 24;
   const mm = m % 60;
-  return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
 /**
@@ -156,13 +156,15 @@ export function checkIsEditorContext(element) {
     while (el) {
       if (el.tagName) {
         const tag = el.tagName.toLowerCase();
-        if (tag === 'hui-card-preview' ||
-          tag === 'hui-card-editor' ||
-          tag === 'hui-dialog-edit-card' ||
-          tag === 'ha-dialog' ||
-          tag === 'hui-edit-view' ||
-          tag === 'hui-edit-card' ||
-          tag === 'hui-card-options') {
+        if (
+          tag === "hui-card-preview" ||
+          tag === "hui-card-editor" ||
+          tag === "hui-dialog-edit-card" ||
+          tag === "ha-dialog" ||
+          tag === "hui-edit-view" ||
+          tag === "hui-edit-card" ||
+          tag === "hui-card-options"
+        ) {
           return true;
         }
       }
@@ -182,7 +184,10 @@ let loggingEnabled = false;
 export const Logger = {
   setEnabled: (enabled) => {
     loggingEnabled = !!enabled;
-    console.log('[CRONOSTAR] [SYSTEM] Logger.setEnabled called, loggingEnabled is now', loggingEnabled);
+    console.log(
+      "[CRONOSTAR] [SYSTEM] Logger.setEnabled called, loggingEnabled is now",
+      loggingEnabled,
+    );
   },
   log: (tag, ...args) => {
     if (loggingEnabled) {
@@ -195,16 +200,16 @@ export const Logger = {
     }
   },
   error: (tag, ...args) => console.error(`[CRONOSTAR] [${tag}]`, ...args),
-  
-  state: (...args) => Logger.log('STATE', ...args),
-  load: (...args) => Logger.log('LOAD', ...args),
-  save: (...args) => Logger.log('SAVE', ...args),
-  sel: (...args) => Logger.log('SEL', ...args),
-  memo: (...args) => Logger.log('MEMO', ...args),
-  diff: (...args) => Logger.log('DIFF', ...args),
-  key: (...args) => Logger.log('KEY', ...args),
-  base: (...args) => Logger.log('BASE', ...args),
-  chart: (...args) => Logger.log('CHART', ...args),
+
+  state: (...args) => Logger.log("STATE", ...args),
+  load: (...args) => Logger.log("LOAD", ...args),
+  save: (...args) => Logger.log("SAVE", ...args),
+  sel: (...args) => Logger.log("SEL", ...args),
+  memo: (...args) => Logger.log("MEMO", ...args),
+  diff: (...args) => Logger.log("DIFF", ...args),
+  key: (...args) => Logger.log("KEY", ...args),
+  base: (...args) => Logger.log("BASE", ...args),
+  chart: (...args) => Logger.log("CHART", ...args),
 };
 
 window.Logger = Logger;

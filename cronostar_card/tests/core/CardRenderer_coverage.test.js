@@ -1,26 +1,26 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CardRenderer } from '../../src/core/CardRenderer.js';
-import { html } from 'lit';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { CardRenderer } from "../../src/core/CardRenderer.js";
+import { html } from "lit";
 
-describe('CardRenderer Coverage', () => {
+describe("CardRenderer Coverage", () => {
   let card;
   let renderer;
 
   beforeEach(() => {
     card = {
-      config: { 
-        title: 'Test',
-        profiles_select_entity: 'select.profile'
+      config: {
+        title: "Test",
+        profiles_select_entity: "select.profile",
       },
       _cardConnected: true,
       cronostarReady: true,
       isEditor: false,
       isPickerPreview: false,
-      selectedProfile: 'Default',
+      selectedProfile: "Default",
       isEnabled: true,
       hasUnsavedChanges: false,
-      profileOptions: ['Default'],
+      profileOptions: ["Default"],
       eventHandlers: {
         toggleMenu: vi.fn(),
         handleLanguageSelect: vi.fn(),
@@ -38,55 +38,55 @@ describe('CardRenderer Coverage', () => {
         resetChanges: vi.fn(),
         handleAddProfile: vi.fn(),
         handleDeleteProfile: vi.fn(),
-        showNotification: vi.fn()
+        showNotification: vi.fn(),
       },
       localizationManager: {
-        localize: vi.fn((l, k) => k)
+        localize: vi.fn((l, k) => k),
       },
       profileManager: {
-        handleProfileSelection: vi.fn()
-      }
+        handleProfileSelection: vi.fn(),
+      },
     };
     renderer = new CardRenderer(card);
   });
 
-  it('should render placeholder if not ready', () => {
+  it("should render placeholder if not ready", () => {
     card._cardConnected = false;
     const result = renderer.render();
     expect(result).toBeTruthy();
     // In a real browser we would check content, but here we check structure validity roughly
   });
 
-  it('should render picker preview mode', () => {
+  it("should render picker preview mode", () => {
     card.isPickerPreview = true;
     const result = renderer.render();
     expect(result).toBeTruthy();
   });
 
-  it('should render content when ready', () => {
+  it("should render content when ready", () => {
     const result = renderer.render();
     expect(result).toBeTruthy();
   });
 
-  it('should render menu when open', () => {
+  it("should render menu when open", () => {
     card.isMenuOpen = true;
     const result = renderer.render();
     expect(result).toBeTruthy();
   });
 
-  it('should render unsaved changes dialog', () => {
+  it("should render unsaved changes dialog", () => {
     card.showUnsavedChangesDialog = true;
     const result = renderer.render();
     expect(result).toBeTruthy();
   });
 
-  it('should render context menu', () => {
+  it("should render context menu", () => {
     card.contextMenu = { show: true, x: 10, y: 10 };
     const result = renderer.render();
     expect(result).toBeTruthy();
   });
 
-  it('should handle menu actions', () => {
+  it("should handle menu actions", () => {
     // We can't easily click on lit-html Templates result without rendering it to DOM.
     // But we can call event handlers directly if we can access them from the Template.
     // However, CardRenderer constructs templates.

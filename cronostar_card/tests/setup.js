@@ -1,5 +1,5 @@
 // Setup file for Vitest
-import { vi } from 'vitest';
+import { vi } from "vitest";
 
 class MockResizeObserver {
   observe() {}
@@ -11,7 +11,7 @@ global.ResizeObserver = MockResizeObserver;
 global.window.ResizeObserver = MockResizeObserver;
 
 // Mock Canvas getContext
-if (typeof HTMLCanvasElement !== 'undefined') {
+if (typeof HTMLCanvasElement !== "undefined") {
   HTMLCanvasElement.prototype.getContext = () => ({
     save: vi.fn(),
     restore: vi.fn(),
@@ -34,7 +34,7 @@ if (typeof HTMLCanvasElement !== 'undefined') {
     resetTransform: vi.fn(),
     drawImage: vi.fn(),
     setTransform: vi.fn(),
-    canvas: { width: 100, height: 100 }
+    canvas: { width: 100, height: 100 },
   });
 }
 

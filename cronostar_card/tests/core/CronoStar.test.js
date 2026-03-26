@@ -1,6 +1,6 @@
-import { vi, describe, beforeEach, it, expect } from 'vitest';
-import { fixture, html, waitUntil } from '@open-wc/testing';
-import sinon from 'sinon';
+import { vi, describe, beforeEach, it, expect } from "vitest";
+import { fixture, html, waitUntil } from "@open-wc/testing";
+import sinon from "sinon";
 
 // Mock ResizeObserver
 global.ResizeObserver = class {
@@ -42,44 +42,44 @@ const mockContext = {
   createPattern: () => ({}),
 };
 
-Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
-  value: function(type) {
-    if (type === '2d') {
+Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+  value: function (type) {
+    if (type === "2d") {
       mockContext.canvas = this;
       return mockContext;
     }
     return null;
-  }
+  },
 });
 
-import { CronoStarCard } from '../../src/core/CronoStar.js';
-import { Chart } from 'chart.js';
+import { CronoStarCard } from "../../src/core/CronoStar.js";
+import { Chart } from "chart.js";
 
 // Prevent "Canvas is already in use" errors
-vi.spyOn(Chart, 'getChart').mockReturnValue(null);
+vi.spyOn(Chart, "getChart").mockReturnValue(null);
 
-if (!customElements.get('cronostar-card')) {
-  customElements.define('cronostar-card', CronoStarCard);
+if (!customElements.get("cronostar-card")) {
+  customElements.define("cronostar-card", CronoStarCard);
 }
 
-describe('CronoStar Card', () => {
+describe("CronoStar Card", () => {
   let element;
   const mockHass = {
     states: {
-      'climate.test': {
-        state: '20.0',
-        attributes: { friendly_name: 'Test Climate' },
+      "climate.test": {
+        state: "20.0",
+        attributes: { friendly_name: "Test Climate" },
       },
     },
-    language: 'en',
+    language: "en",
     callService: sinon.stub(),
   };
 
   const mockConfig = {
-    type: 'custom:cronostar-card',
-    preset: 'thermostat',
-    target_entity: 'climate.test',
-    global_prefix: 'test_prefix_',
+    type: "custom:cronostar-card",
+    preset: "thermostat",
+    target_entity: "climate.test",
+    global_prefix: "test_prefix_",
   };
 
   beforeEach(async () => {
@@ -89,29 +89,29 @@ describe('CronoStar Card', () => {
     await element.updateComplete;
   });
 
-  it('is defined', () => {
-    const el = document.createElement('cronostar-card');
-    expect(el).to.be.instanceOf(customElements.get('cronostar-card'));
+  it("is defined", () => {
+    const el = document.createElement("cronostar-card");
+    expect(el).to.be.instanceOf(customElements.get("cronostar-card"));
   });
 
-  it('renders the card header', async () => {
-    const header = element.shadowRoot.querySelector('.card-header');
+  it("renders the card header", async () => {
+    const header = element.shadowRoot.querySelector(".card-header");
     expect(header).to.exist;
   });
 
-  it('shows error if config is missing target_entity', async () => {
+  it("shows error if config is missing target_entity", async () => {
     try {
-      element.setConfig({ type: 'custom:cronostar-card' });
+      element.setConfig({ type: "custom:cronostar-card" });
     } catch (err) {
-      expect(err.message).to.contain('You need to define a target_entity');
+      expect(err.message).to.contain("You need to define a target_entity");
     }
   });
 
-  it('updates when hass changes', async () => {
-    const newHass = { ...mockHass, language: 'it' };
+  it("updates when hass changes", async () => {
+    const newHass = { ...mockHass, language: "it" };
     element.hass = newHass;
     await element.updateComplete;
     // Verify something that changes with language if applicable
-    expect(element.hass.language).to.equal('it');
+    expect(element.hass.language).to.equal("it");
   });
 });

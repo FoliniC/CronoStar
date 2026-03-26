@@ -48,7 +48,7 @@ export class EventBus {
     const callbacks = this._listeners.get(event);
     if (!callbacks) return;
 
-    callbacks.forEach(callback => {
+    callbacks.forEach((callback) => {
       try {
         callback(data);
       } catch (error) {
@@ -68,28 +68,28 @@ export class EventBus {
 // Event constants
 export const Events = {
   // State events
-  STATE_CHANGED: 'state:changed',
-  SCHEDULE_UPDATED: 'schedule:updated',
-  POINT_ADDED: 'point:added',
-  POINT_REMOVED: 'point:removed',
-  POINT_UPDATED: 'point:updated',
+  STATE_CHANGED: "state:changed",
+  SCHEDULE_UPDATED: "schedule:updated",
+  POINT_ADDED: "point:added",
+  POINT_REMOVED: "point:removed",
+  POINT_UPDATED: "point:updated",
 
   // Selection events
-  SELECTION_CHANGED: 'selection:changed',
-  SELECTION_CLEARED: 'selection:cleared',
+  SELECTION_CHANGED: "selection:changed",
+  SELECTION_CLEARED: "selection:cleared",
 
   // Profile events
-  PROFILE_LOADED: 'profile:loaded',
-  PROFILE_SAVED: 'profile:saved',
-  PROFILE_CHANGED: 'profile:changed',
+  PROFILE_LOADED: "profile:loaded",
+  PROFILE_SAVED: "profile:saved",
+  PROFILE_CHANGED: "profile:changed",
 
   // Chart events
-  CHART_READY: 'chart:ready',
-  CHART_UPDATED: 'chart:updated',
-  CHART_DESTROYED: 'chart:destroyed',
+  CHART_READY: "chart:ready",
+  CHART_UPDATED: "chart:updated",
+  CHART_DESTROYED: "chart:destroyed",
 
   // UI events
-  CONFIG_CHANGED: 'config:changed',
-  UNSAVED_CHANGES: 'unsaved:changes',
-  PRESET_CHANGED: 'preset:changed'
+  CONFIG_CHANGED: "config:changed",
+  UNSAVED_CHANGES: "unsaved:changes",
+  PRESET_CHANGED: "preset:changed",
 };

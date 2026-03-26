@@ -1,51 +1,61 @@
 // Aggressive guard for HA 2025.12 to ensure custom elements are correctly registered and managed.
-(function() {
-  'use strict';
+(function () {
+  "use strict";
 
-  const CARD_NAME = 'cronostar-card';
-  const EDITOR_NAME = 'cronostar-card-editor';
+  const CARD_NAME = "cronostar-card";
+  const EDITOR_NAME = "cronostar-card-editor";
 
   // Intercept CustomElementRegistry constructor
   try {
     const OriginalRegistry = window.CustomElementRegistry;
-    
+
     if (OriginalRegistry) {
-      window.CustomElementRegistry = function(...args) {
-        console.log('CRONOSTAR: Nuovo CustomElementRegistry creato!');
+      window.CustomElementRegistry = function (...args) {
+        console.log("CRONOSTAR: Nuovo CustomElementRegistry creato!");
         const instance = new OriginalRegistry(...args);
-        
+
         // Immediately patch this instance
-        patchRegistryInstance(instance, 'new-instance');
-        
+        patchRegistryInstance(instance, "new-instance");
+
         // Auto-register our elements after a short delay
         setTimeout(() => {
           if (window.CronoStarCard && window.CronoStarEditor) {
             try {
               if (!instance.get(CARD_NAME)) {
                 instance.define(CARD_NAME, window.CronoStarCard);
-                console.log('CRONOSTAR: Auto-registrato card in nuovo registry');
+                console.log(
+                  "CRONOSTAR: Auto-registrato card in nuovo registry",
+                );
               }
               if (!instance.get(EDITOR_NAME)) {
                 instance.define(EDITOR_NAME, window.CronoStarEditor);
-                console.log('CRONOSTAR: Auto-registrato editor in nuovo registry');
+                console.log(
+                  "CRONOSTAR: Auto-registrato editor in nuovo registry",
+                );
               }
             } catch (e) {
-              console.warn('CRONOSTAR: Errore auto-registrazione:', e);
+              console.warn("CRONOSTAR: Errore auto-registrazione:", e);
             }
           }
         }, 0);
-        
+
         return instance;
       };
-      
+
       // Maintain original properties
       Object.setPrototypeOf(window.CustomElementRegistry, OriginalRegistry);
-      Object.setPrototypeOf(window.CustomElementRegistry.prototype, OriginalRegistry.prototype);
-      
-      console.log('CRONOSTAR: CustomElementRegistry constructor intercepted');
+      Object.setPrototypeOf(
+        window.CustomElementRegistry.prototype,
+        OriginalRegistry.prototype,
+      );
+
+      console.log("CRONOSTAR: CustomElementRegistry constructor intercepted");
     }
   } catch (e) {
-    console.warn('CRONOSTAR: Impossibile intercettare CustomElementRegistry:', e);
+    console.warn(
+      "CRONOSTAR: Impossibile intercettare CustomElementRegistry:",
+      e,
+    );
   }
 
   function patchRegistryInstance(registry, name) {
@@ -55,7 +65,7 @@
     const originalDefine = registry.define;
 
     // Get with multiple fallbacks
-    registry.get = function(elementName) {
+    registry.get = function (elementName) {
       try {
         const result = originalGet.call(this, elementName);
         if (result) return result;
@@ -84,7 +94,7 @@
     };
 
     // Define with auto-registration
-    registry.define = function(elementName, constructor, options) {
+    registry.define = function (elementName, constructor, options) {
       try {
         const existing = this.get(elementName);
         if (existing === constructor) {
@@ -98,16 +108,19 @@
         return originalDefine.call(this, elementName, constructor, options);
       } catch (e) {
         const err = String(e);
-        if (err.includes('already been used') || err.includes('already defined')) {
+        if (
+          err.includes("already been used") ||
+          err.includes("already defined")
+        ) {
           return; // Ignore duplicate definition errors
         }
         throw e;
       }
     };
 
-    Object.defineProperty(registry, '__cronostar_patched__', {
+    Object.defineProperty(registry, "__cronostar_patched__", {
       value: true,
-      configurable: false
+      configurable: false,
     });
 
     console.log(`CRONOSTAR: Registry patchato: ${name}`);
@@ -115,12 +128,12 @@
 
   // Patch global registry
   if (window.customElements) {
-    patchRegistryInstance(window.customElements, 'global');
+    patchRegistryInstance(window.customElements, "global");
   }
 
   // Patch prototype
   if (window.CustomElementRegistry?.prototype) {
-    patchRegistryInstance(window.CustomElementRegistry.prototype, 'prototype');
+    patchRegistryInstance(window.CustomElementRegistry.prototype, "prototype");
   }
 
   // Continuous scan for new registries
@@ -130,10 +143,13 @@
     for (const prop of Object.getOwnPropertyNames(window)) {
       try {
         const obj = window[prop];
-        if (obj && typeof obj === 'object' && 
-            typeof obj.define === 'function' && 
-            typeof obj.get === 'function' &&
-            !obj.__cronostar_patched__) {
+        if (
+          obj &&
+          typeof obj === "object" &&
+          typeof obj.define === "function" &&
+          typeof obj.get === "function" &&
+          !obj.__cronostar_patched__
+        ) {
           patchRegistryInstance(obj, `global.${prop}`);
         }
       } catch (e) {
@@ -142,10 +158,16 @@
     }
 
     // Scan shadow roots
-    document.querySelectorAll('*').forEach((el) => {
+    document.querySelectorAll("*").forEach((el) => {
       try {
-        if (el.shadowRoot?.customElements && !el.shadowRoot.customElements.__cronostar_patched__) {
-          patchRegistryInstance(el.shadowRoot.customElements, `shadow-${el.tagName}`);
+        if (
+          el.shadowRoot?.customElements &&
+          !el.shadowRoot.customElements.__cronostar_patched__
+        ) {
+          patchRegistryInstance(
+            el.shadowRoot.customElements,
+            `shadow-${el.tagName}`,
+          );
         }
       } catch (e) {
         // Skip
@@ -155,9 +177,9 @@
     scanCount++;
     if (scanCount >= 30) {
       clearInterval(scanInterval);
-      console.log('CRONOSTAR: Scansione registry completata');
+      console.log("CRONOSTAR: Scansione registry completata");
     }
   }, 500);
 
-  console.log('CRONOSTAR: Guard ultra-aggressivo inizializzato');
+  console.log("CRONOSTAR: Guard ultra-aggressivo inizializzato");
 })();

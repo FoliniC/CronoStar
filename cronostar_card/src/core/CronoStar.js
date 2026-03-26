@@ -1,27 +1,26 @@
 // core/CronoStar.js - FIXED VERSION
-import { LitElement } from 'lit';
-import { cardStyles } from '../styles.js';
-import { VERSION, extractCardConfig } from '../config.js';
+import { LitElement } from "lit";
+import { cardStyles } from "../styles.js";
+import { VERSION, extractCardConfig } from "../config.js";
 
-import { StateManager } from '../managers/state_manager.js';
-import { ProfileManager } from '../managers/profile_manager.js';
-import { SelectionManager } from '../managers/selection_manager.js';
-import { ChartManager } from '../managers/chart_manager.js';
-import { KeyboardHandler } from '../handlers/keyboard_handler.js';
-import { PointerHandler } from '../handlers/pointer_handler.js';
-import { Logger, checkIsEditorContext } from '../utils.js';
-import { LocalizationManager } from '../managers/localization_manager.js';
+import { StateManager } from "../managers/state_manager.js";
+import { ProfileManager } from "../managers/profile_manager.js";
+import { SelectionManager } from "../managers/selection_manager.js";
+import { ChartManager } from "../managers/chart_manager.js";
+import { KeyboardHandler } from "../handlers/keyboard_handler.js";
+import { PointerHandler } from "../handlers/pointer_handler.js";
+import { Logger, checkIsEditorContext } from "../utils.js";
+import { LocalizationManager } from "../managers/localization_manager.js";
 
-import { CardLifecycle } from './CardLifecycle.js';
-import { CardRenderer } from './CardRenderer.js';
-import { CardEventHandlers } from './CardEventHandlers.js';
-import { CardSync } from './CardSync.js';
-import { CardContext } from './CardContext.js';
+import { CardLifecycle } from "./CardLifecycle.js";
+import { CardRenderer } from "./CardRenderer.js";
+import { CardEventHandlers } from "./CardEventHandlers.js";
+import { CardSync } from "./CardSync.js";
+import { CardContext } from "./CardContext.js";
 
-import '../editor/CronoStarEditor.js';
+import "../editor/CronoStarEditor.js";
 
 export class CronoStarCard extends LitElement {
-
   static get properties() {
     return {
       hass: { type: Object },
@@ -62,16 +61,16 @@ export class CronoStarCard extends LitElement {
   }
 
   static getConfigElement() {
-    return document.createElement('cronostar-card-editor');
+    return document.createElement("cronostar-card-editor");
   }
 
   static getStubConfig() {
     return {
-      type: 'custom:cronostar-card',
-      preset_type: 'thermostat',
-      global_prefix: 'cronostar_thermostat_',
-      target_entity: 'climate.climatizzazione_appartamento',
-      hour_base: 'auto',
+      type: "custom:cronostar-card",
+      preset_type: "thermostat",
+      global_prefix: "cronostar_thermostat_",
+      target_entity: "climate.climatizzazione_appartamento",
+      hour_base: "auto",
       logging_enabled: true,
       not_configured: true,
     };
@@ -95,9 +94,11 @@ export class CronoStarCard extends LitElement {
       let el = this;
       while (el) {
         const tag = el.tagName?.toLowerCase();
-        if (tag === 'state-history-chart-timeline' ||
-          tag === 'ha-chart-base' ||
-          tag === 'hui-history-graph-card') {
+        if (
+          tag === "state-history-chart-timeline" ||
+          tag === "ha-chart-base" ||
+          tag === "hui-history-graph-card"
+        ) {
           return true;
         }
         el = el.parentElement || el.parentNode || el.host;
@@ -120,16 +121,16 @@ export class CronoStarCard extends LitElement {
     this.hasUnsavedChanges = false;
     this.suppressClickUntil = 0;
     this.isMenuOpen = false;
-    this.language = 'en';
+    this.language = "en";
     this.loggingEnabled = true;
-    this.selectedPreset = 'thermostat';
+    this.selectedPreset = "thermostat";
     this.missingEntities = [];
     this.initialLoadComplete = false;
     this.wasLongPress = false;
     this.cronostarReady = false;
     this.isDragging = false;
     this.awaitingAutomation = false;
-    this.outOfSyncDetails = '';
+    this.outOfSyncDetails = "";
     this._initialized = false;
     this._languageInitialized = false;
     this._cardConnected = false;
@@ -162,8 +163,8 @@ export class CronoStarCard extends LitElement {
         def: { horizontal: 5, vertical: 0.5 },
         ctrl: { horizontal: 1, vertical: 0.1 },
         shift: { horizontal: 30, vertical: 1.0 },
-        alt: { horizontal: 60, vertical: 5.0 }
-      }
+        alt: { horizontal: 60, vertical: 5.0 },
+      },
     };
 
     try {
@@ -172,30 +173,36 @@ export class CronoStarCard extends LitElement {
       this.localizationManager = new LocalizationManager(this);
 
       this.stateManager = new StateManager(this.cardContext);
-      this.cardContext.registerManager('state', this.stateManager);
+      this.cardContext.registerManager("state", this.stateManager);
 
       this.profileManager = new ProfileManager(this.cardContext);
-      this.cardContext.registerManager('profile', this.profileManager);
+      this.cardContext.registerManager("profile", this.profileManager);
 
       this.selectionManager = new SelectionManager(this.cardContext);
-      this.cardContext.registerManager('selection', this.selectionManager);
+      this.cardContext.registerManager("selection", this.selectionManager);
 
       this.chartManager = new ChartManager(this.cardContext);
-      this.cardContext.registerManager('chart', this.chartManager);
+      this.cardContext.registerManager("chart", this.chartManager);
 
       this.keyboardHandler = new KeyboardHandler(this);
       this.pointerHandler = new PointerHandler(this);
 
       this.cardLifecycle = new CardLifecycle(this);
-      Logger.log('INIT', `[CronoStar] CardLifecycle initialized successfully (v${VERSION})`);
+      Logger.log(
+        "INIT",
+        `[CronoStar] CardLifecycle initialized successfully (v${VERSION})`,
+      );
       this.cardRenderer = new CardRenderer(this);
       this.eventHandlers = new CardEventHandlers(this);
       this.cardSync = new CardSync(this);
 
       Logger.setEnabled(true);
-      Logger.log('INIT', `[CronoStar] Card constructor completed (v${VERSION})`);
+      Logger.log(
+        "INIT",
+        `[CronoStar] Card constructor completed (v${VERSION})`,
+      );
     } catch (e) {
-      Logger.error('INIT', '[CronoStar] Error initializing Managers:', e);
+      Logger.error("INIT", "[CronoStar] Error initializing Managers:", e);
       if (!this.cardLifecycle) this.cardLifecycle = new CardLifecycle(this);
     }
   }
@@ -215,17 +222,29 @@ export class CronoStarCard extends LitElement {
       this.isMenuOpen = false;
 
       if (!this.cardLifecycle) {
-        Logger.error('CONFIG', '[CronoStar] setConfig called but cardLifecycle is not initialized!');
+        Logger.error(
+          "CONFIG",
+          "[CronoStar] setConfig called but cardLifecycle is not initialized!",
+        );
         return;
       }
       this.cardLifecycle.setConfig(config);
     } catch (e) {
-      Logger.error('CONFIG', '[CronoStar] Error in CronoStarCard.setConfig:', e);
+      Logger.error(
+        "CONFIG",
+        "[CronoStar] Error in CronoStarCard.setConfig:",
+        e,
+      );
       this.config = config;
       if (this.eventHandlers) {
         this.eventHandlers.showNotification(
-          this.localizationManager ? this.localizationManager.localize(this.language, 'error.config_error') : 'Config Error' + `: ${e.message}`,
-          'error',
+          this.localizationManager
+            ? this.localizationManager.localize(
+                this.language,
+                "error.config_error",
+              )
+            : "Config Error" + `: ${e.message}`,
+          "error",
         );
       }
     }
@@ -242,16 +261,24 @@ export class CronoStarCard extends LitElement {
       this.cronostarReady = true;
     }
 
-    if (changed.has('previewData') && this.previewData) {
-      Logger.log('PREVIEW', '[CronoStar] Applying previewData', this.previewData);
+    if (changed.has("previewData") && this.previewData) {
+      Logger.log(
+        "PREVIEW",
+        "[CronoStar] Applying previewData",
+        this.previewData,
+      );
 
       // Explicitly remove container_meta if it leaked through from backend
       if (this.previewData.container_meta) {
         delete this.previewData.container_meta;
       }
 
-      const isFullObject = !Array.isArray(this.previewData) && typeof this.previewData === 'object';
-      const schedule = isFullObject ? this.previewData.schedule : this.previewData;
+      const isFullObject =
+        !Array.isArray(this.previewData) &&
+        typeof this.previewData === "object";
+      const schedule = isFullObject
+        ? this.previewData.schedule
+        : this.previewData;
 
       if (this.stateManager && schedule) {
         this.stateManager.setData(schedule);
@@ -267,7 +294,10 @@ export class CronoStarCard extends LitElement {
         if (meta.language) {
           this.language = meta.language;
           this.languageInitialized = true;
-          Logger.log('LANG', `[CronoStar] previewData applied language: ${meta.language}`);
+          Logger.log(
+            "LANG",
+            `[CronoStar] previewData applied language: ${meta.language}`,
+          );
         }
       }
 
@@ -314,14 +344,19 @@ export class CronoStarCard extends LitElement {
   render() {
     const isEditor = this.isEditorContext();
     const isPreview = this.isPreview;
-    const isWaitingForData = !isEditor && !isPreview && !this.initialLoadComplete;
-    
+    const isWaitingForData =
+      !isEditor && !isPreview && !this.initialLoadComplete;
+
     if (isWaitingForData && !this._loggedWait) {
-       console.info("[CronoStar] Render: Waiting for data overlay active", { initialLoadComplete: this.initialLoadComplete });
-       this._loggedWait = true;
+      console.info("[CronoStar] Render: Waiting for data overlay active", {
+        initialLoadComplete: this.initialLoadComplete,
+      });
+      this._loggedWait = true;
     } else if (!isWaitingForData && this._loggedWait) {
-       console.info("[CronoStar] Render: Data loaded, hiding overlay", { initialLoadComplete: this.initialLoadComplete });
-       this._loggedWait = false;
+      console.info("[CronoStar] Render: Data loaded, hiding overlay", {
+        initialLoadComplete: this.initialLoadComplete,
+      });
+      this._loggedWait = false;
     }
 
     return this.cardRenderer ? this.cardRenderer.render() : null;
@@ -335,18 +370,24 @@ export class CronoStarCard extends LitElement {
   handleAddProfile() {
     try {
       return this.eventHandlers?.handleAddProfile?.();
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   handleDeleteProfile() {
     try {
       return this.eventHandlers?.handleDeleteProfile?.();
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   handleEditConfig(step = 0) {
     console.info("[CronoStar] Opening internal wizard. Saving config backup.");
-    this._lastGoodConfig = this.config ? JSON.parse(JSON.stringify(this.config)) : null;
+    this._lastGoodConfig = this.config
+      ? JSON.parse(JSON.stringify(this.config))
+      : null;
     this.isMenuOpen = false;
     this.editorStep = step;
     this.isEditorInternal = true;
@@ -354,11 +395,11 @@ export class CronoStarCard extends LitElement {
   }
 
   async handleDeleteController() {
-    const isIt = this.language === 'it';
+    const isIt = this.language === "it";
     const prefix = this.config?.global_prefix;
-    const preset = this.config?.preset_type || 'thermostat';
+    const preset = this.config?.preset_type || "thermostat";
 
-    const confirmMsg = isIt 
+    const confirmMsg = isIt
       ? `Sei sicuro di voler eliminare definitivamente il controller '${prefix}' e tutti i suoi profili? Questa azione rimuoverà anche le entità associate.`
       : `Are you sure you want to permanently delete the controller '${prefix}' and all its profiles? This will also remove associated entities.`;
 
@@ -367,29 +408,30 @@ export class CronoStarCard extends LitElement {
     }
 
     try {
-      await this.hass.callService('cronostar', 'delete_controller', {
+      await this.hass.callService("cronostar", "delete_controller", {
         global_prefix: prefix,
-        preset_type: preset
+        preset_type: preset,
       });
 
       if (this.eventHandlers) {
         this.eventHandlers.showNotification(
-          isIt ? 'Controller eliminato con successo' : 'Controller deleted successfully',
-          'success'
+          isIt
+            ? "Controller eliminato con successo"
+            : "Controller deleted successfully",
+          "success",
         );
       }
-      
+
       // Ricarica la pagina per aggiornare la dashboard YAML
       setTimeout(() => {
         window.location.reload();
       }, 1500);
-
     } catch (e) {
-      console.error('Failed to delete controller:', e);
+      console.error("Failed to delete controller:", e);
       if (this.eventHandlers) {
         this.eventHandlers.showNotification(
-          (isIt ? 'Errore eliminazione: ' : 'Delete failed: ') + e.message,
-          'error'
+          (isIt ? "Errore eliminazione: " : "Delete failed: ") + e.message,
+          "error",
         );
       }
     }

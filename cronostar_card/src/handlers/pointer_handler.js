@@ -1,6 +1,6 @@
 /** * Pointer/touch event handling for area selection * @module pointer-handler */
-import { Logger } from '../utils.js';
-import { TIMEOUTS } from '../config.js';
+import { Logger } from "../utils.js";
+import { TIMEOUTS } from "../config.js";
 
 export class PointerHandler {
   constructor(card) {
@@ -33,14 +33,15 @@ export class PointerHandler {
     // Alt + Right Click Alignment logic
     if (e.altKey) {
       e.stopPropagation();
-      this.card.stateManager.alignSelectedPoints('right');
+      this.card.stateManager.alignSelectedPoints("right");
       this.card.chartManager?._updatePointStyles();
       return;
     }
 
     // If multiple points are selected, always show menu to allow batch operations
-    const selectedCount = this.card.selectionManager?.getSelectedPoints().length || 0;
-    
+    const selectedCount =
+      this.card.selectionManager?.getSelectedPoints().length || 0;
+
     if (selectedCount <= 1) {
       // Attempt to delete a point on right-click (fast delete for single point)
       if (this.card.chartManager?.deletePointAtEvent?.(e)) {
@@ -70,16 +71,20 @@ export class PointerHandler {
       }
     }
 
-    this.card.contextMenu = { show: true, x: Math.max(5, finalX), y: Math.max(5, finalY) };
+    this.card.contextMenu = {
+      show: true,
+      x: Math.max(5, finalX),
+      y: Math.max(5, finalY),
+    };
     this.card.requestUpdate();
 
     // Close menu on next click
     const closeMenu = () => {
       this.card.contextMenu = { ...this.card.contextMenu, show: false };
       this.card.requestUpdate();
-      document.removeEventListener('click', closeMenu);
+      document.removeEventListener("click", closeMenu);
     };
-    setTimeout(() => document.addEventListener('click', closeMenu), 10);
+    setTimeout(() => document.addEventListener("click", closeMenu), 10);
   }
 
   /**
@@ -93,7 +98,7 @@ export class PointerHandler {
     const rect = container.getBoundingClientRect();
     return {
       x: e.clientX - rect.left,
-      y: e.clientY - rect.top
+      y: e.clientY - rect.top,
     };
   }
 
@@ -101,9 +106,9 @@ export class PointerHandler {
    * Show selection overlay
    */
   showSelectionOverlay() {
-    const el = this.card.shadowRoot?.getElementById('selection-rect');
+    const el = this.card.shadowRoot?.getElementById("selection-rect");
     if (!el) return;
-    el.style.display = 'block';
+    el.style.display = "block";
     this.updateSelectionOverlay();
   }
 
@@ -111,16 +116,16 @@ export class PointerHandler {
    * Hide selection overlay
    */
   hideSelectionOverlay() {
-    const el = this.card.shadowRoot?.getElementById('selection-rect');
+    const el = this.card.shadowRoot?.getElementById("selection-rect");
     if (!el) return;
-    el.style.display = 'none';
+    el.style.display = "none";
   }
 
   /**
    * Update selection overlay position and size
    */
   updateSelectionOverlay() {
-    const el = this.card.shadowRoot?.getElementById('selection-rect');
+    const el = this.card.shadowRoot?.getElementById("selection-rect");
     if (!el || !this.selStartPx || !this.selEndPx) return;
 
     const minX = Math.min(this.selStartPx.x, this.selEndPx.x);
@@ -141,7 +146,7 @@ export class PointerHandler {
     try {
       // Ignore pointer selection while a chart drag is in progress
       if (this.card?.isDragging) {
-        Logger.log('POINTER', 'onPointerDown ignored: isDragging');
+        Logger.log("POINTER", "onPointerDown ignored: isDragging");
         return;
       }
 
@@ -153,7 +158,7 @@ export class PointerHandler {
       if (chart) {
         const { x, y } = chart.scales;
         if (pos.y >= x.top || pos.x <= y.right) {
-          Logger.log('POINTER', 'onPointerDown ignored: axis area');
+          Logger.log("POINTER", "onPointerDown ignored: axis area");
           return;
         }
       }
@@ -177,7 +182,7 @@ export class PointerHandler {
       this.card.selectionJustCompletedAt = 0;
       this.selectionAdditive = !!(e.ctrlKey || e.metaKey || e.shiftKey);
     } catch (err) {
-      Logger.warn('POINTER', 'onPointerDown failed:', err);
+      Logger.warn("POINTER", "onPointerDown failed:", err);
     }
   }
 
@@ -186,7 +191,8 @@ export class PointerHandler {
    */
   onPointerMove(e) {
     try {
-      if (e.pointerId !== this.activePointerId && this.activePointerId !== null) return;
+      if (e.pointerId !== this.activePointerId && this.activePointerId !== null)
+        return;
       const pos = this.getContainerRelativeCoords(e);
 
       if (this.isSelecting) {
@@ -213,18 +219,22 @@ export class PointerHandler {
             this.card.pointerSelecting = true;
             this.selStartPx = { ...this.pendingSelectStart };
             this.selEndPx = { ...pos };
-            
+
             // Capture pointer to ensure we get events even outside the canvas
-            if (e.target && typeof e.target.setPointerCapture === 'function') {
-              try { e.target.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+            if (e.target && typeof e.target.setPointerCapture === "function") {
+              try {
+                e.target.setPointerCapture(e.pointerId);
+              } catch (err) {
+                /* ignore */
+              }
             }
-            
+
             this.showSelectionOverlay();
           }
         }
       }
     } catch (err) {
-      Logger.warn('POINTER', 'onPointerMove failed:', err);
+      Logger.warn("POINTER", "onPointerMove failed:", err);
     }
   }
 
@@ -234,11 +244,20 @@ export class PointerHandler {
   onPointerUp(e) {
     if (this.longPressTimeout) clearTimeout(this.longPressTimeout);
     try {
-      if (e.pointerId !== this.activePointerId && this.activePointerId !== null) return;
-      
+      if (e.pointerId !== this.activePointerId && this.activePointerId !== null)
+        return;
+
       // Release pointer capture if we were selecting
-      if (this.isSelecting && e.target && typeof e.target.releasePointerCapture === 'function') {
-        try { e.target.releasePointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      if (
+        this.isSelecting &&
+        e.target &&
+        typeof e.target.releasePointerCapture === "function"
+      ) {
+        try {
+          e.target.releasePointerCapture(e.pointerId);
+        } catch (err) {
+          /* ignore */
+        }
       }
 
       // Ignore pointer up selection completion while chart drag is active
@@ -249,10 +268,10 @@ export class PointerHandler {
         this.selEndPx = null;
         this.card.pointerSelecting = false;
         this.hideSelectionOverlay();
-        Logger.log('POINTER', 'onPointerUp ignored: isDragging');
+        Logger.log("POINTER", "onPointerUp ignored: isDragging");
         return;
       }
-      
+
       this.activePointerId = null;
 
       // If no selection started (click), do not interfere; reset state and exit
@@ -272,7 +291,9 @@ export class PointerHandler {
       const maxY = Math.max(this.selStartPx.y, this.selEndPx.y);
 
       // Compute selected indices from area (delegated to ChartManager)
-      const indices = this.card.chartManager?.getIndicesInArea?.(minX, minY, maxX, maxY) || [];
+      const indices =
+        this.card.chartManager?.getIndicesInArea?.(minX, minY, maxX, maxY) ||
+        [];
 
       const selMgr = this.card.selectionManager;
       const chartMgr = this.card.chartManager;
@@ -280,7 +301,9 @@ export class PointerHandler {
       if (indices.length > 0) {
         if (this.selectionAdditive) {
           const union = [...selMgr.getSelectedPoints()];
-          indices.forEach((i) => { if (!union.includes(i)) union.push(i); });
+          indices.forEach((i) => {
+            if (!union.includes(i)) union.push(i);
+          });
           selMgr.selectIndices(union, true);
         } else {
           selMgr.selectIndices(indices, true);
@@ -291,7 +314,7 @@ export class PointerHandler {
 
       chartMgr.updatePointStyles?.(); // Use new consistent method name if available
       if (chartMgr.update) chartMgr.update();
-      selMgr.logSelection('area selection completed');
+      selMgr.logSelection("area selection completed");
 
       // Suppress immediate click after selection
       this.card.selectionJustCompletedAt = Date.now();
@@ -306,7 +329,7 @@ export class PointerHandler {
       this.selStartPx = null;
       this.selEndPx = null;
     } catch (err) {
-      Logger.warn('POINTER', 'onPointerUp failed:', err);
+      Logger.warn("POINTER", "onPointerUp failed:", err);
     }
   }
 
@@ -330,11 +353,23 @@ export class PointerHandler {
    * @param {HTMLCanvasElement} canvas - Canvas element
    */
   attachListeners(canvas) {
-    canvas.addEventListener('pointerdown', this.onPointerDown, { passive: false, capture: true });
-    canvas.addEventListener('contextmenu', this.onContextMenu);
-    window.addEventListener('pointermove', this.onPointerMove, { passive: false, capture: true });
-    window.addEventListener('pointerup', this.onPointerUp, { passive: false, capture: true });
-    window.addEventListener('pointercancel', this.onPointerCancel, { passive: false, capture: true });
+    canvas.addEventListener("pointerdown", this.onPointerDown, {
+      passive: false,
+      capture: true,
+    });
+    canvas.addEventListener("contextmenu", this.onContextMenu);
+    window.addEventListener("pointermove", this.onPointerMove, {
+      passive: false,
+      capture: true,
+    });
+    window.addEventListener("pointerup", this.onPointerUp, {
+      passive: false,
+      capture: true,
+    });
+    window.addEventListener("pointercancel", this.onPointerCancel, {
+      passive: false,
+      capture: true,
+    });
   }
 
   /**
@@ -342,10 +377,18 @@ export class PointerHandler {
    * @param {HTMLCanvasElement} canvas - Canvas element
    */
   detachListeners(canvas) {
-    canvas.removeEventListener('pointerdown', this.onPointerDown, { capture: true });
-    canvas.removeEventListener('contextmenu', this.onContextMenu);
-    window.removeEventListener('pointermove', this.onPointerMove, { capture: true });
-    window.removeEventListener('pointerup', this.onPointerUp, { capture: true });
-    window.removeEventListener('pointercancel', this.onPointerCancel, { capture: true });
+    canvas.removeEventListener("pointerdown", this.onPointerDown, {
+      capture: true,
+    });
+    canvas.removeEventListener("contextmenu", this.onContextMenu);
+    window.removeEventListener("pointermove", this.onPointerMove, {
+      capture: true,
+    });
+    window.removeEventListener("pointerup", this.onPointerUp, {
+      capture: true,
+    });
+    window.removeEventListener("pointercancel", this.onPointerCancel, {
+      capture: true,
+    });
   }
 }

@@ -4,8 +4,8 @@
  * Handles sparse time-based schedules with undo/redo
  */
 
-import { Logger, timeToMinutes, minutesToTime } from '../utils.js';
-import { Events } from '../core/EventBus.js';
+import { Logger, timeToMinutes, minutesToTime } from "../utils.js";
+import { Events } from "../core/EventBus.js";
 
 export class StateManager {
   constructor(context) {
@@ -30,15 +30,19 @@ export class StateManager {
     const isSwitch = !!this.context.config?.is_switch_preset;
     const defaultValue = isSwitch ? 0 : (this.context.config?.min_value ?? 0);
     const initialData = [
-      { time: '00:00', value: defaultValue },
-      { time: '23:59', value: defaultValue }
+      { time: "00:00", value: defaultValue },
+      { time: "23:59", value: defaultValue },
     ];
-    
-    this.scheduleData = isSwitch ? this.finalizeSwitchData(initialData) : initialData;
+
+    this.scheduleData = isSwitch
+      ? this.finalizeSwitchData(initialData)
+      : initialData;
     this._undoStack = [];
     this._redoStack = [];
 
-    Logger.state(`Initialized schedule with ${this.scheduleData.length} points`);
+    Logger.state(
+      `Initialized schedule with ${this.scheduleData.length} points`,
+    );
   }
 
   /**
@@ -78,33 +82,39 @@ export class StateManager {
    */
   finalizeSwitchData(data) {
     if (!data || data.length === 0) return [];
-    
+
     // 1. Normalize and Sort initial input milestones
     let input = this._normalizeSchedule(data);
     if (input.length === 0) return [];
 
     // 2. Pair Enforcement & Transition Expansion
     const expandedMap = new Map();
-    
+
     // Seed with input values (milestones)
-    input.forEach(p => expandedMap.set(timeToMinutes(p.time), Number(p.value)));
+    input.forEach((p) =>
+      expandedMap.set(timeToMinutes(p.time), Number(p.value)),
+    );
 
     // Detect where transitions need a 1-minute step
     for (let i = 1; i < input.length; i++) {
       const prev = input[i - 1];
       const cur = input[i];
       const prevPrev = i > 1 ? input[i - 2] : null;
-      
+
       const prevMin = timeToMinutes(prev.time);
       const curMin = timeToMinutes(cur.time);
 
       if (Number(cur.value) !== Number(prev.value)) {
         // Transition detected between prev and cur.
-        
+
         // --- SPIKE SUPPRESSION RULE ---
-        // If 'prev' was a transition point (T+1 from prevPrev) AND cur.value returns 
+        // If 'prev' was a transition point (T+1 from prevPrev) AND cur.value returns
         // to the state of prevPrev, then 'prev' is now a redundant blip.
-        if (prevPrev && prevMin === timeToMinutes(prevPrev.time) + 1 && Number(cur.value) === Number(prevPrev.value)) {
+        if (
+          prevPrev &&
+          prevMin === timeToMinutes(prevPrev.time) + 1 &&
+          Number(cur.value) === Number(prevPrev.value)
+        ) {
           expandedMap.set(prevMin, Number(cur.value));
           continue; // Absorbed
         }
@@ -132,14 +142,14 @@ export class StateManager {
     for (let i = 0; i < processed.length; i++) {
       const cur = processed[i];
       const prev = final.length > 0 ? final[final.length - 1] : null;
-      
+
       if (prev && Number(cur.value) === Number(prev.value)) {
         const prevMin = timeToMinutes(prev.time);
         const curMin = timeToMinutes(cur.time);
-        
+
         // Only delete if it's exactly 1 minute apart (the "T+1" point of an eliminated pair)
         if (curMin === prevMin + 1 && curMin < 1439) {
-          continue; 
+          continue;
         }
       }
       final.push(cur);
@@ -147,8 +157,8 @@ export class StateManager {
 
     // Final deduplication by time string as a safety measure
     const dedupMap = new Map();
-    final.forEach(p => dedupMap.set(p.time, p.value));
-    
+    final.forEach((p) => dedupMap.set(p.time, p.value));
+
     return Array.from(dedupMap.entries())
       .sort((a, b) => timeToMinutes(a[0]) - timeToMinutes(b[0]))
       .map(([time, value]) => ({ time, value }));
@@ -161,7 +171,7 @@ export class StateManager {
    */
   setData(newData, skipHistory = false) {
     if (!Array.isArray(newData)) {
-      Logger.warn('STATE', 'setData received non-array data');
+      Logger.warn("STATE", "setData received non-array data");
       return;
     }
 
@@ -170,7 +180,9 @@ export class StateManager {
     }
 
     const isSwitch = !!this.context.config?.is_switch_preset;
-    let normalized = isSwitch ? this.finalizeSwitchData(newData) : this._normalizeSchedule(newData);
+    let normalized = isSwitch
+      ? this.finalizeSwitchData(newData)
+      : this._normalizeSchedule(newData);
 
     this.scheduleData = normalized;
 
@@ -192,8 +204,8 @@ export class StateManager {
   _normalizeSchedule(schedule) {
     const byMinute = new Map();
 
-    schedule.forEach(item => {
-      if (typeof item !== 'object' || item === null) return;
+    schedule.forEach((item) => {
+      if (typeof item !== "object" || item === null) return;
 
       let time, value;
 
@@ -219,7 +231,7 @@ export class StateManager {
       .sort((a, b) => a[0] - b[0])
       .map(([minute, value]) => ({
         time: minutesToTime(minute),
-        value
+        value,
       }));
   }
 
@@ -228,18 +240,23 @@ export class StateManager {
    * @private
    */
   _ensureBoundaries() {
-    const minutes = this.scheduleData.map(p => timeToMinutes(p.time));
+    const minutes = this.scheduleData.map((p) => timeToMinutes(p.time));
 
     if (!minutes.includes(0)) {
       // For switches, default start to 0 (OFF) if missing, otherwise extend first value
       const isSwitch = this.context.config?.is_switch_preset;
-      const firstValue = isSwitch ? 0 : (this.scheduleData[0]?.value ?? this.context.config?.min_value ?? 0);
-      this.scheduleData.unshift({ time: '00:00', value: firstValue });
+      const firstValue = isSwitch
+        ? 0
+        : (this.scheduleData[0]?.value ?? this.context.config?.min_value ?? 0);
+      this.scheduleData.unshift({ time: "00:00", value: firstValue });
     }
 
     if (!minutes.includes(1439)) {
-      const lastValue = this.scheduleData[this.scheduleData.length - 1]?.value ?? this.context.config?.min_value ?? 0;
-      this.scheduleData.push({ time: '23:59', value: lastValue });
+      const lastValue =
+        this.scheduleData[this.scheduleData.length - 1]?.value ??
+        this.context.config?.min_value ??
+        0;
+      this.scheduleData.push({ time: "23:59", value: lastValue });
     }
   }
 
@@ -253,24 +270,33 @@ export class StateManager {
     this._pushHistory();
 
     const minutes = timeToMinutes(time);
-    Logger.log('STATE', `InsertPoint requested at ${time} (${minutes}) = ${value}`);
+    Logger.log(
+      "STATE",
+      `InsertPoint requested at ${time} (${minutes}) = ${value}`,
+    );
 
     // Check if point already exists at this exact minute
-    const existingIndex = this.scheduleData.findIndex(p =>
-      Math.abs(timeToMinutes(p.time) - minutes) < 1
+    const existingIndex = this.scheduleData.findIndex(
+      (p) => Math.abs(timeToMinutes(p.time) - minutes) < 1,
     );
 
     if (existingIndex !== -1) {
       this.scheduleData[existingIndex].value = value;
-      Logger.log('STATE', `Updated existing point at index ${existingIndex} -> ${this.scheduleData[existingIndex].time} = ${value}`);
+      Logger.log(
+        "STATE",
+        `Updated existing point at index ${existingIndex} -> ${this.scheduleData[existingIndex].time} = ${value}`,
+      );
       this.context.hasUnsavedChanges = true;
-      this.context.events.emit(Events.POINT_UPDATED, { index: existingIndex, value });
+      this.context.events.emit(Events.POINT_UPDATED, {
+        index: existingIndex,
+        value,
+      });
       return existingIndex;
     }
 
     // Find insertion position
-    let insertIndex = this.scheduleData.findIndex(p =>
-      timeToMinutes(p.time) > minutes
+    let insertIndex = this.scheduleData.findIndex(
+      (p) => timeToMinutes(p.time) > minutes,
     );
 
     if (insertIndex === -1) {
@@ -278,9 +304,16 @@ export class StateManager {
     }
 
     this.scheduleData.splice(insertIndex, 0, { time, value });
-    Logger.log('STATE', `Inserted new point at index ${insertIndex} -> ${time} = ${value}`);
+    Logger.log(
+      "STATE",
+      `Inserted new point at index ${insertIndex} -> ${time} = ${value}`,
+    );
     this.context.hasUnsavedChanges = true;
-    this.context.events.emit(Events.POINT_ADDED, { index: insertIndex, time, value });
+    this.context.events.emit(Events.POINT_ADDED, {
+      index: insertIndex,
+      time,
+      value,
+    });
     this.context.events.emit(Events.SCHEDULE_UPDATED, this.scheduleData);
 
     Logger.state(`Inserted point at ${time} = ${value}`);
@@ -301,7 +334,7 @@ export class StateManager {
     const point = this.scheduleData[index];
     const minutes = timeToMinutes(point.time);
     if (minutes === 0 || minutes === 1439 || minutes === 1440) {
-      Logger.warn('STATE', 'Cannot remove start/end point');
+      Logger.warn("STATE", "Cannot remove start/end point");
       return false;
     }
 
@@ -326,7 +359,7 @@ export class StateManager {
 
     const newData = [...this.scheduleData];
     newData[index].value = value;
-    
+
     // Using setData ensures finalizeSwitchData is called for switch presets
     this.setData(newData);
   }
@@ -339,8 +372,10 @@ export class StateManager {
   alignSelectedPoints(direction, indices) {
     let targetIndices = indices;
     if (!targetIndices) {
-      const selectionManager = this.context.getManager('selection');
-      targetIndices = selectionManager ? selectionManager.getSelectedPoints() : [];
+      const selectionManager = this.context.getManager("selection");
+      targetIndices = selectionManager
+        ? selectionManager.getSelectedPoints()
+        : [];
     }
 
     if (!targetIndices || targetIndices.length < 2) return;
@@ -348,21 +383,22 @@ export class StateManager {
     this._pushHistory();
 
     // Filter valid indices
-    const validIndices = targetIndices.filter(i =>
-      i >= 0 && i < this.scheduleData.length
+    const validIndices = targetIndices.filter(
+      (i) => i >= 0 && i < this.scheduleData.length,
     );
 
     if (validIndices.length < 2) return;
 
     // Get anchor value
     const sorted = [...validIndices].sort((a, b) => a - b);
-    const anchorIndex = direction === 'right' ? sorted[sorted.length - 1] : sorted[0];
+    const anchorIndex =
+      direction === "right" ? sorted[sorted.length - 1] : sorted[0];
     const anchorValue = this.scheduleData[anchorIndex]?.value;
 
     if (anchorValue === undefined) return;
 
     // Apply to all points
-    validIndices.forEach(i => {
+    validIndices.forEach((i) => {
       if (i !== anchorIndex) {
         this.scheduleData[i].value = anchorValue;
       }
@@ -410,7 +446,7 @@ export class StateManager {
    * @returns {string} Time label
    */
   getPointLabel(index) {
-    return this.scheduleData[index]?.time ?? '00:00';
+    return this.scheduleData[index]?.time ?? "00:00";
   }
 
   /**
@@ -459,8 +495,10 @@ export class StateManager {
     const snapshot = JSON.stringify(this.scheduleData);
 
     // Don't push if same as last
-    if (this._undoStack.length > 0 &&
-      this._undoStack[this._undoStack.length - 1] === snapshot) {
+    if (
+      this._undoStack.length > 0 &&
+      this._undoStack[this._undoStack.length - 1] === snapshot
+    ) {
       return;
     }
 

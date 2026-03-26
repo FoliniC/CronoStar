@@ -1,6 +1,10 @@
-import { html } from 'lit';
-import { CARD_CONFIG_PRESETS } from '../../config.js';
-import { getEffectivePrefix, isValidPrefix, normalizePrefix } from '../../utils/prefix_utils.js';
+import { html } from "lit";
+import { CARD_CONFIG_PRESETS } from "../../config.js";
+import {
+  getEffectivePrefix,
+  isValidPrefix,
+  normalizePrefix,
+} from "../../utils/prefix_utils.js";
 
 export class Step1Preset {
   constructor(editor) {
@@ -9,108 +13,186 @@ export class Step1Preset {
 
   render() {
     const list = [
-      { id: 'thermostat', icon: '🌡️', title: 'Thermostat', desc: 'Schedule hourly temperatures for heating/cooling' },
-      { id: 'ev_charging', icon: '🔌', title: 'EV Charging', desc: 'Schedule EV charging power' },
-      { id: 'generic_kwh', icon: '⚡', title: 'Generic kWh', desc: 'Schedule hourly energy limits (0-7 kWh)' },
-      { id: 'generic_temperature', icon: '🌡️', title: 'Generic Temperature', desc: 'Schedule generic temperatures (0-40°C)' },
-      { id: 'generic_switch', icon: '💡', title: 'Generic switch', desc: 'Schedule device on/off' },
+      {
+        id: "thermostat",
+        icon: "🌡️",
+        title: "Thermostat",
+        desc: "Schedule hourly temperatures for heating/cooling",
+      },
+      {
+        id: "ev_charging",
+        icon: "🔌",
+        title: "EV Charging",
+        desc: "Schedule EV charging power",
+      },
+      {
+        id: "generic_kwh",
+        icon: "⚡",
+        title: "Generic kWh",
+        desc: "Schedule hourly energy limits (0-7 kWh)",
+      },
+      {
+        id: "generic_temperature",
+        icon: "🌡️",
+        title: "Generic Temperature",
+        desc: "Schedule generic temperatures (0-40°C)",
+      },
+      {
+        id: "generic_switch",
+        icon: "💡",
+        title: "Generic switch",
+        desc: "Schedule device on/off",
+      },
     ];
 
-    const currentPrefix = this.editor._config.global_prefix || getEffectivePrefix(this.editor._config);
+    const currentPrefix =
+      this.editor._config.global_prefix ||
+      getEffectivePrefix(this.editor._config);
     const prefixValid = isValidPrefix(currentPrefix);
-    const applyEntity = this.editor._config.target_entity || '';
+    const applyEntity = this.editor._config.target_entity || "";
     const minimalConfigComplete = prefixValid && !!applyEntity;
 
     const domains = this.getApplyIncludeDomains();
     const hasStates = !!this.editor.hass?.states;
-    const matchingEntities = hasStates ? Object.keys(this.editor.hass.states).filter(eid => 
-      domains.some(d => eid.startsWith(`${d}.`))
-    ) : [];
+    const matchingEntities = hasStates
+      ? Object.keys(this.editor.hass.states).filter((eid) =>
+          domains.some((d) => eid.startsWith(`${d}.`)),
+        )
+      : [];
     const noEntitiesFound = hasStates && matchingEntities.length === 0;
 
-    const headerKey = this.editor._isEditing ? 'headers.step1_edit' : 'headers.step1';
+    const headerKey = this.editor._isEditing
+      ? "headers.step1_edit"
+      : "headers.step1";
 
     return html`
       <div class="step-content">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-          <div class="step-header" style="margin-bottom: 0;">${this.editor.i18n._t(headerKey)} (Step 1)</div>
+        <div
+          style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;"
+        >
+          <div class="step-header" style="margin-bottom: 0;">
+            ${this.editor.i18n._t(headerKey)} (Step 1)
+          </div>
           <mwc-button outlined @click=${() => this.editor.handleShowHelp()}>
-            ℹ️ ${this.editor.i18n._t('actions.component_info')}
+            ℹ️ ${this.editor.i18n._t("actions.component_info")}
           </mwc-button>
         </div>
-        <div class="step-description">${this.editor.i18n._t('descriptions.step1')}</div>
+        <div class="step-description">
+          ${this.editor.i18n._t("descriptions.step1")}
+        </div>
 
         <div class="preset-cards">
-          ${list.map(preset => html`
-            <button
-              type="button"
-              class="preset-card ${this.editor._selectedPreset === preset.id ? 'selected' : ''}"
-              aria-pressed="${this.editor._selectedPreset === preset.id ? 'true' : 'false'}"
-              @click=${() => this.selectPresetWithPrefix(preset.id)}
-            >
-              <div class="preset-icon" aria-hidden="true">${preset.icon}</div>
-              <div class="preset-title">${preset.title}</div>
-              <div class="preset-description">${preset.desc}</div>
-            </button>
-          `)}
-        </div>
-
-        <div class="field-group">
-          <label class="field-label">1. ${this.editor.i18n._t('fields.target_entity_label')}</label>
-          <div class="field-description">${this.editor.i18n._t('fields.target_entity_desc')}</div>
-          ${this.editor.renderEntityPicker(
-            'target_entity',
-            applyEntity,
-            this.editor.i18n._t('fields.target_entity_label'),
-            domains
+          ${list.map(
+            (preset) => html`
+              <button
+                type="button"
+                class="preset-card ${this.editor._selectedPreset === preset.id
+                  ? "selected"
+                  : ""}"
+                aria-pressed="${this.editor._selectedPreset === preset.id
+                  ? "true"
+                  : "false"}"
+                @click=${() => this.selectPresetWithPrefix(preset.id)}
+              >
+                <div class="preset-icon" aria-hidden="true">${preset.icon}</div>
+                <div class="preset-title">${preset.title}</div>
+                <div class="preset-description">${preset.desc}</div>
+              </button>
+            `,
           )}
-          ${noEntitiesFound ? html`
-            <div style="color: #ef4444; font-size: 0.85rem; margin-top: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; padding: 12px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3);">
-              <ha-icon icon="mdi:alert-circle" style="--mdc-icon-size: 20px; flex-shrink: 0;"></ha-icon>
-              <span>${this.editor.i18n._t('ui.no_matching_entities', { '{domains}': domains.join(', ') })}</span>
-            </div>
-          ` : ''}
         </div>
 
         <div class="field-group">
-          <label class="field-label">${this.editor.i18n._t('ui.identification_prefix')}</label>
+          <label class="field-label"
+            >1. ${this.editor.i18n._t("fields.target_entity_label")}</label
+          >
           <div class="field-description">
-            ${this.editor.i18n._t('ui.prefix_description')}
+            ${this.editor.i18n._t("fields.target_entity_desc")}
+          </div>
+          ${this.editor.renderEntityPicker(
+            "target_entity",
+            applyEntity,
+            this.editor.i18n._t("fields.target_entity_label"),
+            domains,
+          )}
+          ${noEntitiesFound
+            ? html`
+                <div
+                  style="color: #ef4444; font-size: 0.85rem; margin-top: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; padding: 12px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3);"
+                >
+                  <ha-icon
+                    icon="mdi:alert-circle"
+                    style="--mdc-icon-size: 20px; flex-shrink: 0;"
+                  ></ha-icon>
+                  <span
+                    >${this.editor.i18n._t("ui.no_matching_entities", {
+                      "{domains}": domains.join(", "),
+                    })}</span
+                  >
+                </div>
+              `
+            : ""}
+        </div>
+
+        <div class="field-group">
+          <label class="field-label"
+            >${this.editor.i18n._t("ui.identification_prefix")}</label
+          >
+          <div class="field-description">
+            ${this.editor.i18n._t("ui.prefix_description")}
           </div>
           <ha-textfield
             .label=${`sensor.${currentPrefix}...`}
-            .value=${currentPrefix || ''}
+            .value=${currentPrefix || ""}
             @input=${(e) => this._handlePrefixChange(e.target.value, e)}
             @change=${() => this.editor._dispatchConfigChanged(true)}
           ></ha-textfield>
-          
+
           <div style="margin-top: 12px;">
             ${prefixValid
-        ? html`<div style="color: #4ade80; font-weight: 500;">✅ ${this.editor.i18n._t('ui.prefix_ok')}</div>`
-        : html`<div style="color: #ef4444; font-weight: 500;">❌ ${this.editor.i18n._t('ui.prefix_bad')}</div>`
-      }
+              ? html`<div style="color: #4ade80; font-weight: 500;">
+                  ✅ ${this.editor.i18n._t("ui.prefix_ok")}
+                </div>`
+              : html`<div style="color: #ef4444; font-weight: 500;">
+                  ❌ ${this.editor.i18n._t("ui.prefix_bad")}
+                </div>`}
           </div>
         </div>
 
-        ${minimalConfigComplete ? html`
-          <div class="success-box">
-            <div style="font-weight: 800; font-size: 1.1rem; margin-bottom: 8px;">✅ ${this.editor.i18n._t('ui.minimal_config_complete')}</div>
-            <div style="color: #cbd5e1; margin-bottom: 20px;">${this.editor.i18n._t('ui.minimal_config_help')}</div>
-            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-              <mwc-button raised @click=${() => this._handleSaveAndClose()}>
-                💾 ${this.editor.i18n._t('actions.save_and_close')}
-              </mwc-button>
-              <mwc-button outlined @click=${() => this._handleAdvancedConfig()}>
-                ⚙️ ${this.editor.i18n._t('actions.advanced_config')}
-              </mwc-button>
-            </div>
-          </div>
-        ` : html`
-          <div class="info-box">
-            <div style="font-weight: 800; font-size: 1.1rem; margin-bottom: 8px;">ℹ️ ${this.editor.i18n._t('ui.minimal_config_needed')}</div>
-            <p>${this.editor.i18n._t('ui.minimal_config_help')}</p>
-          </div>
-        `}
+        ${minimalConfigComplete
+          ? html`
+              <div class="success-box">
+                <div
+                  style="font-weight: 800; font-size: 1.1rem; margin-bottom: 8px;"
+                >
+                  ✅ ${this.editor.i18n._t("ui.minimal_config_complete")}
+                </div>
+                <div style="color: #cbd5e1; margin-bottom: 20px;">
+                  ${this.editor.i18n._t("ui.minimal_config_help")}
+                </div>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                  <mwc-button raised @click=${() => this._handleSaveAndClose()}>
+                    💾 ${this.editor.i18n._t("actions.save_and_close")}
+                  </mwc-button>
+                  <mwc-button
+                    outlined
+                    @click=${() => this._handleAdvancedConfig()}
+                  >
+                    ⚙️ ${this.editor.i18n._t("actions.advanced_config")}
+                  </mwc-button>
+                </div>
+              </div>
+            `
+          : html`
+              <div class="info-box">
+                <div
+                  style="font-weight: 800; font-size: 1.1rem; margin-bottom: 8px;"
+                >
+                  ℹ️ ${this.editor.i18n._t("ui.minimal_config_needed")}
+                </div>
+                <p>${this.editor.i18n._t("ui.minimal_config_help")}</p>
+              </div>
+            `}
       </div>
     `;
   }
@@ -118,29 +200,38 @@ export class Step1Preset {
   selectPresetWithPrefix(presetId) {
     this.editor._selectedPreset = presetId;
     const tags = {
-      'thermostat': 'thermostat',
-      'ev_charging': 'ev_charging',
-      'generic_kwh': 'generic_kwh',
-      'generic_temperature': 'generic_temperature',
-      'generic_switch': 'generic_switch'
+      thermostat: "thermostat",
+      ev_charging: "ev_charging",
+      generic_kwh: "generic_kwh",
+      generic_temperature: "generic_temperature",
+      generic_switch: "generic_switch",
     };
     const tag = tags[presetId] || presetId;
     const newPrefix = `cronostar_${tag}_`;
 
-    this.editor._updateConfig('preset_type', presetId);
-    this.editor._updateConfig('global_prefix', newPrefix);
+    this.editor._updateConfig("preset_type", presetId);
+    this.editor._updateConfig("global_prefix", newPrefix);
 
     const config = this.editor._config;
     const isStandard = (val, suffix) => {
       if (!val) return true;
-      return val.includes('cronostar_') && (val.endsWith(suffix) || val.endsWith(suffix.replace('d', '')));
+      return (
+        val.includes("cronostar_") &&
+        (val.endsWith(suffix) || val.endsWith(suffix.replace("d", "")))
+      );
     };
 
-    if (isStandard(config.enabled_entity, 'enabled')) {
-      this.editor._updateConfig('enabled_entity', `switch.${newPrefix}enabled`);
+    if (isStandard(config.enabled_entity, "enabled")) {
+      this.editor._updateConfig("enabled_entity", `switch.${newPrefix}enabled`);
     }
-    if (isStandard(config.profiles_select_entity, 'current_profile') || isStandard(config.profiles_select_entity, 'profiles')) {
-      this.editor._updateConfig('profiles_select_entity', `select.${newPrefix}current_profile`);
+    if (
+      isStandard(config.profiles_select_entity, "current_profile") ||
+      isStandard(config.profiles_select_entity, "profiles")
+    ) {
+      this.editor._updateConfig(
+        "profiles_select_entity",
+        `select.${newPrefix}current_profile`,
+      );
     }
 
     this.editor._dispatchConfigChanged(true);
@@ -151,22 +242,22 @@ export class Step1Preset {
     const editor = this.editor;
     const target = event.target;
     // For ha-textfield, we might need to access the underlying input for selection
-    const input = target.shadowRoot?.querySelector('input') || target;
+    const input = target.shadowRoot?.querySelector("input") || target;
     const cursor = input.selectionStart;
-    const oldPrefix = editor._config.global_prefix || '';
+    const oldPrefix = editor._config.global_prefix || "";
     const isDeleting = value.length < oldPrefix.length;
 
     // 1. Pulizia: solo minuscole, numeri e underscore
-    let clean = value.toLowerCase().replace(/[^a-z0-9_]/g, '');
-    
+    let clean = value.toLowerCase().replace(/[^a-z0-9_]/g, "");
+
     let normalized = clean;
     let targetCursor = cursor;
     let addedUnderscore = false;
 
     // 2. Logica Real-time: aggiunta underscore finale se mancante
     // Solo se NON stiamo cancellando e se il cursore è alla fine
-    if (!isDeleting && clean.length > 0 && !clean.endsWith('_')) {
-      normalized = clean + '_';
+    if (!isDeleting && clean.length > 0 && !clean.endsWith("_")) {
+      normalized = clean + "_";
       if (cursor >= clean.length) {
         targetCursor = normalized.length - 1;
         addedUnderscore = true;
@@ -175,40 +266,50 @@ export class Step1Preset {
 
     // Aggiornamento config
     let newConfig = { ...editor._config, global_prefix: normalized };
-    
-    const presetId = editor._selectedPreset || 'thermostat';
+
+    const presetId = editor._selectedPreset || "thermostat";
     const presetConfig = CARD_CONFIG_PRESETS[presetId];
-    const baseTitle = presetConfig ? presetConfig.title : 'CronoStar Schedule';
-    
-    let titleBase = normalized.replace(/_+$/, '').replace(/_/g, ' ').trim();
+    const baseTitle = presetConfig ? presetConfig.title : "CronoStar Schedule";
+
+    let titleBase = normalized.replace(/_+$/, "").replace(/_/g, " ").trim();
     if (titleBase) {
-        newConfig.title = titleBase.charAt(0).toUpperCase() + titleBase.slice(1);
+      newConfig.title = titleBase.charAt(0).toUpperCase() + titleBase.slice(1);
     }
-    
+
     const isStandard = (val, suffix) => {
       if (!val) return true;
-      return val.includes('cronostar_') && (val.endsWith(suffix) || val.endsWith(suffix.replace('d', '')));
+      return (
+        val.includes("cronostar_") &&
+        (val.endsWith(suffix) || val.endsWith(suffix.replace("d", "")))
+      );
     };
-    if (isStandard(newConfig.enabled_entity, 'enabled')) newConfig.enabled_entity = `switch.${normalized}enabled`;
-    if (isStandard(newConfig.profiles_select_entity, 'current_profile')) newConfig.profiles_select_entity = `select.${normalized}current_profile`;
+    if (isStandard(newConfig.enabled_entity, "enabled"))
+      newConfig.enabled_entity = `switch.${normalized}enabled`;
+    if (isStandard(newConfig.profiles_select_entity, "current_profile"))
+      newConfig.profiles_select_entity = `select.${normalized}current_profile`;
 
     editor._config = newConfig;
     target.value = normalized;
-    
+
     // Ripristino cursore differito per evitare interferenze con il ciclo di rendering di Lit
     setTimeout(() => {
       try {
         input.setSelectionRange(targetCursor, targetCursor);
         if (addedUnderscore) input.focus();
-      } catch (e) {}
+      } catch (e) {
+        // Ignore selection range errors
+      }
     }, 0);
-    
+
     editor.requestUpdate();
   }
 
   async _handleSaveAndClose() {
-    const currentPrefix = normalizePrefix(this.editor._config.global_prefix || getEffectivePrefix(this.editor._config));
-    this.editor._updateConfig('global_prefix', currentPrefix, true);
+    const currentPrefix = normalizePrefix(
+      this.editor._config.global_prefix ||
+        getEffectivePrefix(this.editor._config),
+    );
+    this.editor._updateConfig("global_prefix", currentPrefix, true);
     await this.editor.updateComplete;
     if (this.editor.hass) {
       try {
@@ -220,10 +321,13 @@ export class Step1Preset {
   }
 
   async _handleAdvancedConfig() {
-    const currentPrefix = normalizePrefix(this.editor._config.global_prefix || getEffectivePrefix(this.editor._config));
-    this.editor._updateConfig('global_prefix', currentPrefix, true);
+    const currentPrefix = normalizePrefix(
+      this.editor._config.global_prefix ||
+        getEffectivePrefix(this.editor._config),
+    );
+    this.editor._updateConfig("global_prefix", currentPrefix, true);
     await this.editor.updateComplete; // Ensure config is updated before proceeding
-    
+
     // Do NOT call _handleFinishClick as it tries to finish the entire wizard.
     // Instead, just move to the next step.
     this.editor._step = 2;
@@ -231,14 +335,30 @@ export class Step1Preset {
   }
 
   getApplyIncludeDomains() {
-    const preset = this.editor._selectedPreset || this.editor._config?.preset_type || 'thermostat';
+    const preset =
+      this.editor._selectedPreset ||
+      this.editor._config?.preset_type ||
+      "thermostat";
     switch (preset) {
-      case 'thermostat': return ['climate'];
-      case 'ev_charging': return ['number', 'input_number'];
-      case 'generic_switch': return ['switch', 'input_boolean'];
-      case 'generic_kwh': return ['number', 'input_number'];
-      case 'generic_temperature': return ['number', 'input_number', 'sensor'];
-      default: return ['climate', 'number', 'input_number', 'switch', 'input_boolean', 'sensor'];
+      case "thermostat":
+        return ["climate"];
+      case "ev_charging":
+        return ["number", "input_number"];
+      case "generic_switch":
+        return ["switch", "input_boolean"];
+      case "generic_kwh":
+        return ["number", "input_number"];
+      case "generic_temperature":
+        return ["number", "input_number", "sensor"];
+      default:
+        return [
+          "climate",
+          "number",
+          "input_number",
+          "switch",
+          "input_boolean",
+          "sensor",
+        ];
     }
   }
 }

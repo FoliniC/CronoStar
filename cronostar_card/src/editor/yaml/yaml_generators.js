@@ -1,14 +1,15 @@
 /**
  * YAML template generation for CronoStar manual setup
  */
-import { getEffectivePrefix } from '../../utils/prefix_utils.js';
+import { getEffectivePrefix } from "../../utils/prefix_utils.js";
 
 export function buildAutomationTemplate(config) {
-  console.log('[yaml_generators] buildAutomationTemplate config:', config);
+  console.log("[yaml_generators] buildAutomationTemplate config:", config);
   const prefix = getEffectivePrefix(config);
-  const preset = config.preset_type || config.preset || 'thermostat';
-  const target = config.target_entity || 'your_entity_id';
-  const selector = config.profiles_select_entity || `select.${prefix}current_profile`;
+  const preset = config.preset_type || config.preset || "thermostat";
+  const target = config.target_entity || "your_entity_id";
+  const selector =
+    config.profiles_select_entity || `select.${prefix}current_profile`;
 
   const currentSensor = `sensor.${prefix}current`;
 
@@ -52,6 +53,6 @@ actions:
             data:
               option: "Default"
 `.trim();
-  console.log('[yaml_generators] Generated YAML:', yaml_string);
+  console.log("[yaml_generators] Generated YAML:", yaml_string);
   return yaml_string;
 }

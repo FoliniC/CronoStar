@@ -1,23 +1,32 @@
 // editor/CronoStarEditor.js
-import { LitElement, html, css } from 'lit';
-import { CARD_CONFIG_PRESETS, DEFAULT_CONFIG, validateConfig, extractCardConfig } from '../config.js';
-import { log } from '../utils/logger_utils.js';
-import { normalizePrefix, isValidPrefix, getEffectivePrefix } from '../utils/prefix_utils.js';
-import { debounce, Logger } from '../utils.js';
-import { EditorI18n } from './EditorI18n.js';
-import { EditorWizard } from './EditorWizard.js';
-import { Step0Dashboard } from './steps/Step0Dashboard.js';
-import { Step1Preset } from './steps/Step1Preset.js';
-import { Step2Entities } from './steps/Step2Entities.js';
-import { Step3Options } from './steps/Step3Options.js';
-import { Step4Automation } from './steps/Step4Automation.js';
-import { Step5Summary } from './steps/Step5Summary.js';
+import { LitElement, html, css } from "lit";
+import {
+  CARD_CONFIG_PRESETS,
+  DEFAULT_CONFIG,
+  validateConfig,
+  extractCardConfig,
+} from "../config.js";
+import { log } from "../utils/logger_utils.js";
+import {
+  normalizePrefix,
+  isValidPrefix,
+  getEffectivePrefix,
+} from "../utils/prefix_utils.js";
+import { debounce, Logger } from "../utils.js";
+import { EditorI18n } from "./EditorI18n.js";
+import { EditorWizard } from "./EditorWizard.js";
+import { Step0Dashboard } from "./steps/Step0Dashboard.js";
+import { Step1Preset } from "./steps/Step1Preset.js";
+import { Step2Entities } from "./steps/Step2Entities.js";
+import { Step3Options } from "./steps/Step3Options.js";
+import { Step4Automation } from "./steps/Step4Automation.js";
+import { Step5Summary } from "./steps/Step5Summary.js";
 import {
   copyToClipboard,
   downloadFile,
-  handleInitializeData
-} from './services/service_handlers.js';
-import { buildAutomationTemplate } from './yaml/yaml_generators.js';
+  handleInitializeData,
+} from "./services/service_handlers.js";
+import { buildAutomationTemplate } from "./yaml/yaml_generators.js";
 
 export class CronoStarEditor extends LitElement {
   static get properties() {
@@ -46,7 +55,7 @@ export class CronoStarEditor extends LitElement {
       _isEditing: { type: Boolean },
       _pickerLoaded: { type: Boolean },
       _dashboardView: { type: String }, // 'choice' or 'status'
-      logging_enabled: { type: Boolean }
+      logging_enabled: { type: Boolean },
     };
   }
 
@@ -61,19 +70,22 @@ export class CronoStarEditor extends LitElement {
         --divider-color: rgba(255, 255, 255, 0.1);
       }
 
-      .editor-container { 
+      .editor-container {
         padding: 24px;
         background: #0f172a;
         border-radius: 12px;
         color: #f8fafc;
-        font-family: 'Inter', -apple-system, sans-serif;
+        font-family:
+          "Inter",
+          -apple-system,
+          sans-serif;
         width: 100%; /* Explicitly ensure full width */
         box-sizing: border-box; /* Include padding/border in width */
       }
-      
-      .wizard-steps { 
-        display: flex; 
-        justify-content: space-between; 
+
+      .wizard-steps {
+        display: flex;
+        justify-content: space-between;
         margin-bottom: 32px;
         padding: 24px;
         background: #1e293b;
@@ -81,15 +93,15 @@ export class CronoStarEditor extends LitElement {
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         border: 1px solid rgba(255, 255, 255, 0.05);
       }
-      
+
       .step-badge {
-        width: 44px; 
-        height: 44px; 
+        width: 44px;
+        height: 44px;
         border-radius: 50%;
         background: #334155;
-        color: #94a3b8; 
-        display: flex; 
-        align-items: center; 
+        color: #94a3b8;
+        display: flex;
+        align-items: center;
         justify-content: center;
         font-weight: 600;
         font-size: 1rem;
@@ -97,66 +109,66 @@ export class CronoStarEditor extends LitElement {
         transition: all 0.2s ease-in-out;
         border: 2px solid transparent;
       }
-      
+
       .step-badge:hover {
         background: #475569;
         color: #f1f5f9;
       }
-      
-      .step-badge.active { 
+
+      .step-badge.active {
         background: #0ea5e9;
         color: #ffffff;
         box-shadow: 0 0 15px rgba(14, 165, 233, 0.4);
         border-color: rgba(255, 255, 255, 0.2);
         transform: scale(1.1);
       }
-      
-      .step-content { 
+
+      .step-content {
         min-height: 350px;
         padding: 32px;
         background: #1e293b;
         border-radius: 12px;
         border: 1px solid rgba(255, 255, 255, 0.05);
       }
-      
-      .wizard-actions { 
-        display: flex; 
-        justify-content: space-between; 
+
+      .wizard-actions {
+        display: flex;
+        justify-content: space-between;
         margin-top: 24px;
         padding: 20px;
         background: #1e293b;
         border-radius: 12px;
         border: 1px solid rgba(255, 255, 255, 0.05);
       }
-      
+
       mwc-button {
         --mdc-theme-primary: #38bdf8;
         --mdc-theme-on-primary: #ffffff;
       }
-      
-      .field-group { 
+
+      .field-group {
         margin-bottom: 24px;
         padding: 24px;
         background: #334155;
         border-radius: 12px;
         border: 1px solid rgba(255, 255, 255, 0.1);
       }
-      
-      .field-label { 
-        display: block; 
-        font-weight: 700; 
+
+      .field-label {
+        display: block;
+        font-weight: 700;
         margin-bottom: 8px;
         color: #ffffff;
         font-size: 1.1rem;
       }
-      
-      .field-description { 
-        font-size: 0.95rem; 
-        color: #cbd5e1; 
+
+      .field-description {
+        font-size: 0.95rem;
+        color: #cbd5e1;
         margin-bottom: 16px;
         line-height: 1.5;
       }
-      
+
       .field-value-info {
         font-size: 0.9rem;
         color: #94a3b8;
@@ -169,21 +181,24 @@ export class CronoStarEditor extends LitElement {
 
       .field-value-info code {
         color: #38bdf8;
-        font-family: 'Fira Code', monospace;
+        font-family: "Fira Code", monospace;
         font-weight: 500;
       }
-      
-      .hint { 
-        font-size: 0.9rem; 
-        color: #cbd5e1; 
+
+      .hint {
+        font-size: 0.9rem;
+        color: #cbd5e1;
         margin-top: 12px;
         padding: 12px 16px;
         background: rgba(56, 189, 248, 0.1);
         border-radius: 8px;
         border-left: 4px solid #38bdf8;
       }
-      
-      ha-textfield, ha-select, ha-entity-picker, ha-selector {
+
+      ha-textfield,
+      ha-select,
+      ha-entity-picker,
+      ha-selector {
         width: 100%;
         --mdc-theme-primary: #38bdf8;
         --mdc-text-field-fill-color: #0f172a;
@@ -212,7 +227,7 @@ export class CronoStarEditor extends LitElement {
         --mdc-theme-text-secondary-on-background: #cbd5e1;
       }
 
-      ha-formfield span[slot="secondary"], 
+      ha-formfield span[slot="secondary"],
       ha-formfield div[slot="secondary"] {
         color: #cbd5e1 !important;
         display: block;
@@ -225,14 +240,14 @@ export class CronoStarEditor extends LitElement {
         box-sizing: border-box;
         display: block;
       }
-      
+
       .step-header {
         font-size: 1.5rem;
         font-weight: 800;
         margin-bottom: 12px;
         color: #ffffff;
       }
-      
+
       .step-description {
         font-size: 1rem;
         color: #cbd5e1;
@@ -274,9 +289,20 @@ export class CronoStarEditor extends LitElement {
         font-weight: 800; /* Bolder text */
       }
 
-      .preset-icon { font-size: 2rem; margin-bottom: 8px; }
-      .preset-title { font-weight: 700; font-size: 1.05rem; margin-bottom: 4px; }
-      .preset-description { font-size: 0.85rem; color: #94a3b8; text-align: center; }
+      .preset-icon {
+        font-size: 2rem;
+        margin-bottom: 8px;
+      }
+      .preset-title {
+        font-weight: 700;
+        font-size: 1.05rem;
+        margin-bottom: 4px;
+      }
+      .preset-description {
+        font-size: 0.85rem;
+        color: #94a3b8;
+        text-align: center;
+      }
     `;
   }
 
@@ -287,7 +313,7 @@ export class CronoStarEditor extends LitElement {
     this._config = { ...DEFAULT_CONFIG };
     // Initialize logging preference for the editor
     this._config.logging_enabled = DEFAULT_CONFIG.logging_enabled;
-    this._language = 'en'; 
+    this._language = "en";
     this._initialized = false; // Flag to prevent early dispatches
     this.i18n = new EditorI18n(this);
     this.wizard = new EditorWizard(this);
@@ -302,7 +328,7 @@ export class CronoStarEditor extends LitElement {
     this._dashboardIsEditingName = false;
     this._dashboardEditName = "";
     this._isEditing = false;
-    this._dashboardView = 'choice';
+    this._dashboardView = "choice";
     // Forza il rendering del picker: la definizione può arrivare dal registry scoped (patch in main.js)
     // DISATTIVATO: Se il picker non è definito, usiamo il fallback testuale.
     this._pickerLoaded = false;
@@ -312,7 +338,11 @@ export class CronoStarEditor extends LitElement {
 
     // Debounce config-changed to avoid constant card recreations while typing
     this._debouncedDispatch = debounce(() => {
-      this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: { ...this._config, step: this._step } } }));
+      this.dispatchEvent(
+        new CustomEvent("config-changed", {
+          detail: { config: { ...this._config, step: this._step } },
+        }),
+      );
     }, 500);
 
     // Bind methods
@@ -325,7 +355,7 @@ export class CronoStarEditor extends LitElement {
       copyToClipboard,
       downloadFile,
       handleInitializeData,
-      saveGlobalSettings: (settings) => this._saveGlobalSettings(settings)
+      saveGlobalSettings: (settings) => this._saveGlobalSettings(settings),
     };
 
     // Cache Step 0 instance to avoid re-creation on each render
@@ -334,42 +364,59 @@ export class CronoStarEditor extends LitElement {
     // Stabilize language at startup by adopting card language once if available
     setTimeout(() => {
       try {
-        const cardEl = this.shadowRoot?.querySelector('cronostar-card') || document.querySelector('cronostar-card');
+        const cardEl =
+          this.shadowRoot?.querySelector("cronostar-card") ||
+          document.querySelector("cronostar-card");
         const cardLang = cardEl?.language;
         if (cardLang && this._language !== cardLang) {
           this._language = cardLang;
           this.i18n = new EditorI18n(this);
           // Persist to config.meta to avoid future flips
-          this._config.meta = { ...(this._config.meta || {}), language: this._language };
-          Logger.log('LANG', `[Editor] Startup adopted language from card: ${cardLang}`);
+          this._config.meta = {
+            ...(this._config.meta || {}),
+            language: this._language,
+          };
+          Logger.log(
+            "LANG",
+            `[Editor] Startup adopted language from card: ${cardLang}`,
+          );
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }, 0);
   }
 
   async _saveGlobalSettings(settings) {
     if (!this.hass) return;
     try {
-      await this.hass.callService('cronostar', 'save_settings', {
-        settings: settings
+      await this.hass.callService("cronostar", "save_settings", {
+        settings: settings,
       });
-      this.showToast(this._language === 'it' ? 'Impostazioni globali salvate' : 'Global settings saved');
+      this.showToast(
+        this._language === "it"
+          ? "Impostazioni globali salvate"
+          : "Global settings saved",
+      );
 
       // Update local card instance if possible
       const cardEl = this.getRootNode().host;
-      if (cardEl && 'globalSettings' in cardEl) {
+      if (cardEl && "globalSettings" in cardEl) {
         cardEl.globalSettings = settings;
       }
     } catch (e) {
-      log('error', this._config.logging_enabled, 'Error saving global settings:', e);
+      log(
+        "error",
+        this._config.logging_enabled,
+        "Error saving global settings:",
+        e,
+      );
       this.showToast(`✗ ${e.message}`);
     }
   }
 
-
-
   handleShowHelp() {
-    const lang = this._language || 'en';
+    const lang = this._language || "en";
   }
 
   connectedCallback() {
@@ -379,43 +426,65 @@ export class CronoStarEditor extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
   }
-updated(changedProps) {
-  super.updated(changedProps);
+  updated(changedProps) {
+    super.updated(changedProps);
 
-  if (changedProps.has('step') && this.step !== undefined) {
-    this._step = this.step;
-  }
+    // Sync step property to internal _step
+    if (changedProps.has("step") && this.step !== undefined) {
+      console.log(`[CronoStar Editor] Step property changed to: ${this.step}`);
+      this._step = this.step;
+    }
 
-  if (changedProps.has('hass')) {
+    if (changedProps.has("hass")) {
       if (this.hass) {
         // Only update from HASS language if no language is explicitly set in config.meta
         if (!this._config.meta?.language) {
           // Prefer card element language if available (synchronized from profile meta). If present, do not fall back to hass.
-          const cardEl = this.shadowRoot?.querySelector('cronostar-card') || document.querySelector('cronostar-card');
+          const cardEl =
+            this.shadowRoot?.querySelector("cronostar-card") ||
+            document.querySelector("cronostar-card");
           const cardLang = cardEl?.language;
           if (cardLang && this._language !== cardLang) {
             this._language = cardLang;
             this.i18n = new EditorI18n(this);
             console.log(`[DASHBOARD] Adopted language from card: ${cardLang}`);
           } else if (!cardLang) {
-            const currentLang = this.hass.language ? this.hass.language.split('-')[0] : 'en';
+            const currentLang = this.hass.language
+              ? this.hass.language.split("-")[0]
+              : "en";
             if (this._language !== currentLang) {
               this._language = currentLang;
               this.i18n = new EditorI18n(this);
             }
           }
           // Persist to config.meta to avoid future flips
-          this._config.meta = { ...(this._config.meta || {}), language: this._language };
+          this._config.meta = {
+            ...(this._config.meta || {}),
+            language: this._language,
+          };
         }
-        log('info', this._config.logging_enabled, 'HASS object received/updated');
+        log(
+          "info",
+          this._config.logging_enabled,
+          "HASS object received/updated",
+        );
       }
     }
-    if (changedProps.has('_step')) {
+
+    if (changedProps.has("_step")) {
       // ✅ FIX: Dispatch immediately on step change so preview is updated
-      // Only dispatch if NOT in Step 0 (Dashboard), to prevent loading the preview card there
       if (this._step !== 0) {
         this._dispatchConfigChanged(true);
       }
+    }
+
+    if (changedProps.has("config") || changedProps.has("language")) {
+      console.log("[CronoStar Editor] Component updated with properties:", {
+        configChanged: changedProps.has("config"),
+        langChanged: changedProps.has("language"),
+        passedLang: this.language,
+      });
+      this.setConfig(this.config || this._config);
     }
 
     // Hide preview in Step 0
@@ -427,14 +496,16 @@ updated(changedProps) {
 
   _updateSaveButtonVisibility() {
     try {
-      const shouldHide = (this._step >= 0 && this._step <= 3);
+      const shouldHide = this._step >= 0 && this._step <= 3;
       const root = document.head;
-      let styleEl = document.getElementById('cronostar-editor-save-button-hide');
+      let styleEl = document.getElementById(
+        "cronostar-editor-save-button-hide",
+      );
 
       if (shouldHide) {
         if (!styleEl) {
-          styleEl = document.createElement('style');
-          styleEl.id = 'cronostar-editor-save-button-hide';
+          styleEl = document.createElement("style");
+          styleEl.id = "cronostar-editor-save-button-hide";
           root.appendChild(styleEl);
         }
         styleEl.textContent = `
@@ -455,16 +526,21 @@ updated(changedProps) {
           }
         `;
       } else if (styleEl) {
-        styleEl.textContent = '';
+        styleEl.textContent = "";
       }
     } catch (e) {
-      log('warn', this._config.logging_enabled, '[SAVE-BUTTON] Visibility update failed:', e);
+      log(
+        "warn",
+        this._config.logging_enabled,
+        "[SAVE-BUTTON] Visibility update failed:",
+        e,
+      );
     }
   }
 
   _updatePreviewVisibility() {
     try {
-      const shouldHide = (this._step === 0);
+      const shouldHide = this._step === 0;
 
       const root = this.getRootNode();
       if (!root || (root !== document && !(root instanceof ShadowRoot))) {
@@ -474,16 +550,20 @@ updated(changedProps) {
       // Inject both in local root and global document for maximum coverage
       const targets = [root, document.head];
 
-      targets.forEach(t => {
+      targets.forEach((t) => {
         if (!t) return;
-        let styleEl = (t === document.head)
-          ? document.getElementById('cronostar-editor-style-global')
-          : root.getElementById('cronostar-editor-style');
+        let styleEl =
+          t === document.head
+            ? document.getElementById("cronostar-editor-style-global")
+            : root.getElementById("cronostar-editor-style");
 
         if (shouldHide) {
           if (!styleEl) {
-            styleEl = document.createElement('style');
-            styleEl.id = (t === document.head) ? 'cronostar-editor-style-global' : 'cronostar-editor-style';
+            styleEl = document.createElement("style");
+            styleEl.id =
+              t === document.head
+                ? "cronostar-editor-style-global"
+                : "cronostar-editor-style";
             t.appendChild(styleEl);
           }
 
@@ -531,21 +611,19 @@ updated(changedProps) {
             }
           `;
         } else if (styleEl) {
-          styleEl.textContent = '';
+          styleEl.textContent = "";
         }
       });
 
       this._previewWasHidden = shouldHide;
     } catch (e) {
-      log('warn', this._config.logging_enabled, '[PREVIEW] Visibility update failed:', e);
+      log(
+        "warn",
+        this._config.logging_enabled,
+        "[PREVIEW] Visibility update failed:",
+        e,
+      );
     }
-  }
-
-  _handleResetConfig() {
-    this._config = { ...DEFAULT_CONFIG };
-    this._step = 1;
-    this._selectedPreset = 'thermostat';
-    this.requestUpdate();
   }
 
   _renderWizardSteps() {
@@ -555,40 +633,28 @@ updated(changedProps) {
 
     return html`
       <div class="wizard-steps">
-        ${steps.map(s => html`
-          <div
-            class="step-badge ${this._step === s ? "active" : ""}"
-            @click=${() => {
-        if (s === 0 || s <= this._step || (canJump && this._step !== 0)) {
-          this._step = s;
-          this._dispatchConfigChanged(true); // Dispatch immediately on click
-          this.requestUpdate();
-        }
-      }}
-          >
-            ${s === 0 ? '🏠' : s}
-          </div>
-        `)}
+        ${steps.map(
+          (s) => html`
+            <div
+              class="step-badge ${this._step === s ? "active" : ""}"
+              @click=${() => {
+                if (
+                  s === 0 ||
+                  s <= this._step ||
+                  (canJump && this._step !== 0)
+                ) {
+                  this._step = s;
+                  this._dispatchConfigChanged(true); // Dispatch immediately on click
+                  this.requestUpdate();
+                }
+              }}
+            >
+              ${s === 0 ? "🏠" : s}
+            </div>
+          `,
+        )}
       </div>
     `;
-  }
-
-  updated(changedProperties) {
-    super.updated(changedProperties);
-
-    // Sync step property to internal _step
-    if (changedProperties.has('step') && this.step !== undefined) {
-      console.log(`[CronoStar Editor] Step property changed to: ${this.step}`);
-      this._step = this.step;
-    }
-
-    if (changedProperties.has('config') || changedProperties.has('language')) {      console.log("[CronoStar Editor] Component updated with properties:", { 
-        configChanged: changedProperties.has('config'), 
-        langChanged: changedProperties.has('language'),
-        passedLang: this.language 
-      });
-      this.setConfig(this.config || this._config);
-    }
   }
 
   setConfig(config) {
@@ -604,16 +670,21 @@ updated(changedProps) {
       const validated = validateConfig(config, config.logging_enabled);
 
       // 2. Resolve initialization logic
-      if (!this._config || this._config.not_configured || (validated.target_entity && !this._config.target_entity)) {
-         console.info("Adopting incoming config as primary source");
-         this._config = { ...validated };
+      if (
+        !this._config ||
+        this._config.not_configured ||
+        (validated.target_entity && !this._config.target_entity)
+      ) {
+        console.info("Adopting incoming config as primary source");
+        this._config = { ...validated };
       } else {
-         console.info("Syncing incoming config with current state");
-         this._config = { ...this._config, ...validated };
+        console.info("Syncing incoming config with current state");
+        this._config = { ...this._config, ...validated };
       }
 
       // 3. Mark as editing if we have core fields
-      this._isEditing = !!this._config.target_entity && !!this._config.global_prefix;
+      this._isEditing =
+        !!this._config.target_entity && !!this._config.global_prefix;
 
       // 4. Resolve Language immediately
       const oldLang = this._language;
@@ -624,33 +695,38 @@ updated(changedProps) {
       } else if (metaLang) {
         this._language = metaLang;
       } else if (this.hass?.language) {
-        this._language = this.hass.language.split('-')[0];
+        this._language = this.hass.language.split("-")[0];
       }
 
       if (this._language !== oldLang) {
         // Prevent reverting 'it' to 'en' if we are receiving a generic update
-        if (oldLang === 'it' && this._language === 'en' && !config.meta?.language) {
-           this._language = 'it';
+        if (
+          oldLang === "it" &&
+          this._language === "en" &&
+          !config.meta?.language
+        ) {
+          this._language = "it";
         } else {
-           console.info(`Language changed from ${oldLang} to ${this._language}`);
-           this.i18n = new EditorI18n(this);
+          console.info(`Language changed from ${oldLang} to ${this._language}`);
+          this.i18n = new EditorI18n(this);
         }
       }
 
-      this._initialized = true; 
+      this._initialized = true;
       console.info(`Final resolved language: ${this._language}`);
       console.groupEnd();
-
     } catch (e) {
       console.warn("[CronoStar Editor] setConfig error:", e);
       console.groupEnd();
       this._config = { ...DEFAULT_CONFIG, ...config };
     }
 
-    if (this._config.preset_type) this._selectedPreset = this._config.preset_type;
+    if (this._config.preset_type)
+      this._selectedPreset = this._config.preset_type;
     this._updateAutomationYaml();
     this._syncConfigAliases();
-  }  _isElDefined(tag) {
+  }
+  _isElDefined(tag) {
     return customElements.get(tag) !== undefined;
   }
 
@@ -659,24 +735,30 @@ updated(changedProps) {
   }
 
   _updateAutomationYaml() {
-    console.log('[CronoStarEditor] _updateAutomationYaml called. Current config:', this._config);
+    console.log(
+      "[CronoStarEditor] _updateAutomationYaml called. Current config:",
+      this._config,
+    );
     this._automationYaml = buildAutomationTemplate(this._config);
-    console.log('[CronoStarEditor] _automationYaml set to:', this._automationYaml);
+    console.log(
+      "[CronoStarEditor] _automationYaml set to:",
+      this._automationYaml,
+    );
   }
 
   // Ensure dispatched/saved config contains required fields and omits nulls
   _sanitizeConfig(cfg) {
     const out = { ...cfg };
     // Ensure type
-    if (!out.type) out.type = 'custom:cronostar-card';
+    if (!out.type) out.type = "custom:cronostar-card";
 
     // If we are editing an existing valid config, ensure we don't accidentally mark it as not_configured
     // unless we are explicitly resetting.
     if (this._isEditing && !out.target_entity && this._config.target_entity) {
-       out.target_entity = this._config.target_entity;
+      out.target_entity = this._config.target_entity;
     }
     if (this._isEditing && !out.global_prefix && this._config.global_prefix) {
-       out.global_prefix = this._config.global_prefix;
+      out.global_prefix = this._config.global_prefix;
     }
 
     // IMPROVED: Logic for not_configured flag
@@ -690,7 +772,7 @@ updated(changedProps) {
 
     // Remove empty-string values but preserve nulls for core keys to avoid defaulting
     for (const key of Object.keys(out)) {
-      if (out[key] === '') {
+      if (out[key] === "") {
         delete out[key];
       }
     }
@@ -699,29 +781,44 @@ updated(changedProps) {
 
   _dispatchConfigChanged(immediate = false) {
     // PROTECT INITIALIZATION: Don't dispatch if not initialized or if we're pushing an empty config over a valid one
-    if (!this._initialized || (!this._config.target_entity && this._isEditing)) {
-       return;
+    if (
+      !this._initialized ||
+      (!this._config.target_entity && this._isEditing)
+    ) {
+      return;
     }
 
     if (this._step === 0 && !this._isEditing && !immediate) {
-       return;
+      return;
     }
 
     if (immediate) {
       if (this._debounceTimer) clearTimeout(this._debounceTimer);
       // Ensure type is present and correct, and pass current step
-      const configToDispatch = { ...this._sanitizeConfig(this._config), step: this._step };
+      const configToDispatch = {
+        ...this._sanitizeConfig(this._config),
+        step: this._step,
+      };
       // Ensure language persists through HA editor cycles
-      configToDispatch.meta = { ...(configToDispatch.meta || {}), language: this._language };
+      configToDispatch.meta = {
+        ...(configToDispatch.meta || {}),
+        language: this._language,
+      };
 
       // Log the exact payload intended for YAML persistence via standard Save using CronoStar Logger
-      Logger.log('CONFIG', '[EDITOR] YAML save intent (standard Save):', configToDispatch);
-      Logger.log('CONFIG', 'Dispatching config-changed', configToDispatch);
-      this.dispatchEvent(new CustomEvent('config-changed', {
-        detail: { config: configToDispatch },
-        bubbles: true,
-        composed: true
-      }));
+      Logger.log(
+        "CONFIG",
+        "[EDITOR] YAML save intent (standard Save):",
+        configToDispatch,
+      );
+      Logger.log("CONFIG", "Dispatching config-changed", configToDispatch);
+      this.dispatchEvent(
+        new CustomEvent("config-changed", {
+          detail: { config: configToDispatch },
+          bubbles: true,
+          composed: true,
+        }),
+      );
     } else {
       this._debouncedDispatch();
     }
@@ -736,42 +833,54 @@ updated(changedProps) {
     if (!this.hass || !this._config.global_prefix) return;
 
     try {
-      const cardEl = this.shadowRoot?.querySelector('cronostar-card') || document.querySelector('cronostar-card');
-      const profileName = cardEl?.selectedProfile || 'Default';
-      const presetType = this._selectedPreset || this._config.preset_type || 'thermostat';
+      const cardEl =
+        this.shadowRoot?.querySelector("cronostar-card") ||
+        document.querySelector("cronostar-card");
+      const profileName = cardEl?.selectedProfile || "Default";
+      const presetType =
+        this._selectedPreset || this._config.preset_type || "thermostat";
       const prefix = this._config.global_prefix;
 
       // Fetch current schedule to avoid losing data
-      const scheduleData = cardEl?.stateManager?.getData()?.map(p => ({ time: p.time, value: p.value })) || [];
+      const scheduleData =
+        cardEl?.stateManager
+          ?.getData()
+          ?.map((p) => ({ time: p.time, value: p.value })) || [];
 
       // Build meta with entities list, using extractCardConfig for sanitization
       const sanitizedConfig = extractCardConfig(this._config);
-      
+
       const meta = { ...sanitizedConfig };
       meta.entities = [
         sanitizedConfig.target_entity,
         sanitizedConfig.enabled_entity,
-        sanitizedConfig.profiles_select_entity
-      ].filter(e => !!e);
+        sanitizedConfig.profiles_select_entity,
+      ].filter((e) => !!e);
 
-      Logger.log('EDITOR', `[CronoStar] Saving full profile data for '${profileName}'...`);
+      Logger.log(
+        "EDITOR",
+        `[CronoStar] Saving full profile data for '${profileName}'...`,
+      );
 
-      await this.hass.callService('cronostar', 'save_profile', {
+      await this.hass.callService("cronostar", "save_profile", {
         profile_name: profileName,
         preset_type: presetType,
         schedule: scheduleData,
         global_prefix: prefix,
-        meta: meta
+        meta: meta,
       });
 
-      Logger.log('EDITOR', `[CronoStar] Profile data saved successfully for '${profileName}'`);
+      Logger.log(
+        "EDITOR",
+        `[CronoStar] Profile data saved successfully for '${profileName}'`,
+      );
     } catch (e) {
-      Logger.error('EDITOR', 'Error saving profile data:', e);
+      Logger.error("EDITOR", "Error saving profile data:", e);
     }
   }
 
   showToast(message) {
-    const event = new CustomEvent('hass-notification', {
+    const event = new CustomEvent("hass-notification", {
       detail: { message, duration: 3000 },
       bubbles: true,
       composed: true,
@@ -780,7 +889,9 @@ updated(changedProps) {
   }
 
   _handleResetConfig() {
-    const confirmMsg = this.i18n._t('prompts.reset_confirm') || 'Are you sure you want to reset this card?';
+    const confirmMsg =
+      this.i18n._t("prompts.reset_confirm") ||
+      "Are you sure you want to reset this card?";
     if (!this._isEditing || confirm(confirmMsg)) {
       this._config = { ...DEFAULT_CONFIG };
       this._isEditing = false;
@@ -797,19 +908,25 @@ updated(changedProps) {
           this._step0Dashboard = new Step0Dashboard(this);
         }
         return this._step0Dashboard.render();
-      case 1: return new Step1Preset(this).render();
-      case 2: return new Step2Entities(this).render();
-      case 3: return new Step3Options(this).render();
-      case 4: return new Step4Automation(this).render();
-      case 5: return new Step5Summary(this).render();
-      default: return html`<div>Unknown Step</div>`;
+      case 1:
+        return new Step1Preset(this).render();
+      case 2:
+        return new Step2Entities(this).render();
+      case 3:
+        return new Step3Options(this).render();
+      case 4:
+        return new Step4Automation(this).render();
+      case 5:
+        return new Step5Summary(this).render();
+      default:
+        return html`<div>Unknown Step</div>`;
     }
   }
 
   _handleLocalUpdate(key, value) {
     const newConfig = { ...this._config, [key]: value };
     newConfig.type = this._config.type || DEFAULT_CONFIG.type;
-    if ('entity_prefix' in newConfig) delete newConfig.entity_prefix;
+    if ("entity_prefix" in newConfig) delete newConfig.entity_prefix;
     this._config = newConfig;
 
     this._syncConfigAliases();
@@ -818,7 +935,7 @@ updated(changedProps) {
     this._dispatchConfigChanged(true);
     this.requestUpdate();
 
-    if (key === 'enabled_entity' || key === 'profiles_select_entity') {
+    if (key === "enabled_entity" || key === "profiles_select_entity") {
       this._saveMetadata();
     }
   }
@@ -826,8 +943,8 @@ updated(changedProps) {
   renderEntityPicker(key, value, label = "Entity", includeDomains = null) {
     if (!this.hass) return html``;
 
-    const hasSelector = !!customElements.get('ha-selector');
-    const hasPicker = !!customElements.get('ha-entity-picker');
+    const hasSelector = !!customElements.get("ha-selector");
+    const hasPicker = !!customElements.get("ha-entity-picker");
 
     if (hasSelector) {
       return html`
@@ -863,11 +980,11 @@ updated(changedProps) {
     return this.renderTextInput(key, value, label);
   }
 
-  _renderTextInput(key, value, placeholder = '') {
+  _renderTextInput(key, value, placeholder = "") {
     return html`
       <ha-textfield
         .label=${placeholder}
-        .value=${value || ''}
+        .value=${value || ""}
         @input=${(e) => this._handleLocalUpdate(key, e.target.value)}
         @change=${() => this._dispatchConfigChanged(true)}
         style="width: 100%;"
@@ -886,9 +1003,13 @@ updated(changedProps) {
 
   _renderButton({ label, click, disabled = false, outlined = false }) {
     if (outlined) {
-      return html`<mwc-button outlined ?disabled=${disabled} @click=${click}>${label}</mwc-button>`;
+      return html`<mwc-button outlined ?disabled=${disabled} @click=${click}
+        >${label}</mwc-button
+      >`;
     }
-    return html`<mwc-button raised ?disabled=${disabled} @click=${click}>${label}</mwc-button>`;
+    return html`<mwc-button raised ?disabled=${disabled} @click=${click}
+      >${label}</mwc-button
+    >`;
   }
 
   _updateConfig(key, value, immediate = false) {
@@ -898,9 +1019,9 @@ updated(changedProps) {
     newConfig.type = this._config.type || DEFAULT_CONFIG.type;
 
     // Hard-remove deprecated keys
-    if ('entity_prefix' in newConfig) delete newConfig.entity_prefix;
+    if ("entity_prefix" in newConfig) delete newConfig.entity_prefix;
 
-    if (key === 'preset_type') {
+    if (key === "preset_type") {
       const presetConfig = CARD_CONFIG_PRESETS[value];
       if (presetConfig) {
         Object.assign(newConfig, presetConfig);
@@ -917,7 +1038,7 @@ updated(changedProps) {
     this._syncConfigAliases();
     this._dispatchConfigChanged(immediate);
 
-    if (key === 'enabled_entity' || key === 'profiles_select_entity') {
+    if (key === "enabled_entity" || key === "profiles_select_entity") {
       this._saveMetadata();
     }
   }
@@ -943,38 +1064,49 @@ updated(changedProps) {
       delete finalConfig.step;
 
       // Ensure global_prefix is present and normalized on final save
-      finalConfig.global_prefix = normalizePrefix(finalConfig.global_prefix || getEffectivePrefix(finalConfig));
+      finalConfig.global_prefix = normalizePrefix(
+        finalConfig.global_prefix || getEffectivePrefix(finalConfig),
+      );
 
       // Sanitize before dispatch/save
       finalConfig = this._sanitizeConfig(finalConfig);
 
       // Log what should be saved to YAML, then dispatch immediately so HA can persist
-      Logger.log('CONFIG', '[EDITOR] YAML save intent (wizard Finish):', finalConfig);
-      this.dispatchEvent(new CustomEvent('config-changed', {
-        detail: { config: { ...finalConfig, step: 5, _close_wizard: true } },
-        bubbles: true,
-        composed: true
-      }));
+      Logger.log(
+        "CONFIG",
+        "[EDITOR] YAML save intent (wizard Finish):",
+        finalConfig,
+      );
+      this.dispatchEvent(
+        new CustomEvent("config-changed", {
+          detail: { config: { ...finalConfig, step: 5, _close_wizard: true } },
+          bubbles: true,
+          composed: true,
+        }),
+      );
 
       try {
         // 2. Perform backend operations (data analysis/initialization)
-        const result = await handleInitializeData(this.hass, finalConfig, this._language);
+        const result = await handleInitializeData(
+          this.hass,
+          finalConfig,
+          this._language,
+        );
         this.showToast(result.message);
 
-        // 3. Update local state to show 'Finished' state if needed, 
+        // 3. Update local state to show 'Finished' state if needed,
         // but let the user click the HA "SAVE" button to close the dialog.
         if (isFinalStep) {
           this._step = 5;
           this.requestUpdate();
         }
-
       } catch (e) {
-        log('error', this._config.logging_enabled, 'Finish error:', e);
+        log("error", this._config.logging_enabled, "Finish error:", e);
         this.showToast(`✗ ${e.message}`);
       }
     } else {
       // Not at the end yet, just move next if possible
-      if (this.wizard && typeof this.wizard._nextStep === 'function') {
+      if (this.wizard && typeof this.wizard._nextStep === "function") {
         this.wizard._nextStep();
       }
     }
@@ -983,16 +1115,16 @@ updated(changedProps) {
       this._persistCardConfigNow();
     }
 
-    if (this.wizard && typeof this.wizard._finish === 'function') {
+    if (this.wizard && typeof this.wizard._finish === "function") {
       this.wizard._finish();
     }
   }
 
   _handleKeyDown(e) {
     // Disable exit on Enter if in wizard (step > 0)
-    if (this._step > 0 && e.key === 'Enter') {
+    if (this._step > 0 && e.key === "Enter") {
       // Only block if not in a textarea
-      if (e.target.tagName !== 'TEXTAREA') {
+      if (e.target.tagName !== "TEXTAREA") {
         e.preventDefault();
         e.stopPropagation();
       }
@@ -1015,21 +1147,32 @@ updated(changedProps) {
     if (this._step === 1) {
       const valid = this._canGoNext();
       if (!valid) {
-        return html`
-               <div class="wizard-actions">
-                  <mwc-button outlined @click=${() => { this._step = 0; this.requestUpdate(); }}>
-                    ${this.i18n._t('actions.back')}
-                  </mwc-button>
-                  <div style="flex:1"></div>
-                  <div class="hint" style="color: var(--error-color);">
-                    ${this.i18n._t('ui.minimal_config_needed')}
-                  </div>
-               </div>`;
+        return html` <div class="wizard-actions">
+          <mwc-button
+            outlined
+            @click=${() => {
+              this._step = 0;
+              this.requestUpdate();
+            }}
+          >
+            ${this.i18n._t("actions.back")}
+          </mwc-button>
+          <div style="flex:1"></div>
+          <div class="hint" style="color: var(--error-color);">
+            ${this.i18n._t("ui.minimal_config_needed")}
+          </div>
+        </div>`;
       }
       return html`
         <div class="wizard-actions">
-          <mwc-button outlined @click=${() => { this._step = 0; this.requestUpdate(); }}>
-            ${this.i18n._t('actions.back')}
+          <mwc-button
+            outlined
+            @click=${() => {
+              this._step = 0;
+              this.requestUpdate();
+            }}
+          >
+            ${this.i18n._t("actions.back")}
           </mwc-button>
         </div>
       `;
@@ -1038,15 +1181,31 @@ updated(changedProps) {
     return html`
       <div class="wizard-actions">
         <div>
-          ${this._step > 1 ? html`<mwc-button outlined @click=${() => { this._dispatchConfigChanged(true); this.wizard._prevStep(); }}>${this.i18n._t('actions.back')}</mwc-button>` : html``}
+          ${this._step > 1
+            ? html`<mwc-button
+                outlined
+                @click=${() => {
+                  this._dispatchConfigChanged(true);
+                  this.wizard._prevStep();
+                }}
+                >${this.i18n._t("actions.back")}</mwc-button
+              >`
+            : html``}
         </div>
         <div>
           ${this._step > 0 && this._step < 5
-        ? html`<mwc-button raised @click=${() => this._handleNextClick()}>${this.i18n._t('actions.next')}</mwc-button>`
-        : (this._step === 5
-          ? html`<mwc-button raised @click=${() => this._handleFinishClick({ force: true })}>💾 ${this.i18n._t('actions.save_and_close') || 'Save & Close'}</mwc-button>`
-          : html``)
-        }
+            ? html`<mwc-button raised @click=${() => this._handleNextClick()}
+                >${this.i18n._t("actions.next")}</mwc-button
+              >`
+            : this._step === 5
+              ? html`<mwc-button
+                  raised
+                  @click=${() => this._handleFinishClick({ force: true })}
+                  >💾
+                  ${this.i18n._t("actions.save_and_close") ||
+                  "Save & Close"}</mwc-button
+                >`
+              : html``}
         </div>
       </div>
     `;
@@ -1055,8 +1214,7 @@ updated(changedProps) {
   render() {
     return html`
       <div class="editor-container" @keydown=${this._handleKeyDown}>
-        ${this._renderStepContent()}
-        ${this._renderWizardSteps()}
+        ${this._renderStepContent()} ${this._renderWizardSteps()}
         ${this._renderWizardActions()}
       </div>
     `;

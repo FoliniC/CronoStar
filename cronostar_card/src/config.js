@@ -1,6 +1,6 @@
 /** Configuration management for CronoStar Card */
-import { log } from './utils/logger_utils.js';
-export const VERSION = window.CRONOSTAR_CARD_VERSION || '0.0.0';
+import { log } from "./utils/logger_utils.js";
+export const VERSION = window.CRONOSTAR_CARD_VERSION || "0.0.0";
 
 export const COLORS = {
   primary: "#03a9f4",
@@ -10,14 +10,14 @@ export const COLORS = {
   anchor: "#ff5252",
   anchorDark: "#b71c1c",
   max_value: "#ffd700",
-  max_value_border: "#daa520"
+  max_value_border: "#daa520",
 };
 
 export const CARD_CONFIG_PRESETS = {
   thermostat: {
     title: "CronoStar Thermostat",
     y_axis_label: "Temperature",
-    unit_of_measurement: '°C',
+    unit_of_measurement: "°C",
     min_value: 15,
     max_value: 30,
     step_value: 0.5,
@@ -25,12 +25,12 @@ export const CARD_CONFIG_PRESETS = {
     profiles_select_entity: null,
     target_entity: null,
     is_switch_preset: false,
-    allow_max_value: false
+    allow_max_value: false,
   },
   ev_charging: {
     title: "CronoStar EV Charging",
     y_axis_label: "Power",
-    unit_of_measurement: 'kW',
+    unit_of_measurement: "kW",
     min_value: 0,
     max_value: 8.0,
     step_value: 0.5,
@@ -38,12 +38,12 @@ export const CARD_CONFIG_PRESETS = {
     profiles_select_entity: null,
     target_entity: null,
     is_switch_preset: false,
-    allow_max_value: true
+    allow_max_value: true,
   },
   generic_kwh: {
     title: "CronoStar Generic kWh",
     y_axis_label: "Energy",
-    unit_of_measurement: 'kWh',
+    unit_of_measurement: "kWh",
     min_value: 0,
     max_value: 7,
     step_value: 0.5,
@@ -51,12 +51,12 @@ export const CARD_CONFIG_PRESETS = {
     profiles_select_entity: null,
     target_entity: null,
     is_switch_preset: false,
-    allow_max_value: false
+    allow_max_value: false,
   },
   generic_temperature: {
     title: "CronoStar Generic Temperature",
     y_axis_label: "Temperature",
-    unit_of_measurement: '°C',
+    unit_of_measurement: "°C",
     min_value: 0,
     max_value: 40,
     step_value: 0.5,
@@ -64,12 +64,12 @@ export const CARD_CONFIG_PRESETS = {
     profiles_select_entity: null,
     target_entity: null,
     is_switch_preset: false,
-    allow_max_value: false
+    allow_max_value: false,
   },
   generic_switch: {
     title: "CronoStar Generic Switch",
     y_axis_label: "State",
-    unit_of_measurement: '',
+    unit_of_measurement: "",
     min_value: 0,
     max_value: 1,
     step_value: 1,
@@ -77,20 +77,20 @@ export const CARD_CONFIG_PRESETS = {
     profiles_select_entity: null,
     target_entity: null,
     is_switch_preset: true,
-    allow_max_value: false
-  }
+    allow_max_value: false,
+  },
 };
 
 export const DEFAULT_CONFIG = {
-  type: 'custom:cronostar-card',
-  preset_type: 'thermostat',
+  type: "custom:cronostar-card",
+  preset_type: "thermostat",
   hour_base: "auto",
   logging_enabled: true,
   enabled_entity: null,
   profiles_select_entity: null,
   target_entity: null,
   allow_max_value: false,
-  not_configured: true
+  not_configured: true,
 };
 
 export const CHART_DEFAULTS = {
@@ -104,7 +104,7 @@ export const CHART_DEFAULTS = {
   pointHitRadius: 10,
   pointMaxRadius: 8,
   borderWidth: 2,
-  tension: 0
+  tension: 0,
 };
 
 export const TIMEOUTS = {
@@ -116,7 +116,7 @@ export const TIMEOUTS = {
   menuSuppression: 1000,
   automationSuppression: 7000,
   editingGraceMs: 45000,
-  mismatchPersistenceMs: 20000
+  mismatchPersistenceMs: 20000,
 };
 
 /**
@@ -144,7 +144,8 @@ export function validateConfig(config, isLoggingEnabled = false) {
   }
 
   const presetName = normalized.preset_type || DEFAULT_CONFIG.preset_type;
-  const presetConfig = CARD_CONFIG_PRESETS[presetName] || CARD_CONFIG_PRESETS.thermostat;
+  const presetConfig =
+    CARD_CONFIG_PRESETS[presetName] || CARD_CONFIG_PRESETS.thermostat;
   const mergedConfig = { ...DEFAULT_CONFIG, ...presetConfig, ...normalized };
 
   // ✅ FIX: If the card has a prefix and target entity, it's definitely configured.
@@ -154,7 +155,7 @@ export function validateConfig(config, isLoggingEnabled = false) {
   }
 
   // Preserve meta object if provided (including language preference)
-  if (config && typeof config.meta === 'object') {
+  if (config && typeof config.meta === "object") {
     mergedConfig.meta = { ...config.meta };
   }
 
@@ -164,19 +165,24 @@ export function validateConfig(config, isLoggingEnabled = false) {
   // Ensure global_prefix is present
   if (!mergedConfig.global_prefix) {
     const tags = {
-      'thermostat': 'thermostat',
-      'ev_charging': 'ev_charging',
-      'generic_kwh': 'generic_kwh',
-      'generic_temperature': 'generic_temperature',
-      'generic_switch': 'generic_switch'
+      thermostat: "thermostat",
+      ev_charging: "ev_charging",
+      generic_kwh: "generic_kwh",
+      generic_temperature: "generic_temperature",
+      generic_switch: "generic_switch",
     };
     const tag = tags[presetName] || presetName;
     mergedConfig.global_prefix = `cronostar_${tag}_`;
-    log('info', isLoggingEnabled, "Configuration: missing global_prefix initialized to " + mergedConfig.global_prefix);
+    log(
+      "info",
+      isLoggingEnabled,
+      "Configuration: missing global_prefix initialized to " +
+        mergedConfig.global_prefix,
+    );
   }
 
   if (!config.not_configured) {
-    // Rely on backend registration to provide correct entity IDs. 
+    // Rely on backend registration to provide correct entity IDs.
     // Manual overrides in YAML/Config still take precedence.
   }
 
@@ -189,12 +195,12 @@ export function normalizeHourBase(hourBase) {
   if (hourBase === 0 || hourBase === 1) {
     return { value: hourBase, determined: true };
   }
-  if (typeof hourBase === 'string') {
+  if (typeof hourBase === "string") {
     const norm = hourBase.trim().toLowerCase();
-    if (norm === '0' || norm === 'zero' || norm === '00') {
+    if (norm === "0" || norm === "zero" || norm === "00") {
       return { value: 0, determined: true };
     }
-    if (norm === '1' || norm === 'one' || norm === '01') {
+    if (norm === "1" || norm === "one" || norm === "01") {
       return { value: 1, determined: true };
     }
   }
@@ -211,17 +217,39 @@ export function getStubConfig() {
  */
 export function extractCardConfig(src = {}) {
   if (src.preset) {
-    const prefix = (src.global_prefix || '').replace(/_+$/, '') || 'prefix';
+    const prefix = (src.global_prefix || "").replace(/_+$/, "") || "prefix";
     const filename = `cronostar_${src.preset}_${prefix}_data.json`;
-    throw new Error(`Configuration error: 'preset' key found in ${filename} metadata, use 'preset_type' instead.`);
+    throw new Error(
+      `Configuration error: 'preset' key found in ${filename} metadata, use 'preset_type' instead.`,
+    );
   }
   const validKeys = [
-    'type', 'preset_type', 'global_prefix', 'target_entity', 'enabled_entity',
-    'profiles_select_entity', 'min_value', 'max_value', 'step_value',
-    'unit_of_measurement', 'y_axis_label', 'allow_max_value',
-    'logging_enabled', 'hour_base', 'title', 'step', 'language',
-    'kb_ctrl_h', 'kb_ctrl_v', 'kb_shift_h', 'kb_shift_v', 'kb_alt_h', 'kb_alt_v',
-    'kb_def_h', 'kb_def_v', 'not_configured'
+    "type",
+    "preset_type",
+    "global_prefix",
+    "target_entity",
+    "enabled_entity",
+    "profiles_select_entity",
+    "min_value",
+    "max_value",
+    "step_value",
+    "unit_of_measurement",
+    "y_axis_label",
+    "allow_max_value",
+    "logging_enabled",
+    "hour_base",
+    "title",
+    "step",
+    "language",
+    "kb_ctrl_h",
+    "kb_ctrl_v",
+    "kb_shift_h",
+    "kb_shift_v",
+    "kb_alt_h",
+    "kb_alt_v",
+    "kb_def_h",
+    "kb_def_v",
+    "not_configured",
   ];
   const out = {};
   for (const key of validKeys) {
@@ -230,7 +258,7 @@ export function extractCardConfig(src = {}) {
     }
   }
   if (src.type === undefined && out.type === undefined) {
-    out.type = 'custom:cronostar-card';
+    out.type = "custom:cronostar-card";
   }
   return out;
 }

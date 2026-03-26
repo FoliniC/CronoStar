@@ -4,14 +4,14 @@
  * Handles profile operations and sync with backend
  */
 
-import { Logger, timeToMinutes } from '../utils.js';
-import { Events } from '../core/EventBus.js';
-import { getEffectivePrefix } from '../utils/prefix_utils.js';
+import { Logger, timeToMinutes } from "../utils.js";
+import { Events } from "../core/EventBus.js";
+import { getEffectivePrefix } from "../utils/prefix_utils.js";
 
 export class ProfileManager {
   constructor(context) {
     this.context = context;
-    this.lastLoadedProfile = '';
+    this.lastLoadedProfile = "";
     this._isLoading = false;
   }
 
@@ -22,39 +22,50 @@ export class ProfileManager {
    */
   async loadProfile(profileName) {
     if (this._isLoading) {
-      Logger.warn('PROFILE', 'Load already in progress');
+      Logger.warn("PROFILE", "Load already in progress");
       return;
     }
 
-    if (!profileName || profileName === 'unavailable' || profileName === 'unknown' || profileName === 'undefined') {
-      Logger.warn('PROFILE', `Ignoring invalid profile name: '${profileName}'`);
+    if (
+      !profileName ||
+      profileName === "unavailable" ||
+      profileName === "unknown" ||
+      profileName === "undefined"
+    ) {
+      Logger.warn("PROFILE", `Ignoring invalid profile name: '${profileName}'`);
       return;
     }
 
     this._isLoading = true;
     const effectivePrefix = getEffectivePrefix(this.context.config);
 
-    Logger.load(`=== LOAD PROFILE START === Profile: '${profileName}', Prefix: '${effectivePrefix}'`);
+    Logger.load(
+      `=== LOAD PROFILE START === Profile: '${profileName}', Prefix: '${effectivePrefix}'`,
+    );
 
     try {
-      const presetType = this.context.selectedPreset || 'thermostat';
+      const presetType = this.context.selectedPreset || "thermostat";
 
       const result = await this.context.hass.callWS({
-        type: 'call_service',
-        domain: 'cronostar',
-        service: 'load_profile',
+        type: "call_service",
+        domain: "cronostar",
+        service: "load_profile",
         service_data: {
           profile_name: profileName,
           preset_type: presetType,
-          global_prefix: effectivePrefix
+          global_prefix: effectivePrefix,
         },
-        return_response: true
+        return_response: true,
       });
 
       const responseData = result?.response;
 
       if (!responseData || responseData.error) {
-        Logger.warn('PROFILE', `Profile '${profileName}' not found or error:`, responseData?.error);
+        Logger.warn(
+          "PROFILE",
+          `Profile '${profileName}' not found or error:`,
+          responseData?.error,
+        );
         return;
       }
 
@@ -65,7 +76,7 @@ export class ProfileManager {
 
       // Load schedule
       const schedule = responseData.schedule || [];
-      const stateManager = this.context.getManager('state');
+      const stateManager = this.context.getManager("state");
 
       if (stateManager) {
         stateManager.setData(schedule, true); // Skip history
@@ -76,19 +87,18 @@ export class ProfileManager {
 
       this.context.events.emit(Events.PROFILE_LOADED, {
         name: profileName,
-        schedule
+        schedule,
       });
 
       this.context.requestUpdate();
 
       Logger.load(`✅ Profile '${profileName}' loaded successfully`);
-
     } catch (err) {
-      Logger.error('PROFILE', `Error loading profile '${profileName}':`, err);
+      Logger.error("PROFILE", `Error loading profile '${profileName}':`, err);
       throw err;
     } finally {
       this._isLoading = false;
-      Logger.load('=== LOAD PROFILE END ===');
+      Logger.load("=== LOAD PROFILE END ===");
     }
   }
 
@@ -99,31 +109,33 @@ export class ProfileManager {
    */
   async saveProfile(profileName = this.lastLoadedProfile) {
     if (!profileName) {
-      Logger.warn('PROFILE', 'No profile specified for save');
-      throw new Error('No profile specified');
+      Logger.warn("PROFILE", "No profile specified for save");
+      throw new Error("No profile specified");
     }
 
-    const presetType = this.context.selectedPreset || 'thermostat';
+    const presetType = this.context.selectedPreset || "thermostat";
     const effectivePrefix = getEffectivePrefix(this.context.config);
 
-    Logger.save(`=== SAVE PROFILE START === Profile: '${profileName}', Preset: ${presetType}`);
+    Logger.save(
+      `=== SAVE PROFILE START === Profile: '${profileName}', Preset: ${presetType}`,
+    );
 
     try {
-      const stateManager = this.context.getManager('state');
+      const stateManager = this.context.getManager("state");
       if (!stateManager) {
-        throw new Error('StateManager not available');
+        throw new Error("StateManager not available");
       }
 
       // Build schedule
       const schedule = this._buildSchedulePayload(stateManager.getData());
 
       // Save via backend
-      await this.context.hass.callService('cronostar', 'save_profile', {
+      await this.context.hass.callService("cronostar", "save_profile", {
         profile_name: profileName,
         preset_type: presetType,
         schedule: schedule,
         global_prefix: effectivePrefix,
-        meta: this._buildMetaPayload()
+        meta: this._buildMetaPayload(),
       });
 
       this.lastLoadedProfile = profileName;
@@ -131,16 +143,15 @@ export class ProfileManager {
 
       this.context.events.emit(Events.PROFILE_SAVED, {
         name: profileName,
-        schedule
+        schedule,
       });
 
       Logger.save(`✅ Profile '${profileName}' saved successfully`);
-
     } catch (err) {
-      Logger.error('PROFILE', `Error saving profile '${profileName}':`, err);
+      Logger.error("PROFILE", `Error saving profile '${profileName}':`, err);
       throw err;
     } finally {
-      Logger.save('=== SAVE PROFILE END ===');
+      Logger.save("=== SAVE PROFILE END ===");
     }
   }
 
@@ -153,36 +164,53 @@ export class ProfileManager {
     // 1. event.detail.value (standard for ha-select)
     // 2. event.target.value (fallback)
     // 3. event.detail.item.value (MDC internal)
-    const newProfile = event?.detail?.value || event?.target?.value || event?.detail?.item?.value || '';
-    
-    console.log('[CRONOSTAR] [PROFILE] handleProfileSelection triggered:', { 
-      type: event?.type, 
-      value: newProfile, 
-      current: this.context.selectedProfile 
+    const newProfile =
+      event?.detail?.value ||
+      event?.target?.value ||
+      event?.detail?.item?.value ||
+      "";
+
+    console.log("[CRONOSTAR] [PROFILE] handleProfileSelection triggered:", {
+      type: event?.type,
+      value: newProfile,
+      current: this.context.selectedProfile,
     });
-    
-    Logger.log('PROFILE', `handleProfileSelection triggered. Event type: ${event?.type}, Value: '${newProfile}', Current: '${this.context.selectedProfile}'`);
+
+    Logger.log(
+      "PROFILE",
+      `handleProfileSelection triggered. Event type: ${event?.type}, Value: '${newProfile}', Current: '${this.context.selectedProfile}'`,
+    );
 
     if (!newProfile) {
-      Logger.warn('PROFILE', 'Profile selection event received but value is empty');
+      Logger.warn(
+        "PROFILE",
+        "Profile selection event received but value is empty",
+      );
       return;
     }
 
     if (newProfile === this.context.selectedProfile) {
-      Logger.log('PROFILE', `Profile '${newProfile}' is already selected, ignoring.`);
+      Logger.log(
+        "PROFILE",
+        `Profile '${newProfile}' is already selected, ignoring.`,
+      );
       return;
     }
 
-    const previousProfile = this.lastLoadedProfile || this.context.selectedProfile;
+    const previousProfile =
+      this.lastLoadedProfile || this.context.selectedProfile;
 
     // Check for unsaved changes
     if (this.context.hasUnsavedChanges && previousProfile) {
-      Logger.log('PROFILE', `Unsaved changes in '${previousProfile}', showing confirmation for switch to '${newProfile}'`);
+      Logger.log(
+        "PROFILE",
+        `Unsaved changes in '${previousProfile}', showing confirmation for switch to '${newProfile}'`,
+      );
       this._showUnsavedDialog(newProfile);
       return;
     }
 
-    Logger.log('PROFILE', `Proceeding with profile switch to: '${newProfile}'`);
+    Logger.log("PROFILE", `Proceeding with profile switch to: '${newProfile}'`);
 
     // Close menu if open
     this.context.isMenuOpen = false;
@@ -194,14 +222,14 @@ export class ProfileManager {
     this._updateProfileSelector(newProfile);
 
     // Snapshot selection before load
-    const selectionManager = this.context.getManager('selection');
+    const selectionManager = this.context.getManager("selection");
     if (selectionManager) {
       selectionManager.snapshotSelection();
     }
 
     // Close menu if open
     if (this.context._card.isMenuOpen) {
-      Logger.log('PROFILE', 'Closing card menu');
+      Logger.log("PROFILE", "Closing card menu");
       this.context._card.isMenuOpen = false;
       this.context._card.keyboardHandler?.enable();
     }
@@ -214,7 +242,7 @@ export class ProfileManager {
         selectionManager.restoreSelection();
       }
     } catch (err) {
-      Logger.error('PROFILE', 'Error during profile selection:', err);
+      Logger.error("PROFILE", "Error during profile selection:", err);
     }
   }
 
@@ -227,10 +255,10 @@ export class ProfileManager {
     // Signal to card to show dialog
     this.context._card.showUnsavedChangesDialog = true;
     this.context._card.pendingProfileChange = newProfile;
-    
+
     // Also close menu when dialog appears
     this.context.isMenuOpen = false;
-    
+
     this.context.requestUpdate();
   }
 
@@ -243,18 +271,34 @@ export class ProfileManager {
     const selectorEntity = this.context.config?.profiles_select_entity;
 
     if (selectorEntity) {
-      Logger.log('PROFILE', `[PERSIST_TRACE] Updating selector entity '${selectorEntity}' to '${profileName}'`);
-      const domain = selectorEntity.split('.')[0] || 'input_select';
-      this.context.hass.callService(domain, 'select_option', {
-        entity_id: selectorEntity,
-        option: profileName
-      }).then(() => {
-        Logger.log('PROFILE', `[PERSIST_TRACE] Service call success for '${selectorEntity}'`);
-      }).catch((e) => {
-        Logger.warn('PROFILE', `[PERSIST_TRACE] Failed to update selector entity '${selectorEntity}':`, e);
-      });
+      Logger.log(
+        "PROFILE",
+        `[PERSIST_TRACE] Updating selector entity '${selectorEntity}' to '${profileName}'`,
+      );
+      const domain = selectorEntity.split(".")[0] || "input_select";
+      this.context.hass
+        .callService(domain, "select_option", {
+          entity_id: selectorEntity,
+          option: profileName,
+        })
+        .then(() => {
+          Logger.log(
+            "PROFILE",
+            `[PERSIST_TRACE] Service call success for '${selectorEntity}'`,
+          );
+        })
+        .catch((e) => {
+          Logger.warn(
+            "PROFILE",
+            `[PERSIST_TRACE] Failed to update selector entity '${selectorEntity}':`,
+            e,
+          );
+        });
     } else {
-      Logger.warn('PROFILE', '[PERSIST_TRACE] Cannot persist selection: profiles_select_entity is missing in config');
+      Logger.warn(
+        "PROFILE",
+        "[PERSIST_TRACE] Cannot persist selection: profiles_select_entity is missing in config",
+      );
     }
   }
 
@@ -266,13 +310,13 @@ export class ProfileManager {
    */
   _buildSchedulePayload(rawData) {
     return rawData
-      .map(point => ({
+      .map((point) => ({
         time: String(point.time),
-        value: Number(point.value)
+        value: Number(point.value),
       }))
-      .filter(point =>
-        /^\d{2}:\d{2}$/.test(point.time) &&
-        Number.isFinite(point.value)
+      .filter(
+        (point) =>
+          /^\d{2}:\d{2}$/.test(point.time) && Number.isFinite(point.value),
       )
       .sort((a, b) => {
         const aMin = timeToMinutes(a.time);
@@ -301,34 +345,41 @@ export class ProfileManager {
 
     // Include language preference from card/config if available
     try {
-      const lang = this.context._card?.language || this.context.config?.meta?.language || this.context.config?.language;
+      const lang =
+        this.context._card?.language ||
+        this.context.config?.meta?.language ||
+        this.context.config?.language;
       if (lang) {
         meta.language = lang;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     // Persist actual chart-used values so other cards can tailor theirs when loading this profile
     const chartKeys = [
-      'y_axis_label',
-      'unit_of_measurement',
-      'min_value',
-      'max_value',
-      'step_value',
-      'allow_max_value',
-      'drag_snap',
-      'enabled_entity',
-      'profiles_select_entity',
-      'target_entity'
+      "y_axis_label",
+      "unit_of_measurement",
+      "min_value",
+      "max_value",
+      "step_value",
+      "allow_max_value",
+      "drag_snap",
+      "enabled_entity",
+      "profiles_select_entity",
+      "target_entity",
     ];
     const chartMeta = {};
-    chartKeys.forEach(k => { if (config[k] !== undefined) chartMeta[k] = config[k]; });
-    
+    chartKeys.forEach((k) => {
+      if (config[k] !== undefined) chartMeta[k] = config[k];
+    });
+
     // Add entities list as requested
     chartMeta.entities = [
       config.target_entity,
       config.enabled_entity,
-      config.profiles_select_entity
-    ].filter(e => !!e);
+      config.profiles_select_entity,
+    ].filter((e) => !!e);
 
     Object.assign(meta, chartMeta);
 
@@ -341,18 +392,25 @@ export class ProfileManager {
    * @param {Object} meta - Metadata
    */
   _updateConfigFromMeta(meta) {
-    if (!meta || typeof meta !== 'object') return;
+    if (!meta || typeof meta !== "object") return;
 
     // Extract only card config keys
     const cardKeys = [
-      'title', 'y_axis_label', 'unit_of_measurement',
-      'min_value', 'max_value', 'step_value',
-      'allow_max_value', 'target_entity', 'drag_snap',
-      'enabled_entity', 'profiles_select_entity'
+      "title",
+      "y_axis_label",
+      "unit_of_measurement",
+      "min_value",
+      "max_value",
+      "step_value",
+      "allow_max_value",
+      "target_entity",
+      "drag_snap",
+      "enabled_entity",
+      "profiles_select_entity",
     ];
 
     const updates = {};
-    cardKeys.forEach(key => {
+    cardKeys.forEach((key) => {
       if (meta[key] !== undefined) {
         updates[key] = meta[key];
       }
@@ -368,11 +426,15 @@ export class ProfileManager {
         this.context._card.language = meta.language;
         // Guard against hass overriding language on next setHass
         this.context._card.languageInitialized = true;
-        if (!this.context._card.config.meta) this.context._card.config.meta = {};
+        if (!this.context._card.config.meta)
+          this.context._card.config.meta = {};
         this.context._card.config.meta.language = meta.language;
-        Logger.log('LANG', `Applied language from profile meta: ${meta.language}`);
+        Logger.log(
+          "LANG",
+          `Applied language from profile meta: ${meta.language}`,
+        );
       } catch (e) {
-        Logger.warn('LANG', 'Failed to apply language from meta:', e);
+        Logger.warn("LANG", "Failed to apply language from meta:", e);
       }
     }
   }
@@ -382,14 +444,15 @@ export class ProfileManager {
    * @returns {Promise<void>}
    */
   async resetChanges() {
-    const profileToReload = this.lastLoadedProfile || this.context.selectedProfile;
+    const profileToReload =
+      this.lastLoadedProfile || this.context.selectedProfile;
 
     if (!profileToReload) {
-      Logger.warn('PROFILE', 'No profile to reload');
+      Logger.warn("PROFILE", "No profile to reload");
       return;
     }
 
-    const selectionManager = this.context.getManager('selection');
+    const selectionManager = this.context.getManager("selection");
     if (selectionManager) {
       selectionManager.snapshotSelection();
     }
@@ -401,7 +464,7 @@ export class ProfileManager {
         selectionManager.restoreSelection();
       }
     } catch (err) {
-      Logger.error('PROFILE', 'Error reloading profile:', err);
+      Logger.error("PROFILE", "Error reloading profile:", err);
     }
   }
 
