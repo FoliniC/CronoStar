@@ -15,6 +15,8 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er_helper
 
 from ..const import (
+    DOMAIN,
+    CONF_FRONTEND_VERSION_CHECK,
     CONF_ALLOW_MAX_VALUE,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
@@ -533,6 +535,11 @@ class ProfileService:
 
         # 1. Load global settings
         global_settings = await self.settings.load_settings()
+        
+        # Integration version and global preferences
+        integration_version = self.hass.data.get(DOMAIN, {}).get("version", "unknown")
+        version_check_enabled = self.hass.data.get(DOMAIN, {}).get("global_config", {}).get(CONF_FRONTEND_VERSION_CHECK, True)
+        _LOGGER.debug("[REGISTER] Version Info: %s (Check: %s)", integration_version, version_check_enabled)
 
         # 2. Load preset-specific defaults (Reference: User Request)
         # Location: /config/cronostar/presets/<preset>_defaults.json
@@ -555,7 +562,9 @@ class ProfileService:
             "entity_states": {}, 
             "diagnostics": None,
             "settings": global_settings,
-            "preset_defaults": preset_defaults
+            "preset_defaults": preset_defaults,
+            "integration_version": integration_version,
+            "version_check_enabled": version_check_enabled
         }
 
         # Normalize prefix for state lookups

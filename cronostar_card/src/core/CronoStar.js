@@ -52,6 +52,8 @@ export class CronoStarCard extends LitElement {
       isStartup: { type: Boolean },
       isEditorInternal: { type: Boolean },
       editorStep: { type: Number },
+      integrationVersion: { type: String },
+      versionCheckEnabled: { type: Boolean },
     };
   }
 

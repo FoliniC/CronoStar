@@ -29,12 +29,12 @@ from .validators import validate_environment
 _LOGGER = logging.getLogger(__name__)
 
 # URL stabile
-PANEL_URL_PATH  = "cronostar-panel-v573"
+PANEL_URL_PATH  = "cronostar-panel-v5841"
 PANEL_TITLE     = "CronoStar Dashboard"
 PANEL_ICON      = "mdi:clock-edit"
 
 # File YAML della dashboard (relativo alla config dir di HA)
-DASHBOARD_YAML_FILENAME = "cronostar_dashboard_v573.yaml"
+DASHBOARD_YAML_FILENAME = "cronostar_dashboard_v5841.yaml"
 
 
 async def async_setup_integration(hass: HomeAssistant, config: dict) -> bool:
@@ -52,9 +52,14 @@ async def async_setup_integration(hass: HomeAssistant, config: dict) -> bool:
     storage_manager  = StorageManager(hass, profiles_dir)
     settings_manager = SettingsManager(hass, cronostar_dir)
 
-    hass.data.setdefault("cronostar", {})
-    hass.data["cronostar"]["storage_manager"]  = storage_manager
-    hass.data["cronostar"]["settings_manager"] = settings_manager
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN]["storage_manager"]  = storage_manager
+    hass.data[DOMAIN]["settings_manager"] = settings_manager
+    
+    # Store version passed from __init__.py
+    if "version" in config:
+        hass.data[DOMAIN]["version"] = config["version"]
+        _LOGGER.debug("CronoStar global setup: version %s stored in hass.data", config["version"])
 
     await _preload_profile_cache(hass, storage_manager)
     await setup_services(hass, storage_manager)

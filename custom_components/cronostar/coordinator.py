@@ -14,6 +14,7 @@ from .const import (
     CONF_MIN_VALUE,
     CONF_NAME,
     CONF_PRESET_TYPE,
+    CONF_FRONTEND_VERSION_CHECK,
     CONF_STEP_VALUE,
     CONF_TARGET_ENTITY,
     CONF_TITLE,
@@ -42,9 +43,17 @@ class CronoStarCoordinator(DataUpdateCoordinator):
 
         # Get logging preference (Global setting overrides/defaults, fallback to entry for legacy)
         global_logging = hass.data.get(DOMAIN, {}).get("logging_enabled", False)
+        global_config = hass.data.get(DOMAIN, {}).get("global_config", {})
+        
         # Check both options and data for the logging flag
         entry_logging = entry.options.get(CONF_LOGGING_ENABLED, entry.data.get(CONF_LOGGING_ENABLED, False))
         self.logging_enabled = global_logging or entry_logging
+        
+        # Version check preference
+        self.version_check_enabled = entry.options.get(
+            CONF_FRONTEND_VERSION_CHECK, 
+            global_config.get(CONF_FRONTEND_VERSION_CHECK, True)
+        )
 
         if self.logging_enabled:
             _LOGGER.info("CronoStarCoordinator initialized for '%s' (entry_id: %s, logging=%s)", entry.title, entry.entry_id, self.logging_enabled)
@@ -104,6 +113,8 @@ class CronoStarCoordinator(DataUpdateCoordinator):
                 "current_value": self.current_value,
                 "available_profiles": self.available_profiles,
                 "card_config": self.card_config,
+                "integration_version": self.hass.data.get(DOMAIN, {}).get("version", "unknown"),
+                "version_check_enabled": self.version_check_enabled,
             }
         if self.logging_enabled:
             _LOGGER.debug("Update cycle for '%s'", self.name)
@@ -118,6 +129,8 @@ class CronoStarCoordinator(DataUpdateCoordinator):
             "current_value": self.current_value,
             "available_profiles": self.available_profiles,
             "card_config": self.card_config,
+            "integration_version": self.hass.data.get(DOMAIN, {}).get("version", "unknown"),
+            "version_check_enabled": self.version_check_enabled,
         }
 
     async def async_initialize(self):

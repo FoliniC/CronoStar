@@ -491,6 +491,14 @@ export class CardLifecycle {
       const response = result?.response ?? result;
       Logger.log('LOAD', 'CronoStar register_card response:', response);
 
+      // Capture version information
+      if (response?.integration_version) {
+        this.card.integrationVersion = response.integration_version;
+      }
+      if (response?.version_check_enabled !== undefined) {
+        this.card.versionCheckEnabled = response.version_check_enabled;
+      }
+
       // Capture global settings
       if (response?.settings) {
         this.card.globalSettings = response.settings;

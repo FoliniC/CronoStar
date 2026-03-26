@@ -385,6 +385,7 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
         current_allow_max = self._config_entry.data.get(CONF_ALLOW_MAX_VALUE, defaults.get("allow_max_value", False))
         
         current_logging = self._config_entry.data.get(CONF_LOGGING_ENABLED, False)
+        current_version_check = self._config_entry.data.get(CONF_FRONTEND_VERSION_CHECK, True)
         current_language = self._config_entry.data.get(CONF_LANGUAGE, "default")
 
         schema = vol.Schema(
@@ -397,6 +398,7 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_Y_AXIS_LABEL, default=current_y_label): str,
                 vol.Optional(CONF_ALLOW_MAX_VALUE, default=current_allow_max): bool,
                 vol.Optional(CONF_LOGGING_ENABLED, default=current_logging): bool,
+                vol.Optional(CONF_FRONTEND_VERSION_CHECK, default=current_version_check): bool,
                 vol.Optional(CONF_LANGUAGE, default=current_language): selector({
                     "select": {
                         "options": [

@@ -25,6 +25,7 @@ from .const import (
     DOMAIN,
     PLATFORMS,
     CONF_LOGGING_ENABLED,
+    CONF_FRONTEND_VERSION_CHECK,
     CONF_LANGUAGE,
     CONF_GLOBAL_PREFIX,
     STORAGE_DIR,
@@ -61,12 +62,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Retrieve integration version dynamically
     integration = await async_get_integration(hass, DOMAIN)
     current_version = integration.version
+    hass.data[DOMAIN]["version"] = current_version
+    _LOGGER.debug("INITIALIZING CronoStar version in hass.data[%s]['version'] = %s", DOMAIN, current_version)
 
     # 1. Global Setup (if not already done)
     if not hass.data.get(DOMAIN, {}).get("_global_setup_done"):
         _LOGGER.info("🌟 CronoStar: Installing global component...")
         setup_config = {
-            "version": entry.version,
+            "version": current_version,
             "enable_backups": False,
         }
         if not await async_setup_integration(hass, setup_config):
@@ -86,6 +89,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Store global configuration in hass.data for services to access
         global_config = {
             CONF_LOGGING_ENABLED: entry.options.get(CONF_LOGGING_ENABLED, False),
+            CONF_FRONTEND_VERSION_CHECK: entry.options.get(CONF_FRONTEND_VERSION_CHECK, True),
             CONF_LANGUAGE: entry.options.get(CONF_LANGUAGE, "default")
         }
         hass.data[DOMAIN]["global_config"] = global_config

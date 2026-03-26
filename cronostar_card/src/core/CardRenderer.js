@@ -302,6 +302,13 @@ export class CardRenderer {
             <div class="title">
               ${title}
               <span style="font-size: 0.8em; opacity: 0.7; margin-left: 8px;">v${VERSION}</span>
+              ${this.card.versionCheckEnabled && this.card.integrationVersion && this.card.integrationVersion !== VERSION ? html`
+                <ha-icon 
+                  icon="mdi:alert-outline" 
+                  style="color: #fbbf24; margin-left: 4px; --mdc-icon-size: 14px; vertical-align: middle;"
+                  title="${this.card.language === 'it' ? `Versione non aggiornata! Disponibile: ${this.card.integrationVersion}` : `Version mismatch! Latest: ${this.card.integrationVersion}`}"
+                ></ha-icon>
+              ` : ''}
             </div>
           </div>
             ${isAnyExpanded ? html`

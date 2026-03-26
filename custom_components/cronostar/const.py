@@ -24,6 +24,7 @@ CONF_PROFILE_NAME = "profile_name"
 CONF_SCHEDULE = "schedule"
 CONF_LOGGING_ENABLED = "logging_enabled"
 CONF_LANGUAGE = "language"
+CONF_FRONTEND_VERSION_CHECK = "frontend_version_check"
 
 # Card configuration constants
 CONF_TITLE = "title"
