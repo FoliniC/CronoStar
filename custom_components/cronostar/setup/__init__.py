@@ -28,6 +28,8 @@ from .events import setup_event_handlers
 from .services import setup_services
 from .validators import validate_environment
 
+_LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup_integration(hass: HomeAssistant, config: dict) -> bool:
     """Global component setup."""
