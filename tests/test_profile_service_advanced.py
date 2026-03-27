@@ -60,7 +60,7 @@ async def test_save_profile_new_metadata_config_entry(hass, profile_service):
 
 @pytest.mark.anyio
 async def test_delete_controller_success(hass, profile_service):
-    """Test successful controller deletion."""
+    """Test successful controller deletion and dashboard update."""
     call = MagicMock()
     # Use normalized prefix p1_ to match entry
     call.data = {"global_prefix": "p1_", "preset_type": "thermostat"}
@@ -69,15 +69,22 @@ async def test_delete_controller_success(hass, profile_service):
     entry = MagicMock()
     entry.entry_id = "e1"
     entry.data = {"global_prefix": "p1_"}
+    entry.title = "Test Entry"
     hass.config_entries.async_entries = MagicMock(return_value=[entry])
     hass.config_entries.async_remove = AsyncMock(return_value=True)
     
     profile_service.storage.delete_controller_files = AsyncMock(return_value=True)
     
-    await profile_service.delete_controller(call)
-    
-    assert profile_service.storage.delete_controller_files.called
-    assert hass.config_entries.async_remove.called
+    # Mock dashboard update functions
+    with patch("custom_components.cronostar.setup.dashboard.write_dashboard_yaml", new_callable=AsyncMock) as mock_write_yaml:
+        await profile_service.delete_controller(call)
+        
+        assert profile_service.storage.delete_controller_files.called
+        assert hass.config_entries.async_remove.called
+        assert mock_write_yaml.called
+        # Verify it was called with hass and the dashboard filename
+        from custom_components.cronostar.setup.dashboard import DASHBOARD_YAML_FILENAME
+        mock_write_yaml.assert_called_with(hass, DASHBOARD_YAML_FILENAME)
 
 @pytest.mark.anyio
 async def test_register_card_no_preset_missing_from_storage(hass, profile_service):

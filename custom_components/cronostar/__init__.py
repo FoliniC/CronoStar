@@ -33,7 +33,8 @@ from .const import (
     STORAGE_DIR,
 )
 from .coordinator import CronoStarCoordinator
-from .setup import PANEL_URL_PATH, async_setup_integration
+from .setup import async_setup_integration
+from .setup.dashboard import PANEL_URL_PATH
 
 _LOGGER = logging.getLogger(__name__)
 

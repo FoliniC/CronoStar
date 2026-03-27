@@ -481,6 +481,15 @@ class ProfileService:
             _LOGGER.info("[DELETE_CONTROLLER] Attempting to delete storage file(s) via StorageManager")
             await self.storage.delete_controller_files(global_prefix, preset_type)
 
+            # 3. Update Dashboard YAML to reflect changes immediately
+            try:
+                from ..setup.dashboard import DASHBOARD_YAML_FILENAME, write_dashboard_yaml
+
+                _LOGGER.info("[DELETE_CONTROLLER] Updating dashboard YAML...")
+                await write_dashboard_yaml(self.hass, DASHBOARD_YAML_FILENAME)
+            except Exception as e:
+                _LOGGER.error("[DELETE_CONTROLLER] Failed to update dashboard YAML: %s", e)
+
             log_operation("Delete controller", True, prefix=global_prefix)
             _LOGGER.info("🏁 [DELETE_CONTROLLER] COMPLETED for prefix: %s", global_prefix)
 
