@@ -229,7 +229,7 @@ export class CardRenderer {
               .config=${this.card.config}
               .step=${this.card.editorStep || 0}
               .language=${this.card.language}
-              @config-changed=${(ev) => {
+              @config-changed=${async (ev) => {
                 // Quando la config cambia nell'editor interno, aggiorniamo la card
                 const newConfig = { ...ev.detail.config };
                 const shouldClose = newConfig._close_wizard;
@@ -244,10 +244,24 @@ export class CardRenderer {
 
                 // Se abbiamo finito (siamo allo step 5 e viene inviato un cambio definitivo), chiudiamo l'editor
                 if (shouldClose) {
+                  console.info(
+                    "[CronoStar] Wizard finished. Closing editor and reinitializing chart...",
+                  );
                   this.card.isEditorInternal = false;
-                }
+                  this.card.requestUpdate();
 
-                this.card.requestUpdate();
+                  // Wait for DOM to reflect the change
+                  await this.card.updateComplete;
+
+                  if (this.card.cardLifecycle) {
+                    this.card.cardLifecycle.reinitializeCard();
+                    if (this.card.hass) {
+                      this.card.cardLifecycle.registerCard(this.card.hass);
+                    }
+                  }
+                } else {
+                  this.card.requestUpdate();
+                }
               }}
             ></cronostar-card-editor>
           </div>
