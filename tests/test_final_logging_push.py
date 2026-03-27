@@ -30,6 +30,7 @@ async def test_coordinator_logging_more(hass):
     
     # Hit line 176 (set_profile log)
     coordinator.available_profiles = ["Default"]
+    coordinator.storage_manager.update_active_profile = AsyncMock(return_value=True)
     await coordinator.set_profile("Default")
     
     # Hit line 185 (set_enabled log)

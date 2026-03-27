@@ -53,6 +53,11 @@ def pytest_configure(config):
         pass
 
 
+@pytest.fixture(autouse=True)
+def enable_event_loop_debug():
+    """Mock enable_event_loop_debug to avoid RuntimeError on Python 3.13."""
+    pass
+
 @pytest.fixture(scope="session")
 def anyio_backend():
     """Select asyncio as the backend for anyio tests."""
@@ -81,15 +86,18 @@ def platforms() -> list[str]:
 def patch_mcp_manager():
     """Ensure MCPManager.start is always an AsyncMock to avoid runtime warnings."""
     # This single fixture handles the global patching for MCPManager
-    with patch("custom_components.azure_openai_sdk_conversation.context.mcp_manager.MCPManager") as MockMCP:
-        mock_instance = MockMCP.return_value
-        mock_instance.start = AsyncMock(return_value=None)
-        mock_instance.stop = AsyncMock(return_value=None)
-        mock_instance.get_tools = AsyncMock(return_value=[])
-        mock_instance.is_new_conversation = MagicMock(return_value=True)
-        mock_instance.build_initial_prompt = MagicMock(return_value="Mock Initial Prompt")
-        mock_instance.build_delta_prompt = MagicMock(return_value="Mock Delta Prompt")
-        yield mock_instance
+    try:
+        with patch("custom_components.azure_openai_sdk_conversation.context.mcp_manager.MCPManager") as MockMCP:
+            mock_instance = MockMCP.return_value
+            mock_instance.start = AsyncMock(return_value=None)
+            mock_instance.stop = AsyncMock(return_value=None)
+            mock_instance.get_tools = AsyncMock(return_value=[])
+            mock_instance.is_new_conversation = MagicMock(return_value=True)
+            mock_instance.build_initial_prompt = MagicMock(return_value="Mock Initial Prompt")
+            mock_instance.build_delta_prompt = MagicMock(return_value="Mock Delta Prompt")
+            yield mock_instance
+    except (ImportError, AttributeError):
+        yield None
 
 
 @pytest.fixture
@@ -188,6 +196,7 @@ def mock_storage_manager():
         }
     })
     manager.save_profile = AsyncMock()
+    manager.update_active_profile = AsyncMock(return_value=True)
     manager.get_cached_containers = AsyncMock(return_value=[
         ("test_profile.json", {
              "meta": {
@@ -243,6 +252,15 @@ def mock_coordinator(hass, mock_storage_manager):
     }
     
     return coordinator
+
+
+@pytest.fixture
+def profile_service(hass, mock_storage_manager):
+    """Fixture for ProfileService."""
+    from custom_components.cronostar.services.profile_service import ProfileService
+    settings_manager = MagicMock()
+    settings_manager.load_settings = AsyncMock(return_value={})
+    return ProfileService(hass, mock_storage_manager, settings_manager)
 
 
 def pytest_collection_modifyitems(config, items):

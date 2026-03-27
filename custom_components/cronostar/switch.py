@@ -63,3 +63,9 @@ class CronoStarEnabledSwitch(CoordinatorEntity, SwitchEntity):
             _LOGGER.info("Disabling controller '%s'", self.coordinator.name)
 
         await self.coordinator.set_enabled(False)
+
+    @property
+    def available(self) -> bool:
+        """Entity availability based on target entity presence."""
+        state = self.coordinator.hass.states.get(self.coordinator.target_entity)
+        return state is not None and state.state not in ("unknown", "unavailable")

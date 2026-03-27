@@ -21,6 +21,7 @@ async def test_options_flow_init_form(hass):
     """Test options flow init form."""
     from custom_components.cronostar.config_flow import CronoStarOptionsFlow
     entry = MagicMock()
+    entry.title = "CronoStar"
     entry.options = {CONF_LOGGING_ENABLED: True}
     entry.data = {}
     

@@ -31,30 +31,6 @@ async def test_storage_list_profiles_complex_prefix(hass):
         assert len(res) == 1
 
 @pytest.mark.anyio
-async def test_storage_load_all_profiles_exception(hass):
-    """Test load_all_profiles with a file that causes exception."""
-    manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
-    
-    # Mock FileChecker module manually
-    mock_checker_mod = MagicMock()
-    mock_checker_cls = mock_checker_mod.FileChecker
-    mock_checker = mock_checker_cls.return_value
-    mock_checker._validate_profile_file = AsyncMock(return_value={"valid": True})
-    
-    with patch.dict(sys.modules, {"custom_components.cronostar.deep_checks.file_checker": mock_checker_mod}):
-        with patch("pathlib.Path.glob") as mock_glob:
-            p1 = MagicMock(spec=Path)
-            p1.name = "cronostar_error.json"
-            mock_glob.return_value = [p1]
-            
-            # Force load_container to raise
-            manager._load_container = AsyncMock(side_effect=Exception("Load error"))
-            
-            res = await manager.load_all_profiles()
-            # If load_container raises outside the loop context, res will be empty
-            assert res == {}
-
-@pytest.mark.anyio
 async def test_apply_now_handler_unsupported_domain(hass):
     """Test apply_now handler with unsupported domain."""
     await setup_services(hass, MagicMock())

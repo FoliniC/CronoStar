@@ -103,26 +103,3 @@ async def test_storage_cleanup_old_backups(hass):
         
         delete_calls = [b.unlink.called for b in backups]
         assert sum(delete_calls) == 5
-
-@pytest.mark.anyio
-async def test_load_all_profiles(hass):
-    """Test load_all_profiles."""
-    manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
-    
-    with patch("pathlib.Path.glob") as mock_glob:
-        p1 = MagicMock(spec=Path)
-        p1.name = "cronostar_test.json"
-        mock_glob.return_value = [p1]
-        
-        manager._load_container = AsyncMock(return_value={"meta": {}})
-        
-        # Mock FileChecker module manually to avoid import issues
-        mock_checker_mod = MagicMock()
-        mock_checker_cls = mock_checker_mod.FileChecker
-        mock_checker = mock_checker_cls.return_value
-        mock_checker._validate_profile_file = AsyncMock(return_value={"valid": True})
-        
-        with patch.dict(sys.modules, {"custom_components.cronostar.deep_checks.file_checker": mock_checker_mod}):
-            result = await manager.load_all_profiles()
-            assert "cronostar_test.json" in result
-            assert result["cronostar_test.json"]["validation_results"]["valid"] is True

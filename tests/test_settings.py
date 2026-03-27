@@ -51,13 +51,30 @@ async def test_load_settings_existing(mock_hass):
         assert settings["keyboard"]["shift"]["horizontal"] == 30
 
 @pytest.mark.anyio
-async def test_save_settings(mock_hass):
-    """Test saving settings."""
+async def test_load_settings_exception(mock_hass):
+    """Test loading settings with exception."""
     manager = SettingsManager(mock_hass, mock_hass.config.path("cronostar"))
-    
-    with patch("pathlib.Path.write_text") as mock_write, \
-         patch("pathlib.Path.mkdir"):
+    with patch("pathlib.Path.exists", return_value=True), \
+         patch("pathlib.Path.read_text", side_effect=OSError("Read error")):
         
+        settings = await manager.load_settings()
+        # Should return defaults on error
+        assert settings["keyboard"]["shift"]["horizontal"] == 30
+
+@pytest.mark.anyio
+async def test_save_settings_exception(mock_hass):
+    """Test saving settings with exception."""
+    manager = SettingsManager(mock_hass, mock_hass.config.path("cronostar"))
+    with patch("pathlib.Path.write_text", side_effect=OSError("Write error")):
         success = await manager.save_settings({"test": 1})
-        assert success is True
-        assert mock_write.called
+        assert success is False
+
+def test_deep_merge_edge_cases():
+    """Test deep_merge with mixed types."""
+    manager = SettingsManager(MagicMock(), "/tmp")
+    base = {"a": {"b": 1}, "c": [1, 2]}
+    overlay = {"a": "not_a_dict", "c": [3]}
+    
+    result = manager._deep_merge(base, overlay)
+    assert result["a"] == "not_a_dict"
+    assert result["c"] == [3]

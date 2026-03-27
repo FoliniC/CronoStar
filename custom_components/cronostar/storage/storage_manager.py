@@ -390,6 +390,41 @@ class StorageManager:
             _LOGGER.error("Error updating active profile: %s", e)
             return False
 
+    async def delete_controller_files(self, global_prefix: str, preset_type: str | None = None) -> bool:
+        """
+        Delete all profile files associated with a controller prefix.
+
+        Args:
+            global_prefix: Controller prefix
+            preset_type: Optional preset type to narrow search
+
+        Returns:
+            True if any file was deleted
+        """
+        try:
+            files_to_delete = []
+            if preset_type:
+                filename = build_profile_filename(preset_type, global_prefix)
+                files_to_delete.append(filename)
+            else:
+                files_to_delete = await self.list_profiles(prefix=global_prefix)
+
+            deleted_any = False
+            for filename in files_to_delete:
+                filepath = self.profiles_dir / filename
+                if await self.hass.async_add_executor_job(filepath.exists):
+                    await self.hass.async_add_executor_job(filepath.unlink)
+                    async with self._cache_lock:
+                        self._cache.pop(filename, None)
+                        self._cache_mtimes.pop(filename, None)
+                    deleted_any = True
+                    _LOGGER.info("Deleted controller file: %s", filename)
+
+            return deleted_any
+        except Exception as e:
+            _LOGGER.error("Error deleting controller files for %s: %s", global_prefix, e)
+            return False
+
     async def _load_container(self, filepath: Path) -> dict:
         """
         Load profile container from disk
@@ -489,70 +524,3 @@ class StorageManager:
 
         except Exception as e:
             _LOGGER.warning("Backup cleanup failed: %s", e, exc_info=True)
-
-    async def load_all_profiles(self) -> dict[str, dict]:
-        """
-
-        Load all profiles from the profiles directory and perform data quality checks.
-
-
-
-        Returns:
-
-            A dictionary where keys are filenames and values are the loaded profile data,
-
-            including a 'validation_results' key with the outcome of the FileChecker.
-
-        """
-
-        _LOGGER.info("Loading all profiles from %s", self.profiles_dir)
-
-        from ..deep_checks.file_checker import FileChecker
-
-        file_checker = FileChecker(self.hass)
-
-        all_profiles_data: dict[str, dict] = {}
-
-        try:
-            # List all cronostar profile JSON files
-            def _get_files():
-                return list(self.profiles_dir.glob("cronostar_*.json"))
-
-            # Must run on executor because glob is I/O blocking
-            filepaths = await self.hass.async_add_executor_job(_get_files)
-
-            for filepath in filepaths:
-                filename = filepath.name
-
-                # Load the container data
-
-                container_data = await self._load_container(filepath)
-
-                # Perform data quality check for the file
-
-                # Note: FileChecker.check_files expects global_prefix and preset_type.
-
-                # We need to extract these from the filename or the loaded meta data.
-
-                # For now, let's just use _validate_profile_file directly as it's more generic.
-
-                validation_results = await file_checker._validate_profile_file(filepath)
-
-                if container_data:
-                    container_data["validation_results"] = validation_results
-
-                    all_profiles_data[filename] = container_data
-
-                    _LOGGER.debug("Loaded profile file: %s (valid: %s)", filename, validation_results.get("valid"))
-
-                else:
-                    _LOGGER.warning("Failed to load profile file: %s", filename)
-
-                    all_profiles_data[filename] = {"validation_results": validation_results}  # Store validation even if load failed
-
-        except Exception as e:
-            _LOGGER.error("Error loading all profiles: %s", e, exc_info=True)
-
-        _LOGGER.info("Finished loading all profiles. Found %d files.", len(all_profiles_data))
-
-        return all_profiles_data

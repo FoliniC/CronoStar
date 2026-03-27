@@ -477,31 +477,9 @@ class ProfileService:
             else:
                 _LOGGER.warning("⚠️ [DELETE_CONTROLLER] Config Entry not found for prefix '%s'", global_prefix)
 
-            # 2. Delete JSON file (all profiles)
-            _LOGGER.info("[DELETE_CONTROLLER] Attempting to delete storage file(s)")
-            if preset_type:
-                filename = build_profile_filename(preset_type, global_prefix)
-                filepath = self.storage.profiles_dir / filename
-                _LOGGER.debug("[DELETE_CONTROLLER] Target file: %s", filepath)
-                if filepath.exists():
-                    await self.hass.async_add_executor_job(filepath.unlink)
-                    async with self.storage._cache_lock:
-                        self.storage._cache.pop(filename, None)
-                    _LOGGER.info("✅ [DELETE_CONTROLLER] Deleted profile file: %s", filename)
-                else:
-                    _LOGGER.warning("⚠️ [DELETE_CONTROLLER] Profile file does not exist: %s", filename)
-            else:
-                # Search by prefix if preset unknown
-                _LOGGER.info("[DELETE_CONTROLLER] Preset unknown, searching all profile files for prefix: %s", global_prefix)
-                all_files = await self.storage.list_profiles(prefix=global_prefix)
-                _LOGGER.debug("[DELETE_CONTROLLER] Found %d matching files", len(all_files))
-                for filename in all_files:
-                    filepath = self.storage.profiles_dir / filename
-                    if filepath.exists():
-                        await self.hass.async_add_executor_job(filepath.unlink)
-                        async with self.storage._cache_lock:
-                            self.storage._cache.pop(filename, None)
-                        _LOGGER.info("✅ [DELETE_CONTROLLER] Deleted profile file by prefix match: %s", filename)
+            # 2. Delete JSON file(s) (all profiles) via Storage Manager
+            _LOGGER.info("[DELETE_CONTROLLER] Attempting to delete storage file(s) via StorageManager")
+            await self.storage.delete_controller_files(global_prefix, preset_type)
 
             log_operation("Delete controller", True, prefix=global_prefix)
             _LOGGER.info("🏁 [DELETE_CONTROLLER] COMPLETED for prefix: %s", global_prefix)
@@ -655,6 +633,7 @@ class ProfileService:
                 response["profile_data"] = data
             else:
                 # Store diagnostic info if strict match failed
+                response["success"] = False
                 response["diagnostics"] = data
                 _LOGGER.info("[REGISTER] No exact profile match found for prefix '%s'", global_prefix)
         except Exception as e:
@@ -662,6 +641,8 @@ class ProfileService:
 
         # 4. Perform dynamic validation for the card
         validation_errors = []
+        if not call.data.get("preset"):
+            validation_errors.append("Preset type is required")
         if not global_prefix:
             validation_errors.append("Missing global prefix")
 

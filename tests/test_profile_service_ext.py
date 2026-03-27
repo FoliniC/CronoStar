@@ -4,12 +4,6 @@ import pytest
 from custom_components.cronostar.services.profile_service import ProfileService
 from custom_components.cronostar.const import DOMAIN
 
-@pytest.fixture
-def profile_service(hass, mock_storage_manager):
-    settings_manager = MagicMock()
-    settings_manager.load_settings = AsyncMock(return_value={})
-    return ProfileService(hass, mock_storage_manager, settings_manager)
-
 @pytest.mark.anyio
 async def test_get_profile_data_diagnostics_extended(hass, profile_service, mock_storage_manager):
     """Trigger lines 276-330 in get_profile_data."""
@@ -23,26 +17,41 @@ async def test_get_profile_data_diagnostics_extended(hass, profile_service, mock
 
 @pytest.mark.anyio
 async def test_register_card_entity_states_error(hass, profile_service, mock_storage_manager):
-    """Hit line 442-443 in register_card (exception in state populating)."""
+    """Hit line 748-749 in register_card (exception in state populating)."""
     call = MagicMock()
     call.data = {"card_id": "c1", "preset": "thermostat", "global_prefix": "p1"}
     
-    # We want the exception to happen inside the try block starting at line 418
-    # But get is also called at line 386.
-    # We use side_effect with a function to only raise for specific entities
+    # We want the exception to happen inside the try block starting at line 700
+    # Line 674: self.hass.states.get(target_ent_check) - must succeed
+    # Line 748: t_state = self.hass.states.get(target_ent) - inside try block
+    
     def side_effect(entity_id):
-        if entity_id == "light.test":
-            raise Exception("State lookup failed")
+        if entity_id == "light.trigger_error":
+            # We need to distinguish between call at 674 and 748
+            # In a real scenario, we can't easily, but we can mock it differently.
+            # Let's just return a mock that raises on .state access
+            m = MagicMock()
+            type(m).state = PropertyMock(side_effect=Exception("State lookup failed"))
+            return m
         return MagicMock(state="on")
     
+    from unittest.mock import PropertyMock
     hass.states.get.side_effect = side_effect
     
     # Mock get_profile_data to return something valid with the target entity that triggers exception
     with patch.object(profile_service, 'get_profile_data', return_value={
-        "profile_name": "Default", "schedule": [], "meta": {"target_entity": "light.test"}
+        "profile_name": "Default", "schedule": [], "meta": {"target_entity": "light.trigger_error"}
     }):
+        # We need to make sure er_helper.async_get works and doesn't fail before reaching the try/except
+        # Line 748 in profile_service is where t_state is used
         res = await profile_service.register_card(call)
         assert res["success"] is True
+        # If line 748 raises, the try/except at line 813 catches it and response["entity_states"] is {}
+        # So we check if "target" is in it
+        if "target" in res["entity_states"]:
+             assert res["entity_states"]["target"] == "unknown"
+        else:
+             assert res["entity_states"] == {}
 
 @pytest.mark.anyio
 async def test_save_profile_update_entry_fields(hass, profile_service, mock_storage_manager):

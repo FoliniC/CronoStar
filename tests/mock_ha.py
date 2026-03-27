@@ -64,6 +64,9 @@ class MockConfigFlow:
     def async_abort(self, **kwargs): return {"type": "abort", **kwargs}
     def async_create_entry(self, **kwargs): return {"type": "create_entry", **kwargs}
     def async_show_form(self, **kwargs): return {"type": "form", **kwargs}
+    def async_show_menu(self, **kwargs): return {"type": "menu", **kwargs}
+    def _async_current_entries(self): return []
+    def async_update_reload_and_abort(self, entry, **kwargs): return {"type": "abort", **kwargs}
 
 class MockOptionsFlow:
     def __init__(self, config_entry=None):
@@ -75,6 +78,8 @@ class MockOptionsFlow:
     def config_entry(self, value): self._config_entry = value
     def async_create_entry(self, **kwargs): return {"type": "create_entry", **kwargs}
     def async_show_form(self, **kwargs): return {"type": "form", **kwargs}
+    def async_show_menu(self, **kwargs): return {"type": "menu", **kwargs}
+
 
 class Platform(StrEnum):
     CONVERSATION = "conversation"
@@ -91,6 +96,7 @@ class FlowResultType(StrEnum):
     ABORT = "abort"
     EXTERNAL_STEP = "external_step"
     SHOW_PROGRESS = "show_progress"
+    MENU = "menu"
 
 FlowResult = dict[str, Any]
 
@@ -189,6 +195,7 @@ ha.helpers.selector.SelectSelector = MockSelector
 ha.helpers.selector.SelectSelectorConfig = MockSelector
 ha.helpers.selector.SelectSelectorMode = SelectSelectorMode
 ha.helpers.selector.TemplateSelector = MockSelector
+ha.helpers.selector.selector = MagicMock()
 
 ha.helpers.update_coordinator = mock_module("homeassistant.helpers.update_coordinator")
 ha.helpers.update_coordinator.DataUpdateCoordinator = MockDataUpdateCoordinator
@@ -207,6 +214,13 @@ ha.components.sensor.SensorEntity = MockEntity
 ha.components.sensor.SensorDeviceClass = MagicMock()
 ha.components.sensor.SensorStateClass = MagicMock()
 
+ha.components.websocket_api = mock_module("homeassistant.components.websocket_api")
+ha.components.websocket_api.async_register_command = MagicMock()
+ha.components.websocket_api.websocket_command = lambda x: lambda y: y
+ha.components.websocket_api.async_response = lambda x: x
+ha.components.websocket_api.ActiveConnection = MagicMock
+
+
 ha.components.select = mock_module("homeassistant.components.select")
 ha.components.select.SelectEntity = MockEntity
 
@@ -215,6 +229,16 @@ ha.components.switch.SwitchEntity = MockEntity
 
 ha.components.frontend = mock_module("homeassistant.components.frontend")
 ha.components.frontend.add_extra_js_url = MagicMock()
+ha.components.frontend.async_register_built_in_panel = MagicMock()
+ha.components.frontend.async_remove_panel = MagicMock()
+
+ha.components.lovelace = mock_module("homeassistant.components.lovelace")
+ha.components.lovelace.const = mock_module("homeassistant.components.lovelace.const")
+ha.components.lovelace.const.LOVELACE_DATA = "lovelace_data"
+ha.components.lovelace.async_get_config = AsyncMock()
+ha.components.lovelace.async_save_config = AsyncMock()
+ha.components.lovelace.dashboard = mock_module("homeassistant.components.lovelace.dashboard")
+ha.components.lovelace.dashboard.LovelaceYAML = MagicMock
 
 ha.components.http = mock_module("homeassistant.components.http")
 ha.components.http.StaticPathConfig = MagicMock
@@ -284,6 +308,9 @@ sys.modules["homeassistant.components.select"] = ha.components.select
 sys.modules["homeassistant.components.switch"] = ha.components.switch
 sys.modules["homeassistant.components.frontend"] = ha.components.frontend
 sys.modules["homeassistant.components.http"] = ha.components.http
+sys.modules["homeassistant.components.lovelace"] = ha.components.lovelace
+sys.modules["homeassistant.components.lovelace.const"] = ha.components.lovelace.const
+sys.modules["homeassistant.components.lovelace.dashboard"] = ha.components.lovelace.dashboard
 sys.modules["homeassistant.components.conversation"] = ha.components.conversation
 sys.modules["homeassistant.components.persistent_notification"] = ha.components.persistent_notification
 sys.modules["homeassistant.loader"] = ha.loader

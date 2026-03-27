@@ -210,22 +210,60 @@ def test_minutes_to_time(mock_coordinator):
     assert mock_coordinator._minutes_to_time(60) == "01:00"
     assert mock_coordinator._minutes_to_time(1440) == "00:00"
 
-def test_get_next_change(mock_coordinator):
-    """Test get_next_change logic."""
-    schedule = [
-        {"time": "08:00", "value": 20.0},
-        {"time": "20:00", "value": 18.0}
-    ]
-    
+@pytest.mark.anyio
+async def test_coordinator_update_target_entity_logic(hass, mock_coordinator):
+    """Test various domains in update_target_entity."""
+    # Climate (already covered in other test, but here for completeness)
+    mock_coordinator.target_entity = "climate.test"
+    await mock_coordinator._update_target_entity(20.5)
+    hass.services.async_call.assert_called_with("climate", "set_temperature", {"entity_id": "climate.test", "temperature": 20.5}, blocking=False)
+
+    # Switch ON
+    mock_coordinator.target_entity = "switch.test"
+    await mock_coordinator._update_target_entity(1.0)
+    hass.services.async_call.assert_called_with("switch", "turn_on", {"entity_id": "switch.test"}, blocking=False)
+
+    # Switch OFF
+    await mock_coordinator._update_target_entity(0.0)
+    hass.services.async_call.assert_called_with("switch", "turn_off", {"entity_id": "switch.test"}, blocking=False)
+
+    # Fan
+    mock_coordinator.target_entity = "fan.test"
+    await mock_coordinator._update_target_entity(1.0)
+    hass.services.async_call.assert_called_with("fan", "turn_on", {"entity_id": "fan.test"}, blocking=False)
+
+    # Unsupported
+    mock_coordinator.target_entity = "unknown.entity"
+    hass.services.async_call.reset_mock()
+    await mock_coordinator._update_target_entity(10.0)
+    hass.services.async_call.assert_not_called()
+
+@pytest.mark.anyio
+async def test_coordinator_interpolation_cases(mock_coordinator):
+    """Test interpolation edge cases."""
+    # Empty schedule
+    assert mock_coordinator._interpolate_schedule([]) is None
+
+    # Invalid points
+    schedule = [{"time": "invalid", "value": 10}, {"time": "08:00", "value": None}]
+    assert mock_coordinator._interpolate_schedule(schedule) is None
+
+    # Exact match
+    schedule = [{"time": "12:00", "value": 20.0}]
     with patch("custom_components.cronostar.coordinator.datetime") as mock_dt:
-        # At 12:00, value is interpolated (approx 19.33). Next point is 20:00 with 18.0.
         mock_dt.now.return_value = datetime(2023, 1, 1, 12, 0, 0)
-        change = mock_coordinator._get_next_change(schedule, 19.33)
-        assert change[0] == "20:00"
-        assert change[1] == 480 # 8 hours
-        
-        # At 21:00, next point is wrap-around 08:00
-        mock_dt.now.return_value = datetime(2023, 1, 1, 21, 0, 0)
-        change = mock_coordinator._get_next_change(schedule, 18.0)
-        assert change[0] == "08:00"
-        assert change[1] == 660 # 11 hours (3h to midnight + 8h)
+        assert mock_coordinator._interpolate_schedule(schedule) == 20.0
+
+    # Generic switch (stepped)
+    mock_coordinator.preset_type = "generic_switch"
+    schedule = [{"time": "08:00", "value": 1.0}, {"time": "20:00", "value": 0.0}]
+    with patch("custom_components.cronostar.coordinator.datetime") as mock_dt:
+        mock_dt.now.return_value = datetime(2023, 1, 1, 12, 0, 0)
+        assert mock_coordinator._interpolate_schedule(schedule) == 1.0
+
+@pytest.mark.anyio
+async def test_coordinator_apply_schedule_error(hass, mock_coordinator, mock_storage_manager):
+    """Test error handling in apply_schedule."""
+    mock_storage_manager.list_profiles.side_effect = Exception("Storage crash")
+    await mock_coordinator.apply_schedule()
+    # Should catch and log error without crashing

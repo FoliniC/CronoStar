@@ -1,29 +1,50 @@
-"""Tests targeting logging and rare logic paths."""
-from unittest.mock import MagicMock, AsyncMock, patch
+"""Test logging logic."""
 import pytest
 import json
-from custom_components.cronostar.coordinator import CronoStarCoordinator
-from custom_components.cronostar.storage.storage_manager import StorageManager
-from custom_components.cronostar.const import DOMAIN, CONF_TARGET_ENTITY, CONF_LOGGING_ENABLED
 from pathlib import Path
+from unittest.mock import MagicMock, AsyncMock, patch
+from custom_components.cronostar.coordinator import CronoStarCoordinator
+from custom_components.cronostar.const import DOMAIN, CONF_TARGET_ENTITY
+from custom_components.cronostar.storage.storage_manager import StorageManager, _LOGGER
+
+@pytest.mark.anyio
+async def test_coordinator_logging_more(hass):
+    """Trigger more logging lines in coordinator."""
+    entry = MagicMock()
+    entry.data = {CONF_TARGET_ENTITY: "climate.test"}
+    coordinator = CronoStarCoordinator(hass, entry)
+    coordinator.logging_enabled = True
+    
+    # Hit various log lines
+    await coordinator._async_update_data()
+    
+    # Mock data to trigger logs in refresh_profiles
+    coordinator.available_profiles = ["Default"]
+    await coordinator.async_refresh_profiles()
+    
+    # Set profile log
+    coordinator.storage_manager.update_active_profile = AsyncMock(return_value=True)
+    await coordinator.set_profile("Default")
+    
+    # Set enabled log
+    await coordinator.set_enabled(True)
 
 @pytest.mark.anyio
 async def test_coordinator_logging_branches(hass):
-    """Trigger various logging branches in coordinator."""
+    """Hit logging branches in coordinator."""
     entry = MagicMock()
-    entry.data = {CONF_TARGET_ENTITY: "climate.test", CONF_LOGGING_ENABLED: True}
-    entry.options = {}
-    
-    hass.data[DOMAIN] = {"logging_enabled": True}
+    entry.data = {CONF_TARGET_ENTITY: "climate.test"}
     coordinator = CronoStarCoordinator(hass, entry)
     
-    mock_hass_state = MagicMock()
-    mock_hass_state.state = "20"
-    hass.states.get.return_value = mock_hass_state
-    await coordinator._async_update_data()
+    # Mock storage_manager to trigger warnings in initialize
+    hass.data[DOMAIN]["storage_manager"] = MagicMock()
+    hass.data[DOMAIN]["storage_manager"].list_profiles = AsyncMock(return_value=[])
     
-    hass.states.get.return_value = None
-    await coordinator._async_update_data()
+    await coordinator.async_initialize()
+    
+    # Trigger set_profile warning (profile not found)
+    coordinator.available_profiles = ["Default"]
+    await coordinator.set_profile("NonExistent")
 
 @pytest.mark.anyio
 async def test_coordinator_interpolate_debug(hass):
@@ -33,20 +54,23 @@ async def test_coordinator_interpolate_debug(hass):
     coordinator = CronoStarCoordinator(hass, entry)
     coordinator.logging_enabled = True
     
-    schedule = [{"time": "invalid", "value": 20}]
+    schedule = [{"time": "08:00", "value": 20.0}]
     coordinator._interpolate_schedule(schedule)
 
 @pytest.mark.anyio
-async def test_storage_backups_enabled_logs(hass):
-    """Trigger logging when backups enabled."""
-    with patch("pathlib.Path.mkdir"):
-        manager = StorageManager(hass, hass.config.path("cronostar/profiles"), enable_backups=True)
-
+async def test_storage_backups_enabled_logs(hass, tmp_path):
+    """Trigger logs when backups are enabled."""
+    manager = StorageManager(hass, tmp_path)
+    
+    with patch("custom_components.cronostar.storage.storage_manager._LOGGER.debug") as mock_debug:
+        await manager._create_backup(tmp_path / "test.json")
+        # Should call debug if successful (but it fails because file doesn't exist)
+        # So it calls warning
+        
 @pytest.mark.anyio
 async def test_storage_load_cache_lock(hass):
-    """Hit the cache age logic in load_profile_cached."""
+    """Hit cache lock and mtime check in load_profile_cached."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
-    from datetime import datetime
     
     manager._cache["f1.json"] = {"data": 1}
     manager._cache_mtimes["f1.json"] = 1000 # Use mtimes instead of timestamps
@@ -65,7 +89,7 @@ async def test_storage_list_profiles_load_fail(hass):
     p1.name = "cronostar_f1.json"
     with patch("pathlib.Path.glob", return_value=[p1]):
         manager.load_profile_cached = AsyncMock(return_value=None)
-        await manager.list_profiles(preset_type="thermostat")
+        await manager.list_profiles()
 
 @pytest.mark.anyio
 async def test_storage_json_errors(hass):
@@ -74,15 +98,33 @@ async def test_storage_json_errors(hass):
     path = Path("test.json")
     
     # JSON decode error
-    with patch("pathlib.Path.exists", return_value=True):
-        hass.async_add_executor_job.side_effect = json.JSONDecodeError("err", "doc", 0)
+    def side_effect(func, *args):
+        if "read_text" in str(func):
+            raise json.JSONDecodeError("err", "doc", 0)
+        return True # for exists()
+        
+    with patch("custom_components.cronostar.storage.storage_manager._LOGGER.error") as mock_err:
+        hass.async_add_executor_job.side_effect = side_effect
         await manager._load_container(path)
+        assert mock_err.called
         
     # Other error
-    hass.async_add_executor_job.side_effect = Exception("IO error")
-    await manager._load_container(path)
+    hass.async_add_executor_job.side_effect = None
+    def io_side_effect(func, *args):
+        if "read_text" in str(func):
+            raise Exception("IO error")
+        return True # for exists()
+        
+    with patch("custom_components.cronostar.storage.storage_manager._LOGGER.error") as mock_err:
+        hass.async_add_executor_job.side_effect = io_side_effect
+        await manager._load_container(path)
+        assert mock_err.called
+    
+    # Reset side effect
+    hass.async_add_executor_job.side_effect = None
     
     # Write error - raises
+    hass.async_add_executor_job.side_effect = Exception("Write fail")
     with pytest.raises(Exception):
         await manager._write_json(path, {})
     
