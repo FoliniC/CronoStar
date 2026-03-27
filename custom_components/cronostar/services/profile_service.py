@@ -311,6 +311,15 @@ class ProfileService:
             global_prefix=lookup_prefix,
         )
 
+        # Optimization: If we are using a generic prefix and we found multiple containers,
+        # prioritize the one that actually matches the generic prefix (if any) 
+        # to avoid returning a "random" first profile.
+        if is_generic_prefix and len(cached) > 1:
+            matching_generic = [c for c in cached if c[1].get("meta", {}).get("global_prefix") == prefix_with_underscore]
+            if matching_generic:
+                cached = matching_generic
+                _LOGGER.debug("[GET_PROFILE] Generic prefix match: prioritized container with exact prefix %s", prefix_with_underscore)
+
         requested_lower = (profile_name or "").lower()
 
         # Phase 1: Search requested profile (case-insensitive)
