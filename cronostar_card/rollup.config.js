@@ -24,7 +24,7 @@ export default {
     intro: `/* CronoStar Card - Bundled for Home Assistant */\nwindow.CRONOSTAR_CARD_VERSION = '${cardVersion}';`,
   },
   onwarn(warning, warn) {
-    // Ignora warning sourcemap
+    // Ignore sourcemap warnings
     if (warning.code === "SOURCEMAP_ERROR") return;
     if (warning.code === "CIRCULAR_DEPENDENCY") return;
     warn(warning);

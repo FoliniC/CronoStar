@@ -95,7 +95,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Added version tag to label
             data = {"component_installed": True}
             data.update(user_input)
-            return self.async_create_entry(title="CronoStar [v5.9.0]", data=data)
+            return self.async_create_entry(title="CronoStar [v5.9.1]", data=data)
 
         return self.async_show_form(
             step_id="install_component",
@@ -225,7 +225,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_success(self, user_input=None):
         """Final Step: Success confirmation dialog."""
         if user_input is not None:
-            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.9.0]"
+            title = f"CronoStar: {self._controller_data.get(CONF_NAME)} [v5.9.1]"
 
             # Handle dashboard addition
             if self._controller_data.get("dashboard_path"):
@@ -447,7 +447,7 @@ class CronoStarOptionsFlow(config_entries.OptionsFlow):
             if clean_name.startswith("CronoStar: "):
                 clean_name = clean_name[len("CronoStar: ") :]
 
-            new_title = f"CronoStar: {clean_name} [v5.9.0]"
+            new_title = f"CronoStar: {clean_name} [v5.9.1]"
 
             _LOGGER.debug("[OptionsFlow] Updating entry. Title: %s, Data: %s", new_title, new_data)
 

@@ -9,7 +9,7 @@ from homeassistant.exceptions import HomeAssistantError
 
 @pytest.fixture(autouse=True)
 def enable_event_loop_debug():
-    """Mock per evitare RuntimeError su Python 3.13."""
+    """Mock to avoid RuntimeError on Python 3.13."""
     pass
 
 
@@ -83,7 +83,7 @@ def _make_call(data: dict):
 
 @pytest.mark.anyio
 async def test_add_profile_success(hass):
-    """Test aggiunta profilo con successo."""
+    """Test adding a profile successfully."""
     svc, h, storage, _ = _make_service(hass=hass)
     call = _make_call({"profile_name": "Eco", "preset_type": "thermostat", "global_prefix": "cronostar_thermostat_kitchen_"})
 
@@ -93,7 +93,7 @@ async def test_add_profile_success(hass):
 
 @pytest.mark.anyio
 async def test_add_profile_missing_name(hass):
-    """Test che add_profile lanci HomeAssistantError se profile_name mancante."""
+    """Test that add_profile raises HomeAssistantError if profile_name is missing."""
     svc, h, storage, _ = _make_service(hass=hass)
     call = _make_call({"preset_type": "thermostat"})
 
@@ -103,7 +103,7 @@ async def test_add_profile_missing_name(hass):
 
 @pytest.mark.anyio
 async def test_add_profile_notifies_coordinators(hass):
-    """Test che add_profile notifichi i coordinatori."""
+    """Test that add_profile notifies coordinators."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     mock_entry = MagicMock()
@@ -120,7 +120,7 @@ async def test_add_profile_notifies_coordinators(hass):
 
 @pytest.mark.anyio
 async def test_add_profile_storage_exception(hass):
-    """Test che add_profile gestisca eccezioni dello storage."""
+    """Test that add_profile handles storage exceptions."""
     svc, h, storage, _ = _make_service(hass=hass)
     storage.save_profile = AsyncMock(side_effect=Exception("disk error"))
     call = _make_call({"profile_name": "Eco", "preset_type": "thermostat"})
@@ -135,7 +135,7 @@ async def test_add_profile_storage_exception(hass):
 
 @pytest.mark.anyio
 async def test_save_profile_with_schedule(hass):
-    """Test salvataggio profilo con schedule valida."""
+    """Test saving a profile with a valid schedule."""
     svc, h, storage, _ = _make_service(hass=hass)
     call = _make_call({
         "profile_name": "Comfort",
@@ -151,9 +151,9 @@ async def test_save_profile_with_schedule(hass):
 
 @pytest.mark.anyio
 async def test_save_profile_metadata_only(hass):
-    """Test salvataggio solo metadati (no schedule)."""
+    """Test saving metadata only (no schedule)."""
     svc, h, storage, _ = _make_service(hass=hass)
-    # get_profile_data restituisce un profilo esistente
+    # get_profile_data returns an existing profile
     existing = {"schedule": [{"time": "08:00", "value": 20.0}], "meta": {}}
     with patch.object(svc, "get_profile_data", AsyncMock(return_value=existing)):
         call = _make_call({
@@ -167,7 +167,7 @@ async def test_save_profile_metadata_only(hass):
 
 @pytest.mark.anyio
 async def test_save_profile_metadata_only_new_profile(hass):
-    """Test salvataggio metadati per profilo nuovo (get_profile_data restituisce errore)."""
+    """Test saving metadata for a new profile (get_profile_data returns an error)."""
     svc, h, storage, _ = _make_service(hass=hass)
     with patch.object(svc, "get_profile_data", AsyncMock(return_value={"error": "not found"})):
         call = _make_call({
@@ -181,7 +181,7 @@ async def test_save_profile_metadata_only_new_profile(hass):
 
 @pytest.mark.anyio
 async def test_save_profile_missing_name(hass):
-    """Test che save_profile lanci HomeAssistantError se profile_name mancante."""
+    """Test that save_profile raises HomeAssistantError if profile_name is missing."""
     svc, h, _, _ = _make_service(hass=hass)
     call = _make_call({"preset_type": "thermostat"})
 
@@ -191,7 +191,7 @@ async def test_save_profile_missing_name(hass):
 
 @pytest.mark.anyio
 async def test_save_profile_updates_config_entry(hass):
-    """Test che save_profile aggiorni la config entry se i metadati cambiano."""
+    """Test that save_profile updates the config entry if metadata changes."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     mock_entry = MagicMock()
@@ -221,7 +221,7 @@ async def test_save_profile_updates_config_entry(hass):
 
 @pytest.mark.anyio
 async def test_load_profile_found(hass):
-    """Test caricamento profilo trovato."""
+    """Test loading a profile when found."""
     svc, h, _, _ = _make_service(hass=hass)
     expected = {"profile_name": "Comfort", "schedule": [], "meta": {}}
     with patch.object(svc, "get_profile_data", AsyncMock(return_value=expected)):
@@ -232,7 +232,7 @@ async def test_load_profile_found(hass):
 
 @pytest.mark.anyio
 async def test_load_profile_not_found(hass):
-    """Test caricamento profilo non trovato."""
+    """Test loading a profile when not found."""
     svc, h, _, _ = _make_service(hass=hass)
     with patch.object(svc, "get_profile_data", AsyncMock(return_value={"error": "Profile not found"})):
         call = _make_call({"profile_name": "Ghost", "preset_type": "thermostat"})
@@ -242,7 +242,7 @@ async def test_load_profile_not_found(hass):
 
 @pytest.mark.anyio
 async def test_load_profile_missing_name(hass):
-    """Test caricamento senza profile_name."""
+    """Test loading without profile_name."""
     svc, h, _, _ = _make_service(hass=hass)
     call = _make_call({"preset_type": "thermostat"})
     result = await svc.load_profile(call)
@@ -251,7 +251,7 @@ async def test_load_profile_missing_name(hass):
 
 @pytest.mark.anyio
 async def test_load_profile_exception(hass):
-    """Test che load_profile gestisca eccezioni."""
+    """Test that load_profile handles exceptions."""
     svc, h, _, _ = _make_service(hass=hass)
     with patch.object(svc, "get_profile_data", AsyncMock(side_effect=Exception("boom"))):
         call = _make_call({"profile_name": "Comfort", "preset_type": "thermostat"})
@@ -265,7 +265,7 @@ async def test_load_profile_exception(hass):
 
 @pytest.mark.anyio
 async def test_get_profile_data_exact_match(hass):
-    """Test corrispondenza esatta per nome profilo."""
+    """Test exact match for profile name."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     container = {
@@ -288,7 +288,7 @@ async def test_get_profile_data_exact_match(hass):
 
 @pytest.mark.anyio
 async def test_get_profile_data_case_insensitive(hass):
-    """Test corrispondenza case-insensitive."""
+    """Test case-insensitive match."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     container = {
@@ -303,7 +303,7 @@ async def test_get_profile_data_case_insensitive(hass):
 
 @pytest.mark.anyio
 async def test_get_profile_data_fallback_to_default(hass):
-    """Test fallback al profilo Default."""
+    """Test fallback to the Default profile."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     container = {
@@ -318,7 +318,7 @@ async def test_get_profile_data_fallback_to_default(hass):
 
 @pytest.mark.anyio
 async def test_get_profile_data_fallback_to_comfort(hass):
-    """Test fallback al profilo Comfort."""
+    """Test fallback to the Comfort profile."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     container = {
@@ -333,10 +333,10 @@ async def test_get_profile_data_fallback_to_comfort(hass):
 
 @pytest.mark.anyio
 async def test_get_profile_data_not_found_returns_diagnostics(hass):
-    """Test che diagnostics vengano restituiti se il profilo non è trovato."""
+    """Test that diagnostics are returned if the profile is not found."""
     svc, h, storage, _ = _make_service(hass=hass)
     storage.get_cached_containers = AsyncMock(return_value=[])
-    storage.get_cached_containers = AsyncMock(return_value=[])   # chiamato due volte
+    storage.get_cached_containers = AsyncMock(return_value=[])   # called twice
 
     result = await svc.get_profile_data("Ghost", "thermostat", "cronostar_thermostat_k_")
     assert "error" in result
@@ -345,7 +345,7 @@ async def test_get_profile_data_not_found_returns_diagnostics(hass):
 
 @pytest.mark.anyio
 async def test_get_profile_data_merges_entity_overrides(hass):
-    """Test che gli entity overrides per-profilo vengano uniti al meta."""
+    """Test that per-profile entity overrides are merged into meta."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     container = {
@@ -371,7 +371,7 @@ async def test_get_profile_data_merges_entity_overrides(hass):
 
 @pytest.mark.anyio
 async def test_delete_profile_success(hass):
-    """Test cancellazione profilo con successo."""
+    """Test deleting a profile successfully."""
     svc, h, storage, _ = _make_service(hass=hass)
     call = _make_call({
         "profile_name": "Comfort",
@@ -385,7 +385,7 @@ async def test_delete_profile_success(hass):
 
 @pytest.mark.anyio
 async def test_delete_profile_missing_name(hass):
-    """Test cancellazione senza profile_name."""
+    """Test deleting without profile_name."""
     svc, h, _, _ = _make_service(hass=hass)
     call = _make_call({"preset_type": "thermostat"})
 
@@ -395,7 +395,7 @@ async def test_delete_profile_missing_name(hass):
 
 @pytest.mark.anyio
 async def test_delete_profile_notifies_coordinators(hass):
-    """Test che delete_profile notifichi i coordinatori."""
+    """Test that delete_profile notifies coordinators."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     mock_entry = MagicMock()
@@ -416,11 +416,11 @@ async def test_delete_profile_notifies_coordinators(hass):
 
 @pytest.mark.anyio
 async def test_delete_profile_not_found_no_crash(hass):
-    """Test che delete_profile non crashi se il profilo non esiste."""
+    """Test that delete_profile does not crash if the profile does not exist."""
     svc, h, storage, _ = _make_service(hass=hass)
     storage.delete_profile = AsyncMock(return_value=False)
     call = _make_call({"profile_name": "Ghost", "preset_type": "thermostat"})
-    # Non solleva eccezione
+    # Does not raise an exception
     await svc.delete_profile(call)
 
 
@@ -430,7 +430,7 @@ async def test_delete_profile_not_found_no_crash(hass):
 
 @pytest.mark.anyio
 async def test_delete_controller_with_preset(hass):
-    """Test cancellazione controller con preset specificato."""
+    """Test deleting a controller with a specified preset."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     filepath_mock = MagicMock()
@@ -451,7 +451,7 @@ async def test_delete_controller_with_preset(hass):
 
 @pytest.mark.anyio
 async def test_delete_controller_without_preset(hass):
-    """Test cancellazione controller senza preset (ricerca per prefix)."""
+    """Test deleting a controller without a preset (search by prefix)."""
     svc, h, storage, _ = _make_service(hass=hass)
     storage.list_profiles = AsyncMock(return_value=["cronostar_thermostat_kitchen_.json"])
 
@@ -465,7 +465,7 @@ async def test_delete_controller_without_preset(hass):
 
     @pytest.mark.anyio
     async def test_delete_controller_removes_config_entry(hass):
-        """Test che delete_controller rimuova la config entry."""
+        """Test that delete_controller removes the config entry."""
         svc, h, storage, _ = _make_service(hass=hass)
 
         mock_entry = MagicMock()
@@ -495,7 +495,7 @@ async def test_delete_controller_without_preset(hass):
 
 @pytest.mark.anyio
 async def test_delete_controller_missing_prefix(hass):
-    """Test che delete_controller lanci HomeAssistantError se prefix mancante."""
+    """Test that delete_controller raises HomeAssistantError if prefix is missing."""
     svc, h, _, _ = _make_service(hass=hass)
     call = _make_call({})
 
@@ -505,7 +505,7 @@ async def test_delete_controller_missing_prefix(hass):
 
 @pytest.mark.anyio
 async def test_delete_controller_deletes_existing_file(hass):
-    """Test che il file venga cancellato se esiste."""
+    """Test that the file is deleted if it exists."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     filepath_mock = MagicMock()
@@ -534,7 +534,7 @@ async def test_delete_controller_deletes_existing_file(hass):
 
 @pytest.mark.anyio
 async def test_register_card_success(hass):
-    """Test registrazione card con successo."""
+    """Test registering a card successfully."""
     svc, h, storage, settings = _make_service(hass=hass)
 
     profile_data = {
@@ -557,7 +557,7 @@ async def test_register_card_success(hass):
 
 @pytest.mark.anyio
 async def test_register_card_no_profile_found(hass):
-    """Test registrazione card quando il profilo non è trovato."""
+    """Test registering a card when the profile is not found."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     with patch.object(svc, "get_profile_data", AsyncMock(return_value={"error": "not found"})), \
@@ -575,7 +575,7 @@ async def test_register_card_no_profile_found(hass):
 
 @pytest.mark.anyio
 async def test_register_card_active_profile_from_native_select(hass):
-    """Test che il profilo attivo venga letto dall'entity select nativa."""
+    """Test that the active profile is read from the native select entity."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     select_state = MagicMock()
@@ -599,7 +599,7 @@ async def test_register_card_active_profile_from_native_select(hass):
 
 @pytest.mark.anyio
 async def test_register_card_validation_errors(hass):
-    """Test che la validazione rilevi errori."""
+    """Test that validation detects errors."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     with patch.object(svc, "get_profile_data", AsyncMock(return_value={"error": "not found"})), \
@@ -607,7 +607,7 @@ async def test_register_card_validation_errors(hass):
         call = _make_call({
             "card_id": "card1",
             "preset": "thermostat",
-            "global_prefix": "",   # prefix vuoto → errore di validazione
+            "global_prefix": "",   # empty prefix → validation error
         })
         result = await svc.register_card(call)
         assert result["validation"]["valid"] is False
@@ -620,7 +620,7 @@ async def test_register_card_validation_errors(hass):
 
 @pytest.mark.anyio
 async def test_validate_schedule_valid(hass):
-    """Test validazione schedule corretta."""
+    """Test correct schedule validation."""
     svc, _, _, _ = _make_service(hass=hass)
     schedule = [
         {"time": "08:00", "value": 21.0},
@@ -633,7 +633,7 @@ async def test_validate_schedule_valid(hass):
 
 @pytest.mark.anyio
 async def test_validate_schedule_non_list(hass):
-    """Test validazione con input non-lista."""
+    """Test validation with non-list input."""
     svc, _, _, _ = _make_service(hass=hass)
     result = svc._validate_schedule("not a list")
     assert result == []
@@ -641,7 +641,7 @@ async def test_validate_schedule_non_list(hass):
 
 @pytest.mark.anyio
 async def test_validate_schedule_invalid_time_format(hass):
-    """Test validazione con formato orario non valido."""
+    """Test validation with invalid time format."""
     svc, _, _, _ = _make_service(hass=hass)
     schedule = [{"time": "25:99", "value": 21.0}]
     result = svc._validate_schedule(schedule)
@@ -650,7 +650,7 @@ async def test_validate_schedule_invalid_time_format(hass):
 
 @pytest.mark.anyio
 async def test_validate_schedule_nan_value(hass):
-    """Test validazione con valore NaN."""
+    """Test validation with NaN value."""
     import math
     svc, _, _, _ = _make_service(hass=hass)
     schedule = [{"time": "08:00", "value": float("nan")}]
@@ -660,7 +660,7 @@ async def test_validate_schedule_nan_value(hass):
 
 @pytest.mark.anyio
 async def test_validate_schedule_value_below_min(hass):
-    """Test che valori sotto il minimo vengano portati al minimo."""
+    """Test that values below the minimum are brought to the minimum."""
     svc, _, _, _ = _make_service(hass=hass)
     schedule = [{"time": "08:00", "value": 5.0}]
     result = svc._validate_schedule(schedule, min_val=15.0, max_val=30.0)
@@ -669,7 +669,7 @@ async def test_validate_schedule_value_below_min(hass):
 
 @pytest.mark.anyio
 async def test_validate_schedule_value_above_max(hass):
-    """Test che valori sopra il massimo vengano resettati al minimo."""
+    """Test that values above the maximum are reset to the minimum."""
     svc, _, _, _ = _make_service(hass=hass)
     schedule = [{"time": "08:00", "value": 50.0}]
     result = svc._validate_schedule(schedule, min_val=15.0, max_val=30.0)
@@ -678,20 +678,20 @@ async def test_validate_schedule_value_above_max(hass):
 
 @pytest.mark.anyio
 async def test_validate_schedule_deduplicates_times(hass):
-    """Test che punti con lo stesso orario vengano deduplicati."""
+    """Test that points with the same time are deduplicated."""
     svc, _, _, _ = _make_service(hass=hass)
     schedule = [
         {"time": "08:00", "value": 21.0},
-        {"time": "08:00", "value": 22.0},  # duplicato
+        {"time": "08:00", "value": 22.0},  # duplicate
     ]
     result = svc._validate_schedule(schedule)
     assert len(result) == 1
-    assert result[0]["value"] == 22.0   # ultimo vince
+    assert result[0]["value"] == 22.0   # last one wins
 
 
 @pytest.mark.anyio
 async def test_validate_schedule_non_numeric_value(hass):
-    """Test che valori non numerici vengano scartati."""
+    """Test that values non-numeric values are discarded."""
     svc, _, _, _ = _make_service(hass=hass)
     schedule = [{"time": "08:00", "value": "abc"}]
     result = svc._validate_schedule(schedule)
@@ -700,7 +700,7 @@ async def test_validate_schedule_non_numeric_value(hass):
 
 @pytest.mark.anyio
 async def test_validate_schedule_missing_fields(hass):
-    """Test che elementi senza time o value vengano scartati."""
+    """Test that elements without time or value are discarded."""
     svc, _, _, _ = _make_service(hass=hass)
     schedule = [{"time": "08:00"}, {"value": 20.0}, {}]
     result = svc._validate_schedule(schedule)
@@ -709,7 +709,7 @@ async def test_validate_schedule_missing_fields(hass):
 
 @pytest.mark.anyio
 async def test_validate_schedule_sorted_by_time(hass):
-    """Test che la schedule venga ordinata per orario."""
+    """Test that the schedule is sorted by time."""
     svc, _, _, _ = _make_service(hass=hass)
     schedule = [
         {"time": "22:00", "value": 18.0},
@@ -722,7 +722,7 @@ async def test_validate_schedule_sorted_by_time(hass):
 
 @pytest.mark.anyio
 async def test_validate_schedule_above_max_no_min(hass):
-    """Test reset a 0.0 quando max superato e min_val è None."""
+    """Test reset to 0.0 when max is exceeded and min_val is None."""
     svc, _, _, _ = _make_service(hass=hass)
     schedule = [{"time": "08:00", "value": 999.0}]
     result = svc._validate_schedule(schedule, min_val=None, max_val=100.0)
@@ -735,7 +735,7 @@ async def test_validate_schedule_above_max_no_min(hass):
 
 @pytest.mark.anyio
 async def test_build_metadata_filters_allowed_keys(hass):
-    """Test che solo le chiavi consentite vengano incluse nei metadati."""
+    """Test that only allowed keys are included in the metadata."""
     svc, _, _, _ = _make_service(hass=hass)
     user_meta = {
         "title": "Cucina",
@@ -751,7 +751,7 @@ async def test_build_metadata_filters_allowed_keys(hass):
 
 @pytest.mark.anyio
 async def test_build_metadata_sets_core_fields(hass):
-    """Test che i campi core vengano sempre impostati."""
+    """Test that core fields are always set."""
     svc, _, _, _ = _make_service(hass=hass)
     result = svc._build_metadata("thermostat", "cronostar_thermostat_k_", {})
     assert result["preset_type"] == "thermostat"
@@ -761,7 +761,7 @@ async def test_build_metadata_sets_core_fields(hass):
 
 @pytest.mark.anyio
 async def test_build_metadata_removes_preset_key(hass):
-    """Test che la chiave legacy 'preset' venga rimossa."""
+    """Test that the legacy 'preset' key is removed."""
     svc, _, _, _ = _make_service(hass=hass)
     user_meta = {"preset": "thermostat", "title": "Test"}
     result = svc._build_metadata("thermostat", "prefix_", user_meta)
@@ -769,12 +769,12 @@ async def test_build_metadata_removes_preset_key(hass):
 
 
 # ---------------------------------------------------------------------------
-# _is_valid_time / _time_to_minutes (statici)
+# _is_valid_time / _time_to_minutes (static)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.anyio
 async def test_is_valid_time(hass):
-    """Test validazione formato orario."""
+    """Test time format validation."""
     from custom_components.cronostar.services.profile_service import ProfileService
     assert ProfileService._is_valid_time("00:00") is True
     assert ProfileService._is_valid_time("23:59") is True
@@ -786,7 +786,7 @@ async def test_is_valid_time(hass):
 
 @pytest.mark.anyio
 async def test_time_to_minutes(hass):
-    """Test conversione orario in minuti."""
+    """Test time to minutes conversion."""
     from custom_components.cronostar.services.profile_service import ProfileService
     assert ProfileService._time_to_minutes("00:00") == 0
     assert ProfileService._time_to_minutes("01:00") == 60
@@ -800,7 +800,7 @@ async def test_time_to_minutes(hass):
 
 @pytest.mark.anyio
 async def test_async_update_profile_selectors_updates_input_select(hass):
-    """Test aggiornamento input_select con profili trovati."""
+    """Test updating input_select with found profiles."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     storage.list_profiles = AsyncMock(return_value=["cronostar_thermostat_k_.json"])
@@ -820,7 +820,7 @@ async def test_async_update_profile_selectors_updates_input_select(hass):
 
 @pytest.mark.anyio
 async def test_async_update_profile_selectors_no_change(hass):
-    """Test che non venga chiamato async_call se le opzioni non cambiano."""
+    """Test that async_call is not called if options do not change."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     storage.list_profiles = AsyncMock(return_value=["cronostar_thermostat_k_.json"])
@@ -831,7 +831,7 @@ async def test_async_update_profile_selectors_no_change(hass):
 
     mock_state = MagicMock()
     mock_state.entity_id = "input_select.cronostar_thermostat_k_profiles"
-    mock_state.attributes = {"options": ["Comfort"]}  # già aggiornato
+    mock_state.attributes = {"options": ["Comfort"]}  # already updated
     h.states.async_all = MagicMock(return_value=[mock_state])
 
     await svc.async_update_profile_selectors()
@@ -840,7 +840,7 @@ async def test_async_update_profile_selectors_no_change(hass):
 
 @pytest.mark.anyio
 async def test_async_update_profile_selectors_bad_container(hass):
-    """Test che un container malformato non causi crash."""
+    """Test that a malformed container does not cause a crash."""
     svc, h, storage, _ = _make_service(hass=hass)
 
     storage.list_profiles = AsyncMock(return_value=["bad.json"])
@@ -851,7 +851,7 @@ async def test_async_update_profile_selectors_bad_container(hass):
     mock_state.attributes = {"options": []}
     h.states.async_all = MagicMock(return_value=[mock_state])
 
-    # Non deve sollevare eccezioni
+    # Should not raise exceptions
     await svc.async_update_profile_selectors()
 
 
@@ -861,7 +861,7 @@ async def test_async_update_profile_selectors_bad_container(hass):
 
 @pytest.mark.anyio
 async def test_ensure_controller_exists_already_present(hass):
-    """Test che non venga creato un controller se già esiste."""
+    """Test that a controller is not created if it already exists."""
     svc, h, _, _ = _make_service(hass=hass)
 
     mock_entry = MagicMock()
@@ -874,7 +874,7 @@ async def test_ensure_controller_exists_already_present(hass):
 
 @pytest.mark.anyio
 async def test_ensure_controller_exists_creates_new(hass):
-    """Test che un nuovo controller venga creato se mancante."""
+    """Test that a new controller is created if missing."""
     svc, h, _, _ = _make_service(hass=hass)
     h.config_entries.async_entries = MagicMock(return_value=[])
 
@@ -884,7 +884,7 @@ async def test_ensure_controller_exists_creates_new(hass):
 
 @pytest.mark.anyio
 async def test_ensure_controller_exists_empty_prefix(hass):
-    """Test che _ensure_controller_exists ritorni subito con prefix vuoto."""
+    """Test that _ensure_controller_exists returns immediately with an empty prefix."""
     svc, h, _, _ = _make_service(hass=hass)
     await svc._ensure_controller_exists("", "thermostat", {})
     h.config_entries.flow.async_init.assert_not_called()

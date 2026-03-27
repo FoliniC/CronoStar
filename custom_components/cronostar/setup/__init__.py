@@ -30,12 +30,12 @@ from .validators import validate_environment
 _LOGGER = logging.getLogger(__name__)
 
 # URL stabile
-PANEL_URL_PATH = "cronostar-panel-v590"
+PANEL_URL_PATH = "cronostar-panel-v591"
 PANEL_TITLE = "CronoStar Dashboard"
 PANEL_ICON = "mdi:clock-edit"
 
 # File YAML della dashboard (relativo alla config dir di HA)
-DASHBOARD_YAML_FILENAME = "cronostar_dashboard_v590.yaml"
+DASHBOARD_YAML_FILENAME = "cronostar_dashboard_v591.yaml"
 
 
 async def async_setup_integration(hass: HomeAssistant, config: dict) -> bool:

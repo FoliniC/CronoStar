@@ -10,7 +10,7 @@ export class CardRenderer {
     const isIt = this.card.language === "it";
     const config = this.card.config || {};
 
-    // Recupera informazioni di validazione se presenti
+    // Retrieve validation information if present
     const validInfo = config.validation || { valid: true, errors: [] };
     const borderColor = validInfo.valid ? "var(--divider-color)" : "#ef4444";
     const bgColor = validInfo.valid ? "transparent" : "rgba(239, 68, 68, 0.05)";
@@ -230,7 +230,7 @@ export class CardRenderer {
               .step=${this.card.editorStep || 0}
               .language=${this.card.language}
               @config-changed=${async (ev) => {
-                // Quando la config cambia nell'editor interno, aggiorniamo la card
+                // When config changes in the internal editor, update the card
                 const newConfig = { ...ev.detail.config };
                 const shouldClose = newConfig._close_wizard;
                 if (shouldClose) delete newConfig._close_wizard;
@@ -242,7 +242,7 @@ export class CardRenderer {
                   this.card.setConfig(newConfig);
                 }
 
-                // Se abbiamo finito (siamo allo step 5 e viene inviato un cambio definitivo), chiudiamo l'editor
+                // If finished (step 5 and definitive change sent), close the editor
                 if (shouldClose) {
                   console.info(
                     "[CronoStar] Wizard finished. Closing editor and reinitializing chart...",
