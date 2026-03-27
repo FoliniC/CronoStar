@@ -175,7 +175,7 @@ async def write_dashboard_yaml(hass: HomeAssistant, filename: str) -> None:
             cards.append(card)
 
         # Aggiunge SEMPRE un box 'Aggiungi Nuovo' alla fine della lista (stile Admin Box)
-        cards.append({"type": "custom:cronostar-card", "view_mode": "admin", "not_configured": True, "preset_type": "thermostat", "title": "Nuovo Controller"})
+        cards.append({"type": "custom:cronostar-card", "view_mode": "admin", "not_configured": True, "title": "Nuovo Controller"})
 
         # Struttura Lovelace — view standard senza 'type: panel' o 'type: sections'
         # per massima compatibilità con tutte le versioni di HA
