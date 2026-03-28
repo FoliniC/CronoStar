@@ -218,6 +218,9 @@ export class CronoStarEditor extends LitElement {
         --mdc-menu-item-graphic-color: #38bdf8;
         --mdc-theme-text-primary-on-background: #ffffff;
         --mdc-theme-text-secondary-on-background: #cbd5e1;
+
+        /* Standard CronoStar: Inputs have dark backgrounds with light text */
+        /* If specific components need to be white-on-black, we handle it via _applyShadowDomFix */
       }
 
       ha-formfield {
@@ -492,6 +495,117 @@ export class CronoStarEditor extends LitElement {
 
     // Manage standard HA SAVE button visibility
     this._updateSaveButtonVisibility();
+
+    // Applica il fix ricorsivo per il contrasto degli entity pickers
+    this._applyShadowDomFix();
+  }
+
+  _applyShadowDomFix() {
+    const styleId = "cronostar-force-contrast-style";
+    const css = `
+      /* Brutal force black for everything inside shadow roots */
+      * { 
+        color: #000000 !important; 
+        -webkit-text-fill-color: #000000 !important;
+      }
+      
+      /* PROTECT LABELS: They must stay light even if * is black */
+      .mdc-floating-label, 
+      .mdc-floating-label--float-above,
+      label,
+      .field-label,
+      ha-label,
+      [slot="label"] {
+        color: #cbd5e1 !important;
+        -webkit-text-fill-color: #cbd5e1 !important;
+      }
+
+      /* Force white background for the containers of these black elements */
+      :host,
+      .mdc-text-field--filled:not(.mdc-text-field--disabled),
+      .input-container,
+      #input,
+      .mdc-list-item,
+      vaadin-combo-box-overlay,
+      #overlay,
+      #content,
+      #scroller,
+      vaadin-combo-box-item {
+        background-color: #ffffff !important;
+        background: #ffffff !important;
+      }
+
+      /* Layout fixes for labels */
+      .mdc-text-field { overflow: visible !important; }
+      #label {
+        white-space: nowrap !important;
+        text-overflow: clip !important;
+        overflow: visible !important;
+        max-width: none !important;
+      }
+    `;
+
+    const injectToShadow = (el) => {
+      if (!el || !el.shadowRoot) return;
+      
+      // Target specific components for injection
+      const tagName = el.tagName.toLowerCase();
+      const isPickerRelated = 
+        tagName.includes("ha-entity-picker") || 
+        tagName.includes("ha-combo-box") || 
+        tagName.includes("ha-textfield") ||
+        tagName.includes("ha-select") ||
+        tagName.includes("vaadin-combo-box") ||
+        tagName.includes("selector") ||
+        tagName.includes("menu") ||
+        tagName.includes("overlay");
+
+      if (isPickerRelated) {
+        if (!el.shadowRoot.querySelector(`#${styleId}`)) {
+          const style = document.createElement("style");
+          style.id = styleId;
+          style.textContent = css;
+          el.shadowRoot.appendChild(style);
+        }
+      }
+      
+      // Recurse into all children that might have a shadowRoot
+      el.shadowRoot.querySelectorAll("*").forEach(child => {
+        if (child.shadowRoot) injectToShadow(child);
+      });
+    };
+
+    // 1. Scansione immediata del nostro Shadow DOM
+    this.shadowRoot.querySelectorAll("*").forEach(el => {
+      if (el.shadowRoot) injectToShadow(el);
+    });
+
+    // 2. Observer per catturare elementi dinamici (specialmente overlay nel body)
+    if (!this._contrastObserver) {
+      this._contrastObserver = new MutationObserver(() => {
+        const targets = document.querySelectorAll("vaadin-combo-box-overlay, mwc-menu, ha-select, ha-entity-picker, vaadin-combo-box-item");
+        targets.forEach(t => injectToShadow(t));
+      });
+      
+      this._contrastObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+    }
+
+    // 3. Esecuzione periodica per sicurezza (copre casi di rendering asincrono complesso)
+    if (!this._contrastInterval) {
+      this._contrastInterval = setInterval(() => {
+        const targets = document.querySelectorAll("vaadin-combo-box-overlay, ha-entity-picker, ha-selector, ha-combo-box, vaadin-combo-box-item");
+        targets.forEach(t => injectToShadow(t));
+      }, 1000);
+    }
+  }
+
+  disconnectedCallback() {
+    if (this._contrastObserver) this._contrastObserver.disconnect();
+    if (this._contrastInterval) clearInterval(this._contrastInterval);
+    super.disconnectedCallback();
   }
 
   _updateSaveButtonVisibility() {
@@ -660,6 +774,13 @@ export class CronoStarEditor extends LitElement {
   setConfig(config) {
     if (!config) return;
 
+    // PROTECTION: If we recently made a local change, ignore incoming config updates
+    // for a short window to allow HA state to synchronize without "bouncing" values back.
+    if (this._ignoreInboundUntil && Date.now() < this._ignoreInboundUntil) {
+      console.info("[CronoStar Editor] setConfig ignored due to recent local interaction (debouncing synchronization)");
+      return;
+    }
+
     // Detailed F12 debug log to trace the incoming configuration
     console.group("[CronoStar Editor] setConfig Trace");
     console.info("Target config object:", config);
@@ -670,16 +791,27 @@ export class CronoStarEditor extends LitElement {
       const validated = validateConfig(config, config.logging_enabled);
 
       // 2. Resolve initialization logic
-      if (
-        !this._config ||
-        this._config.not_configured ||
-        (validated.target_entity && !this._config.target_entity)
-      ) {
-        console.info("Adopting incoming config as primary source");
+      if (!this._config || this._config.not_configured) {
+        console.info("Adopting incoming config as primary source (Initial Load)");
         this._config = { ...validated };
       } else {
-        console.info("Syncing incoming config with current state");
-        this._config = { ...this._config, ...validated };
+        // PROTECTION DURING WIZARD:
+        // If we are currently in the wizard (Step > 0), DO NOT allow HA to overwrite 
+        // critical fields like target_entity or global_prefix.
+        if (this._step > 0) {
+          console.info("[CronoStar Editor] Wizard active: Protecting local core fields from HA overwrite");
+          const protectedFields = {
+            target_entity: this._config.target_entity,
+            global_prefix: this._config.global_prefix,
+            preset_type: this._config.preset_type,
+            enabled_entity: this._config.enabled_entity,
+            profiles_select_entity: this._config.profiles_select_entity
+          };
+          this._config = { ...validated, ...this._config, ...protectedFields };
+        } else {
+          console.info("Syncing incoming config with current state (prioritizing local)");
+          this._config = { ...validated, ...this._config };
+        }
       }
 
       // 3. Mark as editing if we have core fields
@@ -751,15 +883,6 @@ export class CronoStarEditor extends LitElement {
     const out = { ...cfg };
     // Ensure type
     if (!out.type) out.type = "custom:cronostar-card";
-
-    // If we are editing an existing valid config, ensure we don't accidentally mark it as not_configured
-    // unless we are explicitly resetting.
-    if (this._isEditing && !out.target_entity && this._config.target_entity) {
-      out.target_entity = this._config.target_entity;
-    }
-    if (this._isEditing && !out.global_prefix && this._config.global_prefix) {
-      out.global_prefix = this._config.global_prefix;
-    }
 
     // IMPROVED: Logic for not_configured flag
     if (cfg.not_configured === true) {
@@ -902,6 +1025,51 @@ export class CronoStarEditor extends LitElement {
   }
 
   _renderStepContent() {
+    // PROTECTIVE FILTER: Ensure we don't show validation errors for entities 
+    // that the user has already changed in the local editor state.
+    const rawValidation = this._config.validation || { valid: true, errors: [] };
+    const filteredErrors = (rawValidation.errors || []).filter(err => {
+      const target = (this._config.target_entity || "").toLowerCase();
+      const errorMsg = err.toLowerCase();
+
+      // If the error mentions "Target entity" and we have a local choice,
+      // hide the error if it doesn't contain our local choice.
+      if (errorMsg.includes("target entity") && target) {
+        if (!errorMsg.includes(target)) return false;
+      }
+      
+      // If the user just selected a new target entity and it exists in HASS, hide the "not found" error for it
+      if (errorMsg.includes("not found") && target && errorMsg.includes(target)) {
+        if (this.hass?.states[this._config.target_entity]) return false;
+      }
+      return true;
+    });
+    
+    const validation = { 
+      valid: filteredErrors.length === 0, 
+      errors: filteredErrors 
+    };
+
+    const showErrorBox = !validation.valid && this._step > 0;
+
+    return html`
+      ${showErrorBox
+        ? html`
+            <div class="error-box" style="margin-bottom: 20px;">
+              <div style="font-weight: 800; font-size: 1.1rem; margin-bottom: 8px;">
+                ⚠️ PROBLEMI DI CONFIGURAZIONE
+              </div>
+              <ul style="margin: 0; padding-left: 20px;">
+                ${validation.errors.map((err) => html`<li>${err}</li>`)}
+              </ul>
+            </div>
+          `
+        : ""}
+      ${this._renderStep(validation)}
+    `;
+  }
+
+  _renderStep(validation) {
     switch (this._step) {
       case 0:
         if (!this._step0Dashboard) {
@@ -911,19 +1079,23 @@ export class CronoStarEditor extends LitElement {
       case 1:
         return new Step1Preset(this).render();
       case 2:
-        return new Step2Entities(this).render();
+        return new Step2Entities(this).render(validation);
       case 3:
         return new Step3Options(this).render();
       case 4:
         return new Step4Automation(this).render();
       case 5:
-        return new Step5Summary(this).render();
+        return new Step5Summary(this).render(validation);
       default:
         return html`<div>Unknown Step</div>`;
     }
   }
 
   _handleLocalUpdate(key, value) {
+    // PROTECTION: Set a window where we ignore incoming setConfig calls
+    // to prevent HA synchronization from reverting our local changes.
+    this._ignoreInboundUntil = Date.now() + 2000;
+
     const newConfig = { ...this._config, [key]: value };
     newConfig.type = this._config.type || DEFAULT_CONFIG.type;
     if ("entity_prefix" in newConfig) delete newConfig.entity_prefix;
@@ -955,7 +1127,9 @@ export class CronoStarEditor extends LitElement {
           .selector=${{ entity: { domain: includeDomains } }}
           @value-changed=${(ev) => {
             const v = ev?.detail?.value || "";
-            this._updateConfig(key, v === "" ? null : v);
+            // FORCE IMMEDIATE for target_entity to avoid race conditions
+            const isImmediate = key === "target_entity";
+            this._updateConfig(key, v === "" ? null : v, isImmediate);
           }}
         ></ha-selector>
       `;
@@ -971,7 +1145,9 @@ export class CronoStarEditor extends LitElement {
           allow-custom-entity
           @value-changed=${(ev) => {
             const v = ev?.detail?.value || "";
-            this._updateConfig(key, v === "" ? null : v);
+            // FORCE IMMEDIATE for target_entity to avoid race conditions
+            const isImmediate = key === "target_entity";
+            this._updateConfig(key, v === "" ? null : v, isImmediate);
           }}
         ></ha-entity-picker>
       `;
@@ -1013,6 +1189,15 @@ export class CronoStarEditor extends LitElement {
   }
 
   _updateConfig(key, value, immediate = false) {
+    // PROTECTION: Set a window where we ignore incoming setConfig calls
+    this._ignoreInboundUntil = Date.now() + 2000;
+
+    // ✅ NEW: Clear validation errors immediately if a core field changes
+    // This prevents showing "sensor.dsdf not found" when the user has already changed it.
+    if (key === "target_entity" || key === "global_prefix" || key === "preset_type") {
+      this._config.validation = { valid: true, errors: [] };
+    }
+
     const newConfig = { ...this._config, [key]: value };
 
     // Explicitly enforce stable type to avoid reconstruction
@@ -1059,6 +1244,9 @@ export class CronoStarEditor extends LitElement {
     const isForced = options.force === true;
 
     if ((isFinalStep || isForced) && this.hass) {
+      // PROTECTION: Extend the ignore window during the final save
+      this._ignoreInboundUntil = Date.now() + 5000;
+
       // 1. Prepare final clean config for persistence (remove internal wizard helpers)
       let finalConfig = { ...this._config };
       delete finalConfig.step;
@@ -1077,6 +1265,10 @@ export class CronoStarEditor extends LitElement {
         "[EDITOR] YAML save intent (wizard Finish):",
         finalConfig,
       );
+      
+      // EXTREME PROTECTION: Block all inbound setConfig for 10 seconds or until finished
+      this._ignoreInboundUntil = Date.now() + 10000;
+
       this.dispatchEvent(
         new CustomEvent("config-changed", {
           detail: { config: { ...finalConfig, step: 5, _close_wizard: true } },

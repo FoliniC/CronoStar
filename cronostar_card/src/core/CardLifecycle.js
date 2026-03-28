@@ -28,17 +28,26 @@ export class CardLifecycle {
     try {
       let validated = validateConfig(config);
 
-      // RE-APPLY CACHED METADATA: If we have cached backend data and YAML is empty/default, protect our state
-      if (this.card._backendMetaCache) {
-        const hasIncomingPrefix = !!config.global_prefix;
-        if (
-          !hasIncomingPrefix ||
-          config.global_prefix === this.card._backendMetaCache.global_prefix
-        ) {
+      // RE-APPLY CACHED METADATA: Only protect state if the incoming config is incomplete 
+      // AND we are not currently editing in the UI.
+      if (this.card._backendMetaCache && !this.card.isEditorInternal) {
+        const hasIncomingTarget = !!config.target_entity;
+        
+        // If the incoming config is empty/default, we restore our last known good state
+        if (!hasIncomingTarget) {
           validated = { ...validated, ...this.card._backendMetaCache };
           Logger.log(
             "SYNC",
-            "[CronoStar] setConfig: Protected state by re-applying cached backend metadata",
+            "[CronoStar] setConfig: Restored state from cache (YAML was empty)",
+          );
+        } else {
+          // If the incoming config has a target, it's an explicit update from HA/Editor.
+          // We MUST adopt it and update our cache instead of reverting.
+          const cleanMeta = extractCardConfig(validated);
+          this.card._backendMetaCache = { ...cleanMeta };
+          Logger.log(
+            "SYNC",
+            "[CronoStar] setConfig: Updated backend metadata cache with new YAML config",
           );
         }
       }
@@ -768,48 +777,56 @@ export class CardLifecycle {
       }
 
       if (profileData?.meta) {
-        const oldEnabled = this.card.config?.enabled_entity;
-        const oldSelect = this.card.config?.profiles_select_entity;
-        const cleanMeta = extractCardConfig(profileData.meta);
+        // ✅ PROTECTION: Skip backend synchronization if the editor is currently open.
+        if (this.card._editorOpen) {
+          Logger.log(
+            "SYNC",
+            "[CronoStar] Skipping backend metadata sync because editor is open.",
+          );
+        } else {
+          const oldEnabled = this.card.config?.enabled_entity;
+          const oldSelect = this.card.config?.profiles_select_entity;
+          const cleanMeta = extractCardConfig(profileData.meta);
 
-        // Store in cache for setConfig persistence
-        this.card._backendMetaCache = { ...cleanMeta };
+          // Store in cache for setConfig persistence
+          this.card._backendMetaCache = { ...cleanMeta };
 
-        // ✅ FORCE SYNC: Aggressively update local config with backend metadata
-        this.card.config = { ...this.card.config, ...cleanMeta };
-        Logger.log(
-          "SYNC",
-          "[CronoStar] Backend metadata cached and applied:",
-          cleanMeta,
-        );
+          // ✅ FORCE SYNC: Aggressively update local config with backend metadata
+          this.card.config = { ...this.card.config, ...cleanMeta };
+          Logger.log(
+            "SYNC",
+            "[CronoStar] Backend metadata cached and applied:",
+            cleanMeta,
+          );
 
-        const newEnabled = this.card.config?.enabled_entity;
-        const newSelect = this.card.config?.profiles_select_entity;
+          const newEnabled = this.card.config?.enabled_entity;
+          const newSelect = this.card.config?.profiles_select_entity;
 
-        // Reset warnings if entities changed
-        if (oldEnabled !== newEnabled) this.loggedPauseEntityMissing = false;
-        if (oldSelect !== newSelect)
-          this.loggedProfileSelectEntityMissing = false;
+          // Reset warnings if entities changed
+          if (oldEnabled !== newEnabled) this.loggedPauseEntityMissing = false;
+          if (oldSelect !== newSelect)
+            this.loggedProfileSelectEntityMissing = false;
 
-        // Explicitly apply language from profile meta
-        try {
-          const lang = profileData.meta.language;
-          if (lang) {
-            this.card.language = lang;
-            this.card.languageInitialized = true;
-            if (!this.card.config.meta) this.card.config.meta = {};
-            this.card.config.meta.language = lang;
-            Logger.log(
+          // Explicitly apply language from profile meta
+          try {
+            const lang = profileData.meta.language;
+            if (lang) {
+              this.card.language = lang;
+              this.card.languageInitialized = true;
+              if (!this.card.config.meta) this.card.config.meta = {};
+              this.card.config.meta.language = lang;
+              Logger.log(
+                "LANG",
+                `[CronoStar] register_card applied language from profile meta: ${lang}`,
+              );
+            }
+          } catch (e) {
+            Logger.warn(
               "LANG",
-              `[CronoStar] register_card applied language from profile meta: ${lang}`,
+              "CronoStar failed to apply language from register_card meta:",
+              e,
             );
           }
-        } catch (e) {
-          Logger.warn(
-            "LANG",
-            "CronoStar failed to apply language from register_card meta:",
-            e,
-          );
         }
       }
 

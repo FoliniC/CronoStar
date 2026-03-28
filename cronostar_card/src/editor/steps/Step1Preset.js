@@ -199,6 +199,7 @@ export class Step1Preset {
 
   selectPresetWithPrefix(presetId) {
     this.editor._selectedPreset = presetId;
+    const config = this.editor._config;
     const tags = {
       thermostat: "thermostat",
       ev_charging: "ev_charging",
@@ -210,9 +211,12 @@ export class Step1Preset {
     const newPrefix = `cronostar_${tag}_`;
 
     this.editor._updateConfig("preset_type", presetId);
-    this.editor._updateConfig("global_prefix", newPrefix);
+    
+    // Only update prefix if it's currently generic or empty
+    if (!config.global_prefix || config.global_prefix.startsWith("cronostar_")) {
+      this.editor._updateConfig("global_prefix", newPrefix);
+    }
 
-    const config = this.editor._config;
     const isStandard = (val, suffix) => {
       if (!val) return true;
       return (
@@ -221,10 +225,12 @@ export class Step1Preset {
       );
     };
 
-    if (isStandard(config.enabled_entity, "enabled")) {
+    // Only apply default entities if they are CURRENTLY EMPTY or standard defaults
+    if (!config.enabled_entity || isStandard(config.enabled_entity, "enabled")) {
       this.editor._updateConfig("enabled_entity", `switch.${newPrefix}enabled`);
     }
     if (
+      !config.profiles_select_entity ||
       isStandard(config.profiles_select_entity, "current_profile") ||
       isStandard(config.profiles_select_entity, "profiles")
     ) {

@@ -196,6 +196,13 @@ class ProfileService:
             # 4. Update profile selectors (input_select entities)
             await self.async_update_profile_selectors()
 
+            # 5. Update Dashboard YAML to reflect potential metadata changes (title, target_entity, etc.)
+            try:
+                from ..setup.dashboard import DASHBOARD_YAML_FILENAME, write_dashboard_yaml
+                await write_dashboard_yaml(self.hass, DASHBOARD_YAML_FILENAME)
+            except Exception as e:
+                _LOGGER.error("[SAVE_PROFILE] Failed to update dashboard YAML: %s", e)
+
             log_operation("Save profile", True, profile=profile_name, preset=canonical_preset, points=len(schedule) if schedule is not None else 0)
 
         except Exception as e:
@@ -601,49 +608,30 @@ class ProfileService:
             data = await self.get_profile_data(profile_to_load or "Default", preset, global_prefix)
 
             if "error" not in data:
-                # Merge config entry data into profile metadata
-                # This ensures the card gets the latest backend-configured values
+                # OPTIMIZATION: Instead of blindly overwriting data["meta"] with entry_data,
+                # we only fill in MISSING fields. This prevents race conditions where 
+                # HA hasn't finished updating the ConfigEntry but the JSON file is already correct.
                 if "meta" in data:
-                    # Get preset defaults to check if entry_data just contains defaults
                     from ..utils.prefix_normalizer import PRESETS_CONFIG
-
                     presets_defaults = PRESETS_CONFIG.get(preset, {})
 
                     for key in [CONF_TITLE, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_STEP_VALUE, CONF_UNIT_OF_MEASUREMENT, CONF_Y_AXIS_LABEL, CONF_ALLOW_MAX_VALUE]:
                         val = entry_data.get(key)
                         if val is not None:
-                            # 1. Skip if it's an empty string and we have a value in profile
-                            if isinstance(val, str) and val.strip() == "" and data["meta"].get(key):
-                                continue
-
-                            # 2. Skip 'Suspicious Defaults' from ConfigEntry that likely haven't been intentionally set
-                            # (They override valid profile data because they differ from preset defaults, but they are generic junk)
-
-                            # Case A: max_value is 100.0 (generic config_flow default)
-                            if key == CONF_MAX_VALUE and val == 100.0 and presets_defaults.get(CONF_MAX_VALUE) != 100.0:
-                                continue
-
-                            # Case A2: min_value is 0.0 (common generic default)
-                            if key == CONF_MIN_VALUE and val == 0.0 and presets_defaults.get(CONF_MIN_VALUE) != 0.0:
-                                if data["meta"].get(key) is not None and data["meta"].get(key) != 0.0:
+                            # If profile already has a value, only override if the ConfigEntry value
+                            # is NOT a default/generic value (meaning it was specifically set in UI)
+                            profile_val = data["meta"].get(key)
+                            
+                            if profile_val is not None:
+                                # Case A: max_value is 100.0 (generic config_flow default)
+                                if key == CONF_MAX_VALUE and val == 100.0 and presets_defaults.get(CONF_MAX_VALUE) != 100.0:
                                     continue
-
-                            # Case B: allow_max_value is False but preset default is True (common for EV Charging)
-                            if key == CONF_ALLOW_MAX_VALUE and val is False and presets_defaults.get(CONF_ALLOW_MAX_VALUE) is True:
-                                # Only skip if profile ALSO says True (meaning it's definitely an unwanted override)
-                                if data["meta"].get(key) is True:
+                                # Case A2: min_value is 0.0 (common generic default)
+                                if key == CONF_MIN_VALUE and val == 0.0 and presets_defaults.get(CONF_MIN_VALUE) != 0.0:
                                     continue
-
-                            # Case C: step_value is 1.0 (common generic default) but preset default is different (e.g. 0.5)
-                            if key == CONF_STEP_VALUE and val == 1.0 and presets_defaults.get(CONF_STEP_VALUE) != 1.0:
-                                if data["meta"].get(key) is not None and data["meta"].get(key) != 1.0:
-                                    continue
-
-                            # 3. Skip if it matches the preset default (already handled by preset_defaults in frontend)
-                            # to avoid overwriting profile-specific values with preset-defaults
-                            preset_def = presets_defaults.get(key if key != CONF_UNIT_OF_MEASUREMENT else "unit")
-                            if val == preset_def and data["meta"].get(key) is not None:
-                                if val != data["meta"].get(key):
+                                # Case B: matches preset default (skip override)
+                                preset_def = presets_defaults.get(key if key != CONF_UNIT_OF_MEASUREMENT else "unit")
+                                if val == preset_def:
                                     continue
 
                             data["meta"][key] = val
