@@ -48,7 +48,7 @@
             },
             "success": {
                 "title": "Configuration Complete {confirm_tag}",
-                "description": "The controller '{name}' has been successfully configured.\n\nYou can now add the CronoStar card to your dashboard using the prefix and target entity defined."
+                "description": "The controller {name} has been successfully configured.\n\nYou can now add the CronoStar card to your dashboard using the prefix and target entity defined."
             }
         },
         "abort": {

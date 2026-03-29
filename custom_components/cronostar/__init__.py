@@ -15,6 +15,7 @@ import re
 from datetime import UTC
 from pathlib import Path
 
+import homeassistant.helpers.config_validation as cv
 from homeassistant.components import frontend
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -32,6 +33,8 @@ from .const import (
     PLATFORMS,
     STORAGE_DIR,
 )
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 from .coordinator import CronoStarCoordinator
 from .setup import async_setup_integration
 from .setup.dashboard import PANEL_URL_PATH

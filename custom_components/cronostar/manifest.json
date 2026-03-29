@@ -1,6 +1,10 @@
 {
   "domain": "cronostar",
   "name": "CronoStar [v5.9.1]",
+  "codeowners": [
+    "@FoliniC"
+  ],
+  "config_flow": true,
   "dependencies": [
     "http",
     "frontend",
@@ -11,10 +15,6 @@
     "input_text",
     "lovelace"
   ],
-  "codeowners": [
-    "@FoliniC"
-  ],
-  "config_flow": true,
   "documentation": "https://github.com/FoliniC/CronoStar",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/FoliniC/CronoStar/issues",
