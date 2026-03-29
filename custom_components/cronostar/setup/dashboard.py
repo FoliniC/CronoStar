@@ -17,17 +17,17 @@ from ..const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 # URL stabile
-PANEL_URL_PATH = "cronostar-panel-v591"
+PANEL_URL_PATH = "cronostar-panel-v600"
 PANEL_TITLE = "CronoStar Dashboard"
 PANEL_ICON = "mdi:clock-edit"
 
 # File YAML della dashboard (relativo alla config dir di HA)
-DASHBOARD_YAML_FILENAME = "cronostar_dashboard_v591.yaml"
+DASHBOARD_YAML_FILENAME = "cronostar_dashboard_v600.yaml"
 
 
 async def setup_dashboard(hass: HomeAssistant) -> None:
     """Registra la dashboard Lovelace e pulisce vecchie registrazioni."""
-    _LOGGER.warning("[DASHBOARD] Executing setup_dashboard v5.9.1")
+    _LOGGER.warning("[DASHBOARD] Executing setup_dashboard v6.0.0")
 
     try:
         # 1. Pulizia massiva di TUTTI i possibili vecchi percorsi

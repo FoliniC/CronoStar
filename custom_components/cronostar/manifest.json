@@ -1,6 +1,6 @@
 {
   "domain": "cronostar",
-  "name": "CronoStar [v5.9.1]",
+  "name": "CronoStar [v6.0.0]",
   "codeowners": [
     "@FoliniC"
   ],
@@ -23,5 +23,5 @@
   ],
   "quality_scale": "gold",
   "requirements": [],
-  "version": "5.9.1"
+  "version": "6.0.0"
 }
