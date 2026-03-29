@@ -185,15 +185,7 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
             if "error" in profile_data:
                 _LOGGER.error("apply_now: Profile not found: %s", profile_data["error"])
-                raise ProfileNotFoundError(
-                    translation_domain=DOMAIN,
-                    translation_key="profile_not_found",
-                    translation_placeholders={
-                        "profile": profile_name,
-                        "preset": preset_type,
-                        "prefix": global_prefix,
-                    },
-                )
+                raise ProfileNotFoundError()
 
             schedule = profile_data.get("schedule", [])
 
@@ -315,14 +307,7 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
         except Exception as e:
             _LOGGER.error("apply_now failed: %s", e, exc_info=True)
             log_operation("Manual apply value", False, entity=target_entity, error=str(e), profile=profile_name)
-            raise ScheduleApplicationError(
-                translation_domain=DOMAIN,
-                translation_key="schedule_application_error",
-                translation_placeholders={
-                    "entity": target_entity,
-                    "error": str(e),
-                },
-            ) from e
+            raise ScheduleApplicationError() from e
 
     hass.services.async_register(DOMAIN, "apply_now", apply_now_handler)
 

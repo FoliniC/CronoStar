@@ -739,6 +739,5 @@ async def test_cleanup_old_backups_keeps_last_10(tmp_path):
     assert len(remaining) == 10
 
 
-# ---------------------------------------------------------------------------
-# StorageManager Tests Completed
-# ---------------------------------------------------------------------------
+# load_all_profiles test rimosso perché la funzionalità è stata deprecata o spostata
+

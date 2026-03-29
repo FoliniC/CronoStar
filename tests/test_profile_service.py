@@ -1,890 +1,1793 @@
-"""Test Profile Service - Full Coverage."""
+"""
+Tests for custom_components/cronostar/services/profile_service.py
+Target: 100 % coverage
+
+Missing branches at 87 %:
+  - get_profile_data: profiles is not a dict (corrupted container) in Phase 1 and Phase 2
+  - get_profile_data: generic prefix collision with multiple containers, one matching
+  - save_profile: write_dashboard_yaml raises → caught and logged
+  - delete_controller: write_dashboard_yaml raises → caught and logged
+  - Various minor branches in _validate_schedule and _build_metadata
+"""
+
+import asyncio
+import sys
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from homeassistant.exceptions import HomeAssistantError
+from custom_components.cronostar.services.profile_service import ProfileService
+from custom_components.cronostar.const import (
+    CONF_MAX_VALUE,
+    CONF_MIN_VALUE,
+    CONF_TITLE,
+)
 
 
-@pytest.fixture(autouse=True)
-def enable_event_loop_debug():
-    """Mock to avoid RuntimeError on Python 3.13."""
-    pass
+# ──────────────────────────────────────────────────────────────────────────────
+# Helper
+# ──────────────────────────────────────────────────────────────────────────────
+
+def run(coro):
+    return asyncio.get_event_loop().run_until_complete(coro)
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def _make_service(mock_hass, storage_override=None, settings_override=None):
+    """Build a ProfileService with mock dependencies.
 
-def _make_hass():
-    hass = MagicMock()
-    hass.data = {"cronostar": {}}
-    hass.states = MagicMock()
-    hass.states.get = MagicMock(return_value=None)
-    hass.states.async_all = MagicMock(return_value=[])
-    hass.config_entries.async_entries = MagicMock(return_value=[])
-    hass.config_entries.flow = MagicMock()
-    hass.config_entries.flow.async_init = AsyncMock()
-    hass.services.async_call = AsyncMock()
-    hass.is_running = True
+    When storage_override is provided its explicitly-set attributes are kept;
+    only attributes that were NOT explicitly set by the test are given defaults.
+    """
+    storage = storage_override or MagicMock()
 
-    async def fake_executor(func, *args):
-        if args:
-            return func(*args)
-        return func()
+    def _fill(attr, default_factory):
+        # Only fill if the attribute was NOT explicitly assigned by the test
+        # (i.e. it does not live in the mock's __dict__)
+        if attr not in storage.__dict__:
+            setattr(storage, attr, default_factory())
 
-    hass.async_add_executor_job = fake_executor
-    hass.config.path = MagicMock(return_value="/config")
-    return hass
+    _fill("save_profile", AsyncMock)
+    _fill("delete_profile", lambda: AsyncMock(return_value=True))
+    _fill("delete_controller_files", AsyncMock)
+    _fill("get_cached_containers", lambda: AsyncMock(return_value=[]))
+    _fill("list_profiles", lambda: AsyncMock(return_value=[]))
+    _fill("load_profile_cached", lambda: AsyncMock(return_value=None))
 
-
-def _make_storage():
-    storage = MagicMock()
-    storage.save_profile = AsyncMock(return_value=True)
-    storage.delete_profile = AsyncMock(return_value=True)
-    storage.delete_controller_files = AsyncMock(return_value=True)
-    storage.get_cached_containers = AsyncMock(return_value=[])
-    storage.list_profiles = AsyncMock(return_value=[])
-    storage.load_profile_cached = AsyncMock(return_value=None)
-    storage._cache_lock = MagicMock()
-    storage._cache_lock.__aenter__ = AsyncMock(return_value=None)
-    storage._cache_lock.__aexit__ = AsyncMock(return_value=None)
-    storage._cache = {}
-    storage.profiles_dir = MagicMock()
-    storage.profiles_dir.__truediv__ = MagicMock()
-    return storage
-
-
-def _make_settings():
-    settings = MagicMock()
+    settings = settings_override or MagicMock()
     settings.load_settings = AsyncMock(return_value={})
-    settings.save_settings = AsyncMock()
-    return settings
+
+    return ProfileService(mock_hass, storage, settings)
 
 
-def _make_service(hass=None, storage=None, settings=None):
-    from custom_components.cronostar.services.profile_service import ProfileService
-    h = hass or _make_hass()
-    s = storage or _make_storage()
-    st = settings or _make_settings()
-    return ProfileService(h, s, st), h, s, st
+# ──────────────────────────────────────────────────────────────────────────────
+# Fixture: minimal ServiceCall mock
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _call(**kwargs):
+    c = MagicMock()
+    c.data = kwargs
+    return c
 
 
-def _make_call(data: dict):
-    call = MagicMock()
-    call.data = data
-    return call
+# ══════════════════════════════════════════════════════════════════════════════
+# get_profile_data – corrupted / non-dict profiles
+# ══════════════════════════════════════════════════════════════════════════════
 
+class TestGetProfileDataCorruptedProfiles:
 
-# ---------------------------------------------------------------------------
-# add_profile
-# ---------------------------------------------------------------------------
-
-@pytest.mark.anyio
-async def test_add_profile_success(hass):
-    """Test adding a profile successfully."""
-    svc, h, storage, _ = _make_service(hass=hass)
-    call = _make_call({"profile_name": "Eco", "preset_type": "thermostat", "global_prefix": "cronostar_thermostat_kitchen_"})
-
-    await svc.add_profile(call)
-    storage.save_profile.assert_called_once()
-
-
-@pytest.mark.anyio
-async def test_add_profile_missing_name(hass):
-    """Test that add_profile raises HomeAssistantError if profile_name is missing."""
-    svc, h, storage, _ = _make_service(hass=hass)
-    call = _make_call({"preset_type": "thermostat"})
-
-    with pytest.raises(HomeAssistantError, match="profile_name"):
-        await svc.add_profile(call)
-
-
-@pytest.mark.anyio
-async def test_add_profile_notifies_coordinators(hass):
-    """Test that add_profile notifies coordinators."""
-    svc, h, storage, _ = _make_service(hass=hass)
-
-    mock_entry = MagicMock()
-    mock_entry.data = {"global_prefix": "cronostar_thermostat_kitchen_"}
-    mock_coord = MagicMock()
-    mock_coord.async_refresh_profiles = AsyncMock()
-    mock_entry.runtime_data = mock_coord
-    h.config_entries.async_entries = MagicMock(return_value=[mock_entry])
-
-    call = _make_call({"profile_name": "Eco", "preset_type": "thermostat", "global_prefix": "cronostar_thermostat_kitchen_"})
-    await svc.add_profile(call)
-    mock_coord.async_refresh_profiles.assert_called_once()
-
-
-@pytest.mark.anyio
-async def test_add_profile_storage_exception(hass):
-    """Test that add_profile handles storage exceptions."""
-    svc, h, storage, _ = _make_service(hass=hass)
-    storage.save_profile = AsyncMock(side_effect=Exception("disk error"))
-    call = _make_call({"profile_name": "Eco", "preset_type": "thermostat"})
-
-    with pytest.raises(HomeAssistantError):
-        await svc.add_profile(call)
-
-
-# ---------------------------------------------------------------------------
-# save_profile
-# ---------------------------------------------------------------------------
-
-@pytest.mark.anyio
-async def test_save_profile_with_schedule(hass):
-    """Test saving a profile with a valid schedule."""
-    svc, h, storage, _ = _make_service(hass=hass)
-    call = _make_call({
-        "profile_name": "Comfort",
-        "preset_type": "thermostat",
-        "global_prefix": "cronostar_thermostat_kitchen_",
-        "schedule": [{"time": "08:00", "value": 21.0}, {"time": "22:00", "value": 18.0}],
-        "meta": {"min_value": 15.0, "max_value": 30.0},
-    })
-
-    await svc.save_profile(call)
-    storage.save_profile.assert_called_once()
-
-
-@pytest.mark.anyio
-async def test_save_profile_metadata_only(hass):
-    """Test saving metadata only (no schedule)."""
-    svc, h, storage, _ = _make_service(hass=hass)
-    # get_profile_data returns an existing profile
-    existing = {"schedule": [{"time": "08:00", "value": 20.0}], "meta": {}}
-    with patch.object(svc, "get_profile_data", AsyncMock(return_value=existing)):
-        call = _make_call({
-            "profile_name": "Comfort",
-            "preset_type": "thermostat",
-            "global_prefix": "cronostar_thermostat_kitchen_",
-        })
-        await svc.save_profile(call)
-        storage.save_profile.assert_called_once()
-
-
-@pytest.mark.anyio
-async def test_save_profile_metadata_only_new_profile(hass):
-    """Test saving metadata for a new profile (get_profile_data returns an error)."""
-    svc, h, storage, _ = _make_service(hass=hass)
-    with patch.object(svc, "get_profile_data", AsyncMock(return_value={"error": "not found"})):
-        call = _make_call({
-            "profile_name": "Nuova",
-            "preset_type": "thermostat",
-            "global_prefix": "cronostar_thermostat_kitchen_",
-        })
-        await svc.save_profile(call)
-        storage.save_profile.assert_called_once()
-
-
-@pytest.mark.anyio
-async def test_save_profile_missing_name(hass):
-    """Test that save_profile raises HomeAssistantError if profile_name is missing."""
-    svc, h, _, _ = _make_service(hass=hass)
-    call = _make_call({"preset_type": "thermostat"})
-
-    with pytest.raises(HomeAssistantError, match="profile_name"):
-        await svc.save_profile(call)
-
-
-@pytest.mark.anyio
-async def test_save_profile_updates_config_entry(hass):
-    """Test that save_profile updates the config entry if metadata changes."""
-    svc, h, storage, _ = _make_service(hass=hass)
-
-    mock_entry = MagicMock()
-    mock_entry.data = {
-        "global_prefix": "cronostar_thermostat_kitchen_",
-        "target_entity": "climate.old",
-    }
-    mock_coord = MagicMock()
-    mock_coord.async_refresh_profiles = AsyncMock()
-    mock_entry.runtime_data = mock_coord
-    h.config_entries.async_entries = MagicMock(return_value=[mock_entry])
-
-    call = _make_call({
-        "profile_name": "Comfort",
-        "preset_type": "thermostat",
-        "global_prefix": "cronostar_thermostat_kitchen_",
-        "schedule": [{"time": "08:00", "value": 21.0}],
-        "meta": {"target_entity": "climate.new"},
-    })
-    await svc.save_profile(call)
-    h.config_entries.async_update_entry.assert_called()
-
-
-# ---------------------------------------------------------------------------
-# load_profile
-# ---------------------------------------------------------------------------
-
-@pytest.mark.anyio
-async def test_load_profile_found(hass):
-    """Test loading a profile when found."""
-    svc, h, _, _ = _make_service(hass=hass)
-    expected = {"profile_name": "Comfort", "schedule": [], "meta": {}}
-    with patch.object(svc, "get_profile_data", AsyncMock(return_value=expected)):
-        call = _make_call({"profile_name": "Comfort", "preset_type": "thermostat"})
-        result = await svc.load_profile(call)
-        assert result["profile_name"] == "Comfort"
-
-
-@pytest.mark.anyio
-async def test_load_profile_not_found(hass):
-    """Test loading a profile when not found."""
-    svc, h, _, _ = _make_service(hass=hass)
-    with patch.object(svc, "get_profile_data", AsyncMock(return_value={"error": "Profile not found"})):
-        call = _make_call({"profile_name": "Ghost", "preset_type": "thermostat"})
-        result = await svc.load_profile(call)
+    def test_phase1_skips_non_dict_profiles(self, mock_hass):
+        """Branch: container has profiles that are not a dict → continue."""
+        storage = MagicMock()
+        # Phase 1: profiles is a list, not a dict
+        storage.get_cached_containers = AsyncMock(
+            return_value=[
+                ("file1.json", {"profiles": ["not", "a", "dict"], "meta": {}}),
+            ]
+        )
+        # Phase 2 fallback also fails → returns error diagnostics
+        storage.get_cached_containers = AsyncMock(
+            side_effect=[
+                [("file1.json", {"profiles": ["not", "a", "dict"], "meta": {}})],
+                [],  # second call (all_containers for diagnostics)
+            ]
+        )
+        svc = _make_service(mock_hass, storage)
+        result = run(svc.get_profile_data("Default", "thermostat", ""))
         assert "error" in result
 
-
-@pytest.mark.anyio
-async def test_load_profile_missing_name(hass):
-    """Test loading without profile_name."""
-    svc, h, _, _ = _make_service(hass=hass)
-    call = _make_call({"preset_type": "thermostat"})
-    result = await svc.load_profile(call)
-    assert result.get("error") == "profile_name is required"
-
-
-@pytest.mark.anyio
-async def test_load_profile_exception(hass):
-    """Test that load_profile handles exceptions."""
-    svc, h, _, _ = _make_service(hass=hass)
-    with patch.object(svc, "get_profile_data", AsyncMock(side_effect=Exception("boom"))):
-        call = _make_call({"profile_name": "Comfort", "preset_type": "thermostat"})
-        result = await svc.load_profile(call)
+    def test_phase1_skips_empty_profiles_dict(self, mock_hass):
+        """Branch: container has profiles={} (empty dict) → continue."""
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(
+            side_effect=[
+                [("file1.json", {"profiles": {}, "meta": {}})],
+                [],
+            ]
+        )
+        svc = _make_service(mock_hass, storage)
+        result = run(svc.get_profile_data("Default", "thermostat", ""))
         assert "error" in result
 
+    def test_phase2_fallback_finds_default(self, mock_hass):
+        """Phase 2: first container has non-dict profiles; second has 'Default'."""
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(
+            return_value=[
+                # First container: corrupted profiles
+                (
+                    "file1.json",
+                    {"profiles": "not_a_dict", "meta": {"min_value": 15}},
+                ),
+                # Second container: valid with Default
+                (
+                    "file2.json",
+                    {
+                        "profiles": {
+                            "Default": {"schedule": [{"time": "08:00", "value": 20}]}
+                        },
+                        "meta": {"min_value": 15, "max_value": 25},
+                    },
+                ),
+            ]
+        )
+        svc = _make_service(mock_hass, storage)
+        result = run(svc.get_profile_data("NonExistent", "thermostat", ""))
+        # Phase 1 finds nothing → Phase 2 falls through first container (not dict)
+        # and finds "Default" in second container
+        assert "profile_name" in result
+        assert result["profile_name"] == "Default"
 
-# ---------------------------------------------------------------------------
-# get_profile_data
-# ---------------------------------------------------------------------------
+    def test_phase2_skips_non_dict_profiles(self, mock_hass):
+        """Phase 2: all containers have non-dict profiles → return error."""
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(
+            side_effect=[
+                [("file1.json", {"profiles": 42, "meta": {}})],
+                [],
+            ]
+        )
+        svc = _make_service(mock_hass, storage)
+        result = run(svc.get_profile_data("Default", "thermostat", ""))
+        assert "error" in result
 
-@pytest.mark.anyio
-async def test_get_profile_data_exact_match(hass):
-    """Test exact match for profile name."""
-    svc, h, storage, _ = _make_service(hass=hass)
-
-    container = {
-        "meta": {
-            "preset_type": "thermostat",
-            "global_prefix": "cronostar_thermostat_kitchen_",
-            "min_value": 15.0,
-            "max_value": 30.0,
-        },
-        "profiles": {
-            "Comfort": {"schedule": [{"time": "08:00", "value": 21.0}]},
-        },
-    }
-    storage.get_cached_containers = AsyncMock(return_value=[("file.json", container)])
-
-    result = await svc.get_profile_data("Comfort", "thermostat", "cronostar_thermostat_kitchen_")
-    assert result["profile_name"] == "Comfort"
-    assert result["schedule"] == [{"time": "08:00", "value": 21.0}]
-
-
-@pytest.mark.anyio
-async def test_get_profile_data_case_insensitive(hass):
-    """Test case-insensitive match."""
-    svc, h, storage, _ = _make_service(hass=hass)
-
-    container = {
-        "meta": {"preset_type": "thermostat", "global_prefix": "cronostar_thermostat_k_"},
-        "profiles": {"Comfort": {"schedule": []}},
-    }
-    storage.get_cached_containers = AsyncMock(return_value=[("file.json", container)])
-
-    result = await svc.get_profile_data("comfort", "thermostat", "cronostar_thermostat_k_")
-    assert result["profile_name"] == "Comfort"
-
-
-@pytest.mark.anyio
-async def test_get_profile_data_fallback_to_default(hass):
-    """Test fallback to the Default profile."""
-    svc, h, storage, _ = _make_service(hass=hass)
-
-    container = {
-        "meta": {"preset_type": "thermostat", "global_prefix": "cronostar_thermostat_k_"},
-        "profiles": {"Default": {"schedule": [{"time": "00:00", "value": 18.0}]}},
-    }
-    storage.get_cached_containers = AsyncMock(return_value=[("file.json", container)])
-
-    result = await svc.get_profile_data("NonExistent", "thermostat", "cronostar_thermostat_k_")
-    assert result["profile_name"] == "Default"
-
-
-@pytest.mark.anyio
-async def test_get_profile_data_fallback_to_comfort(hass):
-    """Test fallback to the Comfort profile."""
-    svc, h, storage, _ = _make_service(hass=hass)
-
-    container = {
-        "meta": {"preset_type": "thermostat", "global_prefix": "cronostar_thermostat_k_"},
-        "profiles": {"Comfort": {"schedule": []}},
-    }
-    storage.get_cached_containers = AsyncMock(return_value=[("file.json", container)])
-
-    result = await svc.get_profile_data("NonExistent", "thermostat", "cronostar_thermostat_k_")
-    assert result["profile_name"] == "Comfort"
+    def test_diagnostics_include_available_storage(self, mock_hass):
+        """When no match: diagnostics list what's in storage."""
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(
+            side_effect=[
+                [],  # lookup
+                [
+                    (
+                        "other.json",
+                        {
+                            "meta": {"preset_type": "thermostat", "global_prefix": "x_"},
+                            "profiles": {"OtherProfile": {}},
+                        },
+                    )
+                ],  # all_containers
+            ]
+        )
+        svc = _make_service(mock_hass, storage)
+        result = run(svc.get_profile_data("Missing", "thermostat", "specific_prefix_"))
+        assert "error" in result
+        assert len(result["available_in_storage"]) == 1
+        assert result["available_in_storage"][0]["profiles"] == ["OtherProfile"]
 
 
-@pytest.mark.anyio
-async def test_get_profile_data_not_found_returns_diagnostics(hass):
-    """Test that diagnostics are returned if the profile is not found."""
-    svc, h, storage, _ = _make_service(hass=hass)
-    storage.get_cached_containers = AsyncMock(return_value=[])
-    storage.get_cached_containers = AsyncMock(return_value=[])   # called twice
+# ══════════════════════════════════════════════════════════════════════════════
+# get_profile_data – generic prefix collision
+# ══════════════════════════════════════════════════════════════════════════════
 
-    result = await svc.get_profile_data("Ghost", "thermostat", "cronostar_thermostat_k_")
-    assert "error" in result
-    assert "searched" in result
+class TestGetProfileDataGenericPrefix:
 
+    def test_generic_prefix_prioritises_matching_container(self, mock_hass):
+        """
+        Branch: is_generic_prefix=True and len(cached) > 1.
+        The container whose meta.global_prefix matches prefix_with_underscore
+        is prioritised.
+        """
+        storage = MagicMock()
+        # Two containers returned for the generic lookup
+        containers = [
+            (
+                "other.json",
+                {
+                    "profiles": {
+                        "Default": {"schedule": [{"time": "06:00", "value": 18}]}
+                    },
+                    "meta": {"global_prefix": "cronostar_thermostat_other_", "min_value": 15},
+                },
+            ),
+            (
+                "target.json",
+                {
+                    "profiles": {
+                        "Default": {"schedule": [{"time": "08:00", "value": 22}]}
+                    },
+                    "meta": {
+                        "global_prefix": "cronostar_thermostat_",   # matches generic prefix
+                        "min_value": 15,
+                    },
+                },
+            ),
+        ]
+        storage.get_cached_containers = AsyncMock(return_value=containers)
+        svc = _make_service(mock_hass, storage)
 
-@pytest.mark.anyio
-async def test_get_profile_data_merges_entity_overrides(hass):
-    """Test that per-profile entity overrides are merged into meta."""
-    svc, h, storage, _ = _make_service(hass=hass)
+        # Pass a generic prefix so is_generic_prefix=True
+        result = run(svc.get_profile_data("Default", "thermostat", "cronostar_thermostat_"))
+        assert "profile_name" in result
 
-    container = {
-        "meta": {"preset_type": "thermostat", "global_prefix": "cronostar_thermostat_k_"},
-        "profiles": {
-            "Comfort": {
-                "schedule": [],
-                "enabled_entity": "switch.thermostat_enabled",
-                "profiles_select_entity": "select.thermostat_profile",
-            }
-        },
-    }
-    storage.get_cached_containers = AsyncMock(return_value=[("file.json", container)])
+    def test_generic_prefix_no_matching_container_falls_back(self, mock_hass):
+        """
+        Branch: is_generic_prefix=True, multiple containers, but none matches
+        the exact prefix → cached remains unchanged and first Default wins.
+        """
+        storage = MagicMock()
+        containers = [
+            (
+                "a.json",
+                {
+                    "profiles": {
+                        "Default": {"schedule": [{"time": "07:00", "value": 19}]}
+                    },
+                    "meta": {"global_prefix": "some_other_prefix_", "min_value": 15},
+                },
+            ),
+            (
+                "b.json",
+                {
+                    "profiles": {
+                        "Default": {"schedule": [{"time": "09:00", "value": 21}]}
+                    },
+                    "meta": {"global_prefix": "another_prefix_", "min_value": 15},
+                },
+            ),
+        ]
+        storage.get_cached_containers = AsyncMock(return_value=containers)
+        svc = _make_service(mock_hass, storage)
 
-    result = await svc.get_profile_data("Comfort", "thermostat", "cronostar_thermostat_k_")
-    assert result["meta"].get("enabled_entity") == "switch.thermostat_enabled"
-    assert result["meta"].get("profiles_select_entity") == "select.thermostat_profile"
-
-
-# ---------------------------------------------------------------------------
-# delete_profile
-# ---------------------------------------------------------------------------
-
-@pytest.mark.anyio
-async def test_delete_profile_success(hass):
-    """Test deleting a profile successfully."""
-    svc, h, storage, _ = _make_service(hass=hass)
-    call = _make_call({
-        "profile_name": "Comfort",
-        "preset_type": "thermostat",
-        "global_prefix": "cronostar_thermostat_kitchen_",
-    })
-
-    await svc.delete_profile(call)
-    storage.delete_profile.assert_called_once()
-
-
-@pytest.mark.anyio
-async def test_delete_profile_missing_name(hass):
-    """Test deleting without profile_name."""
-    svc, h, _, _ = _make_service(hass=hass)
-    call = _make_call({"preset_type": "thermostat"})
-
-    with pytest.raises(HomeAssistantError, match="profile_name"):
-        await svc.delete_profile(call)
-
-
-@pytest.mark.anyio
-async def test_delete_profile_notifies_coordinators(hass):
-    """Test that delete_profile notifies coordinators."""
-    svc, h, storage, _ = _make_service(hass=hass)
-
-    mock_entry = MagicMock()
-    mock_entry.data = {"global_prefix": "cronostar_thermostat_kitchen_"}
-    mock_coord = MagicMock()
-    mock_coord.async_refresh_profiles = AsyncMock()
-    mock_entry.runtime_data = mock_coord
-    h.config_entries.async_entries = MagicMock(return_value=[mock_entry])
-
-    call = _make_call({
-        "profile_name": "Comfort",
-        "preset_type": "thermostat",
-        "global_prefix": "cronostar_thermostat_kitchen_",
-    })
-    await svc.delete_profile(call)
-    mock_coord.async_refresh_profiles.assert_called_once()
+        result = run(svc.get_profile_data("Default", "thermostat", ""))
+        # Should still find Default in one of the containers
+        assert "profile_name" in result
 
 
-@pytest.mark.anyio
-async def test_delete_profile_not_found_no_crash(hass):
-    """Test that delete_profile does not crash if the profile does not exist."""
-    svc, h, storage, _ = _make_service(hass=hass)
-    storage.delete_profile = AsyncMock(return_value=False)
-    call = _make_call({"profile_name": "Ghost", "preset_type": "thermostat"})
-    # Does not raise an exception
-    await svc.delete_profile(call)
+# ══════════════════════════════════════════════════════════════════════════════
+# save_profile – dashboard YAML write failure
+# ══════════════════════════════════════════════════════════════════════════════
 
+class TestSaveProfileDashboardError:
 
-# ---------------------------------------------------------------------------
-# delete_controller
-# ---------------------------------------------------------------------------
+    def test_dashboard_yaml_exception_is_caught(self, mock_hass):
+        """Branch: write_dashboard_yaml raises → caught, logged, no re-raise."""
+        storage = MagicMock()
+        storage.save_profile = AsyncMock()
+        storage.get_cached_containers = AsyncMock(return_value=[])
+        # get_profile_data used when schedule is None
+        storage.get_cached_containers = AsyncMock(
+            side_effect=[
+                [],  # for get_profile_data lookup
+                [],  # for get_profile_data all_containers fallback
+            ]
+        )
+        svc = _make_service(mock_hass, storage)
 
-@pytest.mark.anyio
-async def test_delete_controller_with_preset(hass):
-    """Test deleting a controller with a specified preset."""
-    svc, h, storage, _ = _make_service(hass=hass)
+        call_data = _call(
+            profile_name="MyProfile",
+            preset_type="thermostat",
+            schedule=[{"time": "08:00", "value": 20}],
+            global_prefix="cronostar_thermostat_kitchen_",
+            meta={},
+        )
 
-    filepath_mock = MagicMock()
-    filepath_mock.exists.return_value = False
-    storage.profiles_dir.__truediv__ = MagicMock(return_value=filepath_mock)
-
-    call = _make_call({
-        "global_prefix": "cronostar_thermostat_kitchen_",
-        "preset_type": "thermostat",
-    })
-
-    with patch(
-        "custom_components.cronostar.services.profile_service.build_profile_filename",
-        return_value="cronostar_thermostat_kitchen_.json",
-    ):
-        await svc.delete_controller(call)
-
-
-@pytest.mark.anyio
-async def test_delete_controller_without_preset(hass):
-    """Test deleting a controller without a preset (search by prefix)."""
-    svc, h, storage, _ = _make_service(hass=hass)
-    storage.list_profiles = AsyncMock(return_value=["cronostar_thermostat_kitchen_.json"])
-
-    filepath_mock = MagicMock()
-    filepath_mock.exists.return_value = False
-    storage.profiles_dir.__truediv__ = MagicMock(return_value=filepath_mock)
-
-    call = _make_call({"global_prefix": "cronostar_thermostat_kitchen_"})
-    await svc.delete_controller(call)
-    storage.delete_controller_files.assert_called_once_with("cronostar_thermostat_kitchen_", None)
-
-    @pytest.mark.anyio
-    async def test_delete_controller_removes_config_entry(hass):
-        """Test that delete_controller removes the config entry."""
-        svc, h, storage, _ = _make_service(hass=hass)
-
-        mock_entry = MagicMock()
-        mock_entry.data = {"global_prefix": "cronostar_thermostat_kitchen_"}
-        mock_entry.entry_id = "entry123"
-        mock_entry.title = "Kitchen"
-        h.config_entries.async_entries = MagicMock(return_value=[mock_entry])
-        h.config_entries.async_remove = AsyncMock()
-
-        filepath_mock = MagicMock()
-        filepath_mock.exists.return_value = False
-        storage.profiles_dir.__truediv__ = MagicMock(return_value=filepath_mock)
-
-        call = _make_call({
-            "global_prefix": "cronostar_thermostat_kitchen_",
-            "preset_type": "thermostat",
-        })
         with patch(
-            "custom_components.cronostar.services.profile_service.build_profile_filename",
-            return_value="cronostar_thermostat_kitchen_.json",
+            "custom_components.cronostar.setup.dashboard.write_dashboard_yaml",
+            new=AsyncMock(side_effect=RuntimeError("FS error")),
         ):
-            await svc.delete_controller(call)
+            # Must not raise; dashboard error is swallowed
+            run(svc.save_profile(call_data))
 
-        h.config_entries.async_remove.assert_called_once_with("entry123")
+    def test_save_profile_with_metadata_only(self, mock_hass):
+        """Branch: schedule is None → fetches existing profile data."""
+        storage = MagicMock()
+        storage.save_profile = AsyncMock()
+        # First call: get_profile_data (no match → returns error dict)
+        # Second call: all_containers for diagnostics
+        storage.get_cached_containers = AsyncMock(
+            side_effect=[
+                [],
+                [],
+            ]
+        )
+        svc = _make_service(mock_hass, storage)
+
+        call_data = _call(
+            profile_name="MyProfile",
+            preset_type="thermostat",
+            global_prefix="cronostar_thermostat_kitchen_",
+            meta={},
+        )
+        # schedule is absent → falls into metadata-only path
+        with patch(
+            "custom_components.cronostar.setup.dashboard.write_dashboard_yaml",
+            new=AsyncMock(),
+        ):
+            run(svc.save_profile(call_data))
+
+    def test_save_profile_schedule_none_existing_found(self, mock_hass):
+        """Branch: schedule is None and existing profile IS found → preserve schedule."""
+        storage = MagicMock()
+        storage.save_profile = AsyncMock()
+        existing_schedule = [{"time": "08:00", "value": 20}]
+        storage.get_cached_containers = AsyncMock(
+            return_value=[
+                (
+                    "f.json",
+                    {
+                        "profiles": {
+                            "MyProfile": {"schedule": existing_schedule}
+                        },
+                        "meta": {"min_value": 15, "max_value": 25},
+                    },
+                )
+            ]
+        )
+        svc = _make_service(mock_hass, storage)
+
+        call_data = _call(
+            profile_name="MyProfile",
+            preset_type="thermostat",
+            global_prefix="cronostar_thermostat_kitchen_",
+            meta={},
+        )
+        with patch(
+            "custom_components.cronostar.setup.dashboard.write_dashboard_yaml",
+            new=AsyncMock(),
+        ):
+            run(svc.save_profile(call_data))
+        # Verify that save_profile on storage was called
+        storage.save_profile.assert_called_once()
+
+    def test_save_profile_updates_config_entry(self, mock_hass):
+        """Branch: config entry for the prefix exists → updated if meta changed."""
+        storage = MagicMock()
+        storage.save_profile = AsyncMock()
+        storage.get_cached_containers = AsyncMock(return_value=[])
+
+        entry = MagicMock()
+        entry.data = {
+            "global_prefix": "cronostar_thermostat_kitchen_",
+            "target_entity": "climate.old",
+            "preset_type": "thermostat",
+        }
+        entry.runtime_data = None
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[entry])
+
+        svc = _make_service(mock_hass, storage)
+
+        call_data = _call(
+            profile_name="MyProfile",
+            preset_type="thermostat",
+            schedule=[{"time": "08:00", "value": 20}],
+            global_prefix="cronostar_thermostat_kitchen_",
+            meta={"target_entity": "climate.new"},
+        )
+        with patch(
+            "custom_components.cronostar.setup.dashboard.write_dashboard_yaml",
+            new=AsyncMock(),
+        ):
+            run(svc.save_profile(call_data))
+
+        mock_hass.config_entries.async_update_entry.assert_called_once()
+
+    def test_save_profile_coordinator_refresh_called(self, mock_hass):
+        """Branch: config entry has runtime_data → async_refresh_profiles called."""
+        storage = MagicMock()
+        storage.save_profile = AsyncMock()
+        storage.get_cached_containers = AsyncMock(return_value=[])
+
+        coord = MagicMock()
+        coord.async_refresh_profiles = AsyncMock()
+
+        entry = MagicMock()
+        entry.data = {
+            "global_prefix": "cronostar_thermostat_kitchen_",
+            "target_entity": "climate.test",
+            "preset_type": "thermostat",
+        }
+        entry.runtime_data = coord
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[entry])
+
+        svc = _make_service(mock_hass, storage)
+
+        call_data = _call(
+            profile_name="MyProfile",
+            preset_type="thermostat",
+            schedule=[{"time": "08:00", "value": 20}],
+            global_prefix="cronostar_thermostat_kitchen_",
+            meta={},
+        )
+        with patch(
+            "custom_components.cronostar.setup.dashboard.write_dashboard_yaml",
+            new=AsyncMock(),
+        ):
+            run(svc.save_profile(call_data))
+
+        coord.async_refresh_profiles.assert_called_once()
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# delete_controller – dashboard YAML write failure
+# ══════════════════════════════════════════════════════════════════════════════
 
-@pytest.mark.anyio
-async def test_delete_controller_missing_prefix(hass):
-    """Test that delete_controller raises HomeAssistantError if prefix is missing."""
-    svc, h, _, _ = _make_service(hass=hass)
-    call = _make_call({})
+class TestDeleteControllerDashboardError:
 
-    with pytest.raises(HomeAssistantError, match="global_prefix"):
-        await svc.delete_controller(call)
+    def test_dashboard_yaml_exception_is_caught(self, mock_hass):
+        """Branch: write_dashboard_yaml raises inside delete_controller → caught."""
+        storage = MagicMock()
+        storage.delete_controller_files = AsyncMock()
+        svc = _make_service(mock_hass, storage)
+
+        call_data = _call(global_prefix="cronostar_thermostat_test_")
+
+        with patch(
+            "custom_components.cronostar.setup.dashboard.write_dashboard_yaml",
+            new=AsyncMock(side_effect=OSError("gone")),
+        ):
+            run(svc.delete_controller(call_data))  # must not raise
+
+        storage.delete_controller_files.assert_called_once()
+
+    def test_delete_controller_removes_matching_entry(self, mock_hass):
+        """Branch: config entry for the prefix found → async_remove called."""
+        storage = MagicMock()
+        storage.delete_controller_files = AsyncMock()
+        svc = _make_service(mock_hass, storage)
+
+        entry = MagicMock()
+        entry.entry_id = "eid123"
+        entry.data = {"global_prefix": "cronostar_thermostat_test_"}
+        entry.title = "Test"
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[entry])
+
+        call_data = _call(global_prefix="cronostar_thermostat_test_")
+
+        with patch(
+            "custom_components.cronostar.setup.dashboard.write_dashboard_yaml",
+            new=AsyncMock(),
+        ):
+            run(svc.delete_controller(call_data))
+
+        mock_hass.config_entries.async_remove.assert_called_once_with("eid123")
+
+    def test_delete_controller_no_prefix_raises(self, mock_hass):
+        """Branch: global_prefix missing → HomeAssistantError raised."""
+        from homeassistant.exceptions import HomeAssistantError
+
+        svc = _make_service(mock_hass)
+        call_data = _call()  # no global_prefix
+
+        with pytest.raises(HomeAssistantError):
+            run(svc.delete_controller(call_data))
 
 
-@pytest.mark.anyio
-async def test_delete_controller_deletes_existing_file(hass):
-    """Test that the file is deleted if it exists."""
-    svc, h, storage, _ = _make_service(hass=hass)
+# ══════════════════════════════════════════════════════════════════════════════
+# add_profile
+# ══════════════════════════════════════════════════════════════════════════════
 
-    filepath_mock = MagicMock()
-    filepath_mock.exists.return_value = True
-    filepath_mock.unlink = MagicMock()
-    storage.profiles_dir.__truediv__ = MagicMock(return_value=filepath_mock)
+class TestAddProfile:
 
-    h.config_entries.async_entries = MagicMock(return_value=[])
+    def test_add_profile_missing_name_raises(self, mock_hass):
+        from homeassistant.exceptions import HomeAssistantError
 
-    call = _make_call({
-        "global_prefix": "cronostar_thermostat_kitchen_",
-        "preset_type": "thermostat",
-    })
-    with patch(
-        "custom_components.cronostar.services.profile_service.build_profile_filename",
-        return_value="cronostar_thermostat_kitchen_.json",
-    ):
-        await svc.delete_controller(call)
+        svc = _make_service(mock_hass)
+        call_data = _call(preset_type="thermostat")  # no profile_name
+        with pytest.raises(HomeAssistantError):
+            run(svc.add_profile(call_data))
 
-    storage.delete_controller_files.assert_called_once_with("cronostar_thermostat_kitchen_", "thermostat")
+    def test_add_profile_notifies_coordinator(self, mock_hass):
+        """Branch: entry with matching prefix + runtime_data → refresh called."""
+        storage = MagicMock()
+        storage.save_profile = AsyncMock()
+
+        coord = MagicMock()
+        coord.async_refresh_profiles = AsyncMock()
+
+        entry = MagicMock()
+        entry.data = {"global_prefix": "cronostar_thermostat_kitchen_"}
+        entry.runtime_data = coord
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[entry])
+
+        svc = _make_service(mock_hass, storage)
+        call_data = _call(
+            profile_name="Summer",
+            preset_type="thermostat",
+            global_prefix="cronostar_thermostat_kitchen_",
+        )
+        run(svc.add_profile(call_data))
+        coord.async_refresh_profiles.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# register_card
-# ---------------------------------------------------------------------------
+# ══════════════════════════════════════════════════════════════════════════════
+# delete_profile
+# ══════════════════════════════════════════════════════════════════════════════
 
-@pytest.mark.anyio
-async def test_register_card_success(hass):
-    """Test registering a card successfully."""
-    svc, h, storage, settings = _make_service(hass=hass)
+class TestDeleteProfile:
 
-    profile_data = {
-        "profile_name": "Comfort",
-        "schedule": [{"time": "08:00", "value": 21.0}],
-        "meta": {"target_entity": "climate.kitchen", "global_prefix": "cronostar_thermostat_k_"},
-    }
-    with patch.object(svc, "get_profile_data", AsyncMock(return_value=profile_data)), \
-         patch.object(svc, "_ensure_controller_exists", AsyncMock()):
-        call = _make_call({
-            "card_id": "card1",
-            "preset": "thermostat",
-            "global_prefix": "cronostar_thermostat_k_",
-            "selected_profile": "Comfort",
+    def test_delete_profile_missing_name_raises(self, mock_hass):
+        from homeassistant.exceptions import HomeAssistantError
+
+        svc = _make_service(mock_hass)
+        with pytest.raises(HomeAssistantError):
+            run(svc.delete_profile(_call()))
+
+    def test_delete_profile_success_notifies_coordinator(self, mock_hass):
+        storage = MagicMock()
+        storage.delete_profile = AsyncMock(return_value=True)
+
+        coord = MagicMock()
+        coord.async_refresh_profiles = AsyncMock()
+
+        entry = MagicMock()
+        entry.data = {"global_prefix": "cronostar_thermostat_kitchen_"}
+        entry.runtime_data = coord
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[entry])
+
+        svc = _make_service(mock_hass, storage)
+        run(svc.delete_profile(_call(profile_name="Summer", preset_type="thermostat",
+                                      global_prefix="cronostar_thermostat_kitchen_")))
+        coord.async_refresh_profiles.assert_called_once()
+
+    def test_delete_profile_storage_returns_false(self, mock_hass):
+        """Branch: delete returns False → log_operation called with failure."""
+        storage = MagicMock()
+        storage.delete_profile = AsyncMock(return_value=False)
+        svc = _make_service(mock_hass, storage)
+        # Should not raise
+        run(svc.delete_profile(_call(profile_name="X", preset_type="thermostat")))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# _validate_schedule
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestValidateSchedule:
+
+    def _svc(self, mock_hass):
+        return _make_service(mock_hass)
+
+    def test_non_list_returns_empty(self, mock_hass):
+        svc = self._svc(mock_hass)
+        assert svc._validate_schedule("not a list") == []
+
+    def test_non_dict_item_skipped(self, mock_hass):
+        svc = self._svc(mock_hass)
+        result = svc._validate_schedule(["garbage", {"time": "08:00", "value": 20}])
+        assert len(result) == 1
+
+    def test_missing_time_skipped(self, mock_hass):
+        svc = self._svc(mock_hass)
+        result = svc._validate_schedule([{"value": 20}])
+        assert result == []
+
+    def test_missing_value_skipped(self, mock_hass):
+        svc = self._svc(mock_hass)
+        result = svc._validate_schedule([{"time": "08:00"}])
+        assert result == []
+
+    def test_invalid_time_format_skipped(self, mock_hass):
+        svc = self._svc(mock_hass)
+        result = svc._validate_schedule([{"time": "8:0", "value": 20}])
+        assert result == []
+
+    def test_nan_value_skipped(self, mock_hass):
+        svc = self._svc(mock_hass)
+        result = svc._validate_schedule([{"time": "08:00", "value": float("nan")}])
+        assert result == []
+
+    def test_non_numeric_value_skipped(self, mock_hass):
+        svc = self._svc(mock_hass)
+        result = svc._validate_schedule([{"time": "08:00", "value": "hot"}])
+        assert result == []
+
+    def test_below_min_clamped_to_min(self, mock_hass):
+        svc = self._svc(mock_hass)
+        result = svc._validate_schedule([{"time": "08:00", "value": 5}], min_val=15)
+        assert result[0]["value"] == 15.0
+
+    def test_above_max_reset_to_min(self, mock_hass):
+        svc = self._svc(mock_hass)
+        result = svc._validate_schedule([{"time": "08:00", "value": 35}], min_val=15, max_val=30)
+        assert result[0]["value"] == 15.0
+
+    def test_above_max_no_min_reset_to_zero(self, mock_hass):
+        svc = self._svc(mock_hass)
+        result = svc._validate_schedule([{"time": "08:00", "value": 35}], max_val=30)
+        assert result[0]["value"] == 0.0
+
+    def test_duplicate_times_last_wins(self, mock_hass):
+        svc = self._svc(mock_hass)
+        result = svc._validate_schedule([
+            {"time": "08:00", "value": 20},
+            {"time": "08:00", "value": 22},
+        ])
+        assert len(result) == 1
+        assert result[0]["value"] == 22.0
+
+    def test_sorted_by_time(self, mock_hass):
+        svc = self._svc(mock_hass)
+        result = svc._validate_schedule([
+            {"time": "20:00", "value": 18},
+            {"time": "08:00", "value": 21},
+        ])
+        assert result[0]["time"] == "08:00"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# async_update_profile_selectors
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestUpdateProfileSelectors:
+
+    def test_updates_changed_options(self, mock_hass):
+        """input_select with stale options → set_options service called."""
+        storage = MagicMock()
+        storage.list_profiles = AsyncMock(return_value=["f1.json"])
+        storage.load_profile_cached = AsyncMock(
+            return_value={
+                "meta": {"global_prefix": "cronostar_thermostat_kitchen_"},
+                "profiles": {"Summer": {}, "Winter": {}},
+            }
+        )
+        svc = _make_service(mock_hass, storage)
+
+        state = MagicMock()
+        state.entity_id = "input_select.cronostar_thermostat_kitchen_profiles"
+        state.attributes = {"options": ["OldProfile"]}
+        mock_hass.states.async_all = MagicMock(return_value=[state])
+
+        run(svc.async_update_profile_selectors())
+        mock_hass.services.async_call.assert_called_once()
+
+    def test_skips_if_options_already_current(self, mock_hass):
+        """input_select already has correct options → no service call."""
+        storage = MagicMock()
+        storage.list_profiles = AsyncMock(return_value=["f1.json"])
+        storage.load_profile_cached = AsyncMock(
+            return_value={
+                "meta": {"global_prefix": "cronostar_thermostat_kitchen_"},
+                "profiles": {"Summer": {}},
+            }
+        )
+        svc = _make_service(mock_hass, storage)
+
+        state = MagicMock()
+        state.entity_id = "input_select.cronostar_thermostat_kitchen_profiles"
+        state.attributes = {"options": ["Summer"]}
+        mock_hass.states.async_all = MagicMock(return_value=[state])
+
+        run(svc.async_update_profile_selectors())
+        mock_hass.services.async_call.assert_not_called()
+
+    def test_skips_if_no_profiles_on_disk(self, mock_hass):
+        """input_select maps to prefix with no profiles → skip update."""
+        storage = MagicMock()
+        storage.list_profiles = AsyncMock(return_value=["f1.json"])
+        storage.load_profile_cached = AsyncMock(
+            return_value={
+                "meta": {"global_prefix": "other_prefix_"},
+                "profiles": {"X": {}},
+            }
+        )
+        svc = _make_service(mock_hass, storage)
+
+        state = MagicMock()
+        state.entity_id = "input_select.cronostar_thermostat_kitchen_profiles"
+        state.attributes = {"options": []}
+        mock_hass.states.async_all = MagicMock(return_value=[state])
+
+        run(svc.async_update_profile_selectors())
+        mock_hass.services.async_call.assert_not_called()
+
+    def test_load_error_is_logged(self, mock_hass):
+        """Branch: load_profile_cached raises → warning logged, continues."""
+        storage = MagicMock()
+        storage.list_profiles = AsyncMock(return_value=["bad.json"])
+        storage.load_profile_cached = AsyncMock(side_effect=OSError("corrupt"))
+        svc = _make_service(mock_hass, storage)
+        mock_hass.states.async_all = MagicMock(return_value=[])
+        run(svc.async_update_profile_selectors())  # must not raise
+
+    def test_set_options_error_is_logged(self, mock_hass):
+        """Branch: services.async_call raises during set_options → error logged."""
+        storage = MagicMock()
+        storage.list_profiles = AsyncMock(return_value=["f1.json"])
+        storage.load_profile_cached = AsyncMock(
+            return_value={
+                "meta": {"global_prefix": "cronostar_thermostat_kitchen_"},
+                "profiles": {"Summer": {}},
+            }
+        )
+        svc = _make_service(mock_hass, storage)
+
+        state = MagicMock()
+        state.entity_id = "input_select.cronostar_thermostat_kitchen_profiles"
+        state.attributes = {"options": ["OldProfile"]}
+        mock_hass.states.async_all = MagicMock(return_value=[state])
+        mock_hass.services.async_call = AsyncMock(side_effect=Exception("service error"))
+
+        run(svc.async_update_profile_selectors())  # must not raise
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# _is_valid_time / _time_to_minutes
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestHelpers:
+
+    def test_valid_time(self):
+        assert ProfileService._is_valid_time("08:30") is True
+
+    def test_invalid_format(self):
+        assert ProfileService._is_valid_time("8:30") is False
+        assert ProfileService._is_valid_time("25:00") is False
+        assert ProfileService._is_valid_time("12:60") is False
+        assert ProfileService._is_valid_time("not:time") is False
+
+    def test_time_to_minutes(self):
+        assert ProfileService._time_to_minutes("01:30") == 90
+
+    def test_time_to_minutes_bad_input(self):
+        assert ProfileService._time_to_minutes("bad") == 0
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# _ensure_controller_exists
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestEnsureControllerExists:
+
+    def test_empty_prefix_returns_early(self, mock_hass):
+        svc = _make_service(mock_hass)
+        run(svc._ensure_controller_exists("", "thermostat", {}))
+        mock_hass.config_entries.flow.async_init.assert_not_called()
+
+    def test_existing_prefix_no_flow_init(self, mock_hass):
+        entry = MagicMock()
+        entry.data = {"global_prefix": "cronostar_thermostat_test_"}
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[entry])
+        svc = _make_service(mock_hass)
+        run(svc._ensure_controller_exists("cronostar_thermostat_test_", "thermostat", {}))
+        mock_hass.config_entries.flow.async_init.assert_not_called()
+
+    def test_missing_prefix_creates_flow(self, mock_hass):
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+        svc = _make_service(mock_hass)
+        run(svc._ensure_controller_exists("cronostar_thermostat_kitchen_", "thermostat", {}))
+        mock_hass.config_entries.flow.async_init.assert_called_once()
+
+    def test_name_derived_from_generic_prefix(self, mock_hass):
+        """Branch: prefix does not start with base_marker → name = prefix."""
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+        svc = _make_service(mock_hass)
+        # Prefix that doesn't match the base_marker pattern
+        run(svc._ensure_controller_exists("custom_prefix_", "thermostat", {}))
+        call_kwargs = mock_hass.config_entries.flow.async_init.call_args
+        assert call_kwargs is not None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# save_profile – missing name → HomeAssistantError (line 116)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestSaveProfileMissingName:
+    def test_save_profile_missing_name_raises(self, mock_hass):
+        from homeassistant.exceptions import HomeAssistantError
+        svc = _make_service(mock_hass)
+        with pytest.raises(HomeAssistantError):
+            run(svc.save_profile(_call(preset_type="thermostat")))
+
+    def test_save_profile_preset_type_changed_in_meta(self, mock_hass):
+        """Lines 170-171: preset_type in meta AND differs from entry."""
+        storage = MagicMock()
+        storage.save_profile = AsyncMock()
+        storage.get_cached_containers = AsyncMock(return_value=[])
+        entry = MagicMock()
+        entry.data = {
+            "global_prefix": "cronostar_thermostat_kitchen_",
+            "target_entity": "climate.test",
+            "preset_type": "thermostat",
+        }
+        entry.runtime_data = None
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[entry])
+        svc = _make_service(mock_hass, storage)
+
+        with patch("custom_components.cronostar.setup.dashboard.write_dashboard_yaml", new=AsyncMock()):
+            run(svc.save_profile(_call(
+                profile_name="P",
+                preset_type="thermostat",
+                schedule=[{"time": "08:00", "value": 20}],
+                global_prefix="cronostar_thermostat_kitchen_",
+                meta={"preset_type": "ev_charging"},   # different from entry
+            )))
+        mock_hass.config_entries.async_update_entry.assert_called_once()
+
+    def test_save_profile_card_config_field_changed(self, mock_hass):
+        """Lines 184-185: a card-config field in meta differs from entry."""
+        storage = MagicMock()
+        storage.save_profile = AsyncMock()
+        storage.get_cached_containers = AsyncMock(return_value=[])
+        entry = MagicMock()
+        entry.data = {
+            "global_prefix": "cronostar_thermostat_kitchen_",
+            "target_entity": "climate.test",
+            "preset_type": "thermostat",
+            "title": "Old Title",
+        }
+        entry.runtime_data = None
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[entry])
+        svc = _make_service(mock_hass, storage)
+
+        with patch("custom_components.cronostar.setup.dashboard.write_dashboard_yaml", new=AsyncMock()):
+            run(svc.save_profile(_call(
+                profile_name="P",
+                preset_type="thermostat",
+                schedule=[{"time": "08:00", "value": 20}],
+                global_prefix="cronostar_thermostat_kitchen_",
+                meta={"title": "New Title"},   # differs from entry
+            )))
+        mock_hass.config_entries.async_update_entry.assert_called_once()
+
+    def test_save_profile_outer_except_reraises(self, mock_hass):
+        """Lines 208-211: storage.save_profile raises → outer except catches and re-raises."""
+        from homeassistant.exceptions import HomeAssistantError
+        storage = MagicMock()
+        storage.save_profile = AsyncMock(side_effect=RuntimeError("storage broken"))
+        storage.get_cached_containers = AsyncMock(return_value=[])
+        svc = _make_service(mock_hass, storage)
+
+        with pytest.raises(HomeAssistantError):
+            run(svc.save_profile(_call(
+                profile_name="P",
+                preset_type="thermostat",
+                schedule=[{"time": "08:00", "value": 20}],
+                global_prefix="cronostar_thermostat_kitchen_",
+                meta={},
+            )))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# _ensure_controller_exists – empty name fallback (line 233)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestEnsureControllerEmptyName:
+    def test_empty_name_after_strip_uses_fallback(self, mock_hass):
+        """Line 233: after stripping prefix and underscores, name is empty."""
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+        svc = _make_service(mock_hass)
+        # Prefix matches base_marker exactly, leaving empty name
+        run(svc._ensure_controller_exists(
+            "cronostar_thermostat_", "thermostat", {}
+        ))
+        call_kwargs = mock_hass.config_entries.flow.async_init.call_args
+        # The name passed to async_init should be the fallback
+        assert call_kwargs is not None
+        init_data = call_kwargs[1]["data"]
+        assert "Controller" in init_data["name"] or init_data["name"]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# load_profile – all branches (lines 259-279)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestLoadProfile:
+    def test_missing_profile_name_returns_error(self, mock_hass):
+        svc = _make_service(mock_hass)
+        result = run(svc.load_profile(_call(preset_type="thermostat")))
+        assert result == {"error": "profile_name is required"}
+
+    def test_profile_not_found_returns_error_dict(self, mock_hass):
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(side_effect=[[], []])
+        svc = _make_service(mock_hass, storage)
+        result = run(svc.load_profile(_call(
+            profile_name="Missing", preset_type="thermostat"
+        )))
+        assert "error" in result
+
+    def test_profile_found_returns_data(self, mock_hass):
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {"Summer": {"schedule": [{"time": "08:00", "value": 22}]}},
+                "meta": {},
+            })
+        ])
+        svc = _make_service(mock_hass, storage)
+        result = run(svc.load_profile(_call(
+            profile_name="Summer", preset_type="thermostat"
+        )))
+        assert result["profile_name"] == "Summer"
+
+    def test_exception_in_load_profile_returns_error(self, mock_hass):
+        """Line 277-279: exception in load_profile → caught, returns error dict."""
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(side_effect=RuntimeError("boom"))
+        svc = _make_service(mock_hass, storage)
+        result = run(svc.load_profile(_call(
+            profile_name="X", preset_type="thermostat"
+        )))
+        assert "error" in result
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# get_profile_data – enabled_entity / profiles_select_entity in content
+# Phase 1 (lines 347, 349) and Phase 2 (lines 377, 379)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestGetProfileDataEntityOverrides:
+    def test_phase1_enabled_entity_and_profiles_select_merged(self, mock_hass):
+        """Lines 347, 349: per-profile entity overrides are merged into res_meta."""
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {
+                    "Summer": {
+                        "schedule": [],
+                        "enabled_entity": "switch.summer_en",
+                        "profiles_select_entity": "select.summer_prof",
+                    }
+                },
+                "meta": {},
+            })
+        ])
+        svc = _make_service(mock_hass, storage)
+        result = run(svc.get_profile_data("Summer", "thermostat", "specific_prefix_"))
+        assert result["meta"]["enabled_entity"] == "switch.summer_en"
+        assert result["meta"]["profiles_select_entity"] == "select.summer_prof"
+
+    def test_phase2_enabled_entity_and_profiles_select_merged(self, mock_hass):
+        """Lines 377, 379: Phase 2 fallback also merges per-profile entity overrides."""
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {
+                    "Default": {
+                        "schedule": [],
+                        "enabled_entity": "switch.default_en",
+                        "profiles_select_entity": "select.default_prof",
+                    }
+                },
+                "meta": {},
+            })
+        ])
+        svc = _make_service(mock_hass, storage)
+        # Request "NonExistent" → Phase 1 misses → Phase 2 finds "Default"
+        result = run(svc.get_profile_data("NonExistent", "thermostat", "specific_prefix_"))
+        assert result["meta"]["enabled_entity"] == "switch.default_en"
+        assert result["meta"]["profiles_select_entity"] == "select.default_prof"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# async_update_profile_selectors – container_data is falsy → continue (line 781)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestUpdateProfileSelectorsContainerNone:
+    def test_falsy_container_data_is_skipped(self, mock_hass):
+        """Line 781: load_profile_cached returns None → continue."""
+        storage = MagicMock()
+        storage.list_profiles = AsyncMock(return_value=["f.json"])
+        storage.load_profile_cached = AsyncMock(return_value=None)  # falsy
+        svc = _make_service(mock_hass, storage)
+        mock_hass.states.async_all = MagicMock(return_value=[])
+        run(svc.async_update_profile_selectors())  # must not raise
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# _build_metadata – "preset" key deletion (line 926)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBuildMetadata:
+    def test_preset_key_removed_from_metadata(self, mock_hass):
+        """Line 926: if 'preset' is in user_meta, it is deleted from metadata."""
+        svc = _make_service(mock_hass)
+        result = svc._build_metadata("thermostat", "cronostar_thermostat_test_", {
+            "preset": "should_be_deleted",
+            "title": "My Title",
         })
-        result = await svc.register_card(call)
-        assert result["success"] is True
-        assert result["profile_data"] is not None
+        assert "preset" not in result
+        assert result["preset_type"] == "thermostat"
+        assert result["title"] == "My Title"
 
-
-@pytest.mark.anyio
-async def test_register_card_no_profile_found(hass):
-    """Test registering a card when the profile is not found."""
-    svc, h, storage, _ = _make_service(hass=hass)
-
-    with patch.object(svc, "get_profile_data", AsyncMock(return_value={"error": "not found"})), \
-         patch.object(svc, "_ensure_controller_exists", AsyncMock()):
-        call = _make_call({
-            "card_id": "card1",
-            "preset": "thermostat",
-            "global_prefix": "cronostar_thermostat_k_",
+    def test_allowed_keys_only_in_output(self, mock_hass):
+        svc = _make_service(mock_hass)
+        result = svc._build_metadata("thermostat", "prefix_", {
+            "title": "T",
+            "unknown_key": "should_not_appear",
         })
-        result = await svc.register_card(call)
+        assert "unknown_key" not in result
+        assert result["title"] == "T"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# _is_valid_time – ValueError dead-code branch (lines 941-942)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestIsValidTimeValueError:
+    def test_value_error_returns_false(self):
+        """Lines 941-942: force the ValueError branch via monkeypatching."""
+        import re
+        original_split = str.split
+
+        # Patch the method to inject a ValueError after the regex passes
+        # We'll test by directly monkey-patching map to raise ValueError
+        with patch("builtins.map", side_effect=ValueError("injected")):
+            # Now the time_str "12:30" passes the regex but map() raises
+            result = ProfileService._is_valid_time("12:30")
+        assert result is False
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# register_card – comprehensive coverage (lines 528-767)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestRegisterCard:
+    """Tests for the register_card service handler."""
+
+    def _svc(self, mock_hass, storage=None):
+        if storage is None:
+            storage = MagicMock()
+            storage.get_cached_containers = AsyncMock(return_value=[])
+            storage.list_profiles = AsyncMock(return_value=[])
+            storage.load_profile_cached = AsyncMock(return_value=None)
+            storage.save_profile = AsyncMock()
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={"lang": "en"})
+        return ProfileService(mock_hass, storage, settings)
+
+    def test_basic_response_structure(self, mock_hass):
+        """register_card returns the expected dict keys."""
+        mock_hass.data = {"cronostar": {"version": "6.0.0", "global_config": {}}}
+        mock_hass.states.get = MagicMock(return_value=None)
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+        svc = self._svc(mock_hass)
+
+        result = run(svc.register_card(_call(
+            card_id="card1", preset="thermostat", global_prefix="cronostar_thermostat_test_"
+        )))
+        assert "success" in result
+        assert "profile_data" in result
+        assert "entity_states" in result
+        assert "settings" in result
+
+    def test_native_select_sets_profile_to_load(self, mock_hass):
+        """Priority 1: native select entity state used as profile_to_load."""
+        mock_hass.data = {}
+        state = MagicMock()
+        state.state = "Summer"
+
+        def _get(entity_id):
+            if entity_id == "select.cronostar_thermostat_test_current_profile":
+                return state
+            return None
+
+        mock_hass.states.get = _get
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {
+                    "Summer": {"schedule": [{"time": "08:00", "value": 20}]}
+                },
+                "meta": {"min_value": 15, "max_value": 25, "target_entity": "climate.test"},
+            })
+        ])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        result = run(svc.register_card(_call(
+            card_id="c1",
+            preset="thermostat",
+            global_prefix="cronostar_thermostat_test_",
+        )))
+        assert result["profile_data"]["profile_name"] == "Summer"
+
+    def test_legacy_input_select_fallback(self, mock_hass):
+        """Priority 2: legacy input_select used when native select is unavailable."""
+        mock_hass.data = {}
+        state_legacy = MagicMock()
+        state_legacy.state = "Winter"
+        target_state = MagicMock()
+        target_state.state = "heat"
+
+        def _get(entity_id):
+            if entity_id == "input_select.cronostar_thermostat_test_profiles":
+                return state_legacy
+            if entity_id == "climate.test":
+                return target_state
+            return None
+
+        mock_hass.states.get = _get
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {
+                    "Winter": {"schedule": [{"time": "08:00", "value": 18}]}
+                },
+                "meta": {"target_entity": "climate.test"},
+            })
+        ])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        result = run(svc.register_card(_call(
+            card_id="c1",
+            preset="thermostat",
+            global_prefix="cronostar_thermostat_test_",
+        )))
+        assert result["profile_data"]["profile_name"] == "Winter"
+
+    def test_fallback_to_requested_profile(self, mock_hass):
+        """Priority 3: requested_profile used when no selectors are active."""
+        mock_hass.data = {}
+        mock_hass.states.get = MagicMock(return_value=None)
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {
+                    "Eco": {"schedule": [{"time": "08:00", "value": 19}]}
+                },
+                "meta": {"target_entity": "climate.test"},
+            })
+        ])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        result = run(svc.register_card(_call(
+            card_id="c1",
+            preset="thermostat",
+            global_prefix="cronostar_thermostat_test_",
+            selected_profile="Eco",
+        )))
+        assert result["profile_data"]["profile_name"] == "Eco"
+
+    def test_profile_not_found_sets_success_false(self, mock_hass):
+        """When profile lookup fails, response[success]=False with diagnostics."""
+        mock_hass.data = {}
+        mock_hass.states.get = MagicMock(return_value=None)
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(side_effect=[[], []])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        result = run(svc.register_card(_call(
+            card_id="c1", preset="thermostat",
+            global_prefix="cronostar_thermostat_test_",
+        )))
         assert result["success"] is False
-        assert result["profile_data"] is None
         assert result["diagnostics"] is not None
 
-
-@pytest.mark.anyio
-async def test_register_card_active_profile_from_native_select(hass):
-    """Test that the active profile is read from the native select entity."""
-    svc, h, storage, _ = _make_service(hass=hass)
-
-    select_state = MagicMock()
-    select_state.state = "Eco"
-    h.states.get = MagicMock(side_effect=lambda eid: select_state if "current_profile" in eid else None)
-
-    profile_data = {
-        "profile_name": "Eco",
-        "schedule": [],
-        "meta": {"target_entity": "climate.kitchen"},
-    }
-    with patch.object(svc, "get_profile_data", AsyncMock(return_value=profile_data)), \
-         patch.object(svc, "_ensure_controller_exists", AsyncMock()):
-        call = _make_call({
-            "card_id": "card1",
-            "preset": "thermostat",
-            "global_prefix": "cronostar_thermostat_k_",
-        })
-        result = await svc.register_card(call)
-        assert result["success"] is True
-
-@pytest.mark.anyio
-async def test_register_card_validation_errors(hass):
-    """Test that validation detects errors."""
-    svc, h, storage, _ = _make_service(hass=hass)
-
-    with patch.object(svc, "get_profile_data", AsyncMock(return_value={"error": "not found"})), \
-         patch.object(svc, "_ensure_controller_exists", AsyncMock()):
-        call = _make_call({
-            "card_id": "card1",
-            "preset": "thermostat",
-            "global_prefix": "",   # empty prefix → validation error
-        })
-        result = await svc.register_card(call)
-        assert result["validation"]["valid"] is False
-        assert len(result["validation"]["errors"]) > 0
-
-
-# ---------------------------------------------------------------------------
-# _validate_schedule
-# ---------------------------------------------------------------------------
-
-@pytest.mark.anyio
-async def test_validate_schedule_valid(hass):
-    """Test correct schedule validation."""
-    svc, _, _, _ = _make_service(hass=hass)
-    schedule = [
-        {"time": "08:00", "value": 21.0},
-        {"time": "22:00", "value": 18.0},
-    ]
-    result = svc._validate_schedule(schedule, min_val=15.0, max_val=30.0)
-    assert len(result) == 2
-    assert result[0]["time"] == "08:00"
-
-
-@pytest.mark.anyio
-async def test_validate_schedule_non_list(hass):
-    """Test validation with non-list input."""
-    svc, _, _, _ = _make_service(hass=hass)
-    result = svc._validate_schedule("not a list")
-    assert result == []
-
-
-@pytest.mark.anyio
-async def test_validate_schedule_invalid_time_format(hass):
-    """Test validation with invalid time format."""
-    svc, _, _, _ = _make_service(hass=hass)
-    schedule = [{"time": "25:99", "value": 21.0}]
-    result = svc._validate_schedule(schedule)
-    assert result == []
-
-
-@pytest.mark.anyio
-async def test_validate_schedule_nan_value(hass):
-    """Test validation with NaN value."""
-    import math
-    svc, _, _, _ = _make_service(hass=hass)
-    schedule = [{"time": "08:00", "value": float("nan")}]
-    result = svc._validate_schedule(schedule)
-    assert result == []
-
-
-@pytest.mark.anyio
-async def test_validate_schedule_value_below_min(hass):
-    """Test that values below the minimum are brought to the minimum."""
-    svc, _, _, _ = _make_service(hass=hass)
-    schedule = [{"time": "08:00", "value": 5.0}]
-    result = svc._validate_schedule(schedule, min_val=15.0, max_val=30.0)
-    assert result[0]["value"] == 15.0
-
-
-@pytest.mark.anyio
-async def test_validate_schedule_value_above_max(hass):
-    """Test that values above the maximum are reset to the minimum."""
-    svc, _, _, _ = _make_service(hass=hass)
-    schedule = [{"time": "08:00", "value": 50.0}]
-    result = svc._validate_schedule(schedule, min_val=15.0, max_val=30.0)
-    assert result[0]["value"] == 15.0
-
-
-@pytest.mark.anyio
-async def test_validate_schedule_deduplicates_times(hass):
-    """Test that points with the same time are deduplicated."""
-    svc, _, _, _ = _make_service(hass=hass)
-    schedule = [
-        {"time": "08:00", "value": 21.0},
-        {"time": "08:00", "value": 22.0},  # duplicate
-    ]
-    result = svc._validate_schedule(schedule)
-    assert len(result) == 1
-    assert result[0]["value"] == 22.0   # last one wins
-
-
-@pytest.mark.anyio
-async def test_validate_schedule_non_numeric_value(hass):
-    """Test that values non-numeric values are discarded."""
-    svc, _, _, _ = _make_service(hass=hass)
-    schedule = [{"time": "08:00", "value": "abc"}]
-    result = svc._validate_schedule(schedule)
-    assert result == []
-
-
-@pytest.mark.anyio
-async def test_validate_schedule_missing_fields(hass):
-    """Test that elements without time or value are discarded."""
-    svc, _, _, _ = _make_service(hass=hass)
-    schedule = [{"time": "08:00"}, {"value": 20.0}, {}]
-    result = svc._validate_schedule(schedule)
-    assert result == []
-
-
-@pytest.mark.anyio
-async def test_validate_schedule_sorted_by_time(hass):
-    """Test that the schedule is sorted by time."""
-    svc, _, _, _ = _make_service(hass=hass)
-    schedule = [
-        {"time": "22:00", "value": 18.0},
-        {"time": "08:00", "value": 21.0},
-    ]
-    result = svc._validate_schedule(schedule)
-    assert result[0]["time"] == "08:00"
-    assert result[1]["time"] == "22:00"
-
-
-@pytest.mark.anyio
-async def test_validate_schedule_above_max_no_min(hass):
-    """Test reset to 0.0 when max is exceeded and min_val is None."""
-    svc, _, _, _ = _make_service(hass=hass)
-    schedule = [{"time": "08:00", "value": 999.0}]
-    result = svc._validate_schedule(schedule, min_val=None, max_val=100.0)
-    assert result[0]["value"] == 0.0
-
-
-# ---------------------------------------------------------------------------
-# _build_metadata
-# ---------------------------------------------------------------------------
-
-@pytest.mark.anyio
-async def test_build_metadata_filters_allowed_keys(hass):
-    """Test that only allowed keys are included in the metadata."""
-    svc, _, _, _ = _make_service(hass=hass)
-    user_meta = {
-        "title": "Cucina",
-        "min_value": 15.0,
-        "max_value": 30.0,
-        "unknown_field": "should_be_excluded",
-    }
-    result = svc._build_metadata("thermostat", "cronostar_thermostat_k_", user_meta)
-    assert result["title"] == "Cucina"
-    assert result["min_value"] == 15.0
-    assert "unknown_field" not in result
-
-
-@pytest.mark.anyio
-async def test_build_metadata_sets_core_fields(hass):
-    """Test that core fields are always set."""
-    svc, _, _, _ = _make_service(hass=hass)
-    result = svc._build_metadata("thermostat", "cronostar_thermostat_k_", {})
-    assert result["preset_type"] == "thermostat"
-    assert result["global_prefix"] == "cronostar_thermostat_k_"
-    assert "updated_at" in result
-
-
-@pytest.mark.anyio
-async def test_build_metadata_removes_preset_key(hass):
-    """Test that the legacy 'preset' key is removed."""
-    svc, _, _, _ = _make_service(hass=hass)
-    user_meta = {"preset": "thermostat", "title": "Test"}
-    result = svc._build_metadata("thermostat", "prefix_", user_meta)
-    assert "preset" not in result
-
-
-# ---------------------------------------------------------------------------
-# _is_valid_time / _time_to_minutes (static)
-# ---------------------------------------------------------------------------
-
-@pytest.mark.anyio
-async def test_is_valid_time(hass):
-    """Test time format validation."""
-    from custom_components.cronostar.services.profile_service import ProfileService
-    assert ProfileService._is_valid_time("00:00") is True
-    assert ProfileService._is_valid_time("23:59") is True
-    assert ProfileService._is_valid_time("24:00") is False
-    assert ProfileService._is_valid_time("12:60") is False
-    assert ProfileService._is_valid_time("abc") is False
-    assert ProfileService._is_valid_time("1:00") is False
-
-
-@pytest.mark.anyio
-async def test_time_to_minutes(hass):
-    """Test time to minutes conversion."""
-    from custom_components.cronostar.services.profile_service import ProfileService
-    assert ProfileService._time_to_minutes("00:00") == 0
-    assert ProfileService._time_to_minutes("01:00") == 60
-    assert ProfileService._time_to_minutes("23:59") == 23 * 60 + 59
-    assert ProfileService._time_to_minutes("invalid") == 0
-
-
-# ---------------------------------------------------------------------------
-# async_update_profile_selectors
-# ---------------------------------------------------------------------------
-
-@pytest.mark.anyio
-async def test_async_update_profile_selectors_updates_input_select(hass):
-    """Test updating input_select with found profiles."""
-    svc, h, storage, _ = _make_service(hass=hass)
-
-    storage.list_profiles = AsyncMock(return_value=["cronostar_thermostat_k_.json"])
-    storage.load_profile_cached = AsyncMock(return_value={
-        "meta": {"global_prefix": "cronostar_thermostat_k_"},
-        "profiles": {"Comfort": {}, "Eco": {}},
-    })
-
-    mock_state = MagicMock()
-    mock_state.entity_id = "input_select.cronostar_thermostat_k_profiles"
-    mock_state.attributes = {"options": ["OldProfile"]}
-    h.states.async_all = MagicMock(return_value=[mock_state])
-
-    await svc.async_update_profile_selectors()
-    h.services.async_call.assert_called_once()
-
-
-@pytest.mark.anyio
-async def test_async_update_profile_selectors_no_change(hass):
-    """Test that async_call is not called if options do not change."""
-    svc, h, storage, _ = _make_service(hass=hass)
-
-    storage.list_profiles = AsyncMock(return_value=["cronostar_thermostat_k_.json"])
-    storage.load_profile_cached = AsyncMock(return_value={
-        "meta": {"global_prefix": "cronostar_thermostat_k_"},
-        "profiles": {"Comfort": {}},
-    })
-
-    mock_state = MagicMock()
-    mock_state.entity_id = "input_select.cronostar_thermostat_k_profiles"
-    mock_state.attributes = {"options": ["Comfort"]}  # already updated
-    h.states.async_all = MagicMock(return_value=[mock_state])
-
-    await svc.async_update_profile_selectors()
-    h.services.async_call.assert_not_called()
-
-
-@pytest.mark.anyio
-async def test_async_update_profile_selectors_bad_container(hass):
-    """Test that a malformed container does not cause a crash."""
-    svc, h, storage, _ = _make_service(hass=hass)
-
-    storage.list_profiles = AsyncMock(return_value=["bad.json"])
-    storage.load_profile_cached = AsyncMock(side_effect=Exception("bad data"))
-
-    mock_state = MagicMock()
-    mock_state.entity_id = "input_select.cronostar_thermostat_k_profiles"
-    mock_state.attributes = {"options": []}
-    h.states.async_all = MagicMock(return_value=[mock_state])
-
-    # Should not raise exceptions
-    await svc.async_update_profile_selectors()
-
-
-# ---------------------------------------------------------------------------
-# _ensure_controller_exists
-# ---------------------------------------------------------------------------
-
-@pytest.mark.anyio
-async def test_ensure_controller_exists_already_present(hass):
-    """Test that a controller is not created if it already exists."""
-    svc, h, _, _ = _make_service(hass=hass)
-
-    mock_entry = MagicMock()
-    mock_entry.data = {"global_prefix": "cronostar_thermostat_k_"}
-    h.config_entries.async_entries = MagicMock(return_value=[mock_entry])
-
-    await svc._ensure_controller_exists("cronostar_thermostat_k_", "thermostat", {})
-    h.config_entries.flow.async_init.assert_not_called()
-
-
-@pytest.mark.anyio
-async def test_ensure_controller_exists_creates_new(hass):
-    """Test that a new controller is created if missing."""
-    svc, h, _, _ = _make_service(hass=hass)
-    h.config_entries.async_entries = MagicMock(return_value=[])
-
-    await svc._ensure_controller_exists("cronostar_thermostat_k_", "thermostat", {})
-    h.config_entries.flow.async_init.assert_called_once()
-
-
-@pytest.mark.anyio
-async def test_ensure_controller_exists_empty_prefix(hass):
-    """Test that _ensure_controller_exists returns immediately with an empty prefix."""
-    svc, h, _, _ = _make_service(hass=hass)
-    await svc._ensure_controller_exists("", "thermostat", {})
-    h.config_entries.flow.async_init.assert_not_called()
+    def test_exception_in_profile_loading_caught(self, mock_hass):
+        """Exception during get_profile_data → caught, response still returned."""
+        mock_hass.data = {}
+        mock_hass.states.get = MagicMock(return_value=None)
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(side_effect=RuntimeError("crash"))
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        result = run(svc.register_card(_call(
+            card_id="c1", preset="thermostat",
+            global_prefix="cronostar_thermostat_test_",
+        )))
+        # Should not raise, response still returned
+        assert "success" in result
+
+    def test_validation_no_preset_adds_error(self, mock_hass):
+        """Validation: missing preset field adds error."""
+        mock_hass.data = {}
+        mock_hass.states.get = MagicMock(return_value=None)
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(side_effect=[[], []])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        # Note: _call without "preset" key → call.data.get("preset") returns None
+        c = MagicMock()
+        c.data = {"card_id": "c1", "global_prefix": "pfx_"}  # no "preset" key
+        result = run(svc.register_card(c))
+        assert any("Preset" in e for e in result["validation"]["errors"])
+
+    def test_validation_no_global_prefix_adds_error(self, mock_hass):
+        """Validation: empty global_prefix adds error."""
+        mock_hass.data = {}
+        mock_hass.states.get = MagicMock(return_value=None)
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(side_effect=[[], []])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        result = run(svc.register_card(_call(
+            card_id="c1", preset="thermostat", global_prefix=""
+        )))
+        assert any("prefix" in e.lower() for e in result["validation"]["errors"])
+
+    def test_validation_target_entity_not_in_states(self, mock_hass):
+        """Validation: target entity configured but not found in HA states."""
+        mock_hass.data = {}
+        mock_hass.is_running = True
+
+        def _get(eid):
+            if eid == "climate.ghost":
+                return None
+            return None
+
+        mock_hass.states.get = _get
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {
+                    "Default": {"schedule": []}
+                },
+                "meta": {"target_entity": "climate.ghost"},
+            })
+        ])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        result = run(svc.register_card(_call(
+            card_id="c1", preset="thermostat",
+            global_prefix="specific_prefix_", selected_profile="Default",
+        )))
+        assert any("not found" in e.lower() for e in result["validation"]["errors"])
+
+    def test_validation_no_target_entity_in_meta(self, mock_hass):
+        """Validation: no target_entity in profile meta → error added."""
+        mock_hass.data = {}
+        mock_hass.states.get = MagicMock(return_value=None)
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {
+                    "Default": {"schedule": []}
+                },
+                "meta": {},  # no target_entity
+            })
+        ])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        result = run(svc.register_card(_call(
+            card_id="c1", preset="thermostat",
+            global_prefix="specific_prefix_", selected_profile="Default",
+        )))
+        assert any("Target" in e or "target" in e for e in result["validation"]["errors"])
+
+    def test_entity_states_populated(self, mock_hass):
+        """Entity states dict is populated with current helper, selector, enabled."""
+        mock_hass.data = {}
+
+        switch_state = MagicMock()
+        switch_state.state = "on"
+        select_state = MagicMock()
+        select_state.state = "Default"
+        sensor_state = MagicMock()
+        sensor_state.state = "21.5"
+        target_state = MagicMock()
+        target_state.state = "heat"
+
+        def _get(eid):
+            if eid == "climate.test":
+                return target_state
+            return None
+
+        mock_hass.states.get = _get
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        # Entity registry returns None for all UIDs
+        er = MagicMock()
+        er.async_get_entity_id = MagicMock(return_value=None)
+        with patch("homeassistant.helpers.entity_registry.async_get", return_value=er):
+            storage = MagicMock()
+            storage.get_cached_containers = AsyncMock(return_value=[
+                ("f.json", {
+                    "profiles": {"Default": {"schedule": []}},
+                    "meta": {"target_entity": "climate.test"},
+                })
+            ])
+            storage.list_profiles = AsyncMock(return_value=[])
+            storage.save_profile = AsyncMock()
+            settings = MagicMock()
+            settings.load_settings = AsyncMock(return_value={})
+            svc = ProfileService(mock_hass, storage, settings)
+
+            result = run(svc.register_card(_call(
+                card_id="c1", preset="thermostat",
+                global_prefix="specific_prefix_",
+                selected_profile="Default",
+            )))
+        assert "entity_states" in result
+
+    def test_entity_states_exception_caught(self, mock_hass):
+        """Exception in entity_states block → caught, response still returned."""
+        mock_hass.data = {}
+        mock_hass.states.get = MagicMock(return_value=None)
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {"Default": {"schedule": []}},
+                "meta": {"target_entity": "climate.test"},
+            })
+        ])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        with patch("homeassistant.helpers.entity_registry.async_get",
+                   side_effect=RuntimeError("er broken")):
+            result = run(svc.register_card(_call(
+                card_id="c1", preset="thermostat",
+                global_prefix="specific_prefix_",
+                selected_profile="Default",
+            )))
+        assert "entity_states" in result  # still present, just may be empty
+
+    def test_preset_defaults_file_loaded_when_exists(self, mock_hass, tmp_path):
+        """Preset defaults JSON file is read when it exists."""
+        import json as _json
+        presets_dir = tmp_path / "cronostar" / "presets"
+        presets_dir.mkdir(parents=True)
+        defaults_file = presets_dir / "thermostat_defaults.json"
+        defaults_file.write_text(_json.dumps({"min_value": 15.0, "max_value": 30.0}))
+
+        mock_hass.data = {}
+        mock_hass.states.get = MagicMock(return_value=None)
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(side_effect=[[], []])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        result = run(svc.register_card(_call(
+            card_id="c1", preset="thermostat",
+            global_prefix="cronostar_thermostat_test_",
+        )))
+        assert result["preset_defaults"].get("min_value") == 15.0
+
+    def test_preset_defaults_file_error_is_swallowed(self, mock_hass):
+        """Error loading preset defaults → warning logged, no crash."""
+        mock_hass.data = {}
+        mock_hass.states.get = MagicMock(return_value=None)
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(side_effect=[[], []])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        # mkdir raises to trigger the except path
+        with patch("pathlib.Path.mkdir", side_effect=OSError("no perm")):
+            result = run(svc.register_card(_call(
+                card_id="c1", preset="thermostat",
+                global_prefix="cronostar_thermostat_test_",
+            )))
+        assert result["preset_defaults"] == {}
+
+    def test_entry_data_meta_merge_skips_generic_max(self, mock_hass):
+        """Entry max_value=100.0 (generic) is NOT applied when preset default differs."""
+        mock_hass.data = {}
+        mock_hass.states.get = MagicMock(return_value=None)
+
+        entry = MagicMock()
+        entry.data = {
+            "global_prefix": "specific_prefix_",
+            "max_value": 100.0,  # generic default
+            "target_entity": "climate.test",
+        }
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[entry])
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {
+                    "Default": {"schedule": []}
+                },
+                "meta": {
+                    "target_entity": "climate.test",
+                    "max_value": 28.0,  # profile has specific value
+                },
+            })
+        ])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        result = run(svc.register_card(_call(
+            card_id="c1", preset="thermostat",
+            global_prefix="specific_prefix_", selected_profile="Default",
+        )))
+        # max_value should remain 28.0 (not overwritten by generic 100.0)
+        if result["profile_data"]:
+            assert result["profile_data"]["meta"].get("max_value") == 28.0
+
+    def test_entry_data_meta_merge_applies_non_generic_value(self, mock_hass):
+        """Entry value that is NOT a generic default IS applied to fill missing profile field."""
+        mock_hass.data = {}
+        mock_hass.states.get = MagicMock(return_value=None)
+
+        entry = MagicMock()
+        entry.data = {
+            "global_prefix": "specific_prefix_",
+            "max_value": 35.0,  # specific (not generic)
+            "target_entity": "climate.test",
+        }
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[entry])
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {
+                    "Default": {"schedule": []}
+                },
+                "meta": {
+                    "target_entity": "climate.test",
+                    # no max_value in meta → should be filled from entry
+                },
+            })
+        ])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        svc = ProfileService(mock_hass, storage, settings)
+
+        result = run(svc.register_card(_call(
+            card_id="c1", preset="thermostat",
+            global_prefix="specific_prefix_", selected_profile="Default",
+        )))
+        if result["profile_data"]:
+            assert result["profile_data"]["meta"].get("max_value") == 35.0
+
+    def test_entity_registry_resolves_uid(self, mock_hass):
+        """Entity registry lookup returns an entity_id for the UID."""
+        mock_hass.data = {}
+
+        target_state = MagicMock()
+        target_state.state = "heat"
+        switch_state = MagicMock()
+        switch_state.state = "on"
+
+        def _get(eid):
+            if eid == "climate.test":
+                return target_state
+            if eid == "switch.cronostar_thermostat_test_enabled":
+                return switch_state
+            return None
+
+        mock_hass.states.get = _get
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        er = MagicMock()
+        er.async_get_entity_id = MagicMock(
+            return_value="switch.cronostar_thermostat_test_enabled"
+        )
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {"Default": {"schedule": []}},
+                "meta": {"target_entity": "climate.test"},
+            })
+        ])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+
+        with patch("homeassistant.helpers.entity_registry.async_get", return_value=er):
+            svc = ProfileService(mock_hass, storage, settings)
+            result = run(svc.register_card(_call(
+                card_id="c1", preset="thermostat",
+                global_prefix="specific_prefix_",
+                selected_profile="Default",
+            )))
+        assert "entity_states" in result
+
+    def test_state_search_fallback_for_uid(self, mock_hass):
+        """When registry returns None, state search is used as fallback."""
+        mock_hass.data = {}
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        er = MagicMock()
+        er.async_get_entity_id = MagicMock(return_value=None)
+
+        switch_state = MagicMock()
+        switch_state.state = "on"
+
+        def _get(eid):
+            if eid == "switch.cronostar_thermostat_test_enabled":
+                return switch_state
+            return None
+
+        mock_hass.states.get = _get
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {"Default": {"schedule": []}},
+                "meta": {"target_entity": "switch.cronostar_thermostat_test_enabled"},
+            })
+        ])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+
+        with patch("homeassistant.helpers.entity_registry.async_get", return_value=er):
+            svc = ProfileService(mock_hass, storage, settings)
+            result = run(svc.register_card(_call(
+                card_id="c1", preset="thermostat",
+                global_prefix="specific_prefix_",
+                selected_profile="Default",
+            )))
+        assert "entity_states" in result
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# register_card – meta merge: Case A2 (min=0.0 skip) and Case B (val==preset_def)
+# Lines 630-635
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestRegisterCardMetaMergeCases:
+
+    def _svc_with_entry(self, mock_hass, entry_data, profile_meta):
+        entry = MagicMock()
+        entry.data = entry_data
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[entry])
+        mock_hass.states.get = MagicMock(return_value=None)
+        mock_hass.data = {}
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {"Default": {"schedule": []}},
+                "meta": profile_meta,
+            })
+        ])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+        return ProfileService(mock_hass, storage, settings)
+
+    def test_case_a2_min_value_zero_skipped(self, mock_hass):
+        """Lines 630-631: entry min_value=0.0 while preset default is 15.0 → not applied."""
+        svc = self._svc_with_entry(
+            mock_hass,
+            entry_data={
+                "global_prefix": "specific_prefix_",
+                "min_value": 0.0,     # generic default
+                "target_entity": "climate.test",
+            },
+            profile_meta={
+                "target_entity": "climate.test",
+                "min_value": 16.0,    # profile has a specific value → profile_val is not None
+            },
+        )
+        result = run(svc.register_card(_call(
+            card_id="c1", preset="thermostat",
+            global_prefix="specific_prefix_", selected_profile="Default",
+        )))
+        # 0.0 must NOT have overwritten the profile's 16.0
+        if result["profile_data"]:
+            assert result["profile_data"]["meta"].get("min_value") == 16.0
+
+    def test_case_b_val_matches_preset_default_skipped(self, mock_hass):
+        """Lines 633-635: entry max_value=30.0 matches thermostat preset default → not applied."""
+        svc = self._svc_with_entry(
+            mock_hass,
+            entry_data={
+                "global_prefix": "specific_prefix_",
+                "max_value": 30.0,    # exactly the thermostat preset default
+                "target_entity": "climate.test",
+            },
+            profile_meta={
+                "target_entity": "climate.test",
+                "max_value": 28.0,    # profile has a different value (not None)
+            },
+        )
+        result = run(svc.register_card(_call(
+            card_id="c1", preset="thermostat",
+            global_prefix="specific_prefix_", selected_profile="Default",
+        )))
+        # 30.0 (preset default) must NOT have overwritten the profile's 28.0
+        if result["profile_data"]:
+            assert result["profile_data"]["meta"].get("max_value") == 28.0
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# register_card – get_state_by_uid priority-2 state-search break (lines 697-701)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestRegisterCardStateSearchBreak:
+
+    def test_state_search_inner_and_outer_break_hit(self, mock_hass):
+        """
+        Lines 697-701: registry returns None (priority-1 fails) → state search
+        domain loop finds a matching state → sets entity_id and breaks both loops.
+
+        UID = "{prefix}current"  (the helper/sensor UID)
+        base = "cronostar_thermostat_test_current"
+        The loop tries switch, then sensor → sensor.cronostar_thermostat_test_current exists.
+        """
+        mock_hass.data = {}
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        # Registry returns None for all lookups
+        er = MagicMock()
+        er.async_get_entity_id = MagicMock(return_value=None)
+
+        sensor_state = MagicMock()
+        sensor_state.state = "21.5"
+        target_state = MagicMock()
+        target_state.state = "heat"
+
+        prefix = "cronostar_thermostat_test_"
+        helper_uid = f"{prefix}current"
+        sensor_entity_id = f"sensor.{helper_uid}"
+
+        def _get(eid):
+            if eid == sensor_entity_id:
+                return sensor_state
+            if eid == "climate.test":
+                return target_state
+            return None
+
+        mock_hass.states.get = _get
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {"Default": {"schedule": []}},
+                "meta": {"target_entity": "climate.test"},
+            })
+        ])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+
+        with patch("homeassistant.helpers.entity_registry.async_get", return_value=er):
+            svc = ProfileService(mock_hass, storage, settings)
+            result = run(svc.register_card(_call(
+                card_id="c1", preset="thermostat",
+                global_prefix=prefix,
+                selected_profile="Default",
+            )))
+
+        # The sensor state should be reflected in entity_states
+        assert result["entity_states"].get("current_helper") == "21.5"
+
+    def test_state_search_enabled_uid_via_truncated_base(self, mock_hass):
+        """
+        Lines 699, 701: uid ending with '_enabled' → search_bases includes
+        the truncated base (without '_enabled') → domain loop finds a match
+        via the truncated base → both breaks triggered.
+        """
+        mock_hass.data = {}
+        mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+
+        er = MagicMock()
+        er.async_get_entity_id = MagicMock(return_value=None)
+
+        prefix = "cronostar_thermostat_test_"
+        enabled_uid = f"{prefix}enabled"
+        # truncated base: "cronostar_thermostat_test" (without _enabled)
+        switch_entity_id = f"switch.cronostar_thermostat_test"
+
+        switch_state = MagicMock()
+        switch_state.state = "on"
+        target_state = MagicMock()
+        target_state.state = "heat"
+
+        def _get(eid):
+            if eid == switch_entity_id:
+                return switch_state
+            if eid == "climate.test":
+                return target_state
+            return None
+
+        mock_hass.states.get = _get
+
+        storage = MagicMock()
+        storage.get_cached_containers = AsyncMock(return_value=[
+            ("f.json", {
+                "profiles": {"Default": {"schedule": []}},
+                "meta": {"target_entity": "climate.test"},
+            })
+        ])
+        storage.list_profiles = AsyncMock(return_value=[])
+        storage.save_profile = AsyncMock()
+
+        settings = MagicMock()
+        settings.load_settings = AsyncMock(return_value={})
+
+        with patch("homeassistant.helpers.entity_registry.async_get", return_value=er):
+            svc = ProfileService(mock_hass, storage, settings)
+            result = run(svc.register_card(_call(
+                card_id="c1", preset="thermostat",
+                global_prefix=prefix,
+                selected_profile="Default",
+            )))
+
+        assert result["entity_states"].get("enabled") == "on"

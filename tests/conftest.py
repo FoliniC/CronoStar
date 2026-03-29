@@ -1,278 +1,360 @@
-"""Global test configuration for anyio-based tests."""
-import os
+"""
+conftest.py – installs Home Assistant stub modules into sys.modules
+before any test file imports the sources under test.
+"""
+
 import sys
+import types
+import logging
+from datetime import timedelta
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
-# -----------------------------------------------------------------------------
-# 1. Path Setup (MUST be first)
-# -----------------------------------------------------------------------------
-# Add the 'tests' directory itself so we can import 'mock_ha' as a module if needed
-sys.path.insert(0, os.path.dirname(__file__))
-
-# Add the project root (up one level from 'tests') so we can import 'custom_components'
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, project_root)
-sys.path.insert(0, os.path.join(project_root, "custom_components"))
-
-# -----------------------------------------------------------------------------
-# 2. Imports (Now safe to import local modules)
-# -----------------------------------------------------------------------------
-import mock_ha  # Import directly since 'tests' dir is in path now
-import socket
-import _socket
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 
-# -----------------------------------------------------------------------------
-# 3. Socket Patching
-# -----------------------------------------------------------------------------
-try:
-    import pytest_socket
-    pytest_socket.disable_socket = lambda *args, **kwargs: None
-    pytest_socket.enable_socket()
-except Exception:
+# ──────────────────────────────────────────────────────────────────────────────
+# 1.  HA stub modules - FORCE INJECTION
+# ──────────────────────────────────────────────────────────────────────────────
+
+class HomeAssistantError(Exception):
     pass
 
-# Force restore original socket from C implementation
-socket.socket = _socket.socket
-if hasattr(_socket, "socketpair"):
-    socket.socketpair = _socket.socketpair
+class ConfigEntryAuthFailed(HomeAssistantError):
+    pass
 
-# -----------------------------------------------------------------------------
-# 4. Fixtures & Configuration
-# -----------------------------------------------------------------------------
+class ConfigEntryNotReady(HomeAssistantError):
+    pass
 
-def pytest_configure(config):
-    """Add markers and ensure sockets are enabled."""
-    config.addinivalue_line("markers", "allow_socket: allow socket usage")
-    config.addinivalue_line("markers", "no_fail_on_log_exception: mark test to not fail on log exception")
-    
-    try:
-        import pytest_socket
-        pytest_socket.enable_socket()
-    except Exception:
+class UnknownEntry(HomeAssistantError):
+    pass
+
+class DataUpdateCoordinator:
+    """Minimal stub that matches the real HA coordinator interface."""
+    def __init__(self, hass, logger, *, name, update_interval):
+        self.hass = hass
+        self.logger = logger
+        self.name = name
+        self.update_interval = update_interval
+        self.data = None
+
+    async def async_refresh(self):
         pass
 
+    async def _async_update_data(self):
+        return {}
 
-@pytest.fixture(autouse=True)
-def enable_event_loop_debug():
-    """Mock enable_event_loop_debug to avoid RuntimeError on Python 3.13."""
-    pass
+class Platform:
+    SENSOR = "sensor"
+    SWITCH = "switch"
+    SELECT = "select"
+    CLIMATE = "climate"
+    LIGHT = "light"
+    FAN = "fan"
+    INPUT_NUMBER = "input_number"
+    COVER = "cover"
 
-@pytest.fixture(scope="session")
-def anyio_backend():
-    """Select asyncio as the backend for anyio tests."""
-    return "asyncio"
+class CoreState:
+    STARTING = "STARTING"
+    RUNNING = "RUNNING"
+    STOPPING = "STOPPING"
+    FINAL_WRITE = "FINAL_WRITE"
+    starting = "starting"
+    running = "running"
+    stopping = "stopping"
+    final_write = "final_write"
 
+class ConfigFlow:
+    def __init_subclass__(cls, domain=None, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.domain = domain
+    async def async_step_user(self, user_input=None): return {}
+    async def async_step_init(self, user_input=None): return {}
+    def async_show_form(self, **kwargs): return {"type": "form", **kwargs}
+    def async_abort(self, **kwargs): return {"type": "abort", **kwargs}
+    def async_create_entry(self, **kwargs): return {"type": "create_entry", **kwargs}
+    def async_show_menu(self, **kwargs): return {"type": "menu", **kwargs}
+    def _async_current_entries(self): return []
+    def async_set_unique_id(self, unique_id, **kwargs): return unique_id
+    def _abort_if_unique_id_configured(self, **kwargs): pass
+
+class OptionsFlow:
+    def __init__(self, config_entry): self.config_entry = config_entry
+    async def async_step_init(self, user_input=None): return {}
+    def async_show_form(self, **kwargs): return {"type": "form", **kwargs}
+    def async_create_entry(self, **kwargs): return {"type": "create_entry", **kwargs}
+    def async_abort(self, **kwargs): return {"type": "abort", **kwargs}
+
+class CoordinatorEntity:
+    def __init__(self, coordinator, context=None):
+        self.coordinator = coordinator
+        self.hass = coordinator.hass
+
+class SelectEntity: pass
+class SensorEntity: pass
+class SwitchEntity: pass
+class SensorDeviceClass:
+    TEMPERATURE = "temperature"
+    ENERGY = "energy"
+class SensorStateClass:
+    MEASUREMENT = "measurement"
+    TOTAL_INCREASING = "total_increasing"
+
+def _install_ha_stubs():
+    STATE_UNAVAILABLE = "unavailable"
+    STATE_UNKNOWN = "unknown"
+    STATE_ON = "on"
+    STATE_OFF = "off"
+
+    # homeassistant.exceptions
+    exc_mod = types.ModuleType("homeassistant.exceptions")
+    exc_mod.HomeAssistantError = HomeAssistantError
+    exc_mod.ConfigEntryAuthFailed = ConfigEntryAuthFailed
+    exc_mod.ConfigEntryNotReady = ConfigEntryNotReady
+    sys.modules["homeassistant.exceptions"] = exc_mod
+
+    # homeassistant.config_entries
+    ce_mod = types.ModuleType("homeassistant.config_entries")
+    ce_mod.ConfigEntryAuthFailed = ConfigEntryAuthFailed
+    ce_mod.ConfigEntryNotReady = ConfigEntryNotReady
+    ce_mod.UnknownEntry = UnknownEntry
+    ce_mod.ConfigEntry = MagicMock
+    ce_mod.ConfigFlow = ConfigFlow
+    ce_mod.OptionsFlow = OptionsFlow
+    sys.modules["homeassistant.config_entries"] = ce_mod
+
+    # homeassistant.const
+    const_mod = types.ModuleType("homeassistant.const")
+    const_mod.STATE_UNAVAILABLE = STATE_UNAVAILABLE
+    const_mod.STATE_UNKNOWN = STATE_UNKNOWN
+    const_mod.STATE_ON = STATE_ON
+    const_mod.STATE_OFF = STATE_OFF
+    const_mod.CONF_NAME = "name"
+    const_mod.CONF_MIN_VALUE = "min_value"
+    const_mod.CONF_MAX_VALUE = "max_value"
+    const_mod.CONF_UNIT_OF_MEASUREMENT = "unit_of_measurement"
+    const_mod.EVENT_HOMEASSISTANT_START = "homeassistant_start"
+    const_mod.EVENT_HOMEASSISTANT_STOP = "homeassistant_stop"
+    const_mod.Platform = Platform
+    sys.modules["homeassistant.const"] = const_mod
+
+    # homeassistant.core
+    core_mod = types.ModuleType("homeassistant.core")
+    core_mod.HomeAssistant = MagicMock
+    core_mod.ServiceCall = MagicMock
+    core_mod.ServiceResponse = dict
+    core_mod.callback = lambda x: x
+    core_mod.CoreState = CoreState
+    core_mod.Event = MagicMock
+    sys.modules["homeassistant.core"] = core_mod
+
+    # homeassistant.helpers.update_coordinator
+    coord_mod = types.ModuleType("homeassistant.helpers.update_coordinator")
+    coord_mod.DataUpdateCoordinator = DataUpdateCoordinator
+    coord_mod.CoordinatorEntity = CoordinatorEntity
+    sys.modules["homeassistant.helpers.update_coordinator"] = coord_mod
+
+    # homeassistant.components.select
+    select_comp_mod = types.ModuleType("homeassistant.components.select")
+    select_comp_mod.SelectEntity = SelectEntity
+    sys.modules["homeassistant.components.select"] = select_comp_mod
+
+    # homeassistant.components.sensor
+    sensor_comp_mod = types.ModuleType("homeassistant.components.sensor")
+    sensor_comp_mod.SensorEntity = SensorEntity
+    sys.modules["homeassistant.components.sensor"] = sensor_comp_mod
+
+    # homeassistant.components.switch
+    switch_comp_mod = types.ModuleType("homeassistant.components.switch")
+    switch_comp_mod.SwitchEntity = SwitchEntity
+    sys.modules["homeassistant.components.switch"] = switch_comp_mod
+
+    # homeassistant.helpers.entity_registry
+    er_mod = types.ModuleType("homeassistant.helpers.entity_registry")
+    er_mod.async_get = MagicMock(return_value=MagicMock())
+    er_mod.EntityRegistryStore = MagicMock
+    sys.modules["homeassistant.helpers.entity_registry"] = er_mod
+
+    # homeassistant.helpers.frame
+    frame_mod = types.ModuleType("homeassistant.helpers.frame")
+    frame_mod.report_usage = MagicMock()
+    sys.modules["homeassistant.helpers.frame"] = frame_mod
+
+    # homeassistant.helpers
+    helpers_mod = types.ModuleType("homeassistant.helpers")
+    helpers_mod.entity_registry = er_mod
+    helpers_mod.update_coordinator = coord_mod
+    helpers_mod.frame = frame_mod
+    sys.modules["homeassistant.helpers"] = helpers_mod
+
+    # homeassistant.components.frontend
+    frontend_mod = types.ModuleType("homeassistant.components.frontend")
+    frontend_mod.async_register_built_in_panel = MagicMock()
+    frontend_mod.async_remove_panel = MagicMock()
+    frontend_mod.add_extra_js_url = MagicMock() # Added this
+    sys.modules["homeassistant.components.frontend"] = frontend_mod
+
+    # homeassistant.components.lovelace.dashboard
+    lovelace_dash_mod = types.ModuleType("homeassistant.components.lovelace.dashboard")
+    lovelace_dash_mod.LovelaceYAML = MagicMock()
+    sys.modules["homeassistant.components.lovelace.dashboard"] = lovelace_dash_mod
+
+    lovelace_mod = types.ModuleType("homeassistant.components.lovelace")
+    lovelace_mod.dashboard = lovelace_dash_mod
+    sys.modules["homeassistant.components.lovelace"] = lovelace_mod
+
+    # homeassistant.components.websocket_api
+    ws_api_mod = types.ModuleType("homeassistant.components.websocket_api")
+    ws_api_mod.async_register_command = MagicMock()
+    ws_api_mod.websocket_command = lambda schema: (lambda func: func)
+    ws_api_mod.async_response = lambda func: func
+    ws_api_mod.ActiveConnection = MagicMock
+    sys.modules["homeassistant.components.websocket_api"] = ws_api_mod
+
+    # homeassistant.components.sensor
+    sensor_mod = types.ModuleType("homeassistant.components.sensor")
+    class SensorDeviceClass:
+        TEMPERATURE = "temperature"
+        POWER = "power"
+        ENERGY = "energy"
+        BATTERY = "battery"
+        HUMIDITY = "humidity"
+    class SensorStateClass:
+        MEASUREMENT = "measurement"
+        TOTAL = "total"
+        TOTAL_INCREASING = "total_increasing"
+    sensor_mod.SensorDeviceClass = SensorDeviceClass
+    sensor_mod.SensorStateClass = SensorStateClass
+    sensor_mod.SensorEntity = type("SensorEntity", (), {})
+    sys.modules["homeassistant.components.sensor"] = sensor_mod
+    # homeassistant.components
+    comp_mod = types.ModuleType("homeassistant.components")
+    comp_mod.frontend = frontend_mod
+    comp_mod.lovelace = lovelace_mod
+    comp_mod.websocket_api = ws_api_mod
+    comp_mod.sensor = sensor_mod
+    sys.modules["homeassistant.components"] = comp_mod
+
+    # homeassistant.loader
+    loader_mod = types.ModuleType("homeassistant.loader")
+    loader_mod.async_get_integration = AsyncMock(
+        return_value=MagicMock(version="6.0.0")
+    )
+    sys.modules["homeassistant.loader"] = loader_mod
+
+    # homeassistant.util
+    util_mod = types.ModuleType("homeassistant.util")
+    util_mod.logging = MagicMock()
+    util_mod.dt = MagicMock()
+    sys.modules["homeassistant.util"] = util_mod
+    sys.modules["homeassistant.util.logging"] = util_mod.logging
+    sys.modules["homeassistant.util.dt"] = util_mod.dt
+
+    # homeassistant.helpers.service
+    service_mod = types.ModuleType("homeassistant.helpers.service")
+    sys.modules["homeassistant.helpers.service"] = service_mod
+
+    # homeassistant.helpers.config_validation
+    cv_mod = types.ModuleType("homeassistant.helpers.config_validation")
+    cv_mod.PLATFORM_SCHEMA = MagicMock()
+    cv_mod.config_entry_only_config_schema = MagicMock(return_value=MagicMock())
+    cv_mod.string = MagicMock()
+    cv_mod.boolean = MagicMock()
+    cv_mod.time = MagicMock()
+    cv_mod.positive_int = MagicMock()
+    cv_mod.enum = MagicMock()
+    sys.modules["homeassistant.helpers.config_validation"] = cv_mod
+
+    # homeassistant (root)
+    ha_mod = types.ModuleType("homeassistant")
+    ha_mod.core = core_mod
+    ha_mod.exceptions = exc_mod
+    ha_mod.const = const_mod
+    ha_mod.helpers = helpers_mod
+    ha_mod.components = comp_mod
+    ha_mod.loader = loader_mod
+    ha_mod.util = util_mod
+    sys.modules["homeassistant"] = ha_mod
+
+_install_ha_stubs()
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 2.  pytest configuration
+# ──────────────────────────────────────────────────────────────────────────────
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "asyncio: mark a test as an asyncio coroutine"
+    )
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 3.  Shared fixtures
+# ──────────────────────────────────────────────────────────────────────────────
 
 @pytest.fixture
-def enable_custom_integrations():
-    """Mock fixture if not provided by plugin."""
-    return True
-
-
-@pytest.fixture(autouse=True)
-def auto_enable_custom_integrations(enable_custom_integrations):
-    """Enable custom integrations defined in the test repository."""
-    yield
-
-
-@pytest.fixture
-def platforms() -> list[str]:
-    """Fixture for platforms to be loaded."""
-    return ["conversation"]
-
-
-@pytest.fixture(autouse=True)
-def patch_mcp_manager():
-    """Ensure MCPManager.start is always an AsyncMock to avoid runtime warnings."""
-    # This single fixture handles the global patching for MCPManager
-    try:
-        with patch("custom_components.azure_openai_sdk_conversation.context.mcp_manager.MCPManager") as MockMCP:
-            mock_instance = MockMCP.return_value
-            mock_instance.start = AsyncMock(return_value=None)
-            mock_instance.stop = AsyncMock(return_value=None)
-            mock_instance.get_tools = AsyncMock(return_value=[])
-            mock_instance.is_new_conversation = MagicMock(return_value=True)
-            mock_instance.build_initial_prompt = MagicMock(return_value="Mock Initial Prompt")
-            mock_instance.build_delta_prompt = MagicMock(return_value="Mock Delta Prompt")
-            yield mock_instance
-    except (ImportError, AttributeError):
-        yield None
-
-
-@pytest.fixture
-def hass(tmp_path):
-    """Mock Home Assistant instance."""
-    try:
-        from custom_components.cronostar.const import DOMAIN
-    except ImportError:
-        DOMAIN = "cronostar"
-
+def mock_hass(tmp_path):
+    """Return a MagicMock that mimics homeassistant.core.HomeAssistant."""
     hass = MagicMock()
-    
-    # Initialize DOMAIN data structure
-    settings_manager = MagicMock()
-    settings_manager.load_settings = AsyncMock(return_value={})
-    settings_manager.save_settings = AsyncMock()
-    
-    storage_manager = MagicMock()
-    storage_manager.list_profiles = AsyncMock(return_value=[])
-    storage_manager.load_profile_cached = AsyncMock(return_value={})
-    
-    hass.data = {DOMAIN: {
-        "settings_manager": settings_manager,
-        "storage_manager": storage_manager
-    }}
-    
-    # Create a temporary config directory
-    config_dir = tmp_path / "config"
-    os.makedirs(str(config_dir), exist_ok=True)
-    
-    def mock_path(x=None):
-        if x is None:
-            return str(config_dir)
-        return str(config_dir / x)
-        
-    hass.config.path = MagicMock(side_effect=mock_path)
-    hass.config.components = []
-    
-    # Mock states with proper structure
-    hass.states.get = MagicMock(return_value=None)
-    hass.states.async_set = MagicMock()
-    hass.states.async_remove = MagicMock()
-    hass.services.async_call = AsyncMock()
-    hass.services.async_register = MagicMock()
-    hass.services.async_remove = AsyncMock()
-    hass.config_entries.async_entries = MagicMock(return_value=[])
-    hass.config_entries.flow.async_init = AsyncMock()
-    hass.config_entries.async_update_entry = MagicMock()
-    
-    # ---------------------------------------------------------
-    # ✅ FIX: Mock loop.create_task inside the fixture function
-    # ---------------------------------------------------------
-    def mock_create_task(coro):
-        """Mock create_task that closes coroutines to suppress warnings."""
-        if hasattr(coro, "close"):
-            coro.close()  # Silences 'coroutine never awaited'
-        return MagicMock()
+    hass.config.path = lambda *parts: str(tmp_path.joinpath(*parts))
+    hass.is_running = True
 
-    hass.loop.create_task = MagicMock(side_effect=mock_create_task)
-    # ---------------------------------------------------------
+    async def _exec(func, *args):
+        return func(*args)
+
+    hass.async_add_executor_job = _exec
+
+    # States store
+    hass.states.get = MagicMock(return_value=None)
+    hass.states.async_all = MagicMock(return_value=[])
+
+    # Config entries
+    hass.config_entries.async_entries = MagicMock(return_value=[])
     
-    # Mock async_add_executor_job
-    async def mock_executor(target, *args, **kwargs):
-        if hasattr(target, "__call__"):
-            return target(*args, **kwargs)
-        return target
-    hass.async_add_executor_job = AsyncMock(side_effect=mock_executor)
-    
+    def _update_entry(entry, **kwargs):
+        if "data" in kwargs:
+            entry.data = kwargs["data"]
+        if "title" in kwargs:
+            entry.title = kwargs["title"]
+        return True
+        
+    hass.config_entries.async_update_entry = MagicMock(side_effect=_update_entry)
+    hass.config_entries.async_remove = AsyncMock()
+    hass.config_entries.flow.async_init = AsyncMock()
+    hass.config_entries.async_forward_entry_setups = AsyncMock()
+    hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+
+    # Services
+    hass.services.async_call = AsyncMock()
+    hass.services.async_remove = AsyncMock()
+    hass.services.async_register = MagicMock()
+
+    # hass.data
+    hass.data = {}
+
     return hass
 
 @pytest.fixture
-def mock_storage_manager():
-    """Mock the StorageManager."""
-    manager = MagicMock()
-    manager.list_profiles = AsyncMock(return_value=["test_profile.json"])
-    manager.load_profile_cached = AsyncMock(return_value={
-        "meta": {
-            "preset_type": "thermostat",
-            "global_prefix": "cronostar_thermostat_test_",
-            "min_value": 10,
-            "max_value": 30
-        },
-        "profiles": {
-            "Default": {
-                "schedule": [
-                    {"time": "08:00", "value": 20.0},
-                    {"time": "20:00", "value": 18.0}
-                ]
-            },
-            "Comfort": {
-                "schedule": [
-                    {"time": "08:00", "value": 22.0},
-                    {"time": "22:00", "value": 20.0}
-                ]
-            }
-        }
-    })
-    manager.save_profile = AsyncMock()
-    manager.update_active_profile = AsyncMock(return_value=True)
-    manager.get_cached_containers = AsyncMock(return_value=[
-        ("test_profile.json", {
-             "meta": {
-                "preset_type": "thermostat",
-                "global_prefix": "cronostar_thermostat_test_",
-                "min_value": 10,
-                "max_value": 30
-            },
-            "profiles": {
-                "Default": {
-                    "schedule": [
-                        {"time": "08:00", "value": 20.0},
-                        {"time": "20:00", "value": 18.0}
-                    ]
-                }
-            }
-        })
-    ])
-    return manager
-
-
-@pytest.fixture
-def mock_coordinator(hass, mock_storage_manager):
-    """Create a mock coordinator."""
-    try:
-        from custom_components.cronostar.coordinator import CronoStarCoordinator
-        from custom_components.cronostar.const import DOMAIN
-    except ImportError:
-        CronoStarCoordinator = MagicMock()
-        DOMAIN = "cronostar"
-    
+def mock_entry():
+    """Return a MagicMock config entry."""
     entry = MagicMock()
-    entry.entry_id = "test_entry"
+    entry.entry_id = "test_entry_id"
     entry.title = "Test Controller"
     entry.data = {
         "name": "Test Controller",
-        "preset": "thermostat",
-        "target_entity": "climate.test_thermostat",
-        "global_prefix": "cronostar_thermostat_test_"
+        "preset_type": "thermostat",
+        "target_entity": "climate.test",
+        "global_prefix": "cronostar_thermostat_test_",
+        "logging_enabled": False,
     }
     entry.options = {}
-    
-    hass.data[DOMAIN] = {"storage_manager": mock_storage_manager}
-    
-    coordinator = CronoStarCoordinator(hass, entry)
-    coordinator.async_refresh = AsyncMock()
-    
-    coordinator.data = {
-        "selected_profile": "Default",
-        "is_enabled": True,
-        "current_value": 0.0,
-        "available_profiles": ["Default"]
-    }
-    
-    return coordinator
-
+    entry.runtime_data = None
+    return entry
 
 @pytest.fixture
-def profile_service(hass, mock_storage_manager):
-    """Fixture for ProfileService."""
-    from custom_components.cronostar.services.profile_service import ProfileService
-    settings_manager = MagicMock()
-    settings_manager.load_settings = AsyncMock(return_value={})
-    return ProfileService(hass, mock_storage_manager, settings_manager)
-
-
-def pytest_collection_modifyitems(config, items):
-    """Automatically add markers to all tests."""
-    import inspect
-    
-    for item in items:
-        # Add anyio marker to all async tests if not already present
-        if inspect.iscoroutinefunction(item.obj):
-            if "anyio" not in [m.name for m in item.iter_markers()]:
-                item.add_marker(pytest.mark.anyio)
-            
-        # Add standard markers
-        item.add_marker(pytest.mark.no_fail_on_log_exception)
-        item.add_marker(pytest.mark.allow_socket)
+def cronostar_data(hass):
+    """Initialize hass.data[DOMAIN]."""
+    hass.data[DOMAIN] = {
+        "settings_manager": MagicMock(),
+        "storage_manager": MagicMock(),
+        "profile_service": MagicMock(),
+    }
+    return hass.data[DOMAIN]

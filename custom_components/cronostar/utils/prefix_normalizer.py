@@ -214,9 +214,6 @@ def extract_prefix_from_entity(entity_id: str) -> str | None:
         >>> extract_prefix_from_entity("input_select.living_room_profiles")
         "living_room_"
     """
-    if not entity_id or "." not in entity_id:
-        return None
-
     try:
         # Remove domain
         object_id = entity_id.split(".", 1)[1]

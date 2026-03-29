@@ -751,14 +751,10 @@ class ProfileService:
                 if e_id:
                     _LOGGER.info("[REGISTER] Updating frontend meta: enabled_entity = %s", e_id)
                     meta["enabled_entity"] = e_id
-                else:
-                    _LOGGER.debug("[REGISTER] Could not resolve enabled_entity for prefix '%s'", global_prefix)
 
                 if sel_id:
                     _LOGGER.info("[REGISTER] Updating frontend meta: profiles_select_entity = %s", sel_id)
                     meta["profiles_select_entity"] = sel_id
-                else:
-                    _LOGGER.debug("[REGISTER] Could not resolve profiles_select_entity for prefix '%s'", global_prefix)
 
         except Exception as e:
             _LOGGER.debug("[REGISTER] Failed to populate entity_states: %s", e)
@@ -920,10 +916,6 @@ class ProfileService:
         metadata["preset_type"] = preset_type
         metadata["global_prefix"] = global_prefix
         metadata["updated_at"] = datetime.now().isoformat()
-
-        # Explicitly remove redundant 'preset' key if it exists in user_meta (now in metadata)
-        if "preset" in metadata:
-            del metadata["preset"]
 
         return metadata
 

@@ -405,8 +405,6 @@ class CronoStarCoordinator(DataUpdateCoordinator):
         # Exact match
         if prev_point[0] == current_minutes:
             return prev_point[1]
-        if next_point[0] == current_minutes:
-            return next_point[1]
 
         # For generic_switch presets, use stepped value (no interpolation)
         if str(self.preset_type).lower() == "generic_switch":

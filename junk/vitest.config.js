@@ -13,12 +13,13 @@ export default defineConfig({
       reporter: ["text", "json", "html", "lcov"],
       reportsDirectory: "./coverage",
 
-      // Includi SOLO i sorgenti effettivi
+      // Includi SOLO i sorgenti effettivi (esclude test, build e dipendenze)
       include: ["src/**/*.js"],
       exclude: [
         "src/**/*.test.js",
         "src/**/*.spec.js",
         "tests/**",
+        "cronostar_card/**",
         "node_modules/**",
       ],
 

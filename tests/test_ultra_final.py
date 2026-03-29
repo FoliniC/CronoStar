@@ -33,8 +33,12 @@ async def test_storage_list_profiles_complex_prefix(hass):
 @pytest.mark.anyio
 async def test_apply_now_handler_unsupported_domain(hass):
     """Test apply_now handler with unsupported domain."""
+    hass.data[DOMAIN] = {"settings_manager": MagicMock()}
     await setup_services(hass, MagicMock())
-    handler = next(c[0][2] for call in [hass.services.async_register.call_args_list] for c in call if c[0][1] == "apply_now")
+    
+    # Find the apply_now handler
+    apply_now_call = [call for call in hass.services.async_register.call_args_list if call[0][1] == "apply_now"][0]
+    handler = apply_now_call[0][2]
     
     ps = hass.data[DOMAIN]["profile_service"]
     ps.get_profile_data = AsyncMock(return_value={
