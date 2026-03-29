@@ -32,7 +32,7 @@
                     "step_value": "Step Value",
                     "unit_of_measurement": "Unit of Measurement",
                     "y_axis_label": "Y-Axis Label",
-                    "allow_max_value": "Allow 'Max' Value",
+                    "allow_max_value": "Allow Max Value",
                     "logging_enabled": "Enable Debug Logging",
                     "language": "UI Language"
                 }
@@ -79,7 +79,7 @@
                     "step_value": "Step Value",
                     "unit_of_measurement": "Unit of Measurement",
                     "y_axis_label": "Y-Axis Label",
-                    "allow_max_value": "Allow 'Max' Value",
+                    "allow_max_value": "Allow Max Value",
                     "logging_enabled": "Enable Debug Logging",
                     "language": "UI Language"
                 }
