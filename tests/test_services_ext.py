@@ -1,15 +1,18 @@
 """Test Profile Service Extensions."""
+import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 import pytest
 from custom_components.cronostar.services.profile_service import ProfileService
+
+def run(coro):
+    return asyncio.run(coro)
 
 @pytest.fixture
 def profile_service(hass, mock_storage_manager):
     settings_manager = MagicMock()
     return ProfileService(hass, mock_storage_manager, settings_manager)
 
-@pytest.mark.anyio
-async def test_validate_schedule_out_of_range(profile_service):
+def test_validate_schedule_out_of_range(profile_service):
     """Test value clamping in schedule validation."""
     schedule = [
         {"time": "08:00", "value": 5.0},  # Below min (10)
@@ -25,19 +28,17 @@ async def test_validate_schedule_out_of_range(profile_service):
     #     numeric_value = float(min_val) if min_val is not None else 0.0
     # Yes, it resets to min_val.
 
-@pytest.mark.anyio
-async def test_ensure_controller_exists_already_exists(hass, profile_service):
+def test_ensure_controller_exists_already_exists(hass, profile_service):
     """Test no action when controller already exists."""
     hass.config_entries.async_entries = MagicMock(return_value=[
         MagicMock(data={"global_prefix": "exists_"})
     ])
     hass.config_entries.flow.async_init = AsyncMock()
     
-    await profile_service._ensure_controller_exists("exists_", "thermostat", {})
+    run(profile_service._ensure_controller_exists("exists_", "thermostat", {}))
     assert not hass.config_entries.flow.async_init.called
 
-@pytest.mark.anyio
-async def test_get_profile_data_default_comfort_fallbacks(hass, profile_service, mock_storage_manager):
+def test_get_profile_data_default_comfort_fallbacks(hass, profile_service, mock_storage_manager):
     """Test fallbacks to Default/Comfort names."""
     mock_storage_manager.get_cached_containers = AsyncMock(return_value=[
         ("file.json", {
@@ -49,11 +50,10 @@ async def test_get_profile_data_default_comfort_fallbacks(hass, profile_service,
     ])
     
     # Search for something else, should find Comfort
-    result = await profile_service.get_profile_data("NonExistent", "thermostat")
+    result = run(profile_service.get_profile_data("NonExistent", "thermostat"))
     assert result["profile_name"] == "Comfort"
 
-@pytest.mark.anyio
-async def test_profile_service_save_exception(hass, profile_service, mock_storage_manager):
+def test_profile_service_save_exception(hass, profile_service, mock_storage_manager):
     """Test exception handling in save_profile."""
     call = MagicMock()
     call.data = {"profile_name": "Error"}
@@ -61,4 +61,4 @@ async def test_profile_service_save_exception(hass, profile_service, mock_storag
     
     from homeassistant.exceptions import HomeAssistantError
     with pytest.raises(HomeAssistantError):
-        await profile_service.save_profile(call)
+        run(profile_service.save_profile(call))

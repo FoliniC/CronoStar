@@ -1,8 +1,12 @@
 """Tests for more service logic paths."""
+import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 import pytest
 from custom_components.cronostar.services.profile_service import ProfileService
 from custom_components.cronostar.const import DOMAIN
+
+def run(coro):
+    return asyncio.run(coro)
 
 @pytest.fixture
 def profile_service(hass, mock_storage_manager):
@@ -10,44 +14,44 @@ def profile_service(hass, mock_storage_manager):
     settings_manager.load_settings = AsyncMock(return_value={})
     return ProfileService(hass, mock_storage_manager, settings_manager)
 
-@pytest.mark.anyio
-async def test_get_profile_data_invalid_prefix(profile_service, mock_storage_manager):
-    """Test get_profile_data with a generic prefix."""
-    result = await profile_service.get_profile_data("Default", "thermostat", global_prefix="cronostar_")
-    assert result["profile_name"] == "Default"
+def test_get_profile_data_invalid_prefix(profile_service, mock_storage_manager):
+    """Con prefisso generico e storage vuoto → ritorna errore diagnostico."""
+    mock_storage_manager.get_cached_containers = AsyncMock(return_value=[])
 
-@pytest.mark.anyio
-async def test_register_card_missing_profile(hass, profile_service, mock_storage_manager):
+    result = run(profile_service.get_profile_data("Default", "thermostat", global_prefix="cronostar_"))
+
+    # ✅ Con storage vuoto ritorna un dict di errore, non il profilo
+    assert "error" in result
+    assert result["searched"]["profile_name"] == "Default"
+
+def test_register_card_missing_profile(hass, profile_service, mock_storage_manager):
     """Test register_card when profile is missing and fallback fails."""
     call = MagicMock()
     call.data = {"card_id": "c1", "preset": "thermostat", "global_prefix": "p1"}
     
     with patch.object(profile_service, 'get_profile_data', return_value={"error": "Not found"}):
-        result = await profile_service.register_card(call)
+        result = run(profile_service.register_card(call))
         assert result["profile_data"] is None
         assert result["diagnostics"] == {"error": "Not found"}
 
-@pytest.mark.anyio
-async def test_ensure_controller_exists_custom_naming(hass, profile_service):
+def test_ensure_controller_exists_custom_naming(hass, profile_service):
     """Test ensure_controller_exists with different prefix patterns."""
     hass.config_entries.async_entries.return_value = []
     hass.config_entries.flow.async_init = AsyncMock()
     
-    await profile_service._ensure_controller_exists("prefix", "thermostat", {})
+    run(profile_service._ensure_controller_exists("prefix", "thermostat", {}))
     args = hass.config_entries.flow.async_init.call_args[1]
     # "prefix" becomes "Prefix" in deriving name
     assert "Prefix" in args["data"]["name"]
 
-@pytest.mark.anyio
-async def test_validate_schedule_edge_cases(profile_service):
+def test_validate_schedule_edge_cases(profile_service):
     """Test _validate_schedule with various inputs."""
     assert profile_service._validate_schedule(None) == []
     assert profile_service._validate_schedule(["not a dict"]) == []
     assert profile_service._validate_schedule([{"time": "08:00"}]) == []
     assert profile_service._validate_schedule([{"time": "8:00", "value": 20}]) == []
 
-@pytest.mark.anyio
-async def test_list_all_profiles_service(hass, mock_storage_manager):
+def test_list_all_profiles_service(hass, mock_storage_manager):
     """Test list_all_profiles service handler from setup/services.py."""
     from custom_components.cronostar.setup.services import setup_services
     
@@ -56,7 +60,7 @@ async def test_list_all_profiles_service(hass, mock_storage_manager):
         "settings_manager": MagicMock()
     }
     
-    await setup_services(hass, mock_storage_manager)
+    run(setup_services(hass, mock_storage_manager))
     
     handler = None
     for call in hass.services.async_register.call_args_list:
@@ -72,7 +76,7 @@ async def test_list_all_profiles_service(hass, mock_storage_manager):
     
     call = MagicMock()
     call.data = {"force_reload": True}
-    res = await handler(call)
+    res = run(handler(call))
     
     assert "thermostat" in res
     assert res["thermostat"]["files"][0]["filename"] == "f1.json"

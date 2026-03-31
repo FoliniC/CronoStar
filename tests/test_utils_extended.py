@@ -1,4 +1,5 @@
 """Extended tests for CronoStar utilities."""
+import asyncio
 import logging
 import pytest
 from custom_components.cronostar.utils.error_handler import (
@@ -21,10 +22,12 @@ from custom_components.cronostar.utils.prefix_normalizer import (
 )
 from homeassistant.exceptions import HomeAssistantError
 
+def run(coro):
+    return asyncio.run(coro)
+
 # --- Error Handler Tests ---
 
-@pytest.mark.anyio
-async def test_handle_service_errors_decorator():
+def test_handle_service_errors_decorator():
     """Test handle_service_errors decorator."""
     @handle_service_errors
     async def success_func():
@@ -38,13 +41,14 @@ async def test_handle_service_errors_decorator():
     async def generic_error_func():
         raise ValueError("Generic Error")
 
-    assert await success_func() == "ok"
+    assert run(success_func()) == "ok"
     
     with pytest.raises(CronoStarError):
-        await crono_error_func()
+        run(crono_error_func())
         
-    with pytest.raises(HomeAssistantError):
-        await generic_error_func()
+    import custom_components.cronostar.utils.error_handler as eh_mod
+    with pytest.raises(eh_mod.HomeAssistantError):
+        run(generic_error_func())
 
 def test_safe_get():
     """Test safe_get utility."""

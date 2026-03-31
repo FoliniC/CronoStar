@@ -1,19 +1,21 @@
 """Test the CronoStar panel websocket."""
+import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 import pytest
 from custom_components.cronostar.setup.panel_websocket import async_setup, websocket_get_controllers
 from custom_components.cronostar.const import DOMAIN
 
-@pytest.mark.anyio
-async def test_websocket_setup(hass):
+def run(coro):
+    return asyncio.run(coro)
+
+def test_websocket_setup(hass):
     """Test websocket setup."""
     # Patch the exact module where it's imported
     with patch("custom_components.cronostar.setup.panel_websocket.websocket_api.async_register_command") as mock_reg:
         async_setup(hass)
         assert mock_reg.called
 
-@pytest.mark.anyio
-async def test_websocket_get_controllers_missing_fields(hass):
+def test_websocket_get_controllers_missing_fields(hass):
     """Test getting controllers with missing optional fields."""
     entry = MagicMock()
     entry.entry_id = "c2"
@@ -27,7 +29,7 @@ async def test_websocket_get_controllers_missing_fields(hass):
     connection = MagicMock()
     msg = {"id": 2, "type": "cronostar/get_controllers"}
     
-    await websocket_get_controllers(hass, connection, msg)
+    run(websocket_get_controllers(hass, connection, msg))
     
     assert connection.send_result.called
     result = connection.send_result.call_args[0][1]
@@ -35,8 +37,7 @@ async def test_websocket_get_controllers_missing_fields(hass):
     assert data["allow_max_value"] is False
     assert data["language"] == "default"
 
-@pytest.mark.anyio
-async def test_websocket_get_controllers(hass):
+def test_websocket_get_controllers(hass):
     """Test getting controllers via websocket."""
     # Mock entries
     entry_global = MagicMock()
@@ -65,7 +66,7 @@ async def test_websocket_get_controllers(hass):
     connection = MagicMock()
     msg = {"id": 1, "type": "cronostar/get_controllers"}
     
-    await websocket_get_controllers(hass, connection, msg)
+    run(websocket_get_controllers(hass, connection, msg))
     
     # Check result sent
     assert connection.send_result.called

@@ -84,6 +84,39 @@ docker restart homeassistant_test_cronostar
 git add .
 git commit -m "feat(frontend): Update card layout"
 
+## 4. Testing Guidelines
+
+To maintain 100% coverage and ensure stability, follow these guidelines for backend tests.
+
+### Async Tests
+The current environment does not have a native `pytest-asyncio` plugin. Use the `run()` helper in each test file:
+```python
+def run(coro):
+    return asyncio.get_event_loop().run_until_complete(coro)
+
+def test_example(hass):
+    result = run(some_async_function())
+```
+
+### Home Assistant Objects (Read-only attributes)
+Avoid `patch.object` on attributes like `hass.states.get` or `hass.services.async_register`. Use real methods:
+- **States**: Use `hass.states.async_set("domain.entity", "state")` or `hass.states.get.return_value = MagicMock(state="...")`.
+- **Services**: Use `run(setup_services(hass, ...))` to register real handlers, then `run(hass.services.async_call(...))` to trigger them.
+- **Config Entries**: Use `MockConfigEntry` from `conftest.py` (or `pytest_homeassistant_custom_component.common`).
+
+### Config Entries Registry
+When testing logic that depends on `hass.config_entries.async_entries()` or similar, the entry must be registered in the mock registry:
+```python
+entry = MockConfigEntry(domain="cronostar", data={...})
+entry.add_to_hass(hass) # Necessary for the registry to "see" it
+```
+
+### Mocking entry.data
+`MagicMock.update()` has no effect. Always ensure `entry.data` is a real dictionary if you need to perform updates or overrides.
+
+### Stubs
+Common HA modules like `voluptuous` and `homeassistant.helpers.selector` are stubbed in `tests/conftest.py`.
+
 Instructions:
 Do not make up entities or states you don't know about.
 If you don't have enough context, ask for a brief clarification.

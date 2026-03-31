@@ -1,4 +1,5 @@
 """Coverage boost for CronoStar platforms: sensor, diagnostics, select."""
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from custom_components.cronostar.sensor import CronoStarCurrentSensor, async_setup_entry as async_setup_sensor
@@ -9,13 +10,16 @@ from custom_components.cronostar.const import (
     CONF_UNIT_OF_MEASUREMENT, CONF_Y_AXIS_LABEL, CONF_ALLOW_MAX_VALUE
 )
 
+def run(coro):
+    return asyncio.run(coro)
+
 @pytest.fixture
-def mock_coordinator(mock_hass, mock_entry):
+def mock_coordinator(hass, mock_entry):
     """Build a mock coordinator for platform tests."""
-    mock_hass.data[DOMAIN] = {"version": "1.2.3", "_global_setup_done": True}
+    hass.data[DOMAIN] = {"version": "1.2.3", "_global_setup_done": True}
     
     coordinator = MagicMock()
-    coordinator.hass = mock_hass
+    coordinator.hass = hass
     coordinator.entry = mock_entry
     coordinator.prefix = "p1_"
     coordinator.name = "Test"
@@ -50,12 +54,11 @@ def mock_coordinator(mock_hass, mock_entry):
 
 # --- SENSOR TESTS ---
 
-@pytest.mark.anyio
-async def test_sensor_full(mock_coordinator, mock_hass, mock_entry):
+def test_sensor_full(mock_coordinator, hass, mock_entry):
     """Test sensor properties and branches."""
     mock_entry.runtime_data = mock_coordinator
     async_add_entities = MagicMock()
-    await async_setup_sensor(mock_hass, mock_entry, async_add_entities)
+    run(async_setup_sensor(hass, mock_entry, async_add_entities))
     sensor = async_add_entities.call_args[0][0][0]
     
     # Test preset: ev_charging
@@ -108,19 +111,18 @@ async def test_sensor_full(mock_coordinator, mock_hass, mock_entry):
     assert sensor.extra_state_attributes["active_profile"] == "Default"
     
     # availability
-    mock_hass.states.get = MagicMock(return_value=MagicMock(state="heat"))
+    hass.states.get = MagicMock(return_value=MagicMock(state="heat"))
     assert sensor.available is True
-    mock_hass.states.get = MagicMock(return_value=None)
+    hass.states.get = MagicMock(return_value=None)
     assert sensor.available is False
 
 # --- SELECT TESTS ---
 
-@pytest.mark.anyio
-async def test_select_full(mock_coordinator, mock_hass, mock_entry):
+def test_select_full(mock_coordinator, hass, mock_entry):
     """Test select properties and branches."""
     mock_entry.runtime_data = mock_coordinator
     async_add_entities = MagicMock()
-    await async_setup_select(mock_hass, mock_entry, async_add_entities)
+    run(async_setup_select(hass, mock_entry, async_add_entities))
     select = async_add_entities.call_args[0][0][0]
     
     # options / current
@@ -133,7 +135,7 @@ async def test_select_full(mock_coordinator, mock_hass, mock_entry):
     
     # select_option
     mock_coordinator.logging_enabled = True
-    await select.async_select_option("Winter")
+    run(select.async_select_option("Winter"))
     mock_coordinator.set_profile.assert_called_with("Winter")
     
     # model_name exception branch
@@ -143,23 +145,22 @@ async def test_select_full(mock_coordinator, mock_hass, mock_entry):
     mock_coordinator.preset_type = "thermostat"
 
     mock_coordinator.logging_enabled = False
-    await select.async_select_option("Summer")
+    run(select.async_select_option("Summer"))
     
     # availability
-    mock_hass.states.get = MagicMock(return_value=MagicMock(state="heat"))
+    hass.states.get = MagicMock(return_value=MagicMock(state="heat"))
     assert select.available is True
 
 # --- DIAGNOSTICS TESTS ---
 
-@pytest.mark.anyio
-async def test_diagnostics_full(mock_hass, mock_entry, mock_coordinator):
+def test_diagnostics_full(hass, mock_entry, mock_coordinator):
     """Test diagnostics output."""
     mock_entry.runtime_data = mock_coordinator
-    diag = await async_get_config_entry_diagnostics(mock_hass, mock_entry)
+    diag = run(async_get_config_entry_diagnostics(hass, mock_entry))
     assert diag["entry"]["entry_id"] == mock_entry.entry_id
     assert diag["controller_state"]["name"] == "Test"
     
     # Case: no runtime_data
     mock_entry.runtime_data = None
-    diag = await async_get_config_entry_diagnostics(mock_hass, mock_entry)
+    diag = run(async_get_config_entry_diagnostics(hass, mock_entry))
     assert "controller_state" not in diag

@@ -1,21 +1,34 @@
 """Final push for 90% coverage."""
+import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 import pytest
 from custom_components.cronostar.coordinator import CronoStarCoordinator
 from custom_components.cronostar.const import DOMAIN, CONF_TARGET_ENTITY, PLATFORMS
 from custom_components.cronostar.setup.services import setup_services
 
-@pytest.mark.anyio
-async def test_coordinator_logging_more(hass):
+def run(coro):
+    return asyncio.run(coro)
+
+def test_coordinator_logging_more(hass):
     """Trigger more logging lines in coordinator."""
+    # Initialize hass.data[DOMAIN]
+    hass.data[DOMAIN] = {
+        "version": "1.0.0",
+        "settings_manager": MagicMock(),
+        "storage_manager": MagicMock(),
+        "global_config": {}
+    }
+    
     entry = MagicMock()
+    entry.entry_id = "test_entry"
+    entry.title = "Test"
     entry.data = {CONF_TARGET_ENTITY: "climate.test"}
     entry.options = {}
     coordinator = CronoStarCoordinator(hass, entry)
     coordinator.logging_enabled = True
     
     # Hit line 133
-    await coordinator._async_update_data()
+    run(coordinator._async_update_data())
     
     # Hit line 148, 153 (via async_initialize)
     hass.data[DOMAIN]["storage_manager"] = MagicMock()
@@ -23,21 +36,20 @@ async def test_coordinator_logging_more(hass):
     hass.data[DOMAIN]["storage_manager"].load_profile_cached = AsyncMock(return_value={
         "profiles": {"Default": {"schedule": []}}
     })
-    await coordinator.async_initialize()
+    run(coordinator.async_initialize())
     
     # Hit line 164 (refresh profiles)
-    await coordinator.async_refresh_profiles()
+    run(coordinator.async_refresh_profiles())
     
     # Hit line 176 (set_profile log)
     coordinator.available_profiles = ["Default"]
     coordinator.storage_manager.update_active_profile = AsyncMock(return_value=True)
-    await coordinator.set_profile("Default")
+    run(coordinator.set_profile("Default"))
     
     # Hit line 185 (set_enabled log)
-    await coordinator.set_enabled(True)
+    run(coordinator.set_enabled(True))
 
-@pytest.mark.anyio
-async def test_coordinator_interpolate_more(hass):
+def test_coordinator_interpolate_more(hass):
     """Trigger line 343 in coordinator."""
     entry = MagicMock()
     entry.data = {CONF_TARGET_ENTITY: "climate.test"}
@@ -57,10 +69,18 @@ async def test_coordinator_interpolate_more(hass):
         # which only happens if schedule has multiple points at same time.
         assert coordinator._interpolate_schedule(schedule) == 20.0
 
-@pytest.mark.anyio
-async def test_setup_services_more_logging(hass):
+def test_setup_services_more_logging(hass):
     """Trigger logging in more setup/services.py handlers."""
-    await setup_services(hass, MagicMock())
+    # Initialize hass.data[DOMAIN]
+    hass.data[DOMAIN] = {
+        "version": "1.0.0",
+        "settings_manager": MagicMock(),
+        "storage_manager": MagicMock()
+    }
+    
+    ps = MagicMock()
+    with patch("custom_components.cronostar.setup.services.ProfileService", return_value=ps):
+        run(setup_services(hass, MagicMock()))
     
     # Get register_card handler
     handler = next(c[0][2] for call in [hass.services.async_register.call_args_list] for c in call if c[0][1] == "save_profile")
@@ -70,5 +90,5 @@ async def test_setup_services_more_logging(hass):
     
     call = MagicMock()
     call.data = {"profile_name": "P1"}
-    await handler(call)
+    run(handler(call))
     # Hits line 41 info log

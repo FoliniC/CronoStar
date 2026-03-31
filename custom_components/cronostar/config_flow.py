@@ -67,7 +67,7 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Update the entry
             new_data = {**entry.data, **user_input}
-            return self.async_update_reload_and_abort(entry, data=new_data)
+            return await self.async_update_reload_and_abort(entry, data=new_data)
 
         # Pre-fill with current values
         if entry.data.get("component_installed"):

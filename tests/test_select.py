@@ -1,10 +1,13 @@
+import asyncio
 import pytest
 """Test CronoStar Select."""
 from unittest.mock import AsyncMock
 from custom_components.cronostar.select import CronoStarProfileSelect
 
-@pytest.mark.anyio
-async def test_select_entity(hass, mock_coordinator):
+def run(coro):
+    return asyncio.run(coro)
+
+def test_select_entity(hass, mock_coordinator):
     """Test select entity properties."""
     mock_coordinator.data = {
         "available_profiles": ["Default", "Comfort", "Night"],
@@ -19,5 +22,5 @@ async def test_select_entity(hass, mock_coordinator):
     
     # Test selection
     mock_coordinator.set_profile = AsyncMock()
-    await select.async_select_option("Night")
+    run(select.async_select_option("Night"))
     mock_coordinator.set_profile.assert_called_with("Night")

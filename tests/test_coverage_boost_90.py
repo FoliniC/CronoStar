@@ -1,5 +1,6 @@
 
 import sys
+import asyncio
 from unittest.mock import MagicMock
 
 # Mock frontend before any imports that might trigger it
@@ -10,8 +11,11 @@ import pytest
 from custom_components.cronostar.coordinator import CronoStarCoordinator
 from homeassistant.core import HomeAssistant
 
-@pytest.mark.anyio
-async def test_coordinator_interpolation_logic(hass: HomeAssistant):
+def run(coro):
+    """Run a coroutine."""
+    return asyncio.run(coro)
+
+def test_coordinator_interpolation_logic(hass: HomeAssistant):
     """Test the interpolation logic specifically to boost coverage."""
     entry = MagicMock()
     entry.entry_id = "test_entry"
@@ -41,8 +45,7 @@ async def test_coordinator_interpolation_logic(hass: HomeAssistant):
     val = coordinator._interpolate_schedule(schedule)
     assert 18.0 <= val <= 22.0
 
-@pytest.mark.asyncio
-async def test_coordinator_next_change(hass: HomeAssistant):
+def test_coordinator_next_change(hass: HomeAssistant):
     """Test the next change calculation logic."""
     entry = MagicMock()
     entry.entry_id = "test_entry"

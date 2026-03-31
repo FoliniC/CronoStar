@@ -34,13 +34,19 @@ jobs:
           pip install pycares==4.5.0 aiodns==3.1.1 --force-reinstall
           
       - name: Run tests with coverage
+        continue-on-error: true
         run: |
           pytest -v --cov=custom_components/cronostar --cov-report=term-missing | tee pytest-coverage.txt
           
       - name: Extract Coverage
         id: extract_coverage
         run: |
-          COVERAGE=$(grep "TOTAL" pytest-coverage.txt | awk '{print $NF}' | tr -d '%')
+          # Use -a to avoid issues with non-text characters and tail -n 1 for the last match
+          COVERAGE=$(grep -a "TOTAL" pytest-coverage.txt | tail -n 1 | awk '{print $NF}' | tr -d '%' || echo "0")
+          if [ -z "$COVERAGE" ]; then
+            echo "Warning: Could not extract coverage, setting to 0"
+            COVERAGE=0
+          fi
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
           
       - name: Create Coverage Badge

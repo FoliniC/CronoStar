@@ -1,11 +1,14 @@
 """Test Diagnostics."""
+import asyncio
 from unittest.mock import MagicMock, AsyncMock
 import pytest
 from custom_components.cronostar.diagnostics import async_get_config_entry_diagnostics
 from custom_components.cronostar.const import DOMAIN
 
-@pytest.mark.anyio
-async def test_diagnostics(hass):
+def run(coro):
+    return asyncio.run(coro)
+
+def test_diagnostics(hass):
     """Test diagnostics output."""
     entry = MagicMock()
     entry.entry_id = "test_entry"
@@ -28,7 +31,7 @@ async def test_diagnostics(hass):
     
     hass.data[DOMAIN] = {"_global_setup_done": True, "version": "1.0.0"}
     
-    result = await async_get_config_entry_diagnostics(hass, entry)
+    result = run(async_get_config_entry_diagnostics(hass, entry))
     
     assert result["entry"]["entry_id"] == "test_entry"
     assert result["controller_state"]["name"] == "Test Coord"

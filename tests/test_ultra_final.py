@@ -1,4 +1,5 @@
 """Ultra final tests for coverage."""
+import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 import pytest
 import sys
@@ -7,14 +8,15 @@ from custom_components.cronostar.storage.storage_manager import StorageManager
 from custom_components.cronostar.setup.services import setup_services, async_unload_services
 from pathlib import Path
 
-@pytest.mark.anyio
-async def test_unload_services(hass):
+def run(coro):
+    return asyncio.run(coro)
+
+def test_unload_services(hass):
     """Test unloading services."""
-    await async_unload_services(hass)
+    run(async_unload_services(hass))
     assert hass.services.async_remove.called
 
-@pytest.mark.anyio
-async def test_storage_list_profiles_complex_prefix(hass):
+def test_storage_list_profiles_complex_prefix(hass):
     """Test list_profiles with complex prefix fallback logic."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
     
@@ -27,40 +29,38 @@ async def test_storage_list_profiles_complex_prefix(hass):
         })
         
         # This hits line 261-269 fallback
-        res = await manager.list_profiles(prefix="myprefix_thermostat")
+        res = run(manager.list_profiles(prefix="myprefix_thermostat"))
         assert len(res) == 1
 
-@pytest.mark.anyio
-async def test_apply_now_handler_unsupported_domain(hass):
+def test_apply_now_handler_unsupported_domain(hass):
     """Test apply_now handler with unsupported domain."""
     hass.data[DOMAIN] = {"settings_manager": MagicMock()}
-    await setup_services(hass, MagicMock())
+    ps = MagicMock()
+    with patch("custom_components.cronostar.setup.services.ProfileService", return_value=ps):
+        run(setup_services(hass, MagicMock()))
     
     # Find the apply_now handler
     apply_now_call = [call for call in hass.services.async_register.call_args_list if call[0][1] == "apply_now"][0]
     handler = apply_now_call[0][2]
     
-    ps = hass.data[DOMAIN]["profile_service"]
     ps.get_profile_data = AsyncMock(return_value={
         "schedule": [{"time": "00:00", "value": 20.0}]
     })
     
     call = MagicMock()
     call.data = {"target_entity": "unsupported.entity", "profile_name": "Default"}
-    await handler(call)
+    run(handler(call))
 
-@pytest.mark.anyio
-async def test_storage_list_profiles_exception(hass):
+def test_storage_list_profiles_exception(hass):
     """Test list_profiles exception path."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
     with patch("pathlib.Path.glob", side_effect=Exception("Glob error")):
-        res = await manager.list_profiles()
+        res = run(manager.list_profiles())
         assert res == []
 
-@pytest.mark.anyio
-async def test_storage_get_profile_list_exception(hass):
+def test_storage_get_profile_list_exception(hass):
     """Test get_profile_list exception path."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
     with patch("custom_components.cronostar.storage.storage_manager.build_profile_filename", side_effect=Exception("Error")):
-        res = await manager.get_profile_list("thermostat", "p1")
+        res = run(manager.get_profile_list("thermostat", "p1"))
         assert res == []

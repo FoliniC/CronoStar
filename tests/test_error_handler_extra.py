@@ -1,4 +1,5 @@
 """Extra tests for error_handler.py."""
+import asyncio
 import pytest
 import logging
 from unittest.mock import MagicMock, patch
@@ -11,34 +12,35 @@ from custom_components.cronostar.utils.error_handler import (
     log_operation
 )
 
-@pytest.mark.anyio
-async def test_handle_service_errors_success():
+def run(coro):
+    return asyncio.run(coro)
+
+def test_handle_service_errors_success():
     """Test handle_service_errors decorator with success."""
     @handle_service_errors
     async def mock_func(val):
         return val
     
-    assert await mock_func(10) == 10
+    assert run(mock_func(10)) == 10
 
-@pytest.mark.anyio
-async def test_handle_service_errors_cronostar_error():
+def test_handle_service_errors_cronostar_error():
     """Test handle_service_errors decorator with CronoStarError."""
     @handle_service_errors
     async def mock_func():
         raise CronoStarError("CronoStar error")
     
     with pytest.raises(CronoStarError):
-        await mock_func()
+        run(mock_func())
 
-@pytest.mark.anyio
-async def test_handle_service_errors_unexpected_error():
+def test_handle_service_errors_unexpected_error():
     """Test handle_service_errors decorator with unexpected error."""
+    import custom_components.cronostar.utils.error_handler as eh_mod
     @handle_service_errors
     async def mock_func():
         raise ValueError("Unexpected error")
     
-    with pytest.raises(HomeAssistantError) as excinfo:
-        await mock_func()
+    with pytest.raises(eh_mod.HomeAssistantError) as excinfo:
+        run(mock_func())
     assert "Service failed: Unexpected error" in str(excinfo.value)
 
 def test_safe_get_non_dict():

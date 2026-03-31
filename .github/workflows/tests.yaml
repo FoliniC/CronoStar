@@ -1,0 +1,30 @@
+name: Tests
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 5 * * *"
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.test.txt
+      - name: Run pytest
+        run: |
+          python -m pytest \
+            --cov=custom_components.cronostar \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -v
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false

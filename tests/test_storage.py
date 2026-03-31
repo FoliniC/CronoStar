@@ -1,4 +1,5 @@
 """Test Storage Manager."""
+import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 import pytest
 import json
@@ -6,8 +7,10 @@ import sys
 from pathlib import Path
 from custom_components.cronostar.storage.storage_manager import StorageManager
 
-@pytest.mark.anyio
-async def test_storage_list_profiles(hass):
+def run(coro):
+    return asyncio.run(coro)
+
+def test_storage_list_profiles(hass):
     """Test listing profiles."""
     with patch("pathlib.Path.glob") as mock_glob:
         p1 = MagicMock(spec=Path)
@@ -17,11 +20,10 @@ async def test_storage_list_profiles(hass):
         manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
         manager.load_profile_cached = AsyncMock(return_value={"meta": {"preset_type": "thermostat"}})
         
-        files = await manager.list_profiles()
+        files = run(manager.list_profiles())
         assert "cronostar_test.json" in files
 
-@pytest.mark.anyio
-async def test_storage_load_profile(hass):
+def test_storage_load_profile(hass):
     """Test loading profile."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
     mock_data = '{"meta": {"test": 1}, "profiles": {}}'
@@ -29,28 +31,26 @@ async def test_storage_load_profile(hass):
     with patch("pathlib.Path.exists", return_value=True), \
          patch("pathlib.Path.read_text", return_value=mock_data):
         
-        data = await manager.load_profile_cached("test.json")
+        data = run(manager.load_profile_cached("test.json"))
         assert data["meta"]["test"] == 1
 
-@pytest.mark.anyio
-async def test_storage_save_profile(hass):
+def test_storage_save_profile(hass):
     """Test saving profile."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
     manager._load_container = AsyncMock(return_value={"profiles": {}})
     
     with patch("pathlib.Path.write_text") as mock_write:
-        success = await manager.save_profile(
+        success = run(manager.save_profile(
             "NewProfile", 
             "thermostat", 
             {"schedule": []}, 
             {"meta": {}}, 
             "prefix"
-        )
+        ))
         assert success is True
         assert mock_write.called
 
-@pytest.mark.anyio
-async def test_storage_delete_profile(hass):
+def test_storage_delete_profile(hass):
     """Test deleting profile."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
     manager._load_container = AsyncMock(return_value={
@@ -58,12 +58,11 @@ async def test_storage_delete_profile(hass):
     })
     
     with patch("pathlib.Path.write_text") as mock_write:
-        success = await manager.delete_profile("P1", "thermostat", "prefix")
+        success = run(manager.delete_profile("P1", "thermostat", "prefix"))
         assert success is True
         assert mock_write.called
 
-@pytest.mark.anyio
-async def test_storage_backups(hass):
+def test_storage_backups(hass):
     """Test backup creation."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"), enable_backups=True)
     filepath = MagicMock(spec=Path)
@@ -80,10 +79,9 @@ async def test_storage_backups(hass):
         dt_util.now.return_value = MagicMock()
         dt_util.now.return_value.strftime.return_value = "20230101_120000"
         
-        await manager._create_backup(filepath)
+        run(manager._create_backup(filepath))
 
-@pytest.mark.anyio
-async def test_storage_cleanup_old_backups(hass):
+def test_storage_cleanup_old_backups(hass):
     """Test cleanup of old backups."""
     manager = StorageManager(hass, hass.config.path("cronostar/profiles"))
     
@@ -99,7 +97,7 @@ async def test_storage_cleanup_old_backups(hass):
         
         mock_glob.return_value = backups
         
-        await manager._cleanup_old_backups("test")
+        run(manager._cleanup_old_backups("test"))
         
         delete_calls = [b.unlink.called for b in backups]
         assert sum(delete_calls) == 5

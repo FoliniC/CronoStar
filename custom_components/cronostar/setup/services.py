@@ -9,7 +9,7 @@ from ..exceptions import ProfileNotFoundError, ScheduleApplicationError
 from ..services.profile_service import ProfileService
 from ..storage.settings_manager import SettingsManager
 from ..storage.storage_manager import StorageManager
-from ..utils.error_handler import log_operation
+from ..utils.error_handler import log_operation, handle_service_errors
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,6 +38,7 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
     # === Profile Management Services ===
 
+    @handle_service_errors
     async def save_profile_handler(call: ServiceCall):
         """Handle save_profile service call."""
         await profile_service.save_profile(call)
@@ -45,12 +46,14 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
     hass.services.async_register(DOMAIN, "save_profile", save_profile_handler)
 
+    @handle_service_errors
     async def load_profile_handler(call: ServiceCall) -> ServiceResponse:
         """Handle load_profile service call."""
         return await profile_service.load_profile(call)
 
     hass.services.async_register(DOMAIN, "load_profile", load_profile_handler, supports_response=True)
 
+    @handle_service_errors
     async def add_profile_handler(call: ServiceCall):
         """Handle add_profile service call."""
         await profile_service.add_profile(call)
@@ -58,6 +61,7 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
     hass.services.async_register(DOMAIN, "add_profile", add_profile_handler)
 
+    @handle_service_errors
     async def delete_profile_handler(call: ServiceCall):
         """Handle delete_profile service call."""
         await profile_service.delete_profile(call)
@@ -65,6 +69,7 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
     hass.services.async_register(DOMAIN, "delete_profile", delete_profile_handler)
 
+    @handle_service_errors
     async def delete_controller_handler(call: ServiceCall):
         """Handle delete_controller service call."""
         await profile_service.delete_controller(call)
@@ -72,6 +77,7 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
     hass.services.async_register(DOMAIN, "delete_controller", delete_controller_handler)
 
+    @handle_service_errors
     async def register_card_handler(call: ServiceCall) -> ServiceResponse:
         """Handle register_card service call."""
         return await profile_service.register_card(call)
@@ -80,6 +86,7 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
     # === Settings Services ===
 
+    @handle_service_errors
     async def save_settings_handler(call: ServiceCall):
         """Handle save_settings service call."""
         settings = call.data.get("settings", {})
@@ -89,6 +96,7 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
     hass.services.async_register(DOMAIN, "save_settings", save_settings_handler)
 
+    @handle_service_errors
     async def load_settings_handler(call: ServiceCall) -> ServiceResponse:
         """Handle load_settings service call."""
         return await settings_manager.load_settings()
@@ -97,6 +105,7 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
     # === Utility Services ===
 
+    @handle_service_errors
     async def list_all_profiles_handler(call: ServiceCall) -> ServiceResponse:
         storage = storage_manager
         try:
@@ -165,6 +174,7 @@ async def setup_services(hass: HomeAssistant, storage_manager: StorageManager) -
 
     # === Schedule Application Service ===
 
+    @handle_service_errors
     async def apply_now_handler(call: ServiceCall):
         target_entity = call.data.get("target_entity")
         preset_type = call.data.get("preset_type")
