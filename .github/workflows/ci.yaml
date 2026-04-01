@@ -58,7 +58,49 @@ jobs:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: ${{ secrets.GIST_ID }}
           filename: cronostar_coverage.json
-          label: Coverage
+          label: Backend Coverage
+          message: ${{ steps.extract_coverage.outputs.coverage }}%
+          valColorRange: ${{ steps.extract_coverage.outputs.coverage }}
+          maxColorRange: 100
+          minColorRange: 0
+          forceUpdate: true
+
+  frontend-tests:
+    name: Tests (vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: cronostar_card/package-lock.json
+
+      - name: Install dependencies
+        run: cd cronostar_card && npm ci
+
+      - name: Run tests with coverage
+        run: cd cronostar_card && npm run test:coverage | tee vitest-coverage.txt
+
+      - name: Extract Coverage
+        id: extract_coverage
+        run: |
+          # Vitest output typically has a "All files" row.
+          # We look for the first percentage after "All files"
+          COVERAGE=$(grep "All files" cronostar_card/vitest-coverage.txt | awk -F'|' '{print $2}' | grep -o '[0-9.]\+' | head -n 1 | cut -d. -f1 || echo "0")
+          echo "Extracted frontend coverage: $COVERAGE"
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+
+      - name: Create Frontend Coverage Badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: ${{ secrets.GIST_ID }}
+          filename: cronostar_frontend_coverage.json
+          label: Frontend Coverage
           message: ${{ steps.extract_coverage.outputs.coverage }}%
           valColorRange: ${{ steps.extract_coverage.outputs.coverage }}
           maxColorRange: 100
