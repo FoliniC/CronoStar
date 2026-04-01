@@ -18,12 +18,6 @@ from custom_components.cronostar.const import DOMAIN
 def run(coro):
     return asyncio.run(coro)
 
-@pytest.fixture(autouse=True)
-def enable_event_loop_debug():
-    """Mock per evitare RuntimeError su Python 3.13."""
-    pass
-
-
 # ---------------------------------------------------------------------------
 # async_setup
 # ---------------------------------------------------------------------------
@@ -477,3 +471,82 @@ def test_async_remove_entry_controller_missing_preset(hass):
 
     # Con dati mancanti non deve sollevare eccezioni
     run(async_remove_entry(hass, entry))
+
+
+# ---------------------------------------------------------------------------
+# Coverage Boost: lines 161-162, 242
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_async_remove_entry_marks_file_as_deleted():
+    """Lines 161-162: _mark_as_deleted renames the file and returns the new name."""
+    from datetime import UTC, datetime
+    # Use standalone MagicMock for hass to avoid loop conflicts
+    hass = MagicMock()
+
+    entry = MagicMock()
+    entry.data = {
+        "component_installed": False,
+        "preset_type": "thermostat",
+        "global_prefix": "cronostar_",
+    }
+    entry.title = "CronoStar: My Thermostat [v5.9.1]"
+
+    fake_profile_data = {
+        "meta": {"preset_type": "thermostat", "global_prefix": "cronostar_"},
+        "slots": [],
+    }
+
+    # Simulate the profile file existing on disk.
+    with (
+        patch(
+            "custom_components.cronostar.utils.filename_builder.build_profile_filename",
+            return_value="cronostar_thermostat.json",
+        ),
+        patch("pathlib.Path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data=json.dumps(fake_profile_data))),
+        patch("pathlib.Path.unlink") as mock_unlink,
+    ):
+        # hass.async_add_executor_job must actually *call* the sync function
+        async def real_executor(fn, *args):
+            return fn(*args)
+
+        hass.async_add_executor_job = real_executor
+
+        from custom_components.cronostar import async_remove_entry
+
+        await async_remove_entry(hass, entry)
+
+    # The original file should have been unlinked (line 161).
+    mock_unlink.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_async_remove_entry_logs_backup_preservation(caplog):
+    """Line 242: log message fires when backup directory exists."""
+    import logging
+    # Use standalone MagicMock for hass
+    hass = MagicMock()
+
+    entry = MagicMock()
+    entry.data = {
+        "component_installed": False,
+        "preset_type": "thermostat",
+        "global_prefix": "cronostar_",
+    }
+    entry.title = "CronoStar: My Thermostat [v5.9.1]"
+
+    with (
+        patch(
+            "custom_components.cronostar.utils.filename_builder.build_profile_filename",
+            return_value="cronostar_thermostat.json",
+        ),
+        # Use a mock for Path.exists with side_effect list [False, True]
+        patch.object(Path, "exists", side_effect=[False, True]),
+    ):
+        from custom_components.cronostar import async_remove_entry
+
+        with caplog.at_level(logging.INFO, logger="custom_components.cronostar"):
+            await async_remove_entry(hass, entry)
+
+    assert "preserved" in caplog.text or "Backup" in caplog.text

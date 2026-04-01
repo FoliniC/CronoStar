@@ -10,6 +10,14 @@ Easily add time-based schedules to any entity.
 
 ![CronoStar](custom_components/cronostar/www/cronostar_card/cronostar-logo.png)
 
+## 🎯 What's New in v6.0.1
+
+### 🧪 Improved Test Coverage & Reliability
+- **Robust Lifecycle Testing**: Fixed edge cases in component startup and entity missing warnings.
+- **Enhanced Event Handlers**: Expanded test suite for profile management and manual apply actions.
+- **New Editor Tests**: Added unit tests for the visual configuration wizard.
+- **Continuous Integration**: Optimized vitest configuration for better reliability in CI environments.
+
 ## 🎯 What's New in v5.3
 
 ### 🪄 Refactored Architecture

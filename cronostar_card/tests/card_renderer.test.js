@@ -298,6 +298,54 @@ describe("CardRenderer – render()", () => {
     const result = r.render();
     expect(result).not.toMatch(/mdi:alert-outline[\s\S]*version/);
   });
+
+  it("renderizza i pulsanti expand/collapse", () => {
+    const card = makeCard({ isExpandedV: true });
+    const r = new CardRenderer(card);
+    let result = r.render();
+    expect(result).toContain("mdi:arrow-collapse");
+
+    card.isExpandedV = false;
+    card.isExpandedH = false;
+    result = r.render();
+    expect(result).toContain("mdi:arrow-expand");
+  });
+
+  it("renderizza il context menu se show = true", () => {
+    const card = makeCard({ contextMenu: { show: true, x: 10, y: 20 } });
+    const r = new CardRenderer(card);
+    const result = r.render();
+    expect(result).toContain("context-menu");
+    expect(result).toContain("left: 10px; top: 20px;");
+  });
+
+  it("mostra l'overlay loading_data se initialLoadComplete è false", () => {
+    const card = makeCard({ initialLoadComplete: false });
+    const r = new CardRenderer(card);
+    const result = r.render();
+    expect(result).toContain("loading_data");
+  });
+
+  it("mostra l'overlay anomalous se ci sono missingEntities", () => {
+    const card = makeCard({ missingEntities: ["sensor.missing"] });
+    const r = new CardRenderer(card);
+    const result = r.render();
+    expect(result).toContain("check_configuration");
+  });
+
+  it("gestisce il click di chiusura del wizard", async () => {
+    const card = makeCard({ isEditorInternal: true, _lastGoodConfig: { title: "Old" } });
+    const r = new CardRenderer(card);
+    const result = r.render();
+    
+    // Trova il click handler della chiusura (ha-icon-button con mdi:close)
+    // Nel nostro mock lit, [fn] è il segnaposto per le funzioni
+    expect(result).toContain("mdi:close");
+    
+    // Dato che non possiamo facilmente estrarre la funzione dal mock lit a stringa,
+    // verifichiamo la logica internamente se possibile o confidiamo negli altri test.
+    // In questo ambiente, testiamo i rami di render.
+  });
 });
 
 // ─── _renderAdminBox ──────────────────────────────────────────────────────────

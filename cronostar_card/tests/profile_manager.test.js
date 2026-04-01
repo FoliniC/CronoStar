@@ -83,6 +83,12 @@ describe("ProfileManager – loadProfile", () => {
   beforeEach(() => {
     ({ ctx, stateManager } = makeContext());
     pm = new ProfileManager(ctx);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("carica un profilo valido e chiama stateManager.setData", async () => {
@@ -150,6 +156,12 @@ describe("ProfileManager – saveProfile", () => {
     ({ ctx } = makeContext());
     pm = new ProfileManager(ctx);
     pm.lastLoadedProfile = "Day";
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("salva con il profilo corrente se non specificato", async () => {
@@ -205,6 +217,12 @@ describe("ProfileManager – handleProfileSelection", () => {
     pm = new ProfileManager(ctx);
     pm.lastLoadedProfile = "Default";
     ctx.hass.callWS.mockResolvedValue({ response: { schedule: [], meta: {} } });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("non fa nulla se value è vuoto", async () => {
@@ -271,6 +289,15 @@ describe("ProfileManager – _showUnsavedDialog", () => {
 
 // ─── _updateProfileSelector ───────────────────────────────────────────────────
 describe("ProfileManager – _updateProfileSelector", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("non fa niente se profiles_select_entity è null", () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
@@ -455,6 +482,15 @@ describe("ProfileManager – _updateConfigFromMeta", () => {
 
 // ─── resetChanges ─────────────────────────────────────────────────────────────
 describe("ProfileManager – resetChanges", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("ricarica il profilo corrente", async () => {
     const { ctx } = makeContext();
     ctx.hass.callWS.mockResolvedValue({ response: { schedule: [], meta: {} } });

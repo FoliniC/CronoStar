@@ -10,11 +10,6 @@ import pytest
 def run(coro):
     return asyncio.run(coro)
 
-@pytest.fixture(autouse=True)
-def enable_event_loop_debug():
-    """Mock per evitare RuntimeError su Python 3.13."""
-    pass
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -703,3 +698,115 @@ def test_cleanup_old_backups_keeps_last_10(tmp_path):
 
     remaining = list(backup_dir.glob(f"{stem}_backup_*.json"))
     assert len(remaining) == 10
+
+
+# ---------------------------------------------------------------------------
+# Coverage Boost: lines 283-285, 525-526
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_find_profiles_by_filter_skips_non_cronostar_filename(hass, tmp_path):
+    """Lines 283-285: a file without global_prefix in meta AND whose name does
+    not start with 'cronostar_' is silently skipped."""
+    from custom_components.cronostar.storage.storage_manager import StorageManager
+
+    manager = StorageManager(hass, str(tmp_path))
+
+    # Profile data: no global_prefix in meta, filename doesn't start with cronostar_
+    weird_data = {
+        "meta": {"preset_type": "thermostat"},  # no global_prefix
+        "slots": [],
+    }
+
+    # Mock the file system: one file whose name breaks the "cronostar_" check
+    fake_path = MagicMock()
+    fake_path.name = "legacy_thermostat.json"  # does NOT start with "cronostar_"
+
+    async def fake_executor(fn, *args):
+        return fn(*args)
+
+    hass.async_add_executor_job = fake_executor
+
+    with (
+        patch.object(manager, "_get_files", return_value=[fake_path], create=True),
+        patch.object(
+            manager,
+            "load_profile_cached",
+            AsyncMock(return_value=weird_data),
+        ),
+        patch(
+            "pathlib.Path.glob",
+            return_value=[fake_path],
+        ),
+    ):
+        # Request a filter that would match if the file were processed
+        results = await manager.list_profiles(
+            preset_type="thermostat",
+            prefix="cronostar_",
+        )
+
+    # The file was skipped → no matches
+    assert fake_path.name not in results
+
+
+@pytest.mark.asyncio
+async def test_find_profiles_by_filter_skips_file_with_wrong_prefix_in_filename(
+    hass, tmp_path
+):
+    """Lines 283-285 (alternate path): file has no meta.global_prefix, starts
+    with 'cronostar_' but the base part does not match the requested prefix."""
+    from custom_components.cronostar.storage.storage_manager import StorageManager
+
+    manager = StorageManager(hass, str(tmp_path))
+
+    # Data with no global_prefix in meta
+    profile_data = {
+        "meta": {"preset_type": "thermostat"},
+        "slots": [],
+    }
+
+    fake_path = MagicMock()
+    # filename structure: cronostar_<base>_<suffix>.json
+    # base = "other_controller", wanted base = "myhouse"
+    fake_path.name = "cronostar_other_controller_thermostat.json"
+
+    async def fake_executor(fn, *args):
+        return fn(*args)
+
+    hass.async_add_executor_job = fake_executor
+
+    with (
+        patch.object(
+            manager,
+            "load_profile_cached",
+            AsyncMock(return_value=profile_data),
+        ),
+        patch("pathlib.Path.glob", return_value=[fake_path]),
+    ):
+        results = await manager.list_profiles(
+            preset_type="thermostat",
+            prefix="myhouse_",  # different → line 283 `continue`
+        )
+
+    assert fake_path.name not in results
+
+
+@pytest.mark.asyncio
+async def test_cleanup_old_backups_handles_exception_gracefully(hass, tmp_path, caplog):
+    """Lines 525-526: when _get_sorted_backups raises, the warning is logged
+    and the method returns without propagating the exception."""
+    import logging
+    from custom_components.cronostar.storage.storage_manager import StorageManager
+
+    manager = StorageManager(hass, str(tmp_path))
+
+    async def exploding_executor(fn, *args):
+        raise OSError("disk read error")
+
+    hass.async_add_executor_job = exploding_executor
+
+    with caplog.at_level(logging.WARNING, logger="custom_components.cronostar.storage.storage_manager"):
+        # Must NOT raise
+        await manager._cleanup_old_backups("cronostar_myprofile_thermostat")
+
+    assert "Backup cleanup failed" in caplog.text

@@ -167,3 +167,140 @@ def test_options_flow_controller(hass):
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert hass.config_entries.async_update_entry.called
     assert hass.config_entries.async_reload.called
+
+
+# ---------------------------------------------------------------------------
+# Coverage Boost: lines 210-211, 278, 291, 448
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_config_flow_dashboard_step_logs_warning_on_exception(hass, caplog):
+    """Lines 210-211: direct test that patches lovelace data to raise."""
+    import logging
+    import homeassistant.components.lovelace.const as llc
+    from custom_components.cronostar.config_flow import CronoStarConfigFlow
+
+    flow = CronoStarConfigFlow()
+    flow.hass = hass
+    flow.context = {}
+    flow._controller_data = {}
+    flow._async_current_entries = lambda: []
+
+    class _BadDashboards:
+        @property
+        def dashboards(self):
+            raise ValueError("no dashboards for you")
+
+    hass.data[llc.LOVELACE_DATA] = _BadDashboards()
+
+    with caplog.at_level(logging.WARNING, logger="custom_components.cronostar.config_flow"):
+        result = await flow.async_step_dashboard(user_input=None)
+
+    assert result["type"] == "form"
+    assert "Error fetching dashboards" in caplog.text or "no dashboards" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_add_card_creates_cards_list_when_missing(hass):
+    """Line 278: 'cards' key is created when the view dict has none."""
+    from custom_components.cronostar.config_flow import CronoStarConfigFlow
+    from custom_components.cronostar.const import (
+        CONF_GLOBAL_PREFIX,
+        CONF_MAX_VALUE,
+        CONF_MIN_VALUE,
+        CONF_NAME,
+        CONF_PRESET,
+        CONF_STEP_VALUE,
+        CONF_TARGET_ENTITY,
+    )
+
+    flow = CronoStarConfigFlow()
+    flow.hass = hass
+    flow._controller_data = {
+        "dashboard_path": "lovelace-cronostar",
+        "dashboard_view": 0,
+        CONF_TARGET_ENTITY: "climate.living_room",
+        CONF_GLOBAL_PREFIX: "cronostar_",
+        CONF_PRESET: "thermostat",
+        CONF_NAME: "Living Room",
+        CONF_MIN_VALUE: 5.0,
+        CONF_MAX_VALUE: 30.0,
+        CONF_STEP_VALUE: 0.5,
+    }
+
+    # View deliberately missing the "cards" key
+    lovelace_config = {"views": [{"title": "Home"}]}
+
+    async def mock_get_config(h, path):
+        return lovelace_config
+
+    saved_config = {}
+
+    async def mock_save_config(h, path, cfg):
+        saved_config.update(cfg)
+
+    with (
+        patch(
+            "homeassistant.components.lovelace.async_get_config",
+            mock_get_config,
+        ),
+        patch(
+            "homeassistant.components.lovelace.async_save_config",
+            mock_save_config,
+        ),
+    ):
+        await flow._async_add_card_to_dashboard()
+
+    # "cards" list was created and the new card appended
+    assert "cards" in saved_config["views"][0]
+    assert len(saved_config["views"][0]["cards"]) == 1
+    assert saved_config["views"][0]["cards"][0]["type"] == "custom:cronostar-card"
+
+
+def test_async_get_options_flow_returns_options_flow_instance():
+    """Line 291: async_get_options_flow must return a CronoStarOptionsFlow."""
+    from custom_components.cronostar.config_flow import (
+        CronoStarConfigFlow,
+        CronoStarOptionsFlow,
+    )
+
+    mock_entry = MagicMock()
+    mock_entry.data = {"component_installed": True}
+
+    result = CronoStarConfigFlow.async_get_options_flow(mock_entry)
+
+    assert isinstance(result, CronoStarOptionsFlow)
+
+
+@pytest.mark.asyncio
+async def test_options_flow_success_strips_cronostar_prefix_from_name(hass):
+    """Line 448: 'CronoStar: ' prefix is stripped from the title name."""
+    from custom_components.cronostar.config_flow import CronoStarOptionsFlow
+    from custom_components.cronostar.const import CONF_NAME
+
+    mock_entry = MagicMock()
+    mock_entry.data = {
+        "component_installed": False,
+        CONF_NAME: "Living Room",
+        "preset_type": "thermostat",
+    }
+    mock_entry.entry_id = "test_entry_id"
+    mock_entry.title = "CronoStar: Living Room [v5.9.1]"
+
+    flow = CronoStarOptionsFlow(mock_entry)
+    flow.hass = hass
+
+    # _options_data carries a name that starts with "CronoStar: "
+    flow._options_data = {CONF_NAME: "CronoStar: Living Room"}
+
+    hass.config_entries.async_update_entry = MagicMock()
+    hass.config_entries.async_reload = AsyncMock()
+
+    result = await flow.async_step_success(user_input={})
+
+    # The resulting title must NOT have a double "CronoStar: CronoStar: " prefix
+    update_call = hass.config_entries.async_update_entry.call_args
+    new_title = update_call.kwargs.get("title", update_call.args[1] if len(update_call.args) > 1 else "")
+    assert "CronoStar: CronoStar:" not in new_title
+    assert "Living Room" in new_title
+    assert result["type"] == "create_entry"

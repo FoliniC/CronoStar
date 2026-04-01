@@ -13,12 +13,6 @@ def run(coro):
     return asyncio.run(coro)
 
 
-@pytest.fixture(autouse=True)
-def enable_event_loop_debug():
-    """Mock per evitare RuntimeError su Python 3.13."""
-    pass
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

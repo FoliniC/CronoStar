@@ -28,102 +28,99 @@ vi.mock("../src/config.js", async () => {
 });
 
 import { CardLifecycle } from "../src/core/CardLifecycle.js";
-import { checkIsEditorContext } from "../src/utils.js";
+import { checkIsEditorContext, Logger } from "../src/utils.js";
 import { validateConfig } from "../src/config.js";
 
 // ─── Factory: card minimale ───────────────────────────────────────────────────
-function makeCard(overrides = {}) {
+function makeHass(overrides = {}) {
   return {
-    isMenuOpen: false,
-    config: null,
-    _backendMetaCache: null,
-    isEditorInternal: false,
-    isPreview: false,
-    isPickerPreview: false,
-    isEditor: false,
-    preview: undefined,
-    _preview: undefined,
-    isStartup: false,
-    language: "en",
-    languageInitialized: false,
-    loggingEnabled: true,
-    selectedPreset: "thermostat",
-    hourBase: 0,
-    hourBaseDetermined: false,
-    cronostarReady: false,
-    initialLoadComplete: false,
-    hasUnsavedChanges: false,
-    isEnabled: true,
-    selectedProfile: "",
-    profileOptions: [],
-    cardId: "",
-    integrationVersion: "",
-    versionCheckEnabled: false,
-    globalSettings: {},
-    isDragging: false,
-    awaitingAutomation: false,
-    missingEntities: [],
-    outOfSyncDetails: "",
-    modificationCounter: 0,
-    syncCheckTimer: null,
-    _cardConnected: false,
-    stateManager: {
-      scheduleData: [],
-      setData: vi.fn(),
+    states: {},
+    services: {},
+    config: { state: "RUNNING" },
+    language: "it",
+    connection: {
+      subscribeEvents: vi.fn(() => Promise.resolve(vi.fn())),
     },
-    chartManager: {
-      isInitialized: vi.fn(() => false),
-      initChart: vi.fn(),
-      destroy: vi.fn(),
-      recreateChartOptions: vi.fn(),
-      updateData: vi.fn(),
-      updateChartLabels: vi.fn(),
-      update: vi.fn(),
-      getChart: vi.fn(() => null),
-    },
-    keyboardHandler: {
-      attachListeners: vi.fn(),
-      detachListeners: vi.fn(),
-      enable: vi.fn(),
-      disable: vi.fn(),
-    },
-    pointerHandler: {
-      attachListeners: vi.fn(),
-      detachListeners: vi.fn(),
-    },
-    profileManager: {
-      loadProfile: vi.fn().mockResolvedValue(undefined),
-      lastLoadedProfile: "",
-    },
-    cardSync: {
-      updateAutomationSync: vi.fn(),
-      getAwaitingAutomationText: vi.fn(() => ""),
-    },
-    eventHandlers: {
-      showNotification: vi.fn(),
-    },
-    localizationManager: {
-      localize: vi.fn((lang, key) => key),
-    },
-    shadowRoot: null,
-    requestUpdate: vi.fn(),
-    updateComplete: Promise.resolve(),
-    tagName: "CRONOSTAR-CARD",
-    parentElement: null,
-    parentNode: null,
-    host: null,
+    callWS: vi.fn(),
+    callService: vi.fn(),
     ...overrides,
   };
 }
 
-function makeHass(overrides = {}) {
+function makeCard(overrides = {}) {
   return {
-    language: "en",
-    config: { state: "RUNNING" },
-    services: {},
-    states: {},
-    callWS: vi.fn().mockResolvedValue({ response: {} }),
-    callService: vi.fn().mockResolvedValue({}),
+    _cardConnected: true,
+    isConnected: true,
+    initialLoadComplete: true,
+    cronostarReady: true,
+    languageInitialized: false,
+    language: "it",
+    loggingEnabled: true,
+    selectedPreset: "thermostat",
+    selectedProfile: null,
+    profileOptions: [],
+    hasUnsavedChanges: false,
+    isMenuOpen: false,
+    syncCheckTimer: null,
+    isStartup: false,
+
+    config: {
+      not_configured: false,
+      ...overrides.config,
+    },
+
+    requestUpdate: vi.fn(),
+
+    cardSync: {
+      updateAutomationSync: vi.fn(),
+    },
+
+    chartManager: {
+      isInitialized: vi.fn(() => true),
+      update: vi.fn(),
+      getChart: vi.fn(),
+      recreateChartOptions: vi.fn(),
+      updateChartLabels: vi.fn(),
+      destroy: vi.fn(),
+      initChart: vi.fn(),
+    },
+
+    stateManager: {
+      scheduleData: [],
+      setData: vi.fn(),
+    },
+
+    profileManager: {
+      loadProfile: vi.fn(() => Promise.resolve()),
+    },
+
+    pointerHandler: {
+      detachListeners: vi.fn(),
+      attachListeners: vi.fn(),
+    },
+
+    keyboardHandler: {
+      attachListeners: vi.fn(),
+      detachListeners: vi.fn(),
+      disable: vi.fn(),
+      enable: vi.fn(),
+    },
+
+    shadowRoot: {
+      getElementById: vi.fn(),
+      querySelector: vi.fn(() => null),
+    },
+
+    closest: vi.fn(() => null),
+
+    eventHandlers: {
+      showNotification: vi.fn(),
+    },
+
+    localizationManager: {
+      localize: vi.fn(() => "msg"),
+    },
+
     ...overrides,
   };
 }
@@ -154,6 +151,12 @@ describe("CardLifecycle – setConfig", () => {
   beforeEach(() => {
     card = makeCard();
     lc = new CardLifecycle(card);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("chiama validateConfig e applica il risultato", () => {
@@ -191,8 +194,6 @@ describe("CardLifecycle – setConfig", () => {
   });
 
   it("usa config.preset come fallback per selectedPreset", () => {
-    // validateConfig viene mockato con preset_type sempre definito,
-    // ma il fallback su config.preset è comunque coperto dalla branch
     lc.setConfig({ preset: "generic_switch" });
     expect(card.selectedPreset).toBeDefined();
   });
@@ -245,7 +246,7 @@ describe("CardLifecycle – setConfig", () => {
 
   it("gestisce eccezioni di validateConfig mostrando notifica", () => {
     validateConfig.mockImplementationOnce(() => { throw new Error("bad config"); });
-    expect(() => lc.setConfig({})).not.toThrow();
+    lc.setConfig({});
     expect(card.eventHandlers.showNotification).toHaveBeenCalledWith(
       expect.any(String),
       "error",
@@ -259,6 +260,148 @@ describe("CardLifecycle – setConfig", () => {
       get meta() { throw new Error("meta error"); },
     });
     expect(() => lc.setConfig({})).not.toThrow();
+  });
+
+  describe("set hass – entity missing warnings", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.restoreAllMocks();
+      window.cronostarpausewarned = new Set();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("logga un warning se l'entità enabled_entity manca e non è già stata segnalata globalmente", () => {
+      const loggerSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
+      const nowSpy = vi.spyOn(Date, "now");
+
+      const card = makeCard({
+        config: {
+          enabled_entity: "input_boolean.test_enabled",
+          not_configured: false,
+        },
+        initialLoadComplete: true,
+        cronostarReady: true,
+      });
+
+      const lifecycle = new CardLifecycle(card);
+
+      nowSpy.mockReturnValueOnce(0);
+      lifecycle.setHass(
+        makeHass({
+          states: {},
+          config: { state: "RUNNING" },
+        }),
+      );
+
+      nowSpy.mockReturnValueOnce(61001);
+      lifecycle.setHass(
+        makeHass({
+          states: {},
+          config: { state: "RUNNING" },
+        }),
+      );
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        "HASS",
+        expect.stringContaining("Enabled entity not found:"),
+        "input_boolean.test_enabled",
+      );
+    });
+
+    it("non logga warning se l'entità manca ma initialLoadComplete è false", () => {
+      const loggerSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
+      const nowSpy = vi.spyOn(Date, "now");
+
+      const card = makeCard({
+        initialLoadComplete: false,
+        cronostarReady: true,
+        config: {
+          enabled_entity: "switch.missing",
+          not_configured: false,
+        },
+      });
+      const lifecycle = new CardLifecycle(card);
+      
+      nowSpy.mockReturnValueOnce(0);
+      lifecycle.setHass(
+        makeHass({
+          states: {},
+          config: { state: "RUNNING" },
+        }),
+      );
+
+      nowSpy.mockReturnValueOnce(70000);
+      lifecycle.setHass(
+        makeHass({
+          states: {},
+          config: { state: "RUNNING" },
+        }),
+      );
+
+      expect(loggerSpy).not.toHaveBeenCalled();
+    });
+
+    it("logga un warning se profiles_select_entity manca", () => {
+      const loggerSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
+      const nowSpy = vi.spyOn(Date, "now");
+
+      const card = makeCard({
+        config: {
+          profiles_select_entity: "select.test_profile",
+          not_configured: false,
+        },
+        initialLoadComplete: true,
+        cronostarReady: true,
+      });
+
+      const lifecycle = new CardLifecycle(card);
+
+      nowSpy.mockReturnValueOnce(0);
+      lifecycle.setHass(
+        makeHass({
+          states: {},
+          config: { state: "RUNNING" },
+        }),
+      );
+
+      nowSpy.mockReturnValueOnce(61001);
+      lifecycle.setHass(
+        makeHass({
+          states: {},
+          config: { state: "RUNNING" },
+        }),
+      );
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        "HASS",
+        expect.stringContaining("Profile select entity not found:"),
+        "select.test_profile",
+      );
+    });
+
+    it("imposta un syncCheckTimer se non in editor", () => {
+      const card = makeCard();
+      const lifecycle = new CardLifecycle(card);
+
+      vi.spyOn(lifecycle, "isEditorContext").mockReturnValue(false);
+
+      lifecycle.setHass(
+        makeHass({
+          states: {},
+          config: { state: "RUNNING" },
+        }),
+      );
+
+      expect(card.syncCheckTimer).toBeTruthy();
+
+      vi.advanceTimersByTime(5000);
+
+      expect(card.cardSync.updateAutomationSync).toHaveBeenCalled();
+      expect(card.chartManager.update).toHaveBeenCalledWith("none");
+    });
   });
 });
 
@@ -338,6 +481,8 @@ describe("CardLifecycle – setHass", () => {
   });
 
   it("imposta isStartup = true nei primi 60s", () => {
+    const card = makeCard({ cronostarReady: false }); 
+    const lc = new CardLifecycle(card);
     const hass = makeHass({ config: { state: "RUNNING" } });
     lc.setHass(hass);
     expect(card.isStartup).toBe(true);
@@ -369,6 +514,7 @@ describe("CardLifecycle – setHass", () => {
   });
 
   it("imposta cronostarReady = true quando il servizio apply_now è trovato", () => {
+    card.cronostarReady = false;
     const hass = makeHass({
       services: { cronostar: { apply_now: {} } },
     });
@@ -377,6 +523,7 @@ describe("CardLifecycle – setHass", () => {
   });
 
   it("imposta cronostarReady = true per il servizio applynow (underscore-less)", () => {
+    card.cronostarReady = false;
     const hass = makeHass({
       services: { cronostar: { applynow: {} } },
     });
@@ -670,7 +817,6 @@ describe("CardLifecycle – context detection", () => {
     const child = makeCard();
     child.tagName = "DIV";
     
-    // In JSDOM parentElement è spesso a sola lettura, usiamo defineProperty
     Object.defineProperty(child, 'parentElement', { value: preview, configurable: true });
     Object.defineProperty(preview, 'parentElement', { value: picker, configurable: true });
     
@@ -851,7 +997,6 @@ describe("CardLifecycle – registerCard", () => {
 // ─── _updatePreviewVisibility ─────────────────────────────────────────────────
 describe("CardLifecycle – _updatePreviewVisibility", () => {
   afterEach(() => {
-    // Rimuovi l'elemento style aggiunto dai test
     document.getElementById("cronostar-editor-style")?.remove();
   });
 
@@ -864,18 +1009,15 @@ describe("CardLifecycle – _updatePreviewVisibility", () => {
   });
 
   it("aggiunge un elemento style per step='0' (stringa)", () => {
-    const card = makeCard();
-    card.config = { step: "0" };
+    const card = makeCard({ config: { step: "0" } });
     const lc = new CardLifecycle(card);
     lc._updatePreviewVisibility();
     expect(document.getElementById("cronostar-editor-style")).not.toBeNull();
   });
 
   it("svuota il contenuto dello style per altri step", () => {
-    const card = makeCard();
-    card.config = { step: 1 };
+    const card = makeCard({ config: { step: 1 } });
     const lc = new CardLifecycle(card);
-    // Prima aggiungi il style
     const styleEl = document.createElement("style");
     styleEl.id = "cronostar-editor-style";
     styleEl.textContent = "some css";
@@ -885,15 +1027,13 @@ describe("CardLifecycle – _updatePreviewVisibility", () => {
   });
 
   it("non crasha se config è null", () => {
-    const card = makeCard();
-    card.config = null;
+    const card = makeCard({ config: null });
     const lc = new CardLifecycle(card);
     expect(() => lc._updatePreviewVisibility()).not.toThrow();
   });
 
   it("non aggiunge il secondo style se esiste già per step=0", () => {
-    const card = makeCard();
-    card.config = { step: 0 };
+    const card = makeCard({ config: { step: 0 } });
     const lc = new CardLifecycle(card);
     lc._updatePreviewVisibility();
     lc._updatePreviewVisibility();

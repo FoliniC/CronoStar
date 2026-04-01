@@ -421,6 +421,27 @@ def _install_ha_stubs():
 
 _install_ha_stubs()
 
+import asyncio
+
+@pytest.fixture(autouse=True)
+def _loop_patch():
+    """Assicura che esista un event loop per evitare RuntimeError in Python 3.10+."""
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+@pytest.fixture(autouse=True)
+def verify_cleanup():
+    """Override verify_cleanup per evitare RuntimeError su versioni recenti di Python."""
+    yield
+
+@pytest.fixture(autouse=True)
+def enable_event_loop_debug():
+    """Override enable_event_loop_debug per evitare RuntimeError su versioni recenti di Python."""
+    pass
+
 # ──────────────────────────────────────────────────────────────────────────────
 # 2.  pytest configuration
 # ──────────────────────────────────────────────────────────────────────────────

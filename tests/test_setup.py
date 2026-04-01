@@ -110,3 +110,34 @@ def test_register_lovelace_dashboard_object(hass):
     with patch("homeassistant.components.lovelace.dashboard.LovelaceYAML") as mock_ly:
         run(_register_lovelace_dashboard(hass, "/tmp/y.yaml"))
         assert PANEL_URL_PATH in lovelace_obj.dashboards
+
+
+# ---------------------------------------------------------------------------
+# Coverage Boost: setup/__init__.py lines 17-18
+# ---------------------------------------------------------------------------
+
+def test_has_static_path_config_false_when_import_fails():
+    """Lines 17-18: HAS_STATIC_PATH_CONFIG is False when StaticPathConfig
+    cannot be imported from homeassistant.components.http."""
+    import sys
+    import importlib
+
+    # Build a fake http module that does NOT expose StaticPathConfig.
+    fake_http = MagicMock(spec=[])  # spec=[] → no attributes
+
+    # Remove the cached setup module so Python re-executes the top-level code.
+    setup_module_key = "custom_components.cronostar.setup"
+    saved = sys.modules.pop(setup_module_key, None)
+
+    try:
+        with patch.dict(sys.modules, {"homeassistant.components.http": fake_http}):
+            import custom_components.cronostar.setup as setup_mod
+            # Force a clean re-import so the except ImportError branch runs.
+            importlib.reload(setup_mod)
+            assert setup_mod.HAS_STATIC_PATH_CONFIG is False
+    finally:
+        # Restore original module state
+        if saved is not None:
+            sys.modules[setup_module_key] = saved
+        elif setup_module_key in sys.modules:
+            del sys.modules[setup_module_key]

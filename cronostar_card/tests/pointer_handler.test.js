@@ -1,41 +1,41 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PointerHandler } from "../src/handlers/pointer_handler.js";
 
 describe("PointerHandler", () => {
   let ph, card, stateManager, selectionManager, chartManager;
 
   beforeEach(() => {
+    vi.useFakeTimers();
+
     stateManager = {
       alignSelectedPoints: vi.fn(),
     };
 
     selectionManager = {
       getSelectedPoints: vi.fn(() => []),
-      selectPoint: vi.fn(),
+      selectIndices: vi.fn(),
       clearSelection: vi.fn(),
+      logSelection: vi.fn(),
     };
 
     chartManager = {
       deletePointAtEvent: vi.fn(() => false),
       _updatePointStyles: vi.fn(),
+      updatePointStyles: vi.fn(),
+      update: vi.fn(),
+      getChart: vi.fn(() => null),
+      getIndicesInArea: vi.fn(() => [1, 2]),
+    };
+
+    const selectionRect = { style: {} };
+    const container = {
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 500, height: 300 }),
     };
 
     const shadowRoot = {
-      querySelector: vi.fn((sel) => {
-        if (sel === ".chart-container") {
-          return {
-            getBoundingClientRect: () => ({ left: 0, top: 0, width: 500, height: 300 }),
-          };
-        }
-        return null;
-      }),
-      getElementById: vi.fn((id) => {
-        if (id === "selection-rect") {
-          return { style: {} };
-        }
-        return null;
-      }),
+      querySelector: vi.fn((sel) => (sel === ".chart-container" ? container : null)),
+      getElementById: vi.fn((id) => (id === "selection-rect" ? selectionRect : null)),
     };
 
     card = {
@@ -50,83 +50,88 @@ describe("PointerHandler", () => {
     ph = new PointerHandler(card);
   });
 
-  it("dovrebbe prevenire il default su onContextMenu", () => {
+  it("prevents default on context menu", () => {
     const event = { preventDefault: vi.fn(), clientX: 10, clientY: 10 };
     ph.onContextMenu(event);
     expect(event.preventDefault).toHaveBeenCalled();
   });
 
-  it("dovrebbe gestire l'allineamento con Alt + click destro", () => {
-    const event = { 
-      preventDefault: vi.fn(), 
-      stopPropagation: vi.fn(), 
-      altKey: true 
+  it("handles Alt + right click alignment", () => {
+    const event = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      altKey: true,
     };
     ph.onContextMenu(event);
     expect(stateManager.alignSelectedPoints).toHaveBeenCalledWith("right");
     expect(chartManager._updatePointStyles).toHaveBeenCalled();
   });
 
-  it("dovrebbe tentare la cancellazione veloce su click destro se un solo punto è selezionato", () => {
+  it("tries fast delete on right click when one point is selected", () => {
     selectionManager.getSelectedPoints.mockReturnValue([1]);
-    const event = { preventDefault: vi.fn(), clientX: 10, clientY: 10 };
     chartManager.deletePointAtEvent.mockReturnValue(true);
-    
+
+    const event = { preventDefault: vi.fn(), clientX: 10, clientY: 10 };
     ph.onContextMenu(event);
+
     expect(chartManager.deletePointAtEvent).toHaveBeenCalledWith(event);
     expect(card.contextMenu.show).toBeFalsy();
   });
 
-  it("dovrebbe mostrare il menu contestuale", () => {
+  it("shows the context menu", () => {
     const event = { preventDefault: vi.fn(), clientX: 50, clientY: 50 };
     ph.onContextMenu(event);
+
     expect(card.contextMenu.show).toBe(true);
     expect(card.requestUpdate).toHaveBeenCalled();
   });
 
-  it("dovrebbe calcolare le coordinate relative al container", () => {
+  it("calculates relative container coordinates", () => {
     const event = { clientX: 100, clientY: 150 };
-    const coords = ph.getContainerRelativeCoords(event);
-    expect(coords).toEqual({ x: 100, y: 150 });
+    expect(ph.getContainerRelativeCoords(event)).toEqual({ x: 100, y: 150 });
   });
 
-  it("dovrebbe mostrare/nascondere l'overlay di selezione", () => {
+  it("shows and hides selection overlay", () => {
     const rect = { style: {} };
     card.shadowRoot.getElementById.mockReturnValue(rect);
-    
+
     ph.showSelectionOverlay();
     expect(rect.style.display).toBe("block");
-    
+
     ph.hideSelectionOverlay();
     expect(rect.style.display).toBe("none");
   });
 
-  it("dovrebbe ignorare onPointerDown se card.isDragging è true", () => {
+  it("ignores onPointerDown if card.isDragging is true", () => {
     card.isDragging = true;
-    const event = { clientX: 10, clientY: 10 };
-    ph.onPointerDown(event);
+    ph.onPointerDown({ clientX: 10, clientY: 10 });
     expect(ph.isSelecting).toBe(false);
   });
 
-  it("dovrebbe iniziare la selezione su onPointerDown", () => {
+  it("starts pending selection on pointer down", () => {
     card.isDragging = false;
     const canvas = document.createElement("canvas");
-    canvas.id = "myChart"; // L'handler spesso controlla l'ID o il tag
-    
-    const event = { 
-      clientX: 10, 
-      clientY: 10, 
-      pointerId: 1, 
-      button: 0, 
+
+    const event = {
+      clientX: 10,
+      clientY: 10,
+      pointerId: 1,
+      button: 0,
       buttons: 1,
       isPrimary: true,
       target: canvas,
       currentTarget: canvas,
       preventDefault: vi.fn(),
-      stopPropagation: vi.fn()
+      stopPropagation: vi.fn(),
     };
+
     ph.onPointerDown(event);
+
     expect(ph.pendingSelectStart).toEqual({ x: 10, y: 10 });
     expect(ph.activePointerId).toBe(1);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 });
