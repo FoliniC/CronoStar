@@ -29,7 +29,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.test.txt
-          pip install pycares==4.5.0 aiodns==3.1.1 --force-reinstall
           
       - name: Run tests with coverage
         continue-on-error: true

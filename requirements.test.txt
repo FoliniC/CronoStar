@@ -3,5 +3,3 @@ pytest-homeassistant-custom-component==0.13.295
 pytest
 pytest-asyncio
 pytest-cov
-pycares==4.5.0
-aiodns==3.1.1
