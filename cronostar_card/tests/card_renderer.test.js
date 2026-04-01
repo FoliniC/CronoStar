@@ -333,6 +333,54 @@ describe("CardRenderer – render()", () => {
     expect(result).toContain("check_configuration");
   });
 
+  it("renderizza il dashboard dell'editor", () => {
+    const card = makeCard({ isEditorInternal: true, editorStep: 0 });
+    const r = new CardRenderer(card);
+    const result = r.render();
+    expect(result).toContain("CONFIGURATION WIZARD");
+    expect(result).toContain("(Step 0)");
+  });
+
+  it("renderizza la selezione preset dell'editor", () => {
+    const card = makeCard({ isEditorInternal: true, editorStep: 1 });
+    const r = new CardRenderer(card);
+    const result = r.render();
+    expect(result).toContain("CONFIGURATION WIZARD");
+    expect(result).toContain("(Step 1)");
+  });
+
+  it("renderizza la selezione entità dell'editor", () => {
+    const card = makeCard({ isEditorInternal: true, editorStep: 2 });
+    const r = new CardRenderer(card);
+    const result = r.render();
+    expect(result).toContain("CONFIGURATION WIZARD");
+    expect(result).toContain("(Step 2)");
+  });
+
+  it("renderizza le opzioni dell'editor", () => {
+    const card = makeCard({ isEditorInternal: true, editorStep: 3 });
+    const r = new CardRenderer(card);
+    const result = r.render();
+    expect(result).toContain("CONFIGURATION WIZARD");
+    expect(result).toContain("(Step 3)");
+  });
+
+  it("renderizza la configurazione automazione", () => {
+    const card = makeCard({ isEditorInternal: true, editorStep: 4 });
+    const r = new CardRenderer(card);
+    const result = r.render();
+    expect(result).toContain("CONFIGURATION WIZARD");
+    expect(result).toContain("(Step 4)");
+  });
+
+  it("renderizza il riepilogo finale", () => {
+    const card = makeCard({ isEditorInternal: true, editorStep: 5 });
+    const r = new CardRenderer(card);
+    const result = r.render();
+    expect(result).toContain("CONFIGURATION WIZARD");
+    expect(result).toContain("(Step 5)");
+  });
+
   it("gestisce il click di chiusura del wizard", async () => {
     const card = makeCard({ isEditorInternal: true, _lastGoodConfig: { title: "Old" } });
     const r = new CardRenderer(card);

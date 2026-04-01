@@ -20,11 +20,17 @@ describe("KeyboardHandler", () => {
       getActiveIndices: vi.fn(() => []),
       selectAll: vi.fn(),
       clearSelection: vi.fn(),
+      selectIndices: vi.fn(),
     };
 
     card = {
       stateManager,
       selectionManager,
+      chartManager: { 
+        updatePointStyling: vi.fn(),
+        update: vi.fn(),
+        updateData: vi.fn(),
+      },
       isEditorContext: vi.fn(() => false),
       shadowRoot: { activeElement: null },
       requestUpdate: vi.fn(),
@@ -112,14 +118,77 @@ describe("KeyboardHandler", () => {
       preventDefault: vi.fn(), 
       stopPropagation: vi.fn() 
     };
+    kh.handleEscape = vi.fn();
     kh.handleKeydown(event);
-    expect(selectionManager.clearSelection).toHaveBeenCalled();
+    expect(kh.handleEscape).toHaveBeenCalled();
   });
 
-  it("non dovrebbe fare nulla se disabilitato", () => {
-    kh.disable();
-    const event = { key: "z", ctrlKey: true, preventDefault: vi.fn() };
-    kh.handleKeydown(event);
-    expect(stateManager.undo).not.toHaveBeenCalled();
+  describe("handleInsertPoint", () => {
+    it("dovrebbe inserire un punto tra due punti esistenti", () => {
+      selectionManager.getActiveIndices.mockReturnValue([0]);
+      stateManager.scheduleData = [
+        { time: "00:00", value: 10 },
+        { time: "02:00", value: 20 }
+      ];
+      card.chartManager = { 
+        updateData: vi.fn(),
+        updatePointStyling: vi.fn(),
+      };
+      kh.handleInsertPoint();
+      expect(stateManager.insertPoint).toHaveBeenCalledWith("01:00", 15);
+    });
+
+    it("non dovrebbe inserire se nessun punto è selezionato", () => {
+      selectionManager.getActiveIndices.mockReturnValue([]);
+      kh.handleInsertPoint();
+      expect(stateManager.insertPoint).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("handleDeletePoint", () => {
+    it("dovrebbe rimuovere i punti selezionati", () => {
+      selectionManager.getActiveIndices.mockReturnValue([1]);
+      kh.handleDeletePoint();
+      expect(stateManager.removePoint).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe("Arrow keys", () => {
+    beforeEach(() => {
+      selectionManager.getActiveIndices.mockReturnValue([0]);
+      stateManager.scheduleData = [{ time: "01:00", value: 50 }];
+      kh.handleArrowUpDown = vi.fn();
+      kh.handleArrowLeftRight = vi.fn();
+    });
+
+    it("gestisce ArrowUp", () => {
+      const event = { key: "ArrowUp", preventDefault: vi.fn() };
+      kh.handleKeydown(event);
+      expect(kh.handleArrowUpDown).toHaveBeenCalled();
+      expect(card.isDragging).toBe(true);
+    });
+
+    it("gestisce ArrowLeft", () => {
+      const event = { key: "ArrowLeft", preventDefault: vi.fn() };
+      kh.handleKeydown(event);
+      expect(kh.handleArrowLeftRight).toHaveBeenCalled();
+    });
+  });
+
+  describe("_winKeydown", () => {
+    it("dovrebbe ignorare se disabilitato", () => {
+      kh.disable();
+      const spy = vi.spyOn(kh, "handleKeydown");
+      kh._winKeydown({ ctrlKey: true });
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("dovrebbe chiamare handleKeydown se un modificatore è premuto e il container non è attivo", () => {
+      kh.enable();
+      const spy = vi.spyOn(kh, "handleKeydown").mockImplementation(() => {});
+      card.shadowRoot.activeElement = null;
+      kh._winKeydown({ ctrlKey: true, key: "z" });
+      expect(spy).toHaveBeenCalled();
+    });
   });
 });

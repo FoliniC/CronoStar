@@ -131,6 +131,53 @@ describe("PointerHandler", () => {
     expect(ph.activePointerId).toBe(1);
   });
 
+  it("handles onPointerMove and updates selection box after threshold", () => {
+    ph.activePointerId = 1;
+    ph.pendingSelectStart = { x: 10, y: 10 };
+    ph.isSelecting = false;
+    
+    // Move more than dragThresholdPx (6)
+    const event = {
+      clientX: 20,
+      clientY: 20,
+      pointerId: 1,
+      buttons: 1,
+      target: { setPointerCapture: vi.fn() }
+    };
+
+    ph.onPointerMove(event);
+    
+    expect(ph.isSelecting).toBe(true);
+    expect(ph.selStartPx).toEqual({ x: 10, y: 10 });
+    expect(ph.selEndPx).toEqual({ x: 20, y: 20 });
+  });
+
+  it("handles onPointerUp and finishes selection", () => {
+    ph.activePointerId = 1;
+    ph.isSelecting = true;
+    ph.selStartPx = { x: 10, y: 10 };
+    ph.selEndPx = { x: 110, y: 110 };
+    
+    const event = {
+      pointerId: 1,
+      preventDefault: vi.fn(),
+      target: { releasePointerCapture: vi.fn() }
+    };
+
+    ph.onPointerUp(event);
+    
+    expect(selectionManager.selectIndices).toHaveBeenCalledWith([1, 2], true);
+    expect(ph.isSelecting).toBe(false);
+    expect(ph.activePointerId).toBeNull();
+  });
+
+  it("handles onPointerCancel and cleans up", () => {
+    ph.isSelecting = true;
+    ph.onPointerCancel();
+    expect(ph.isSelecting).toBe(false);
+    expect(card.pointerSelecting).toBe(false);
+  });
+
   afterEach(() => {
     vi.useRealTimers();
   });
