@@ -31,13 +31,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install anyio
           pip install -r requirements.test.txt
           
       - name: Run tests with coverage
         continue-on-error: true
         run: |
-          pytest -v --cov=custom_components/cronostar --cov-report=term-missing > pytest-coverage.txt
-          cat pytest-coverage.txt
+          pytest -v --cov=custom_components/cronostar --cov-report=term-missing | tee pytest-coverage.txt
           
       - name: Extract Coverage
         id: extract_coverage
