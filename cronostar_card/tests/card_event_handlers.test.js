@@ -25,6 +25,7 @@ describe("CardEventHandlers", () => {
   let handlers, card;
 
   beforeEach(() => {
+    document.body.innerHTML = "";
     card = {
       isMenuOpen: false,
       keyboardHandler: { enable: vi.fn(), disable: vi.fn() },
@@ -61,9 +62,12 @@ describe("CardEventHandlers", () => {
         alignSelectedPoints: vi.fn(),
         _initializeScheduleData: vi.fn(),
         getNumPoints: vi.fn(() => 0),
+        removePoint: vi.fn(),
       },
       selectionManager: {
         selectAll: vi.fn(),
+        clearSelection: vi.fn(),
+        getSelectedPoints: vi.fn(() => []),
         selectedPoint: null,
         selectedPoints: []
       },
@@ -265,9 +269,156 @@ describe("CardEventHandlers", () => {
     expect(appendChildSpy).toHaveBeenCalled();
   });
 
-  it("handleEditCard dovrebbe dispatchare hass-edit-card", () => {
+  it("handleDeleteSelected dovrebbe cancellare i punti selezionati", () => {
+    card.selectionManager.getSelectedPoints = vi.fn(() => [1, 2]);
+    card.stateManager.getNumPoints = vi.fn(() => 10);
+    card.chartManager.isInitialized.mockReturnValue(true);
+
+    handlers.handleDeleteSelected();
+    expect(card.stateManager.removePoint).toHaveBeenCalledTimes(2);
+    expect(card.chartManager.updateData).toHaveBeenCalled();
+    expect(card.selectionManager.clearSelection).toHaveBeenCalled();
+  });
+
+  it("handleDeleteSelected non dovrebbe cancellare i punti di confine", () => {
+    card.selectionManager.getSelectedPoints = vi.fn(() => [0, 9]);
+    card.stateManager.getNumPoints = vi.fn(() => 10);
+
+    handlers.handleDeleteSelected();
+
+    expect(card.stateManager.removePoint).not.toHaveBeenCalled();
+  });
+
+  it("handleCopyJson dovrebbe copiare il JSON negli appunti", async () => {
+    card.stateManager.getData.mockReturnValue([{ time: "00:00", value: 20 }]);
+
+    await handlers.handleCopyJson();
+
+    const { copyToClipboard } = await import("../src/editor/services/service_handlers.js");
+    expect(copyToClipboard).toHaveBeenCalled();
+    expect(card.requestUpdate).toHaveBeenCalled();
+  });
+
+  it("handleDeleteProfile dovrebbe gestire la cancellazione confermata", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    card.selectedProfile = "Test";
+    card.profileOptions = ["Test", "Other"];
+
+    await handlers.handleDeleteProfile();
+
+    expect(card.hass.callService).toHaveBeenCalledWith("cronostar", "delete_profile", expect.objectContaining({ profile_name: "Test" }));
+    expect(card.selectedProfile).toBe("Other");
+  });
+
+  it("handleDeleteProfile non dovrebbe fare nulla se non confermato", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => false));
+    card.selectedProfile = "Test";
+
+    await handlers.handleDeleteProfile();
+
+    expect(card.hass.callService).not.toHaveBeenCalledWith("cronostar", "delete_profile", expect.any(Object));
+  });
+
+  it("showNotification dovrebbe gestire il timeout di chiusura", async () => {
+    vi.useFakeTimers();
+    handlers.showNotification("test", "success");
+
+    expect(card.hass.callService).toHaveBeenCalledWith("persistent_notification", "create", expect.any(Object));
+
+    vi.advanceTimersByTime(5000);
+
+    expect(card.hass.callService).toHaveBeenCalledWith("persistent_notification", "dismiss", expect.any(Object));
+    vi.useRealTimers();
+  });
+
+  it("handleEditCard dovrebbe scatenare l'evento hass-edit-card", () => {
+    const dispatchSpy = vi.spyOn(card, "dispatchEvent");
     handlers.handleEditCard();
-    expect(card.dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "hass-edit-card" }));
+    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: "hass-edit-card" }));
+  });
+
+  it("handleCardClick dovrebbe chiudere il menu se si clicca fuori", () => {
+    card.isMenuOpen = true;
+    const event = {
+      target: {
+        closest: vi.fn(() => null)
+      }
+    };
+
+    handlers.handleCardClick(event);
+
+    expect(card.isMenuOpen).toBe(false);
+    expect(card.keyboardHandler.enable).toHaveBeenCalled();
+  });
+  describe("_fetchProfileNameSuggestions", () => {
+    it("dovrebbe ritornare suggerimenti filtrando il profilo attuale", async () => {
+      card.config.global_prefix = "p_";
+      card.profileOptions = ["Default"];
+      card.hass.callWS.mockResolvedValueOnce({
+        response: {
+          thermostat: {
+            files: [
+              { filename: "other_card", profiles: ["Night", "Default"] },
+              { filename: "p_this_card", profiles: ["Secret"] }
+            ]
+          }
+        }
+      });
+
+      const suggestions = await handlers._fetchProfileNameSuggestions("thermostat");
+      expect(suggestions).toEqual(["Night"]);
+    });
+
+    it("dovrebbe gestire errori del servizio", async () => {
+      card.hass.callWS.mockRejectedValueOnce(new Error("WS fail"));
+      const suggestions = await handlers._fetchProfileNameSuggestions("thermostat");
+      expect(suggestions).toEqual([]);
+    });
+  });
+
+  describe("_openAddProfileDialog", () => {
+    it("dovrebbe aprire il dialog e risolvere con il nome inserito", async () => {
+      vi.spyOn(handlers, "_fetchProfileNameSuggestions").mockResolvedValue(["Night"]);
+      
+      const promise = handlers._openAddProfileDialog();
+      
+      // Wait for microtasks to complete so the dialog is rendered
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Simulate user input and click OK
+      const overlays = Array.from(document.body.querySelectorAll("div")).filter(d => d.style.position === "fixed");
+      const overlay = overlays[0];
+      
+      expect(overlay).toBeTruthy();
+      
+      const input = overlay.querySelector("input");
+      expect(input).toBeTruthy();
+      input.value = "NewProfile";
+      
+      const okBtn = Array.from(overlay.querySelectorAll("button")).find(b => b.textContent === "Create");
+      okBtn.click();
+      
+      const result = await promise;
+      expect(result).toBe("NewProfile");
+      expect(document.body.querySelector("div[style*='position: fixed']")).toBeNull();
+    });
+
+    it("dovrebbe risolvere con null se annullato", async () => {
+      vi.spyOn(handlers, "_fetchProfileNameSuggestions").mockResolvedValue([]);
+      const promise = handlers._openAddProfileDialog();
+      
+      // Wait for microtasks
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const overlay = Array.from(document.body.querySelectorAll("div")).find(d => d.style.position === "fixed");
+      expect(overlay).toBeTruthy();
+      const cancelBtn = Array.from(overlay.querySelectorAll("button")).find(b => b.textContent === "Cancel");
+      expect(cancelBtn).toBeTruthy();
+      cancelBtn.click();
+      
+      const result = await promise;
+      expect(result).toBeNull();
+    });
   });
 });
 

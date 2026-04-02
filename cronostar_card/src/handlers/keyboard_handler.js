@@ -114,22 +114,24 @@ export class KeyboardHandler {
 
     // Undo / Redo
     if (isCtrlOrMeta && !isAlt) {
-      if (e.key.toLowerCase() === "z") {
-        e.preventDefault();
-        e.stopPropagation();
-        if (this.card.stateManager?.undo()) {
-          Logger.log("KEYBOARD", "[CronoStar] Undo performed");
-        }
-        return;
-      }
-      if (
-        e.key.toLowerCase() === "y" ||
-        (e.shiftKey && e.key.toLowerCase() === "z")
-      ) {
+      const keyLow = e.key.toLowerCase();
+      
+      // Redo check first (Ctrl+Y or Ctrl+Shift+Z)
+      if (keyLow === "y" || (e.shiftKey && keyLow === "z")) {
         e.preventDefault();
         e.stopPropagation();
         if (this.card.stateManager?.redo()) {
           Logger.log("KEYBOARD", "[CronoStar] Redo performed");
+        }
+        return;
+      }
+      
+      // Undo check (Ctrl+Z)
+      if (keyLow === "z") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.card.stateManager?.undo()) {
+          Logger.log("KEYBOARD", "[CronoStar] Undo performed");
         }
         return;
       }
@@ -156,7 +158,7 @@ export class KeyboardHandler {
       e.preventDefault();
       e.stopPropagation();
       Logger.log("KEYBOARD", "[CronoStar] Apply now triggered via Ctrl+Enter");
-      this.card.eventHandlers.handleApplyNow();
+      this.card.eventHandlers?.handleApplyNow();
       this.focusContainer();
       return;
     }
@@ -341,6 +343,24 @@ export class KeyboardHandler {
     const dataset = chartMgr.chart.data.datasets[0];
     const data = dataset.data;
 
+    // Index validation
+    const validIndices = indices.filter(
+      (i) => data[i] && typeof data[i].x === "number",
+    );
+    if (validIndices.length === 0) {
+      Logger.warn("KEYBOARD", "[CronoStar] No valid points to move");
+      return;
+    }
+
+    // If some indices are invalid, use only the valid ones
+    if (validIndices.length !== indices.length) {
+      Logger.warn(
+        "KEYBOARD",
+        `[CronoStar] Filtered invalid indices: ${indices.filter((i) => !validIndices.includes(i))}`,
+      );
+      indices = validIndices;
+    }
+
     const config = this.card.config || {};
     const kbGlobalRaw = this.card.globalSettings?.keyboard || {};
     const kbGlobal = {
@@ -471,8 +491,13 @@ export class KeyboardHandler {
     }
 
     // 3. Compute current extent of the selected group
-    const groupMinX = Math.min(...indicesToMove.map((i) => data[i].x));
-    const groupMaxX = Math.max(...indicesToMove.map((i) => data[i].x));
+    const validToMove = indicesToMove.filter(
+      (i) => data[i] && typeof data[i].x === "number",
+    );
+    if (validToMove.length === 0) return;
+
+    const groupMinX = Math.min(...validToMove.map((i) => data[i].x));
+    const groupMaxX = Math.max(...validToMove.map((i) => data[i].x));
 
     // 4. Calculate actual displacement (clamped by hard limits)
     // When snapping, we calculate the delta based on the ANCHOR point (indices[0]),
@@ -482,18 +507,14 @@ export class KeyboardHandler {
     const anchorIdx = indices[0];
     const anchorP = data[anchorIdx];
 
-    if (anchorP) {
-      let targetX = anchorP.x + dx;
+    let targetX = anchorP.x + dx;
 
-      if (snapToGrid) {
-        const gridSize = minutesStep;
-        targetX = Math.round(targetX / gridSize) * gridSize;
-      }
-
-      moveDelta = targetX - anchorP.x;
-    } else {
-      moveDelta = dx; // Fallback
+    if (snapToGrid) {
+      const gridSize = minutesStep;
+      targetX = Math.round(targetX / gridSize) * gridSize;
     }
+
+    moveDelta = targetX - anchorP.x;
 
     // Check bounds for the WHOLE group with this calculated delta
     if (groupMinX + moveDelta < leftLimit) {
@@ -506,7 +527,7 @@ export class KeyboardHandler {
     // 5. Apply movement
     indicesToMove.forEach((i) => {
       const p = data[i];
-      if (!p) return;
+      if (!p || typeof p.x !== "number") return;
       if (i === 0 || i === data.length - 1) return; // keep anchors fixed
 
       const oldX = p.x;
@@ -584,8 +605,6 @@ export class KeyboardHandler {
       step = isSwitch ? 1 : settings.ctrl;
     } else if (e.shiftKey) {
       step = isSwitch ? 1 : settings.shift;
-    } else if (e.altKey) {
-      step = isSwitch ? 1 : settings.alt;
     }
 
     const delta = e.key === "ArrowUp" ? step : -step;
@@ -695,7 +714,11 @@ export class KeyboardHandler {
       return;
     }
 
-    this.detachListeners(element);
+    // Always clean up previous element if it exists
+    if (this.containerEl) {
+      this.detachListeners(this.containerEl);
+    }
+    
     this.containerEl = element;
 
     element.addEventListener("keydown", this.handleKeydown);

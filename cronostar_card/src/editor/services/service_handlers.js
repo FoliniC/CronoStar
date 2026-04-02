@@ -5,7 +5,7 @@ import { getEffectivePrefix } from "../../utils/prefix_utils.js";
 import { I18N } from "../EditorI18n.js";
 import { Logger } from "../../utils.js";
 
-function localize(lang, key, search, replace) {
+export function localize(lang, key, search, replace) {
   const parts = key.split(".");
   let obj = I18N[lang] || I18N.en;
   for (const p of parts) obj = obj?.[p];
