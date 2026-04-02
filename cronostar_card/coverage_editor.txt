@@ -1,0 +1,88 @@
+
+ RUN  v4.0.16 /home/carlo/cronostar_git/cronostar_card
+      Coverage enabled with v8
+
+stdout | tests/cronostar_editor.test.js > CronoStarEditor > Lifecycle and Configuration > updated should sync step and dispatch if needed
+[CronoStar Editor] Step property changed to: 2
+
+stdout | tests/cronostar_editor.test.js > CronoStarEditor > Internal Logic and Coverage Boost > exercises all internal logic for high coverage
+[CronoStarEditor] _updateAutomationYaml called. Current config: {
+  global_prefix: [32m'p_'[39m,
+  target_entity: [32m'x'[39m,
+  preset_type: [32m'thermostat'[39m,
+  title: [32m'Test'[39m,
+  type: [32m'custom:cronostar-card'[39m
+}
+[CronoStarEditor] _automationYaml set to: automation: yaml
+
+ ❯ tests/cronostar_editor.test.js (5 tests | 3 failed) 51ms
+       ✓ updated should sync step and dispatch if needed 22ms
+       × _renderWizardSteps should render badges and handle clicks 8ms
+       × _updatePreviewVisibility should inject style in step 0 3ms
+       × _applyShadowDomFix should handle disconnectedCallback 5ms
+       ✓ exercises all internal logic for high coverage 11ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/cronostar_editor.test.js > CronoStarEditor > UI Helpers and Rendering > _renderWizardSteps should render badges and handle clicks
+TypeError: firstBadgeTpl.values.find is not a function
+ ❯ tests/cronostar_editor.test.js:154:49
+    152|       // Let's find the first step badge click handler (Step 0)
+    153|       const firstBadgeTpl = tpl.values[0];
+    154|       const badgeHandler = firstBadgeTpl.values.find(v => typeof v ===…
+       |                                                 ^
+    155|       if (badgeHandler) badgeHandler();
+    156|       expect(editor._step).toBe(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/cronostar_editor.test.js > CronoStarEditor > UI Helpers and Rendering > _updatePreviewVisibility should inject style in step 0
+AssertionError: expected null not to be null
+ ❯ tests/cronostar_editor.test.js:165:30
+    163|       const el1 = document.getElementById("cronostar-editor-style-glob…
+    164|       const el2 = document.getElementById("cronostar-editor-style");
+    165|       expect(el1 || el2).not.toBeNull();
+       |                              ^
+    166|     });
+    167|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/cronostar_editor.test.js > CronoStarEditor > Event Handlers and Actions > _applyShadowDomFix should handle disconnectedCallback
+AssertionError: expected { Object (_idleTimeout, _idlePrev, ...) } to be undefined
+
+[32m- Expected:[39m 
+undefined
+
+[31m+ Received:[39m 
+Timeout {
+  "_destroyed": true,
+  "_idleNext": null,
+  "_idlePrev": null,
+  "_idleStart": 814,
+  "_idleTimeout": -1,
+  "_onTimeout": null,
+  "_repeat": 1000,
+  "_timerArgs": undefined,
+  Symbol(refed): true,
+  Symbol(kHasPrimitive): false,
+  Symbol(asyncId): 420,
+  Symbol(triggerId): 0,
+}
+
+ ❯ tests/cronostar_editor.test.js:174:40
+    172|       expect(editor._contrastInterval).toBeDefined();
+    173|       editor.disconnectedCallback();
+    174|       expect(editor._contrastInterval).toBeUndefined();
+       |                                        ^
+    175|     });
+    176|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 2 passed (5)
+   Start at  22:50:31
+   Duration  980ms (transform 197ms, setup 33ms, import 205ms, tests 51ms, environment 398ms)
+

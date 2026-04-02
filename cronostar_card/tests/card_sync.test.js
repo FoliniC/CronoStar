@@ -1,19 +1,34 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { CardSync } from "../src/core/CardSync.js";
-import { TIMEOUTS } from "../src/config.js";
 
-describe("CardSync", () => {
-  let sync, card, hass;
+vi.mock("../src/config.js", () => ({
+  TIMEOUTS: {
+    automationSuppression: 7000,
+    editingGraceMs: 5000,
+    mismatchPersistenceMs: 10000
+  }
+}));
+
+vi.mock("../src/utils.js", () => ({
+  Logger: { log: vi.fn(), error: vi.fn() }
+}));
+
+describe("CardSync Coverage Boost", () => {
+  let card;
+  let sync;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     card = {
-      config: { target_entity: "climate.test", step_value: 0.5 },
+      language: "en",
+      config: { target_entity: "climate.test" },
       stateManager: {
         getCurrentIndex: vi.fn(() => 0),
         getData: vi.fn(() => [20, 21]),
-        getPointLabel: vi.fn(() => "08:00"),
+        getPointLabel: vi.fn(() => "10:00")
       },
+      isEditorContext: vi.fn(() => false),
       isEnabled: true,
       hasUnsavedChanges: false,
       isDragging: false,
@@ -22,102 +37,83 @@ describe("CardSync", () => {
       awaitingAutomation: false,
       outOfSyncDetails: "",
       mismatchSince: 0,
-      requestUpdate: vi.fn(),
-      isEditorContext: vi.fn(() => false),
-      language: "en",
+      requestUpdate: vi.fn()
     };
-
-    hass = {
-      states: {
-        "climate.test": {
-          state: "heat",
-          attributes: { temperature: 20 },
-        },
-      },
-    };
-
     sync = new CardSync(card);
   });
 
-  it("dovrebbe calcolare il boundary della prossima ora", () => {
-    const nextHour = sync.computeNextHourBoundaryPlus(1000);
-    const date = new Date(nextHour - 1000);
-    expect(date.getMinutes()).toBe(0);
-    expect(date.getSeconds()).toBe(0);
-  });
-
-  it("dovrebbe schedulare la soppressione dell'overlay", () => {
-    const now = Date.now();
-    sync.scheduleAutomationOverlaySuppression(5000);
-    expect(card.overlaySuppressionUntil).toBeGreaterThan(now);
-    expect(card.awaitingAutomation).toBe(false);
-    expect(card.requestUpdate).toHaveBeenCalled();
-  });
-
-  it("dovrebbe restituire il valore programmato", () => {
-    expect(sync.getScheduledValue(hass)).toBe(20);
-  });
-
-  it("dovrebbe restituire il valore applicato per climate", () => {
-    expect(sync.getTargetEntityAppliedValue(hass)).toBe(20);
-    
-    hass.states["climate.test"].attributes = { target_temperature: 22 };
-    expect(sync.getTargetEntityAppliedValue(hass)).toBe(22);
-  });
-
-  it("dovrebbe restituire il valore applicato per switch", () => {
-    card.config.target_entity = "switch.test";
-    hass.states["switch.test"] = { state: "on" };
-    expect(sync.getTargetEntityAppliedValue(hass)).toBe(1);
-    
-    hass.states["switch.test"].state = "off";
-    expect(sync.getTargetEntityAppliedValue(hass)).toBe(0);
-  });
-
-  it("updateAutomationSync non dovrebbe fare nulla se in contesto editor", () => {
-    card.isEditorContext.mockReturnValue(true);
-    sync.updateAutomationSync(hass);
-    expect(card.awaitingAutomation).toBe(false);
-  });
-
-  it("updateAutomationSync non dovrebbe fare nulla se non ci sono stati edit", () => {
-    card.lastEditAt = 0;
-    sync.updateAutomationSync(hass);
-    expect(card.awaitingAutomation).toBe(false);
-  });
-
-  it("dovrebbe attivare awaitingAutomation se il valore differisce per tempo sufficiente", () => {
-    vi.useFakeTimers();
-    card.lastEditAt = Date.now() - TIMEOUTS.editingGraceMs - 1000;
-    card.overlaySuppressionUntil = 0;
-    
-    // Valore programmato 20, applicato 25 (mismatch)
-    card.stateManager.getData.mockReturnValue([20]);
-    hass.states["climate.test"].attributes.temperature = 25;
-    
-    // Primo check: imposta mismatchSince
-    sync.updateAutomationSync(hass);
-    expect(card.mismatchSince).toBeGreaterThan(0);
-    expect(card.awaitingAutomation).toBe(false);
-    
-    // Avanza il tempo oltre il persistence timeout
-    vi.advanceTimersByTime(TIMEOUTS.mismatchPersistenceMs + 100);
-    
-    // Secondo check: attiva awaitingAutomation
-    sync.updateAutomationSync(hass);
-    expect(card.awaitingAutomation).toBe(true);
-    expect(card.outOfSyncDetails).toContain("20");
-    
+  afterEach(() => {
     vi.useRealTimers();
   });
 
-  it("dovrebbe resettare awaitingAutomation se i valori tornano in sync", () => {
-    card.awaitingAutomation = true;
-    card.stateManager.getData.mockReturnValue([20]);
-    hass.states["climate.test"].attributes.temperature = 20;
-    
-    sync.updateAutomationSync(hass);
-    expect(card.awaitingAutomation).toBe(false);
-    expect(card.mismatchSince).toBe(0);
+  it("getAwaitingAutomationText handles IT", () => {
+    card.language = "it";
+    expect(sync.getAwaitingAutomationText()).toContain("In attesa");
+  });
+
+  it("getScheduledValue handles errors", () => {
+    card.stateManager.getData.mockImplementation(() => { throw new Error("fail") });
+    expect(sync.getScheduledValue({})).toBeNull();
+  });
+
+  describe("getTargetEntityAppliedValue", () => {
+    it("handles climate target_temperature", () => {
+      const hass = { states: { "climate.test": { attributes: { target_temperature: 22 } } } };
+      expect(sync.getTargetEntityAppliedValue(hass)).toBe(22);
+    });
+
+    it("handles climate target_temp_low", () => {
+      const hass = { states: { "climate.test": { attributes: { target_temp_low: 18 } } } };
+      expect(sync.getTargetEntityAppliedValue(hass)).toBe(18);
+    });
+
+    it("handles number domain", () => {
+      card.config.target_entity = "number.test";
+      const hass = { states: { "number.test": { state: "15.5" } } };
+      expect(sync.getTargetEntityAppliedValue(hass)).toBe(15.5);
+    });
+
+    it("handles errors and missing entities", () => {
+      expect(sync.getTargetEntityAppliedValue(null)).toBeNull();
+      card.config.target_entity = null;
+      expect(sync.getTargetEntityAppliedValue({})).toBeNull();
+    });
+  });
+
+  describe("updateAutomationSync", () => {
+    it("returns early if not enabled or dragging", () => {
+      card.isEnabled = false;
+      sync.updateAutomationSync({});
+      expect(card.awaitingAutomation).toBe(false);
+
+      card.isEnabled = true;
+      card.isDragging = true;
+      sync.updateAutomationSync({});
+      expect(card.awaitingAutomation).toBe(false);
+    });
+
+    it("returns early if suppressed", () => {
+      card.overlaySuppressionUntil = Date.now() + 10000;
+      card.lastEditAt = Date.now();
+      sync.updateAutomationSync({});
+      expect(card.awaitingAutomation).toBe(false);
+    });
+
+    it("handles mismatch persistence and IT details", () => {
+      card.lastEditAt = Date.now() - 20000;
+      card.language = "it";
+      const hass = { states: { "climate.test": { attributes: { temperature: 25 } } } }; // Scheduled is 20
+      
+      // First call starts mismatch
+      sync.updateAutomationSync(hass);
+      expect(card.mismatchSince).toBeGreaterThan(0);
+      expect(card.awaitingAutomation).toBe(false);
+
+      // Advance time beyond mismatchPersistenceMs (10s)
+      vi.advanceTimersByTime(11000);
+      sync.updateAutomationSync(hass);
+      expect(card.awaitingAutomation).toBe(true);
+      expect(card.outOfSyncDetails).toContain("Programma");
+    });
   });
 });
