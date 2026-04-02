@@ -48,7 +48,7 @@ describe("PointerHandler Coverage Boost", () => {
   });
 
   it("onContextMenu handles Alt key", () => {
-    const e = { preventDefault: vi.fn(), stopPropagation: vi.fn(), altKey: true };
+    const e = { preventDefault: vi.fn(), stopPropagation: vi.fn(), altKey: true, clientX: 100, clientY: 50 };
     handler.onContextMenu(e);
     expect(card.stateManager.alignSelectedPoints).toHaveBeenCalledWith("right");
   });
@@ -61,7 +61,7 @@ describe("PointerHandler Coverage Boost", () => {
   });
 
   it("onPointerDown handles long press", () => {
-    const e = { pointerId: 1, clientX: 100, clientY: 100 };
+    const e = { pointerId: 1, clientX: 100, clientY: 50 };
     handler.onPointerDown(e);
     vi.advanceTimersByTime(600);
     expect(card.contextMenu.show).toBe(true);
@@ -69,10 +69,10 @@ describe("PointerHandler Coverage Boost", () => {
 
   it("onPointerMove captures pointer", () => {
     const target = { setPointerCapture: vi.fn() };
-    handler.onPointerDown({ pointerId: 1, clientX: 100, clientY: 100, target });
+    handler.onPointerDown({ pointerId: 1, clientX: 100, clientY: 50, target });
     
-    // Move past threshold (6px) -> move 10px
-    handler.onPointerMove({ pointerId: 1, clientX: 110, clientY: 110, target });
+    // Move past threshold (6px) -> move 10px in Y
+    handler.onPointerMove({ pointerId: 1, clientX: 100, clientY: 60, target });
     expect(target.setPointerCapture).toHaveBeenCalledWith(1);
     expect(handler.isSelecting).toBe(true);
   });
@@ -81,13 +81,13 @@ describe("PointerHandler Coverage Boost", () => {
     card.selectionManager.getSelectedPoints.mockReturnValue([0]);
     const target = { setPointerCapture: vi.fn(), releasePointerCapture: vi.fn() };
     
-    // Start selection
-    handler.onPointerDown({ pointerId: 1, clientX: 100, clientY: 100, shiftKey: true, target });
-    // Must move to start selection
-    handler.onPointerMove({ pointerId: 1, clientX: 110, clientY: 110, target });
+    // Start selection (must be outside axis area: x > 50, y < 100)
+    handler.onPointerDown({ pointerId: 1, clientX: 100, clientY: 50, shiftKey: true, target });
+    // Must move past threshold to start selection
+    handler.onPointerMove({ pointerId: 1, clientX: 100, clientY: 60, target });
     
     // End selection
-    handler.onPointerUp({ pointerId: 1, clientX: 110, clientY: 110, target });
+    handler.onPointerUp({ pointerId: 1, clientX: 100, clientY: 60, target });
     
     // Union of [0] and [1, 2]
     expect(card.selectionManager.selectIndices).toHaveBeenCalledWith([0, 1, 2], true);
