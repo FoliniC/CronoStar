@@ -70,6 +70,12 @@ describe("SharedDataManager", () => {
       mockCard.config.global_prefix = "invalid_prefix";
       expect(manager.getPresetType()).toBe("temp");
     });
+
+    it("should use default prefix if config or global_prefix is missing", () => {
+      mockCard.config = {};
+      expect(manager.getPresetType()).toBe("temp");
+      expect(manager.getProfileFilename("Default")).toBe("cronostar_temp_cronostar_data.json");
+    });
   });
 
   describe("slugify", () => {
@@ -110,6 +116,18 @@ describe("SharedDataManager", () => {
 
       const result = await manager.loadProfile("Default");
       expect(result).toBeNull();
+    });
+
+    it("should throw error and return null if response is not ok and not 404", async () => {
+      global.fetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+      });
+
+      const result = await manager.loadProfile("Default");
+      expect(result).toBeNull();
+      expect(Logger.error).toHaveBeenCalled();
     });
 
     it("should return null if data is invalid", async () => {
@@ -160,7 +178,15 @@ describe("SharedDataManager", () => {
         const schedule = manager.extractSchedule(data);
         expect(schedule[0]).toBe(10);
     });
-    
+
+    it("should handle invalid values in array schedule (branch coverage for || 0)", () => {
+        const data = Array(24).fill("not-a-number");
+        data[0] = "0"; // To cover parseFloat(0) || 0
+        const schedule = manager.extractSchedule(data);
+        expect(schedule[0]).toBe(0);
+        expect(schedule[1]).toBe(0);
+    });
+
     it("should return null for invalid data", () => {
         expect(manager.extractSchedule({foo: "bar"})).toBeNull();
     });
@@ -173,6 +199,25 @@ describe("SharedDataManager", () => {
       
       expect(mockCard.hass.callService).toHaveBeenCalled();
       expect(result).toBe(true);
+    });
+
+    it("should call HA service with default values if config is minimal", async () => {
+      mockCard.config = { preset_type: "ev" }; // No global_prefix, unit_of_measurement, etc.
+      const schedule = Array(24).fill(15);
+      await manager.saveProfile("TestProfile", schedule);
+      
+      expect(mockCard.hass.callService).toHaveBeenCalledWith(
+          "script",
+          "cronostar_save_profile", // Default from ||
+          expect.objectContaining({
+              global_prefix: "", // Default from ||
+              profile_name: "TestProfile"
+          })
+      );
+      
+      const lastCall = mockCard.hass.callService.mock.calls[0];
+      const data = JSON.parse(lastCall[2].profile_data);
+      expect(data.unit_of_measurement).toBe("");
     });
 
     it("should return false if hass is missing", async () => {

@@ -27,11 +27,20 @@ describe("Utility Extended Tests", () => {
       expect(prefixUtils.humanizePrefix("cronostar_test_", "it")).toBe("test");
       expect(prefixUtils.humanizePrefix("", "en")).toBe("schedule");
       expect(prefixUtils.humanizePrefix("", "it")).toBe("programma");
+      expect(prefixUtils.humanizePrefix("___", "en")).toBe("schedule");
+      expect(prefixUtils.humanizePrefix("___", "it")).toBe("programma");
+    });
+
+    it("humanizePrefix gestisce il catch block (branch coverage)", () => {
+      const faulty = { toString: () => { throw new Error("fail"); } };
+      expect(prefixUtils.humanizePrefix(faulty, "en")).toBe("schedule");
+      expect(prefixUtils.humanizePrefix(faulty, "it")).toBe("programma");
     });
 
     it("getEffectivePrefix dovrebbe restituire il prefisso dalla config", () => {
       expect(prefixUtils.getEffectivePrefix({ global_prefix: "custom_" })).toBe("custom_");
       expect(prefixUtils.getEffectivePrefix({})).toBe("cronostar_");
+      expect(prefixUtils.getEffectivePrefix({ global_prefix: "  " })).toBe("cronostar_");
     });
 
     it("getAliasWithPrefix dovrebbe generare l'alias corretto", () => {

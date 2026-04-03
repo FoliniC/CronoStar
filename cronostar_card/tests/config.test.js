@@ -217,6 +217,14 @@ describe("extractCardConfig", () => {
     expect(() => extractCardConfig({ preset: "thermostat", global_prefix: "p_" })).toThrow();
   });
 
+  it("lancia errore se trova 'preset' con global_prefix mancante (branch coverage)", () => {
+    expect(() => extractCardConfig({ preset: "thermostat" })).toThrow(/cronostar_thermostat_prefix_data.json/);
+  });
+
+  it("lancia errore se trova 'preset' con global_prefix pieno di underscore", () => {
+    expect(() => extractCardConfig({ preset: "thermostat", global_prefix: "p___" })).toThrow(/cronostar_thermostat_p_data.json/);
+  });
+
   it("filtra chiavi non valide", () => {
     const r = extractCardConfig({ global_prefix: "p_", unknown_key: "x", hack: true });
     expect(r.unknown_key).toBeUndefined();

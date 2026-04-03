@@ -33,7 +33,8 @@ vi.mock("../src/config.js", () => ({
   DEFAULT_CONFIG: {
     type: "custom:cronostar-card",
     preset_type: "thermostat",
-    logging_enabled: true
+    logging_enabled: true,
+    meta: { language: "en" }
   },
   validateConfig: vi.fn(c => ({ ...c, preset_type: c.preset_type || "thermostat" })),
   extractCardConfig: vi.fn(c => c)
@@ -101,18 +102,18 @@ vi.mock("../src/editor/yaml/yaml_generators.js", () => ({
 // NOW import CronoStarEditor
 const { CronoStarEditor: EditorClass } = await import("../src/editor/CronoStarEditor.js");
 
-describe("CronoStarEditor", () => {
+describe("CronoStarEditor - Comprehensive", () => {
   let editor;
 
   beforeAll(() => {
-    if (!customElements.get("cronostar-card-editor-final-7")) {
-      customElements.define("cronostar-card-editor-final-7", EditorClass);
+    if (!customElements.get("cronostar-card-editor-final-merged")) {
+      customElements.define("cronostar-card-editor-final-merged", EditorClass);
     }
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
-    editor = document.createElement("cronostar-card-editor-final-7");
+    editor = document.createElement("cronostar-card-editor-final-merged");
     editor.hass = { 
       language: "en", 
       states: { "sensor.test": { state: "on" } },
@@ -153,10 +154,13 @@ describe("CronoStarEditor", () => {
     }
   }
 
-  it("reaches high coverage by exercising all branches and methods", async () => {
+  it("exercises all branches and methods", async () => {
     editor._initialized = true;
     
-    // Test setConfig variations
+    // setConfig branches
+    editor._ignoreInboundUntil = Date.now() + 10000;
+    editor.setConfig({ target_entity: "new" });
+    editor._ignoreInboundUntil = 0;
     editor.setConfig({ target_entity: "x", global_prefix: "p_", meta: { language: "it" } });
     editor.setConfig({ preset_type: "thermostat" });
     
@@ -193,35 +197,39 @@ describe("CronoStarEditor", () => {
       await runAllHandlers(editor._renderWizardActions());
     }
     
-    // Step 1 validation failure branch in _renderWizardActions
+    // Next/Finish logic
     editor._step = 1;
-    editor._config.global_prefix = "";
-    await runAllHandlers(editor._renderWizardActions());
+    editor._config.global_prefix = ""; 
+    editor._handleNextClick();
+    expect(editor._showStepError).toBe(true);
 
-    // Finish logic branches
     editor._step = 5;
     await editor._handleFinishClick({ force: true });
     
-    // Finish logic error branch
+    // Error branch
     const { handleInitializeData } = await import("../src/editor/services/service_handlers.js");
     handleInitializeData.mockRejectedValueOnce(new Error("Init failed"));
     await editor._handleFinishClick({ force: true });
     
-    // Metadata
+    // Metadata & Global Settings
+    editor._config.global_prefix = "p_";
     await editor._saveMetadata();
-    
-    // Global Settings
     await editor._saveGlobalSettings({ opt: 1 });
     
-    // Shadow DOM Fix
+    // Shadow DOM & Visibility
     editor._applyShadowDomFix();
+    editor._updatePreviewVisibility();
+    editor._renderButton({ label: "T", click: () => {}, raised: true });
     
-    // Error filtering logic in _renderStepContent
-    editor._config.target_entity = "sensor.my";
-    editor._config.validation = { 
-      valid: false, 
-      errors: ["Target entity not found", "Target entity sensor.other not found", "sensor.my not found"] 
-    };
-    await runAllHandlers(editor._renderStepContent());
+    // Config change with immediate flag
+    editor._updateConfig("logging_enabled", false, true);
+    
+    // metadata error path
+    editor.hass.callService.mockRejectedValueOnce(new Error("Save fail"));
+    await editor._saveMetadata();
+    
+    // global settings success path
+    await editor._saveGlobalSettings({ test: 1 });
+
   });
 });

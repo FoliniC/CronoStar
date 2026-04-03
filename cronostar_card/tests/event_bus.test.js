@@ -37,6 +37,10 @@ describe("EventBus", () => {
     expect(callback).toHaveBeenCalledWith(data);
   });
 
+  it("non dovrebbe fare nulla se emit() viene chiamato per un evento senza listener", () => {
+    expect(() => bus.emit("no-listeners", "data")).not.toThrow();
+  });
+
   it("dovrebbe gestire più listener per lo stesso evento", () => {
     const cb1 = vi.fn();
     const cb2 = vi.fn();
@@ -57,6 +61,16 @@ describe("EventBus", () => {
 
   it("non dovrebbe crashare se off() viene chiamato per un evento inesistente", () => {
     expect(() => bus.off("non-existent", () => {})).not.toThrow();
+  });
+
+  it("non dovrebbe fare nulla se off() viene chiamato per un callback non registrato", () => {
+    const cb1 = vi.fn();
+    const cb2 = vi.fn();
+    bus.on("test", cb1);
+    bus.off("test", cb2);
+    expect(bus._listeners.get("test")).toContain(cb1);
+    expect(bus._listeners.get("test")).not.toContain(cb2);
+    expect(bus._listeners.get("test")).toHaveLength(1);
   });
 
   it("dovrebbe gestire errori nei callback senza bloccare l'emissione agli altri", () => {

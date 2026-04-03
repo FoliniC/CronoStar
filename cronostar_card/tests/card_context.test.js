@@ -57,6 +57,16 @@ describe("CardContext", () => {
     expect(card.requestUpdate).toHaveBeenCalled();
   });
 
+  it("dovrebbe restituire se è in editor context", () => {
+    // Di default card non ha host/parent quindi è false
+    expect(context.isEditorContext()).toBe(false);
+
+    // Mock parentNode per simulare editor
+    const mockParent = { tagName: "HUI-CARD-EDITOR" };
+    card.parentElement = mockParent;
+    expect(context.isEditorContext()).toBe(true);
+  });
+
   it("dovrebbe pulire le risorse con destroy()", () => {
     context.registerManager("m", {});
     const clearSpy = vi.spyOn(context.events, "clear");

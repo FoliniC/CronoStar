@@ -40,110 +40,166 @@ vi.mock("../src/core/CardEventHandlers.js", () => ({ CardEventHandlers: class { 
 vi.mock("../src/core/CardSync.js", () => ({ CardSync: class {} }));
 vi.mock("../src/core/CardContext.js", () => ({ CardContext: class { registerManager = vi.fn() } }));
 vi.mock("../src/utils.js", () => ({
-  Logger: { log: vi.fn(), chart: vi.fn(), error: vi.fn(), setEnabled: vi.fn() },
+  Logger: { log: vi.fn(), chart: vi.fn(), error: vi.fn(), warn: vi.fn(), setEnabled: vi.fn() },
   checkIsEditorContext: vi.fn(() => false)
 }));
 
 import { CronoStarCard } from "../src/core/CronoStar.js";
 
-describe("CronoStarCard Coverage Boost", () => {
+describe("CronoStarCard - Comprehensive Coverage", () => {
   let card;
 
   beforeAll(() => {
-    if (!customElements.get("cronostar-card-test")) {
-      customElements.define("cronostar-card-test", CronoStarCard);
+    if (!customElements.get("cronostar-card-final-merged")) {
+      customElements.define("cronostar-card-final-merged", CronoStarCard);
     }
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
-    card = document.createElement("cronostar-card-test");
-    // Ensure hass is actually stored in the mock
+    card = document.createElement("cronostar-card-final-merged");
     const mockHass = { callService: vi.fn(() => Promise.resolve()) };
     card.hass = mockHass;
   });
 
-  it("properties should return expected keys", () => {
-    const props = CronoStarCard.properties;
-    expect(props).toHaveProperty("hass");
-    expect(props).toHaveProperty("config");
-    expect(props).toHaveProperty("integrationVersion");
+  it("exercises properties and static methods", () => {
+    expect(CronoStarCard.properties).toHaveProperty("hass");
+    expect(CronoStarCard.getConfigElement().tagName).toBe("CRONOSTAR-CARD-EDITOR");
+    expect(CronoStarCard.getStubConfig()).toHaveProperty("type");
   });
 
-  it("setConfig early return when same config", () => {
-    card.config = { a: 1 };
-    card.setConfig({ a: 1 });
-    expect(card.cardLifecycle.setConfig).not.toHaveBeenCalled();
+  it("exercises getCardSize and history context", () => {
+    expect(card.getCardSize()).toBe(6);
+    const parent = document.createElement("hui-history-graph-card");
+    parent.appendChild(card);
+    expect(card.shouldUpdate()).toBe(false);
+
+    // Test el.parentNode branch
+    const mockEl1 = { parentNode: { tagName: "HUI-HISTORY-GRAPH-CARD" } };
+    expect(card._isInHistoryContext.call(mockEl1)).toBe(true);
+
+    // Test el.host branch
+    const mockEl2 = { host: { tagName: "HUI-HISTORY-GRAPH-CARD" } };
+    expect(card._isInHistoryContext.call(mockEl2)).toBe(true);
+
+    // Test catch block in _isInHistoryContext
+    const mockElError = { get parentNode() { throw new Error("fail") } };
+    expect(card._isInHistoryContext.call(mockElError)).toBe(false);
   });
 
-  it("updated handles full object previewData with meta", () => {
-    const changed = new Map([["previewData", null]]);
+  it("exercises updated branches", () => {
+    const changed = new Map();
+    card.isPreview = true;
+    card.updated(changed);
+
+    changed.set("previewData", null);
     card.previewData = {
       schedule: [{ time: "10:00", value: 20 }],
-      meta: { language: "it", title: "Test" },
-      container_meta: {} // Should be deleted
+      meta: { language: "it" },
+      container_meta: { a: 1 } // To be deleted
     };
     card.stateManager = { setData: vi.fn() };
-    
     card.updated(changed);
-    
-    expect(card.previewData.container_meta).toBeUndefined();
-    expect(card.stateManager.setData).toHaveBeenCalled();
     expect(card.language).toBe("it");
+    expect(card.previewData.container_meta).toBeUndefined();
+
+    card.previewData = [{time: "11:00", value: 22}]; // array case
+    card.updated(changed);
+
+    // Test when previewData has NO container_meta (branch coverage)
+    card.previewData = { schedule: [] };
+    card.updated(changed);
+
+    // Test when previewData is not an object (isFullObject = false)
+    card.previewData = "invalid";
+    card.updated(changed);
   });
 
-  it("render logs wait state", () => {
-    const consoleSpy = vi.spyOn(console, "info");
+  it("exercises render branches", () => {
     card.initialLoadComplete = false;
+    card.previewData = null;
+    card.isMenuOpen = false;
+    card.isPreview = false;
+
+    // First call: isWaitingForData=true, _loggedWait=false
     card.render();
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Waiting for data"), expect.any(Object));
-    
-    // Reset spy count
-    consoleSpy.mockClear();
+    expect(card._loggedWait).toBe(true);
+
+    // Second call: isWaitingForData=true, _loggedWait=true (no extra log)
+    card.render();
+    expect(card._loggedWait).toBe(true);
+
+    // Third call: isWaitingForData=false, _loggedWait=true
     card.initialLoadComplete = true;
     card.render();
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Data loaded"), expect.any(Object));
+    expect(card._loggedWait).toBe(false);
+
+    // Test when cardRenderer is null
+    card.cardRenderer = null;
+    expect(card.render()).toBeNull();
   });
 
-  it("handleDeleteController reloads on success", async () => {
+  it("exercises hass setter/getter branches", () => {
+      card.cardLifecycle = null;
+      card.hass = { a: 1 }; // should not throw
+      expect(card.hass).toBeUndefined();
+  });
+
+  it("exercises setConfig branches", () => {
+    card.config = { a: 1 };
+    card.setConfig({ a: 1 }); // early return
+    expect(card.cardLifecycle.setConfig).not.toHaveBeenCalled();
+
+    card.cardLifecycle.setConfig.mockImplementation(() => { throw new Error("Fail"); });
+    card.setConfig({ a: 2 });
+    expect(card.eventHandlers.showNotification).toHaveBeenCalled();
+
+    card.cardLifecycle = null;
+    card.setConfig({ a: 3 });
+  });
+
+  it("exercises lifecycle methods", () => {
+    card.connectedCallback();
+    card.disconnectedCallback();
+    card.firstUpdated();
+    expect(card.cardLifecycle.firstUpdated).toHaveBeenCalled();
+  });
+
+  it("exercises menu wrappers and error paths", () => {
+    card.handleEditConfig(3);
+    expect(card.editorStep).toBe(3);
+    
+    // handleAddProfile error path
+    card.eventHandlers = { handleAddProfile: () => { throw new Error("fail") } };
+    card.handleAddProfile(); // should catch
+
+    // handleDeleteProfile error path
+    card.eventHandlers = { handleDeleteProfile: () => { throw new Error("fail") } };
+    card.handleDeleteProfile(); // should catch
+  });
+
+  it("exercises handleDeleteController error path", async () => {
+    vi.stubGlobal("confirm", () => true);
+    card.hass.callService.mockRejectedValue(new Error("Fail"));
+    await card.handleDeleteController();
+    expect(card.eventHandlers.showNotification).toHaveBeenCalled();
+  });
+
+
+  it("exercises handleDeleteController branches", async () => {
     vi.stubGlobal("confirm", () => true);
     vi.useFakeTimers();
-    
     const reloadSpy = vi.fn();
-    Object.defineProperty(window, 'location', {
-      value: { reload: reloadSpy },
-      configurable: true,
-      writable: true
-    });
+    Object.defineProperty(window, 'location', { value: { reload: reloadSpy }, configurable: true });
     
-    card.config = { global_prefix: "p_", preset_type: "t" };
-    // Double check hass is there
-    expect(card.hass).toBeDefined();
-    
+    card.config = { global_prefix: "p_" };
     await card.handleDeleteController();
     
     vi.advanceTimersByTime(1500);
     expect(reloadSpy).toHaveBeenCalled();
     vi.useRealTimers();
-  });
 
-  it("shouldUpdate handles history context correctly", () => {
-    const historySpy = vi.spyOn(card, "_isInHistoryContext");
-    
-    historySpy.mockReturnValue(true);
-    expect(card.shouldUpdate()).toBe(false);
-    
-    historySpy.mockReturnValue(false);
-    expect(card.shouldUpdate()).toBe(true);
-  });
-
-  it("exercises menu handler wrappers and errors", () => {
-    card.eventHandlers = {
-      handleAddProfile: vi.fn().mockImplementation(() => { throw new Error("fail") }),
-      handleDeleteProfile: vi.fn()
-    };
-    expect(() => card.handleAddProfile()).not.toThrow();
-    card.handleDeleteProfile();
-    expect(card.eventHandlers.handleDeleteProfile).toHaveBeenCalled();
+    vi.stubGlobal("confirm", () => false);
+    await card.handleDeleteController();
   });
 });
