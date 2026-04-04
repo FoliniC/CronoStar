@@ -1,0 +1,253 @@
+{
+  "title": "CronoStar Admin Dashboard",
+  "views": [
+    {
+      "title": "Overview",
+      "path": "overview",
+      "cards": [
+        {
+          "type": "vertical-stack",
+          "cards": [
+            {
+              "type": "markdown",
+              "content": "## CronoStar Admin Dashboard\nVersione: **v6.0.2** | Aggiornato: {{ now().strftime('%H:%M:%S') }}\n*Dashboard in modalita YAML (Read-only UI)*"
+            },
+            {
+              "type": "custom:mushroom-title-card",
+              "title": "⚡ EV Charging 2025",
+              "subtitle": "Gestione ricarica veicolo elettrico"
+            },
+            {
+              "type": "custom:mushroom-template-card",
+              "primary": "Controlli Grafico",
+              "secondary": "{{ 'Nascondi' if is_state('input_boolean.cronostar_ev_show_chart', 'on') else 'Mostra' }}",
+              "icon": "mdi:chart-bell-curve",
+              "icon_color": "{{ 'orange' if is_state('input_boolean.cronostar_ev_show_chart', 'on') else 'grey' }}",
+              "tap_action": {
+                "action": "toggle"
+              },
+              "entity": "input_boolean.cronostar_ev_show_chart"
+            },
+            {
+              "type": "conditional",
+              "conditions": [
+                {
+                  "entity": "input_boolean.cronostar_ev_show_chart",
+                  "state": "on"
+                }
+              ],
+              "card": {
+                "type": "vertical-stack",
+                "cards": [
+                  {
+                    "type": "custom:cronostar-card",
+                    "preset_type": "ev_charging",
+                    "global_prefix": "cronostar_ev_",
+                    "target_entity": "input_number.ev_charge_2025_cronostar_power_target",
+                    "title": "Programmazione Oraria",
+                    "min_value": 0.0,
+                    "max_value": 12.0,
+                    "step_value": 0.5,
+                    "unit_of_measurement": "kW",
+                    "y_axis_label": "Potenza (kW)",
+                    "profiles_select_entity": "select.cronostar_ev_current_profile"
+                  },
+                  {
+                    "type": "custom:cronostar-card",
+                    "view_mode": "admin",
+                    "not_configured": false,
+                    "preset_type": "ev_charging",
+                    "global_prefix": "cronostar_ev_",
+                    "target_entity": "input_number.ev_charge_2025_cronostar_power_target",
+                    "title": "Admin: Configurazione EV",
+                    "min_value": 0.0,
+                    "max_value": 12.0,
+                    "step_value": 0.5,
+                    "unit_of_measurement": "kW"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "custom:mushroom-title-card",
+              "title": "🌡️ Termostato Appartamento",
+              "subtitle": "Gestione riscaldamento/raffrescamento"
+            },
+            {
+              "type": "custom:mushroom-template-card",
+              "primary": "Controlli Grafico",
+              "secondary": "{{ 'Nascondi' if is_state('input_boolean.cronostar_thermostat_appartamento_show_chart', 'on') else 'Mostra' }}",
+              "icon": "mdi:chart-bell-curve",
+              "icon_color": "{{ 'orange' if is_state('input_boolean.cronostar_thermostat_appartamento_show_chart', 'on') else 'grey' }}",
+              "tap_action": {
+                "action": "toggle"
+              },
+              "entity": "input_boolean.cronostar_thermostat_appartamento_show_chart"
+            },
+            {
+              "type": "conditional",
+              "conditions": [
+                {
+                  "entity": "input_boolean.cronostar_thermostat_appartamento_show_chart",
+                  "state": "on"
+                }
+              ],
+              "card": {
+                "type": "vertical-stack",
+                "cards": [
+                  {
+                    "type": "custom:cronostar-card",
+                    "preset_type": "thermostat",
+                    "global_prefix": "cronostar_thermostat_appartamento_",
+                    "target_entity": "climate.climatizzazione_appartamento",
+                    "title": "CronoStar Thermostat",
+                    "min_value": 15.0,
+                    "max_value": 30.0,
+                    "step_value": 0.5,
+                    "unit_of_measurement": "°C",
+                    "y_axis_label": "Temperature",
+                    "profiles_select_entity": "select.cronostar_thermostat_appartamento_current_profile"
+                  },
+                  {
+                    "type": "custom:cronostar-card",
+                    "view_mode": "admin",
+                    "not_configured": false,
+                    "preset_type": "thermostat",
+                    "global_prefix": "cronostar_thermostat_appartamento_",
+                    "target_entity": "climate.climatizzazione_appartamento",
+                    "title": "Admin: Configurazione Termostato",
+                    "min_value": 15.0,
+                    "max_value": 30.0,
+                    "step_value": 0.5,
+                    "unit_of_measurement": "°C"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "custom:mushroom-title-card",
+              "title": "💡 Growlight (Luci Natale)",
+              "subtitle": "Gestione switch generico"
+            },
+            {
+              "type": "custom:mushroom-template-card",
+              "primary": "Controlli Grafico",
+              "secondary": "{{ 'Nascondi' if is_state('input_boolean.cronostar_generic_switch_growlight_show_chart', 'on') else 'Mostra' }}",
+              "icon": "mdi:chart-bell-curve",
+              "icon_color": "{{ 'orange' if is_state('input_boolean.cronostar_generic_switch_growlight_show_chart', 'on') else 'grey' }}",
+              "tap_action": {
+                "action": "toggle"
+              },
+              "entity": "input_boolean.cronostar_generic_switch_growlight_show_chart"
+            },
+            {
+              "type": "conditional",
+              "conditions": [
+                {
+                  "entity": "input_boolean.cronostar_generic_switch_growlight_show_chart",
+                  "state": "on"
+                }
+              ],
+              "card": {
+                "type": "vertical-stack",
+                "cards": [
+                  {
+                    "type": "custom:cronostar-card",
+                    "preset_type": "generic_switch",
+                    "global_prefix": "cronostar_generic_switch_growlight_",
+                    "target_entity": "switch.presa_luci_natale",
+                    "title": "CronoStar Generic Switch",
+                    "min_value": 0.0,
+                    "max_value": 1.0,
+                    "step_value": 1.0,
+                    "unit_of_measurement": "",
+                    "y_axis_label": "State",
+                    "profiles_select_entity": "select.cronostar_generic_switch_growlight_current_profile"
+                  },
+                  {
+                    "type": "custom:cronostar-card",
+                    "view_mode": "admin",
+                    "not_configured": false,
+                    "preset_type": "generic_switch",
+                    "global_prefix": "cronostar_generic_switch_growlight_",
+                    "target_entity": "switch.presa_luci_natale",
+                    "title": "Admin: Configurazione Switch Growlight",
+                    "min_value": 0.0,
+                    "max_value": 1.0,
+                    "step_value": 1.0
+                  }
+                ]
+              }
+            },
+            {
+              "type": "custom:mushroom-title-card",
+              "title": "🔌 Presa Balcone",
+              "subtitle": "Gestione switch balcone"
+            },
+            {
+              "type": "custom:mushroom-template-card",
+              "primary": "Controlli Grafico",
+              "secondary": "{{ 'Nascondi' if is_state('input_boolean.cronostar_generic_switch_presa_balcone_show_chart', 'on') else 'Mostra' }}",
+              "icon": "mdi:chart-bell-curve",
+              "icon_color": "{{ 'orange' if is_state('input_boolean.cronostar_generic_switch_presa_balcone_show_chart', 'on') else 'grey' }}",
+              "tap_action": {
+                "action": "toggle"
+              },
+              "entity": "input_boolean.cronostar_generic_switch_presa_balcone_show_chart"
+            },
+            {
+              "type": "conditional",
+              "conditions": [
+                {
+                  "entity": "input_boolean.cronostar_generic_switch_presa_balcone_show_chart",
+                  "state": "on"
+                }
+              ],
+              "card": {
+                "type": "vertical-stack",
+                "cards": [
+                  {
+                    "type": "custom:cronostar-card",
+                    "preset_type": "generic_switch",
+                    "global_prefix": "cronostar_generic_switch_presa_balcone_",
+                    "target_entity": "switch.presa_balcone",
+                    "title": "Presa Balcone",
+                    "min_value": 0.0,
+                    "max_value": 1.0,
+                    "step_value": 1.0,
+                    "unit_of_measurement": "",
+                    "y_axis_label": "State",
+                    "profiles_select_entity": "select.cronostar_generic_switch_presa_balcone_current_profile"
+                  },
+                  {
+                    "type": "custom:cronostar-card",
+                    "view_mode": "admin",
+                    "not_configured": false,
+                    "preset_type": "generic_switch",
+                    "global_prefix": "cronostar_generic_switch_presa_balcone_",
+                    "target_entity": "switch.presa_balcone",
+                    "title": "Admin: Configurazione Presa Balcone",
+                    "min_value": 0.0,
+                    "max_value": 1.0,
+                    "step_value": 1.0
+                  }
+                ]
+              }
+            },
+            {
+              "type": "custom:mushroom-title-card",
+              "title": "➕ Aggiunta Nuovo Controller",
+              "subtitle": "Crea una nuova istanza CronoStar"
+            },
+            {
+              "type": "custom:cronostar-card",
+              "view_mode": "admin",
+              "not_configured": true,
+              "title": "Nuovo Controller"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -11,7 +11,14 @@ Easily add time-based schedules to any entity.
 
 ![CronoStar](custom_components/cronostar/www/cronostar_card/cronostar-logo.png)
 
-## 🎯 What's New in v6.0.1
+## 🎯 What's New in v6.1.0
+
+### 📊 Optimized Admin Dashboard
+- **Conditional Chart Loading**: Added a toggle button for each controller to show/hide the programming chart. This prevents browser overload by loading heavy graphical components only when needed.
+- **Permanent Admin View**: The compact textual information (Admin Mode) remains always visible for quick status checks.
+- **Automatic Helper Integration**: The dashboard now automatically manages visibility states via dedicated `input_boolean` entities.
+
+## 🎯 What's New in v6.0.2
 
 ### 🧪 Improved Test Coverage & Reliability
 - **Robust Lifecycle Testing**: Fixed edge cases in component startup and entity missing warnings.

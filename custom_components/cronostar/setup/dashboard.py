@@ -27,7 +27,7 @@ DASHBOARD_YAML_FILENAME = "cronostar_dashboard_v600.yaml"
 
 async def setup_dashboard(hass: HomeAssistant) -> None:
     """Registra la dashboard Lovelace e pulisce vecchie registrazioni."""
-    _LOGGER.warning("[DASHBOARD] Executing setup_dashboard v6.0.0")
+    _LOGGER.warning("[DASHBOARD] Executing setup_dashboard v6.1.0")
 
     try:
         # 1. Pulizia massiva di TUTTI i possibili vecchi percorsi
@@ -152,29 +152,90 @@ async def write_dashboard_yaml(hass: HomeAssistant, filename: str) -> None:
 
         # Controllers
         for entry in real_controllers:
-            # FIX: filtra i valori None — evita chiavi null nel JSON/YAML
-            # che alcuni parser HA non gestiscono correttamente
-            card = {
+            prefix = entry.data.get("global_prefix", "cronostar_")
+            # Ensure prefix ends with underscore for entity id
+            if not prefix.endswith("_"):
+                prefix += "_"
+            
+            show_chart_entity = f"input_boolean.{prefix}show_chart"
+            
+            # 1. Titolo del Controller
+            cards.append({
+                "type": "custom:mushroom-title-card",
+                "title": f"🎮 {entry.title}",
+                "subtitle": f"Preset: {entry.data.get('preset_type', 'N/A')}"
+            })
+
+            # 2. Card Admin (Informazioni Testuali) - SEMPRE VISIBILE
+            admin_card = {
                 "type": "custom:cronostar-card",
-                "view_mode": "admin",  # ← FIX: attiva la modalità box compatto
-                "not_configured": False,  # ← FIX: forza lo stato configurato per evitare il default 'true'
+                "view_mode": "admin",
+                "not_configured": False,
                 "preset_type": entry.data.get("preset_type"),
                 "global_prefix": entry.data.get("global_prefix"),
                 "target_entity": entry.data.get("target_entity"),
-                "title": entry.data.get("title") or entry.title,
+                "title": f"Configurazione: {entry.data.get('title') or entry.title}",
             }
             optional_fields = {
                 "min_value": entry.data.get("min_value"),
                 "max_value": entry.data.get("max_value"),
                 "step_value": entry.data.get("step_value"),
                 "unit_of_measurement": entry.data.get("unit_of_measurement"),
+            }
+            admin_card.update({k: v for k, v in optional_fields.items() if v is not None})
+            cards.append(admin_card)
+
+            # 3. Toggle per mostrare/nascondere il grafico
+            cards.append({
+                "type": "custom:mushroom-template-card",
+                "primary": "Grafico Programmazione",
+                "secondary": f"{{{{ 'Chiudi Grafico' if is_state('{show_chart_entity}', 'on') else 'Apri Grafico per Modifica' }}}}",
+                "icon": "mdi:chart-bell-curve",
+                "icon_color": f"{{{{ 'orange' if is_state('{show_chart_entity}', 'on') else 'grey' }}}}",
+                "tap_action": {
+                    "action": "toggle"
+                },
+                "entity": show_chart_entity
+            })
+
+            # 4. Card CronoStar Standard (Grafico) - CONDIZIONALE
+            chart_card = {
+                "type": "custom:cronostar-card",
+                "preset_type": entry.data.get("preset_type"),
+                "global_prefix": entry.data.get("global_prefix"),
+                "target_entity": entry.data.get("target_entity"),
+                "title": entry.data.get("title") or entry.title,
+            }
+            chart_optional_fields = {
+                "min_value": entry.data.get("min_value"),
+                "max_value": entry.data.get("max_value"),
+                "step_value": entry.data.get("step_value"),
+                "unit_of_measurement": entry.data.get("unit_of_measurement"),
                 "y_axis_label": entry.data.get("y_axis_label"),
             }
-            # Aggiunge i campi opzionali solo se valorizzati
-            card.update({k: v for k, v in optional_fields.items() if v is not None})
-            cards.append(card)
+            chart_card.update({k: v for k, v in chart_optional_fields.items() if v is not None})
+            
+            # Aggiungi profiles_select_entity se disponibile
+            profiles_select = f"select.{prefix}current_profile"
+            chart_card["profiles_select_entity"] = profiles_select
+
+            cards.append({
+                "type": "conditional",
+                "conditions": [
+                    {
+                        "entity": show_chart_entity,
+                        "state": "on"
+                    }
+                ],
+                "card": chart_card
+            })
 
         # Aggiunge SEMPRE un box 'Aggiungi Nuovo' alla fine della lista (stile Admin Box)
+        cards.append({
+            "type": "custom:mushroom-title-card",
+            "title": "➕ Aggiunta Nuovo Controller",
+            "subtitle": "Crea una nuova istanza CronoStar"
+        })
         cards.append({"type": "custom:cronostar-card", "view_mode": "admin", "not_configured": True, "title": "Nuovo Controller"})
 
         # Struttura Lovelace — view standard senza 'type: panel' o 'type: sections'
