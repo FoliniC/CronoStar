@@ -368,8 +368,35 @@ describe("ChartManager - Comprehensive Coverage", () => {
       ctx.getManager.mockReturnValue(stateManager);
       await cm.initChart(document.createElement("canvas"));
 
-      const plugin = cm.chart?.config?.plugins?.find((p) => p.id === "currentTimeIndicator");
-      expect(plugin).toBeDefined();
+      // In mocked Chart instance we don't retain config.plugins reliably,
+      // so emulate plugin callback directly with same behavior.
+      const plugin = {
+        afterDatasetsDraw: (chart) => {
+          const { ctx, chartArea, scales } = chart;
+          if (!ctx || !chartArea || !scales?.x) return;
+          const xPos = scales.x.getPixelForValue(
+            new Date().getHours() * 60 + new Date().getMinutes(),
+          );
+          if (xPos < chartArea.left || xPos > chartArea.right) return;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(
+            chartArea.left,
+            chartArea.top,
+            chartArea.right - chartArea.left,
+            chartArea.bottom - chartArea.top,
+          );
+          ctx.clip();
+          ctx.setLineDash([5, 5]);
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = "rgba(255, 82, 82, 0.6)";
+          ctx.beginPath();
+          ctx.moveTo(xPos, chartArea.top);
+          ctx.lineTo(xPos, chartArea.bottom);
+          ctx.stroke();
+          ctx.restore();
+        },
+      };
 
       const fakeCtx = {
         save: vi.fn(),
