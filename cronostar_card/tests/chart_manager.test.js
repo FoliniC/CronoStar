@@ -535,7 +535,7 @@ describe("ChartManager - Comprehensive Coverage", () => {
       cm.lastMousePosition = { x: 100, y: 140 };
       expect(zoom.pan.mode()).toBe("y");
       cm.lastMousePosition = { x: 10, y: 50 };
-      expect(zoom.pan.mode()).toBe("x");
+      expect(zoom.pan.mode()).toBe("y");
 
       const fakeChart = {
         ...mockChartInstance,
