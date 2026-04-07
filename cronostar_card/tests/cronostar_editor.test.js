@@ -1,5 +1,26 @@
-// @vitest-environment happy-dom
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
+
+if (!globalThis.window) globalThis.window = globalThis;
+if (!globalThis.HTMLElement) {
+  globalThis.HTMLElement = class HTMLElement {};
+}
+if (!globalThis.customElements) {
+  const registry = new Map();
+  globalThis.customElements = {
+    define: vi.fn((name, ctor) => registry.set(name, ctor)),
+    get: vi.fn((name) => registry.get(name)),
+  };
+}
+if (!globalThis.document) {
+  globalThis.document = {
+    head: { innerHTML: "" },
+    createElement: (name) => {
+      const Ctor = globalThis.customElements.get(name);
+      return Ctor ? new Ctor() : { tagName: String(name).toUpperCase() };
+    },
+  };
+}
 
 // Mock dependencies BEFORE importing CronoStarEditor
 vi.mock("lit", () => {

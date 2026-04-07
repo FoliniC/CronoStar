@@ -1,5 +1,20 @@
-// @vitest-environment happy-dom
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+if (!globalThis.window) globalThis.window = globalThis;
+if (!globalThis.HTMLElement) {
+  globalThis.HTMLElement = class HTMLElement {};
+}
+if (!globalThis.customElements) {
+  const registry = new Map();
+  globalThis.customElements = {
+    define: vi.fn((name, ctor) => registry.set(name, ctor)),
+    get: vi.fn((name) => registry.get(name)),
+  };
+}
+if (!globalThis.document) {
+  globalThis.document = { head: { innerHTML: "" } };
+}
 
 // ─── Mock delle dipendenze di main.js ────────────────────────────────────────
 // I path devono essere relativi al FILE DI TEST (tests/), non a main.js (src/)

@@ -1,5 +1,14 @@
-// @vitest-environment happy-dom
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+if (!globalThis.window) globalThis.window = globalThis;
+if (!globalThis.document) {
+  globalThis.document = {
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  };
+}
+
 import { PointerHandler } from "../src/handlers/pointer_handler.js";
 
 vi.mock("../src/config.js", () => ({
