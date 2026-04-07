@@ -417,6 +417,21 @@ describe("CronoStarEditor - Comprehensive", () => {
     expect(btn2.__litHtml).toBe(true);
   });
 
+  it("covers startup language adoption timeout branch", async () => {
+    const q = vi.fn(() => ({ language: "it" }));
+    editor.shadowRoot.querySelector = q;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(editor._language).toBe("it");
+  });
+
+  it("covers startup language adoption fallback ignore", async () => {
+    editor.shadowRoot.querySelector = vi.fn(() => {
+      throw new Error("ignore");
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(editor._language).toBeDefined();
+  });
+
   it("covers updated() with hass language adoption and config language change", () => {
     editor._config = { meta: {}, logging_enabled: true };
     editor._language = "it";
@@ -451,6 +466,20 @@ describe("CronoStarEditor - Comprehensive", () => {
     editor._dispatchConfigChanged = vi.fn();
     editor.updated(new Map([["_step", 1]]));
     expect(editor._dispatchConfigChanged).toHaveBeenCalledWith(true);
+  });
+
+  it("covers updated() when step property changes", () => {
+    editor.step = 3;
+    editor.updated(new Map([["step", 1]]));
+    expect(editor._step).toBe(3);
+  });
+
+  it("covers updated() when hass exists with same language", () => {
+    editor._config = { meta: { language: "en" }, logging_enabled: true };
+    editor._language = "en";
+    editor.hass = { language: "en-US" };
+    editor.updated(new Map([["hass", {}]]));
+    expect(editor._language).toBe("en");
   });
 
   it("covers _updateSaveButtonVisibility hide/show branches", () => {
@@ -511,6 +540,12 @@ describe("CronoStarEditor - Comprehensive", () => {
     expect(() => editor._updatePreviewVisibility()).not.toThrow();
   });
 
+  it("covers _updatePreviewVisibility with document root target", () => {
+    editor._step = 0;
+    editor.getRootNode = vi.fn(() => document);
+    expect(() => editor._updatePreviewVisibility()).not.toThrow();
+  });
+
   it("covers _applyShadowDomFix injection and observer setup", () => {
     const nestedShadowHost = {
       shadowRoot: {
@@ -554,6 +589,21 @@ describe("CronoStarEditor - Comprehensive", () => {
     expect(childShadow.appendChild).toHaveBeenCalled();
   });
 
+  it("covers _applyShadowDomFix skip branch when tag is unrelated", () => {
+    const host = {
+      shadowRoot: {
+        querySelector: vi.fn(() => null),
+        querySelectorAll: vi.fn(() => []),
+        appendChild: vi.fn(),
+      },
+      tagName: "div",
+    };
+    editor.shadowRoot.querySelectorAll = vi.fn(() => [host]);
+    document.querySelectorAll = vi.fn(() => []);
+    editor._applyShadowDomFix();
+    expect(host.shadowRoot.appendChild).not.toHaveBeenCalled();
+  });
+
   it("covers disconnectedCallback cleanup", () => {
     editor._contrastObserver = { disconnect: vi.fn() };
     editor._contrastInterval = setInterval(() => {}, 1000);
@@ -576,6 +626,15 @@ describe("CronoStarEditor - Comprehensive", () => {
     expect(editor._step).toBe(0);
   });
 
+  it("covers _renderWizardSteps blocked jump branch", () => {
+    editor._step = 1;
+    editor._canGoNext = vi.fn(() => false);
+    const tpl = editor._renderWizardSteps();
+    const handlers = collectFunctions(tpl);
+    handlers[1]();
+    expect(editor._step).toBe(1);
+  });
+
   it("covers setConfig merge branches and language anti-revert branch", () => {
     editor._config = { not_configured: false, target_entity: "old", global_prefix: "old_", meta: {} };
     editor._step = 2;
@@ -595,12 +654,38 @@ describe("CronoStarEditor - Comprehensive", () => {
     expect(editor._config.preset_type).toBe("ev_charging");
   });
 
+  it("covers setConfig with this.language priority", () => {
+    editor.language = "de";
+    editor.setConfig({ meta: { language: "it" } });
+    expect(editor._language).toBe("de");
+  });
+
+  it("covers setConfig without config.hass fallback", () => {
+    editor.language = null;
+    editor.hass = { language: "fr-FR" };
+    editor.setConfig({ meta: {} });
+    expect(editor._language).toBe("fr");
+  });
+
   it("covers setConfig catch branch", () => {
     validateConfig.mockImplementationOnce(() => {
       throw new Error("broken validate");
     });
     editor.setConfig({ x: 1 });
     expect(editor._config.x).toBe(1);
+  });
+
+  it("covers _isElDefined helper", () => {
+    expect(typeof editor._isElDefined("ha-select")).toBe("boolean");
+  });
+
+  it("covers _syncConfigAliases no-op", () => {
+    expect(() => editor._syncConfigAliases()).not.toThrow();
+  });
+
+  it("covers _updateAutomationYaml", () => {
+    editor._updateAutomationYaml();
+    expect(editor._automationYaml).toBe("automation: yaml");
   });
 
   it("covers _sanitizeConfig branches", () => {
@@ -639,6 +724,15 @@ describe("CronoStarEditor - Comprehensive", () => {
     editor._config = { target_entity: "sensor.x", global_prefix: "p_" };
     editor._dispatchConfigChanged(true);
     expect(editor.dispatchEvent).toHaveBeenCalled();
+  });
+
+  it("covers _dispatchConfigChanged debounced path", () => {
+    editor._initialized = true;
+    editor._step = 2;
+    editor._config = { target_entity: "sensor.x", global_prefix: "p_" };
+    editor.dispatchEvent = vi.fn();
+    editor._dispatchConfigChanged(false);
+    expect(editor.dispatchEvent).not.toHaveBeenCalled();
   });
 
   it("covers _persistCardConfigNow and showToast", () => {
@@ -680,6 +774,13 @@ describe("CronoStarEditor - Comprehensive", () => {
     expect(tpl.__litHtml).toBe(true);
   });
 
+  it("covers _renderStepContent hidden error box branch", () => {
+    editor._step = 0;
+    editor._config = { validation: { valid: false, errors: ["x"] } };
+    const tpl = editor._renderStepContent();
+    expect(tpl.__litHtml).toBe(true);
+  });
+
   it("covers _handleLocalUpdate and metadata save branch", () => {
     editor._config = { type: "custom:cronostar-card" };
     editor._saveMetadata = vi.fn();
@@ -710,6 +811,20 @@ describe("CronoStarEditor - Comprehensive", () => {
     handlers[0]({ detail: { value: "" } });
   });
 
+  it("covers renderEntityPicker target_entity immediate update path", () => {
+    editor.hass = { language: "en" };
+    editor._updateConfig = vi.fn();
+    vi.stubGlobal("customElements", { get: (tag) => tag === "ha-selector" });
+    const tpl = editor.renderEntityPicker("target_entity", "v");
+    const handlers = collectFunctions(tpl);
+    handlers[0]({ detail: { value: "entity.one" } });
+    expect(editor._updateConfig).toHaveBeenCalledWith(
+      "target_entity",
+      "entity.one",
+      true,
+    );
+  });
+
   it("covers _renderTextInput handlers", () => {
     editor._handleLocalUpdate = vi.fn();
     editor._dispatchConfigChanged = vi.fn();
@@ -729,7 +844,11 @@ describe("CronoStarEditor - Comprehensive", () => {
   it("covers _updateConfig branches including preset merge and metadata save", () => {
     editor._dispatchConfigChanged = vi.fn();
     editor._saveMetadata = vi.fn();
-    editor._config = { type: "custom:cronostar-card", entity_prefix: "legacy", validation: { valid: false } };
+    editor._config = {
+      type: "custom:cronostar-card",
+      entity_prefix: "legacy",
+      validation: { valid: false },
+    };
 
     editor._updateConfig("target_entity", "sensor.new", true);
     expect(editor._config.validation.valid).toBe(true);
@@ -739,6 +858,12 @@ describe("CronoStarEditor - Comprehensive", () => {
 
     editor._updateConfig("enabled_entity", "switch.new", false);
     expect(editor._saveMetadata).toHaveBeenCalled();
+  });
+
+  it("covers _updateConfig ensuring global_prefix", () => {
+    editor._config = { type: "custom:cronostar-card", global_prefix: "" };
+    editor._updateConfig("other", "x", false);
+    expect(editor._config.global_prefix).toBe("p_");
   });
 
   it("covers _handleNextClick success branch", () => {
@@ -773,6 +898,15 @@ describe("CronoStarEditor - Comprehensive", () => {
     expect(editor.wizard._finish).toHaveBeenCalled();
   });
 
+  it("covers _handleFinishClick final branch with sanitize and dispatch", async () => {
+    editor._step = 5;
+    editor.hass = {};
+    editor.dispatchEvent = vi.fn();
+    editor.showToast = vi.fn();
+    await editor._handleFinishClick({ force: true });
+    expect(editor.dispatchEvent).toHaveBeenCalled();
+  });
+
   it("covers _handleKeyDown blocking Enter in wizard only for non-textarea", () => {
     const e1 = {
       key: "Enter",
@@ -792,6 +926,18 @@ describe("CronoStarEditor - Comprehensive", () => {
     };
     editor._handleKeyDown(e2);
     expect(e2.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("covers _handleKeyDown no-op when step is 0", () => {
+    const e = {
+      key: "Enter",
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      target: { tagName: "INPUT" },
+    };
+    editor._step = 0;
+    editor._handleKeyDown(e);
+    expect(e.preventDefault).not.toHaveBeenCalled();
   });
 
   it("covers _canGoNext branches", () => {
@@ -869,6 +1015,13 @@ describe("CronoStarEditor - Comprehensive", () => {
     expect(host.globalSettings).toEqual({ k: 1 });
   });
 
+  it("covers _saveGlobalSettings error branch", async () => {
+    editor.hass.callService.mockRejectedValueOnce(new Error("save fail"));
+    editor.showToast = vi.fn();
+    await editor._saveGlobalSettings({ k: 1 });
+    expect(editor.showToast).toHaveBeenCalledWith(expect.stringContaining("save fail"));
+  });
+
   it("covers handleShowHelp", () => {
     expect(() => editor.handleShowHelp()).not.toThrow();
   });
@@ -919,5 +1072,11 @@ describe("CronoStarEditor - Comprehensive", () => {
     editor._config = { global_prefix: "p_", preset_type: "thermostat" };
     await editor._saveMetadata();
     expect(editor.hass.callService).toHaveBeenCalled();
+  });
+
+  it("covers _saveMetadata catch branch", async () => {
+    editor.hass = { callService: vi.fn(() => Promise.reject(new Error("fail"))) };
+    editor._config = { global_prefix: "p_", preset_type: "thermostat" };
+    await expect(editor._saveMetadata()).resolves.toBeUndefined();
   });
 });

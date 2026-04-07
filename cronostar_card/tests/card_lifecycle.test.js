@@ -173,7 +173,7 @@ describe("CardLifecycle – setConfig", () => {
 
   it("ripristina lo stato dalla cache se il config è privo di target_entity", () => {
     card._backendMetaCache = { title: "Cached Title" };
-    lc.setConfig({ global_prefix: "p_" }); // no target_entity
+    lc.setConfig({ global_prefix: "p_" });
     expect(card.config.title).toBe("Cached Title");
   });
 
@@ -186,6 +186,13 @@ describe("CardLifecycle – setConfig", () => {
   it("non tocca la cache se _backendMetaCache è null", () => {
     card._backendMetaCache = null;
     expect(() => lc.setConfig({ global_prefix: "p_" })).not.toThrow();
+  });
+
+  it("non riapplica cache se editor interno è aperto", () => {
+    card._backendMetaCache = { title: "Cached Title" };
+    card.isEditorInternal = true;
+    lc.setConfig({ global_prefix: "p_" });
+    expect(card.config.title).not.toBe("Cached Title");
   });
 
   it("imposta selectedPreset dal config", () => {
@@ -209,14 +216,20 @@ describe("CardLifecycle – setConfig", () => {
   });
 
   it("imposta hourBase da oggetto hour_base", () => {
-    validateConfig.mockReturnValueOnce({ hour_base: { value: 1, determined: true } });
+    validateConfig.mockReturnValueOnce({
+      hour_base: { value: 1, determined: true },
+      logging_enabled: true,
+    });
     lc.setConfig({});
     expect(card.hourBase).toBe(1);
     expect(card.hourBaseDetermined).toBe(true);
   });
 
   it("usa hourBase=0 per hour_base non-oggetto", () => {
-    validateConfig.mockReturnValueOnce({ hour_base: "auto", logging_enabled: true });
+    validateConfig.mockReturnValueOnce({
+      hour_base: "auto",
+      logging_enabled: true,
+    });
     lc.setConfig({});
     expect(card.hourBase).toBe(0);
     expect(card.hourBaseDetermined).toBe(true);
@@ -245,7 +258,9 @@ describe("CardLifecycle – setConfig", () => {
   });
 
   it("gestisce eccezioni di validateConfig mostrando notifica", () => {
-    validateConfig.mockImplementationOnce(() => { throw new Error("bad config"); });
+    validateConfig.mockImplementationOnce(() => {
+      throw new Error("bad config");
+    });
     lc.setConfig({});
     expect(card.eventHandlers.showNotification).toHaveBeenCalledWith(
       expect.any(String),
@@ -257,7 +272,9 @@ describe("CardLifecycle – setConfig", () => {
     validateConfig.mockReturnValueOnce({
       logging_enabled: true,
       hour_base: { value: 0, determined: false },
-      get meta() { throw new Error("meta error"); },
+      get meta() {
+        throw new Error("meta error");
+      },
     });
     expect(() => lc.setConfig({})).not.toThrow();
   });
@@ -324,7 +341,7 @@ describe("CardLifecycle – setConfig", () => {
         },
       });
       const lifecycle = new CardLifecycle(card);
-      
+
       nowSpy.mockReturnValueOnce(0);
       lifecycle.setHass(
         makeHass({
@@ -341,6 +358,38 @@ describe("CardLifecycle – setConfig", () => {
         }),
       );
 
+      expect(loggerSpy).not.toHaveBeenCalled();
+    });
+
+    it("non logga warning se startup è attivo", () => {
+      const loggerSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
+      const card = makeCard({
+        initialLoadComplete: true,
+        cronostarReady: false,
+        config: {
+          enabled_entity: "switch.missing",
+          not_configured: false,
+        },
+      });
+      const lifecycle = new CardLifecycle(card);
+      lifecycle.setHass(makeHass({ states: {}, config: { state: "STARTING" } }));
+      expect(loggerSpy).not.toHaveBeenCalled();
+    });
+
+    it("non logga due volte se già segnalata globalmente", () => {
+      const loggerSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
+      window.cronostarpausewarned.add("input_boolean.test_enabled");
+
+      const card = makeCard({
+        config: {
+          enabled_entity: "input_boolean.test_enabled",
+          not_configured: false,
+        },
+        initialLoadComplete: true,
+        cronostarReady: true,
+      });
+      const lifecycle = new CardLifecycle(card);
+      lifecycle.setHass(makeHass({ states: {}, config: { state: "RUNNING" } }));
       expect(loggerSpy).not.toHaveBeenCalled();
     });
 
@@ -415,7 +464,13 @@ describe("CardLifecycle – updated", () => {
       update: vi.fn(),
     };
     card.chartManager.getChart.mockReturnValue(mockChart);
-    card.config = { min_value: 15, max_value: 30, step_value: 0.5, allow_max_value: false, is_switch_preset: false };
+    card.config = {
+      min_value: 15,
+      max_value: 30,
+      step_value: 0.5,
+      allow_max_value: false,
+      is_switch_preset: false,
+    };
 
     const lc = new CardLifecycle(card);
     lc.updated(new Map([["config", undefined]]));
@@ -439,7 +494,9 @@ describe("CardLifecycle – updated", () => {
   it("gestisce eccezioni nel refresh del chart", () => {
     const card = makeCard();
     card.chartManager.isInitialized.mockReturnValue(true);
-    card.chartManager.recreateChartOptions.mockImplementation(() => { throw new Error("oops"); });
+    card.chartManager.recreateChartOptions.mockImplementation(() => {
+      throw new Error("oops");
+    });
     const lc = new CardLifecycle(card);
     expect(() => lc.updated(new Map([["config", undefined]]))).not.toThrow();
   });
@@ -474,18 +531,25 @@ describe("CardLifecycle – setHass", () => {
   });
 
   it("imposta isStartup = false durante RUNNING dopo 60s", () => {
-    lc._firstHassAt = Date.now() - 70000; // 70s fa
+    lc._firstHassAt = Date.now() - 70000;
     const hass = makeHass({ config: { state: "RUNNING" } });
     lc.setHass(hass);
     expect(card.isStartup).toBe(false);
   });
 
   it("imposta isStartup = true nei primi 60s", () => {
-    const card = makeCard({ cronostarReady: false }); 
+    const card = makeCard({ cronostarReady: false });
     const lc = new CardLifecycle(card);
     const hass = makeHass({ config: { state: "RUNNING" } });
     lc.setHass(hass);
     expect(card.isStartup).toBe(true);
+  });
+
+  it("requestUpdate durante startup", () => {
+    const card = makeCard({ cronostarReady: false });
+    const lc = new CardLifecycle(card);
+    lc.setHass(makeHass({ config: { state: "STARTING" } }));
+    expect(card.requestUpdate).toHaveBeenCalled();
   });
 
   it("imposta la language al primo hass se non inizializzata", () => {
@@ -559,21 +623,33 @@ describe("CardLifecycle – setHass", () => {
   });
 
   it("aggiorna isEnabled dallo stato dell'entità abilitata", () => {
-    card.config = { enabled_entity: "switch.test", not_configured: false, global_prefix: "p_" };
+    card.config = {
+      enabled_entity: "switch.test",
+      not_configured: false,
+      global_prefix: "p_",
+    };
     const hass = makeHass({ states: { "switch.test": { state: "on" } } });
     lc.setHass(hass);
     expect(card.isEnabled).toBe(true);
   });
 
   it("aggiorna isEnabled = false se switch è off", () => {
-    card.config = { enabled_entity: "switch.test", not_configured: false, global_prefix: "p_" };
+    card.config = {
+      enabled_entity: "switch.test",
+      not_configured: false,
+      global_prefix: "p_",
+    };
     const hass = makeHass({ states: { "switch.test": { state: "off" } } });
     lc.setHass(hass);
     expect(card.isEnabled).toBe(false);
   });
 
   it("aggiorna profileOptions dall'entità select", () => {
-    card.config = { profiles_select_entity: "input_select.prof", not_configured: false, global_prefix: "p_" };
+    card.config = {
+      profiles_select_entity: "input_select.prof",
+      not_configured: false,
+      global_prefix: "p_",
+    };
     card.profileOptions = [];
     const hass = makeHass({
       states: {
@@ -587,6 +663,83 @@ describe("CardLifecycle – setHass", () => {
     expect(card.profileOptions).toEqual(["Day", "Night"]);
   });
 
+  it("non aggiorna profileOptions se uguali", () => {
+    card.config = {
+      profiles_select_entity: "input_select.prof",
+      not_configured: false,
+      global_prefix: "p_",
+    };
+    card.profileOptions = ["Day", "Night"];
+    const hass = makeHass({
+      states: {
+        "input_select.prof": {
+          state: "Day",
+          attributes: { options: ["Day", "Night"] },
+        },
+      },
+    });
+    lc.setHass(hass);
+    expect(card.profileOptions).toEqual(["Day", "Night"]);
+  });
+
+  it("aggiorna selectedProfile e carica il profilo quando necessario", () => {
+    card.config = {
+      profiles_select_entity: "input_select.prof",
+      not_configured: false,
+      global_prefix: "p_",
+    };
+    card.selectedProfile = "Old";
+    const hass = makeHass({
+      states: {
+        "input_select.prof": {
+          state: "Day",
+          attributes: { options: ["Day", "Night"] },
+        },
+      },
+    });
+    lc.setHass(hass);
+    expect(card.selectedProfile).toBe("Day");
+    expect(card.profileManager.loadProfile).toHaveBeenCalledWith("Day");
+  });
+
+  it("non carica il profilo se hasUnsavedChanges è true", () => {
+    card.hasUnsavedChanges = true;
+    card.config = {
+      profiles_select_entity: "input_select.prof",
+      not_configured: false,
+      global_prefix: "p_",
+    };
+    card.selectedProfile = "Old";
+    const hass = makeHass({
+      states: {
+        "input_select.prof": {
+          state: "Day",
+          attributes: { options: ["Day", "Night"] },
+        },
+      },
+    });
+    lc.setHass(hass);
+    expect(card.profileManager.loadProfile).not.toHaveBeenCalled();
+  });
+
+  it("non carica profili invalidi", () => {
+    card.config = {
+      profiles_select_entity: "input_select.prof",
+      not_configured: false,
+      global_prefix: "p_",
+    };
+    const hass = makeHass({
+      states: {
+        "input_select.prof": {
+          state: "unknown",
+          attributes: { options: ["Day", "Night"] },
+        },
+      },
+    });
+    lc.setHass(hass);
+    expect(card.profileManager.loadProfile).not.toHaveBeenCalled();
+  });
+
   it("in modalità preview ritorna subito dopo aver impostato la language", () => {
     card.isPreview = true;
     card.languageInitialized = false;
@@ -597,7 +750,12 @@ describe("CardLifecycle – setHass", () => {
 
   it("gestisce eccezioni interne senza propagarle", () => {
     const hass = makeHass();
-    Object.defineProperty(hass, "config", { get() { throw new Error("fail"); }, configurable: true });
+    Object.defineProperty(hass, "config", {
+      get() {
+        throw new Error("fail");
+      },
+      configurable: true,
+    });
     expect(() => lc.setHass(hass)).not.toThrow();
   });
 });
@@ -624,19 +782,65 @@ describe("CardLifecycle – connectedCallback", () => {
     card.initialLoadComplete = true;
     const lc = new CardLifecycle(card);
     const spy = vi.spyOn(lc, "reinitializeCard").mockImplementation(() => {});
-    
+
     vi.useFakeTimers();
     lc.connectedCallback();
-    
+
     vi.advanceTimersByTime(100);
     expect(spy).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("canvas check richiede retry se canvas non esiste", () => {
+    vi.useFakeTimers();
+    const card = makeCard();
+    card.shadowRoot.getElementById.mockReturnValue(null);
+    const lc = new CardLifecycle(card);
+    vi.spyOn(lc, "isEditorContext").mockReturnValue(false);
+    lc.connectedCallback();
+    vi.advanceTimersByTime(200);
+    vi.useRealTimers();
+  });
+
+  it("canvas check richiama reinitializeCard se width/height zero", () => {
+    vi.useFakeTimers();
+    const card = makeCard();
+    const canvas = {
+      getBoundingClientRect: vi.fn(() => ({ width: 0, height: 0 })),
+    };
+    card.shadowRoot.getElementById.mockReturnValue(canvas);
+    const lc = new CardLifecycle(card);
+    const spy = vi.spyOn(lc, "reinitializeCard").mockImplementation(() => {});
+    vi.spyOn(lc, "isEditorContext").mockReturnValue(false);
+    lc.connectedCallback();
+    vi.advanceTimersByTime(100);
+    expect(spy).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("canvas check aggiorna il chart se pronto", () => {
+    vi.useFakeTimers();
+    const card = makeCard();
+    const canvas = {
+      getBoundingClientRect: vi.fn(() => ({ width: 100, height: 100 })),
+    };
+    card.shadowRoot.getElementById.mockReturnValue(canvas);
+    card.chartManager.isInitialized.mockReturnValue(true);
+    card.chartManager.getChart.mockReturnValue({});
+    const lc = new CardLifecycle(card);
+    vi.spyOn(lc, "isEditorContext").mockReturnValue(false);
+    lc.connectedCallback();
+    vi.advanceTimersByTime(100);
+    expect(card.chartManager.update).toHaveBeenCalledWith("none");
     vi.useRealTimers();
   });
 
   it("non crasha con eccezioni interne", () => {
     const card = makeCard();
     const lc = new CardLifecycle(card);
-    vi.spyOn(lc, "isPickerPreviewContext").mockImplementation(() => { throw new Error("oops"); });
+    vi.spyOn(lc, "isPickerPreviewContext").mockImplementation(() => {
+      throw new Error("oops");
+    });
     expect(() => lc.connectedCallback()).not.toThrow();
   });
 });
@@ -662,7 +866,9 @@ describe("CardLifecycle – disconnectedCallback", () => {
   it("non crasha con eccezioni interne", () => {
     const card = makeCard();
     const lc = new CardLifecycle(card);
-    vi.spyOn(lc, "cleanupCard").mockImplementation(() => { throw new Error("oops"); });
+    vi.spyOn(lc, "cleanupCard").mockImplementation(() => {
+      throw new Error("oops");
+    });
     expect(() => lc.disconnectedCallback()).not.toThrow();
   });
 });
@@ -677,10 +883,21 @@ describe("CardLifecycle – firstUpdated", () => {
     expect(card.chartManager.initChart).not.toHaveBeenCalled();
   });
 
+  it("non inizializza il chart se isPickerPreview=true", () => {
+    const card = makeCard({ isPickerPreview: true });
+    const lc = new CardLifecycle(card);
+    vi.spyOn(lc, "isPickerPreviewContext").mockReturnValue(false);
+    lc.firstUpdated();
+    expect(card.chartManager.initChart).not.toHaveBeenCalled();
+  });
+
   it("inizializza il chart con il canvas se disponibile", () => {
     const card = makeCard();
     const canvas = document.createElement("canvas");
-    card.shadowRoot = { getElementById: vi.fn(() => canvas), querySelector: vi.fn(() => null) };
+    card.shadowRoot = {
+      getElementById: vi.fn(() => canvas),
+      querySelector: vi.fn(() => null),
+    };
     const lc = new CardLifecycle(card);
     vi.spyOn(lc, "isPickerPreviewContext").mockReturnValue(false);
     lc.firstUpdated();
@@ -698,8 +915,18 @@ describe("CardLifecycle – firstUpdated", () => {
     const lc = new CardLifecycle(card);
     vi.spyOn(lc, "isPickerPreviewContext").mockReturnValue(false);
     lc.firstUpdated();
-    expect(card.keyboardHandler.attachListeners).toHaveBeenCalledWith(container);
+    expect(card.keyboardHandler.attachListeners).toHaveBeenCalledWith(
+      container,
+    );
     expect(card.pointerHandler.attachListeners).toHaveBeenCalledWith(canvas);
+  });
+
+  it("chiama cardSync.updateAutomationSync", () => {
+    const card = makeCard();
+    const lc = new CardLifecycle(card);
+    vi.spyOn(lc, "isPickerPreviewContext").mockReturnValue(false);
+    lc.firstUpdated();
+    expect(card.cardSync.updateAutomationSync).toHaveBeenCalledWith(card.hass);
   });
 
   it("non crasha senza shadowRoot", () => {
@@ -712,7 +939,9 @@ describe("CardLifecycle – firstUpdated", () => {
   it("non crasha con eccezioni interne", () => {
     const card = makeCard();
     card.shadowRoot = {
-      getElementById: vi.fn(() => { throw new Error("oops"); }),
+      getElementById: vi.fn(() => {
+        throw new Error("oops");
+      }),
       querySelector: vi.fn(() => null),
     };
     const lc = new CardLifecycle(card);
@@ -726,7 +955,10 @@ describe("CardLifecycle – reinitializeCard", () => {
   it("distrugge e reinizializza il chart con il canvas", () => {
     const card = makeCard();
     const canvas = document.createElement("canvas");
-    card.shadowRoot = { getElementById: vi.fn(() => canvas), querySelector: vi.fn(() => null) };
+    card.shadowRoot = {
+      getElementById: vi.fn(() => canvas),
+      querySelector: vi.fn(() => null),
+    };
     const lc = new CardLifecycle(card);
     lc.reinitializeCard();
     expect(card.chartManager.destroy).toHaveBeenCalled();
@@ -747,6 +979,13 @@ describe("CardLifecycle – reinitializeCard", () => {
     expect(card.keyboardHandler.attachListeners).toHaveBeenCalled();
     expect(card.pointerHandler.detachListeners).toHaveBeenCalled();
     expect(card.pointerHandler.attachListeners).toHaveBeenCalled();
+  });
+
+  it("richiama requestUpdate", () => {
+    const card = makeCard();
+    const lc = new CardLifecycle(card);
+    lc.reinitializeCard();
+    expect(card.requestUpdate).toHaveBeenCalled();
   });
 
   it("non crasha senza canvas/container", () => {
@@ -781,7 +1020,9 @@ describe("CardLifecycle – cleanupCard", () => {
 
   it("non crasha con eccezioni interne", () => {
     const card = makeCard();
-    card.chartManager.destroy.mockImplementation(() => { throw new Error("oops"); });
+    card.chartManager.destroy.mockImplementation(() => {
+      throw new Error("oops");
+    });
     const lc = new CardLifecycle(card);
     expect(() => lc.cleanupCard()).not.toThrow();
   });
@@ -811,22 +1052,59 @@ describe("CardLifecycle – context detection", () => {
     expect(lc.isPickerPreviewContext()).toBe(true);
   });
 
+  it("isPickerPreviewContext = true con antenato hui-section-card-picker", () => {
+    const parent = document.createElement("hui-section-card-picker");
+    const child = makeCard();
+    child.tagName = "DIV";
+    child.parentElement = parent;
+    const lc = new CardLifecycle(child);
+    expect(lc.isPickerPreviewContext()).toBe(true);
+  });
+
   it("isPickerPreviewContext = false se incontra hui-card-preview prima", () => {
     const picker = document.createElement("hui-card-picker");
     const preview = document.createElement("hui-card-preview");
     const child = makeCard();
     child.tagName = "DIV";
-    
-    Object.defineProperty(child, 'parentElement', { value: preview, configurable: true });
-    Object.defineProperty(preview, 'parentElement', { value: picker, configurable: true });
-    
+
+    Object.defineProperty(child, "parentElement", {
+      value: preview,
+      configurable: true,
+    });
+    Object.defineProperty(preview, "parentElement", {
+      value: picker,
+      configurable: true,
+    });
+
+    const lc = new CardLifecycle(child);
+    expect(lc.isPickerPreviewContext()).toBe(false);
+  });
+
+  it("isPickerPreviewContext = false se incontra hui-card-editor", () => {
+    const parent = document.createElement("hui-card-editor");
+    const child = makeCard();
+    child.tagName = "DIV";
+    child.parentElement = parent;
+    const lc = new CardLifecycle(child);
+    expect(lc.isPickerPreviewContext()).toBe(false);
+  });
+
+  it("isPickerPreviewContext = false se incontra hui-dialog-edit-card", () => {
+    const parent = document.createElement("hui-dialog-edit-card");
+    const child = makeCard();
+    child.tagName = "DIV";
+    child.parentElement = parent;
     const lc = new CardLifecycle(child);
     expect(lc.isPickerPreviewContext()).toBe(false);
   });
 
   it("isPickerPreviewContext = false e nessuna eccezione per elemento che lancia errori", () => {
     const faultyCard = makeCard();
-    Object.defineProperty(faultyCard, "tagName", { get() { throw new Error(); } });
+    Object.defineProperty(faultyCard, "tagName", {
+      get() {
+        throw new Error();
+      },
+    });
     const lc = new CardLifecycle(faultyCard);
     expect(lc.isPickerPreviewContext()).toBe(false);
   });
@@ -841,12 +1119,26 @@ describe("CardLifecycle – _refreshContextFlags", () => {
     vi.spyOn(lc, "isEditorContext").mockReturnValue(false);
     lc._refreshContextFlags();
     expect(card.isPreview).toBe(true);
+    expect(card.isPickerPreview).toBe(true);
+    expect(card.isEditor).toBe(false);
+  });
+
+  it("imposta anche isEditor", () => {
+    const card = makeCard();
+    const lc = new CardLifecycle(card);
+    vi.spyOn(lc, "isPickerPreviewContext").mockReturnValue(false);
+    vi.spyOn(lc, "isEditorContext").mockReturnValue(true);
+    lc._refreshContextFlags();
+    expect(card.isEditor).toBe(true);
+    expect(card.isPickerPreview).toBe(false);
   });
 
   it("non crasha con eccezioni interne", () => {
     const card = makeCard();
     const lc = new CardLifecycle(card);
-    vi.spyOn(lc, "isPickerPreviewContext").mockImplementation(() => { throw new Error("oops"); });
+    vi.spyOn(lc, "isPickerPreviewContext").mockImplementation(() => {
+      throw new Error("oops");
+    });
     expect(() => lc._refreshContextFlags()).not.toThrow();
   });
 });
@@ -871,6 +1163,20 @@ describe("CardLifecycle – registerCard", () => {
     expect(hass.callWS).not.toHaveBeenCalled();
   });
 
+  it("non registra se preview === true", async () => {
+    card.preview = true;
+    const hass = makeHass();
+    await lc.registerCard(hass);
+    expect(hass.callWS).not.toHaveBeenCalled();
+  });
+
+  it("non registra se _preview === true", async () => {
+    card._preview = true;
+    const hass = makeHass();
+    await lc.registerCard(hass);
+    expect(hass.callWS).not.toHaveBeenCalled();
+  });
+
   it("non registra se global_prefix è assente", async () => {
     card.config.global_prefix = null;
     const hass = makeHass();
@@ -886,6 +1192,18 @@ describe("CardLifecycle – registerCard", () => {
       expect.objectContaining({
         domain: "cronostar",
         service: "register_card",
+      }),
+    );
+  });
+
+  it("usa cardId esistente se già presente", async () => {
+    card.cardId = "existing-id";
+    const hass = makeHass();
+    hass.callWS.mockResolvedValueOnce({ response: {} });
+    await lc.registerCard(hass);
+    expect(hass.callWS).toHaveBeenCalledWith(
+      expect.objectContaining({
+        service_data: expect.objectContaining({ card_id: "existing-id" }),
       }),
     );
   });
@@ -937,6 +1255,16 @@ describe("CardLifecycle – registerCard", () => {
     expect(card.config.not_configured).toBe(false);
   });
 
+  it("non forza not_configured se validation.valid è false", async () => {
+    card.config.not_configured = true;
+    const hass = makeHass();
+    hass.callWS.mockResolvedValueOnce({
+      response: { validation: { valid: false, errors: ["x"] } },
+    });
+    await lc.registerCard(hass);
+    expect(card.config.not_configured).toBe(true);
+  });
+
   it("risolve il selectedProfile dall'entità select se non impostato", async () => {
     card.selectedProfile = "";
     card.config.profiles_select_entity = "input_select.p";
@@ -960,20 +1288,85 @@ describe("CardLifecycle – registerCard", () => {
     expect(hass.callWS).toHaveBeenCalled();
   });
 
-  it("imposta initialLoadComplete e cronostarReady dopo la registrazione", async () => {
-    const hass = makeHass();
-    hass.callWS.mockResolvedValueOnce({
-      response: { schedule: [{ time: "00:00", value: 20 }] },
+  it("ignora selectedProfile invalidi e usa Default implicito", async () => {
+    card.selectedProfile = "";
+    card.config.profiles_select_entity = "input_select.p";
+    const hass = makeHass({
+      states: { "input_select.p": { state: "unknown" } },
     });
+    hass.callWS.mockResolvedValueOnce({ response: {} });
     await lc.registerCard(hass);
-    expect(card.initialLoadComplete).toBe(true);
-    expect(card.cronostarReady).toBe(true);
+    expect(hass.callWS).toHaveBeenCalled();
   });
 
-  it("gestisce errori di registrazione senza propagarli", async () => {
+  it("applica profile_name dalla risposta", async () => {
     const hass = makeHass();
-    hass.callWS.mockRejectedValueOnce(new Error("WS error"));
-    await expect(lc.registerCard(hass)).resolves.toBeUndefined();
+    hass.callWS.mockResolvedValueOnce({
+      response: { profile_name: "Night" },
+    });
+    await lc.registerCard(hass);
+    expect(card.selectedProfile).toBe("Night");
+  });
+
+  it("applica profile_name dal profile_data", async () => {
+    const hass = makeHass();
+    hass.callWS.mockResolvedValueOnce({
+      response: { profile_data: { profile_name: "Evening" } },
+    });
+    await lc.registerCard(hass);
+    expect(card.selectedProfile).toBe("Evening");
+  });
+
+  it("mantiene selectedProfile attuale se risposta non lo fornisce", async () => {
+    card.selectedProfile = "KeepMe";
+    const hass = makeHass();
+    hass.callWS.mockResolvedValueOnce({ response: {} });
+    await lc.registerCard(hass);
+    expect(card.selectedProfile).toBe("KeepMe");
+  });
+
+  it("usa Default se nessun profilo è disponibile", async () => {
+    card.selectedProfile = "";
+    const hass = makeHass();
+    hass.callWS.mockResolvedValueOnce({ response: {} });
+    await lc.registerCard(hass);
+    expect(card.selectedProfile).toBe("Default");
+  });
+
+  it("non sincronizza meta backend quando _editorOpen è true", async () => {
+    card._editorOpen = true;
+    const hass = makeHass();
+    hass.callWS.mockResolvedValueOnce({
+      response: {
+        profile_data: { meta: { title: "Backend Title" }, schedule: [] },
+      },
+    });
+    await lc.registerCard(hass);
+    expect(card._backendMetaCache).toBeUndefined();
+  });
+
+  it("applica extractCardConfig e resetta warning flags quando meta cambia", async () => {
+    card.loggedPauseEntityMissing = true;
+    card.loggedProfileSelectEntityMissing = true;
+    card.config.enabled_entity = "old_enabled";
+    card.config.profiles_select_entity = "old_select";
+    const hass = makeHass();
+    hass.callWS.mockResolvedValueOnce({
+      response: {
+        profile_data: {
+          meta: {
+            enabled_entity: "new_enabled",
+            profiles_select_entity: "new_select",
+          },
+          schedule: [],
+        },
+      },
+    });
+    await lc.registerCard(hass);
+    expect(card._backendMetaCache).toBeDefined();
+    expect(card.config.enabled_entity).toBe("new_enabled");
+    expect(card.loggedPauseEntityMissing).toBe(false);
+    expect(card.loggedProfileSelectEntityMissing).toBe(false);
   });
 
   it("applica la language dal meta del profile_data", async () => {
@@ -987,10 +1380,88 @@ describe("CardLifecycle – registerCard", () => {
     expect(card.language).toBe("it");
   });
 
+  it("gestisce errori nell'applicazione della language dal meta", async () => {
+    Object.defineProperty(card, "language", {
+      set() {
+        throw new Error("fail");
+      },
+      get() {
+        return "en";
+      },
+      configurable: true,
+    });
+    const hass = makeHass();
+    hass.callWS.mockResolvedValueOnce({
+      response: {
+        profile_data: { meta: { language: "it" }, schedule: [] },
+      },
+    });
+    await expect(lc.registerCard(hass)).resolves.toBeUndefined();
+  });
+
+  it("processa rawSchedule valido", async () => {
+    const hass = makeHass();
+    hass.callWS.mockResolvedValueOnce({
+      response: {
+        profile_data: { schedule: [{ time: "00:00", value: 20 }] },
+      },
+    });
+    await lc.registerCard(hass);
+    expect(card.stateManager.setData).toHaveBeenCalledWith([
+      { time: "00:00", value: 20 },
+    ]);
+  });
+
+  it("fallback load_profile per switch quando schedule manca", async () => {
+    card.config.is_switch_preset = true;
+    card.selectedPreset = "generic_switch";
+    card.stateManager.scheduleData = [];
+    const hass = makeHass();
+    hass.callWS.mockResolvedValueOnce({ response: {} });
+    await lc.registerCard(hass);
+    expect(card.profileManager.loadProfile).toHaveBeenCalled();
+  });
+
+  it("ignora errori del fallback load_profile", async () => {
+    card.config.is_switch_preset = true;
+    card.stateManager.scheduleData = [];
+    card.profileManager.loadProfile.mockRejectedValueOnce(new Error("fail"));
+    const hass = makeHass();
+    hass.callWS.mockResolvedValueOnce({ response: {} });
+    await expect(lc.registerCard(hass)).resolves.toBeUndefined();
+  });
+
+  it("applica entity_states dalla risposta", async () => {
+    const hass = makeHass();
+    hass.callWS.mockResolvedValueOnce({
+      response: { entity_states: { target: "on" } },
+    });
+    await lc.registerCard(hass);
+    expect(card.entityStates).toEqual({ target: "on" });
+  });
+
   it("usa il risultato come response se result.response è undefined", async () => {
     const hass = makeHass();
     hass.callWS.mockResolvedValueOnce({});
     await expect(lc.registerCard(hass)).resolves.toBeUndefined();
+  });
+
+  it("gestisce errori di registrazione senza propagarli", async () => {
+    const hass = makeHass();
+    hass.callWS.mockRejectedValueOnce(new Error("WS error"));
+    await expect(lc.registerCard(hass)).resolves.toBeUndefined();
+  });
+
+  it("imposta initialLoadComplete e cronostarReady dopo la registrazione", async () => {
+    const hass = makeHass();
+    hass.callWS.mockResolvedValueOnce({
+      response: { schedule: [{ time: "00:00", value: 20 }] },
+    });
+    await lc.registerCard(hass);
+    expect(card.initialLoadComplete).toBe(true);
+    expect(card.cronostarReady).toBe(true);
+    expect(card.requestUpdate).toHaveBeenCalled();
+    expect(lc.hasRegistered).toBe(true);
   });
 });
 
@@ -1026,17 +1497,19 @@ describe("CardLifecycle – _updatePreviewVisibility", () => {
     expect(styleEl.textContent).toBe("");
   });
 
+  it("non crea un nuovo style se già esiste", () => {
+    const card = makeCard({ config: { step: 0 } });
+    const lc = new CardLifecycle(card);
+    const styleEl = document.createElement("style");
+    styleEl.id = "cronostar-editor-style";
+    document.head.appendChild(styleEl);
+    lc._updatePreviewVisibility();
+    expect(document.querySelectorAll("#cronostar-editor-style")).toHaveLength(1);
+  });
+
   it("non crasha se config è null", () => {
     const card = makeCard({ config: null });
     const lc = new CardLifecycle(card);
     expect(() => lc._updatePreviewVisibility()).not.toThrow();
-  });
-
-  it("non aggiunge il secondo style se esiste già per step=0", () => {
-    const card = makeCard({ config: { step: 0 } });
-    const lc = new CardLifecycle(card);
-    lc._updatePreviewVisibility();
-    lc._updatePreviewVisibility();
-    expect(document.querySelectorAll("#cronostar-editor-style")).toHaveLength(1);
   });
 });
