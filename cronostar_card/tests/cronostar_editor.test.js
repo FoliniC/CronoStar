@@ -511,14 +511,30 @@ describe("CronoStarEditor - Comprehensive", () => {
   });
 
   it("covers _applyShadowDomFix injection and observer setup", () => {
-    const nestedShadowHost = { shadowRoot: { querySelector: vi.fn(() => null), querySelectorAll: vi.fn(() => []) }, tagName: "ha-entity-picker" };
-    const host = { shadowRoot: { querySelector: vi.fn(() => null), querySelectorAll: vi.fn(() => []) }, tagName: "ha-select" };
+    const nestedShadowHost = {
+      shadowRoot: {
+        querySelector: vi.fn(() => null),
+        querySelectorAll: vi.fn(() => []),
+        appendChild: vi.fn(),
+      },
+      tagName: "ha-entity-picker",
+    };
+    const host = {
+      shadowRoot: {
+        querySelector: vi.fn(() => null),
+        querySelectorAll: vi.fn(() => []),
+        appendChild: vi.fn(),
+      },
+      tagName: "ha-select",
+    };
     editor.shadowRoot.querySelectorAll = vi.fn(() => [host, nestedShadowHost]);
     document.querySelectorAll = vi.fn(() => [host]);
 
     editor._applyShadowDomFix();
     expect(editor._contrastObserver).toBeTruthy();
     expect(editor._contrastInterval).toBeTruthy();
+    expect(host.shadowRoot.appendChild).toHaveBeenCalled();
+    expect(nestedShadowHost.shadowRoot.appendChild).toHaveBeenCalled();
   });
 
   it("covers _applyShadowDomFix recursive child handling", () => {
@@ -831,7 +847,7 @@ describe("CronoStarEditor - Comprehensive", () => {
     editor._handleFinishClick = vi.fn();
     const tpl = editor._renderWizardActions();
     const handlers = collectFunctions(tpl);
-    handlers[0]();
+    handlers[handlers.length - 1]();
     expect(editor._handleFinishClick).toHaveBeenCalledWith({ force: true });
   });
 
