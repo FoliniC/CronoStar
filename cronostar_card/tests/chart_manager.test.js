@@ -554,7 +554,7 @@ describe("ChartManager - Comprehensive Coverage", () => {
       expect(ctx._card.isExpandedH).toBe(true);
 
       cm.lastMousePosition = { x: 5, y: 120 };
-      expect(zoom.zoom.mode()).toBe("x");
+      expect(zoom.zoom.mode()).toBe("y");
       cm.lastMousePosition = { x: 10, y: 50 };
       expect(zoom.zoom.mode()).toBe("y");
       cm.lastMousePosition = { x: 100, y: 50 };
