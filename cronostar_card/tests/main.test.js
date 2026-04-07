@@ -161,7 +161,6 @@ describe("main.js", () => {
     });
 
     it("log 'registry nullo' e ritorna false se customElements è null", async () => {
-      // vi.stubGlobal sostituisce la globale prima dell'import
       vi.stubGlobal("customElements", null);
 
       await loadMain();
@@ -169,6 +168,17 @@ describe("main.js", () => {
       expect(console.warn).toHaveBeenCalledWith(
         expect.stringContaining("registry nullo"),
       );
+    });
+
+    it("returns existing registration when customCards already contains legacy type", async () => {
+      vi.spyOn(customElements, "get").mockReturnValue(null);
+      vi.spyOn(customElements, "define").mockImplementation(() => {});
+      window.customCards = [{ type: "custom:cronostar-card", name: "legacy" }];
+
+      await loadMain();
+
+      expect(window.customCards).toHaveLength(1);
+      expect(window.customCards[0].type).toBe("cronostar-card");
     });
   });
 
@@ -403,14 +413,17 @@ describe("main.js", () => {
     });
 
     it("cattura eccezioni nel try block e chiama console.error", async () => {
-      class MockHost { connectedCallback() {} }
+      class MockHost {
+        connectedCallback() {}
+      }
       window.ScopedRegistryHost = MockHost;
       await loadMain();
 
       const host = Object.create(window.ScopedRegistryHost.prototype);
-      // Forza un errore nell'accesso a renderRoot
       Object.defineProperty(host, "renderRoot", {
-        get() { throw new Error("render error"); },
+        get() {
+          throw new Error("render error");
+        },
         configurable: true,
       });
       host.tagName = "MOCK";
@@ -420,6 +433,23 @@ describe("main.js", () => {
         expect.stringContaining("errore registrazione in scoped registry"),
         expect.any(Error),
       );
+    });
+
+    it("uses global customElements when ownerDocument is missing", async () => {
+      class MockHost {
+        connectedCallback() {}
+      }
+      window.ScopedRegistryHost = MockHost;
+      await loadMain();
+
+      const host = Object.create(window.ScopedRegistryHost.prototype);
+      host.renderRoot = { customElements: undefined };
+      host.shadowRoot = null;
+      host.ownerDocument = null;
+      host.tagName = "MOCK";
+
+      host.connectedCallback();
+      expect(customElements.define).toHaveBeenCalled();
     });
   });
 

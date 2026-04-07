@@ -156,30 +156,31 @@ describe("CronoStarEditor - Comprehensive", () => {
 
   it("exercises all branches and methods", async () => {
     editor._initialized = true;
-    
-    // setConfig branches
+
     editor._ignoreInboundUntil = Date.now() + 10000;
     editor.setConfig({ target_entity: "new" });
     editor._ignoreInboundUntil = 0;
-    editor.setConfig({ target_entity: "x", global_prefix: "p_", meta: { language: "it" } });
+    editor.setConfig({
+      target_entity: "x",
+      global_prefix: "p_",
+      meta: { language: "it" },
+    });
     editor.setConfig({ preset_type: "thermostat" });
-    
-    // Lifecycle
+    editor.setConfig(null);
+
     editor.updated(new Map([["step", 0], ["hass", null]]));
     editor.disconnectedCallback();
-    
-    // Methods
+
     editor._handleLocalUpdate("enabled_entity", "ib.x");
     editor._handleLocalUpdate("profiles_select_entity", "is.x");
-    
-    // Reset confirmation branches
+    editor._handleLocalUpdate("target_entity", "sensor.test");
+
     vi.stubGlobal("confirm", () => false);
     editor._isEditing = true;
     editor._handleResetConfig();
     vi.stubGlobal("confirm", () => true);
     editor._handleResetConfig();
-    
-    // Pickers and inputs
+
     vi.stubGlobal("customElements", { get: (tag) => tag === "ha-selector" });
     await runAllHandlers(editor.renderEntityPicker("target_entity", "v"));
     vi.stubGlobal("customElements", { get: (tag) => tag === "ha-entity-picker" });
@@ -188,7 +189,6 @@ describe("CronoStarEditor - Comprehensive", () => {
     await runAllHandlers(editor.renderEntityPicker("target_entity", "v"));
     await runAllHandlers(editor.renderTextInput("key", "val", "place"));
 
-    // Wizard Actions & Steps
     for (let s = 0; s <= 5; s++) {
       editor._step = s;
       editor._config.validation = { valid: false, errors: ["err"] };
@@ -196,40 +196,34 @@ describe("CronoStarEditor - Comprehensive", () => {
       await runAllHandlers(editor._renderWizardSteps());
       await runAllHandlers(editor._renderWizardActions());
     }
-    
-    // Next/Finish logic
+
     editor._step = 1;
-    editor._config.global_prefix = ""; 
+    editor._config.global_prefix = "";
     editor._handleNextClick();
     expect(editor._showStepError).toBe(true);
 
     editor._step = 5;
     await editor._handleFinishClick({ force: true });
-    
-    // Error branch
-    const { handleInitializeData } = await import("../src/editor/services/service_handlers.js");
+
+    const { handleInitializeData } = await import(
+      "../src/editor/services/service_handlers.js"
+    );
     handleInitializeData.mockRejectedValueOnce(new Error("Init failed"));
     await editor._handleFinishClick({ force: true });
-    
-    // Metadata & Global Settings
+
     editor._config.global_prefix = "p_";
     await editor._saveMetadata();
     await editor._saveGlobalSettings({ opt: 1 });
-    
-    // Shadow DOM & Visibility
+
     editor._applyShadowDomFix();
     editor._updatePreviewVisibility();
     editor._renderButton({ label: "T", click: () => {}, raised: true });
-    
-    // Config change with immediate flag
+
     editor._updateConfig("logging_enabled", false, true);
-    
-    // metadata error path
+
     editor.hass.callService.mockRejectedValueOnce(new Error("Save fail"));
     await editor._saveMetadata();
-    
-    // global settings success path
-    await editor._saveGlobalSettings({ test: 1 });
 
+    await editor._saveGlobalSettings({ test: 1 });
   });
 });
