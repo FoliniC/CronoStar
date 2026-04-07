@@ -13,9 +13,7 @@ if (!globalThis.customElements) {
     get: vi.fn((name) => registry.get(name)),
   };
 }
-if (!globalThis.window.customElements) {
-  globalThis.window.customElements = globalThis.customElements;
-}
+globalThis.window.customElements = globalThis.customElements;
 if (!globalThis.document) {
   globalThis.document = {
     addEventListener: vi.fn(),
@@ -48,18 +46,14 @@ describe("PointerHandler Coverage Boost", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    addWindowListenerSpy = vi
-      .spyOn(window, "addEventListener")
-      .mockImplementation(() => {});
-    removeWindowListenerSpy = vi
-      .spyOn(window, "removeEventListener")
-      .mockImplementation(() => {});
-    addDocumentListenerSpy = vi
-      .spyOn(document, "addEventListener")
-      .mockImplementation(() => {});
-    removeDocumentListenerSpy = vi
-      .spyOn(document, "removeEventListener")
-      .mockImplementation(() => {});
+    window.addEventListener = vi.fn();
+    window.removeEventListener = vi.fn();
+    document.addEventListener = vi.fn();
+    document.removeEventListener = vi.fn();
+    addWindowListenerSpy = vi.spyOn(window, "addEventListener").mockImplementation(() => {});
+    removeWindowListenerSpy = vi.spyOn(window, "removeEventListener").mockImplementation(() => {});
+    addDocumentListenerSpy = vi.spyOn(document, "addEventListener").mockImplementation(() => {});
+    removeDocumentListenerSpy = vi.spyOn(document, "removeEventListener").mockImplementation(() => {});
 
     selectionRect = { style: {} };
     containerEl = {

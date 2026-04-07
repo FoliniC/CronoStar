@@ -48,13 +48,9 @@ if (!globalThis.customElements) {
     get: vi.fn((name) => registry.get(name)),
   };
 }
-if (!globalThis.window.customElements) {
-  globalThis.window.customElements = globalThis.customElements;
-}
+globalThis.window.customElements = globalThis.customElements;
 
 // ─── Mock Chart.js e plugin ───────────────────────────────────────────────────
-globalThis.window = globalThis.window || globalThis;
-
 const mockChartInstance = {
   data: {
     datasets: [
@@ -231,6 +227,8 @@ describe("ChartManager - Comprehensive Coverage", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
+    window.addEventListener = vi.fn();
+    window.removeEventListener = vi.fn();
     resizeObserverCallback = null;
     resizeObserverInstance = { observe: vi.fn(), disconnect: vi.fn() };
     vi.stubGlobal(

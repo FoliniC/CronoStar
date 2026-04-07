@@ -12,9 +12,7 @@ if (!globalThis.customElements) {
     get: vi.fn((name) => registry.get(name)),
   };
 }
-if (!globalThis.window.customElements) {
-  globalThis.window.customElements = globalThis.customElements;
-}
+globalThis.window.customElements = globalThis.customElements;
 if (!globalThis.document) {
   globalThis.document = { head: { innerHTML: "" } };
 }
@@ -41,17 +39,21 @@ async function loadMain() {
 
 describe("main.js", () => {
   beforeEach(() => {
-    // Pulisce la cache dei moduli → forza re-esecuzione di main.js ad ogni test
     vi.resetModules();
 
-    // Resetta i globali modificati da main.js
     delete window.CronoStarCard;
     delete window.CronoStarEditor;
     delete window.ScopedRegistryHost;
     delete globalThis.PRESETS;
     window.customCards = [];
 
-    // Silenzia console per tutti i test
+    const registry = new Map();
+    globalThis.customElements = {
+      define: vi.fn((name, ctor) => registry.set(name, ctor)),
+      get: vi.fn((name) => registry.get(name)),
+    };
+    window.customElements = globalThis.customElements;
+
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});

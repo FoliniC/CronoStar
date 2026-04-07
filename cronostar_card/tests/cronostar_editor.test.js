@@ -14,9 +14,7 @@ if (!globalThis.customElements) {
     get: vi.fn((name) => registry.get(name)),
   };
 }
-if (!globalThis.window.customElements) {
-  globalThis.window.customElements = globalThis.customElements;
-}
+globalThis.window.customElements = globalThis.customElements;
 if (!globalThis.document) {
   globalThis.document = {
     head: { innerHTML: "" },
@@ -151,6 +149,10 @@ describe("CronoStarEditor - Comprehensive", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    globalThis.customElements = globalThis.window.customElements = globalThis.customElements || {
+      define: vi.fn(),
+      get: vi.fn(),
+    };
     editor = document.createElement("cronostar-card-editor-final-merged");
     editor.hass = { 
       language: "en", 
