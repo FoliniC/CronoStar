@@ -94,7 +94,6 @@ if (!globalThis.CustomEvent) {
   };
 }
 
-// Mock dependencies BEFORE importing CronoStarEditor
 vi.mock("lit", () => {
   return {
     html: (strings, ...values) => {
@@ -139,7 +138,7 @@ vi.mock("lit", () => {
       updated() {}
       connectedCallback() {}
       disconnectedCallback() {}
-      dispatchEvent(event) {
+      dispatchEvent() {
         return true;
       }
       getRootNode() {
@@ -750,4 +749,175 @@ describe("CronoStarEditor - Comprehensive", () => {
     expect(editor.wizard._nextStep).toHaveBeenCalled();
   });
 
-  it("covers _handleFinishClick next-step fallback
+  it("covers _handleFinishClick next-step fallback branch", async () => {
+    editor._step = 2;
+    editor.wizard._nextStep = vi.fn();
+    await editor._handleFinishClick({});
+    expect(editor.wizard._nextStep).toHaveBeenCalled();
+  });
+
+  it("covers _handleFinishClick without hass", async () => {
+    editor.hass = null;
+    editor._step = 5;
+    editor.wizard._finish = vi.fn();
+    await editor._handleFinishClick({ force: true });
+    expect(editor.wizard._finish).toHaveBeenCalled();
+  });
+
+  it("covers _handleFinishClick with persistCardConfigNow hook", async () => {
+    editor.hass = null;
+    editor._persistCardConfigNow = vi.fn();
+    editor.wizard._finish = vi.fn();
+    await editor._handleFinishClick({ force: false });
+    expect(editor._persistCardConfigNow).toHaveBeenCalled();
+    expect(editor.wizard._finish).toHaveBeenCalled();
+  });
+
+  it("covers _handleKeyDown blocking Enter in wizard only for non-textarea", () => {
+    const e1 = {
+      key: "Enter",
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      target: { tagName: "INPUT" },
+    };
+    editor._step = 1;
+    editor._handleKeyDown(e1);
+    expect(e1.preventDefault).toHaveBeenCalled();
+
+    const e2 = {
+      key: "Enter",
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      target: { tagName: "TEXTAREA" },
+    };
+    editor._handleKeyDown(e2);
+    expect(e2.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("covers _canGoNext branches", () => {
+    editor._step = 0;
+    expect(editor._canGoNext()).toBe(true);
+
+    editor._step = 1;
+    editor._config = { global_prefix: "p_", target_entity: "sensor.x" };
+    expect(editor._canGoNext()).toBe(true);
+
+    editor._config = { global_prefix: "", target_entity: null };
+    expect(editor._canGoNext()).toBe(false);
+
+    editor._step = 3;
+    expect(editor._canGoNext()).toBe(true);
+  });
+
+  it("covers _renderWizardActions step 0 branch", () => {
+    editor._step = 0;
+    expect(editor._renderWizardActions().__litHtml).toBe(true);
+  });
+
+  it("covers _renderWizardActions step 1 invalid branch and back handler", () => {
+    editor._step = 1;
+    editor._canGoNext = vi.fn(() => false);
+    const tpl = editor._renderWizardActions();
+    const handlers = collectFunctions(tpl);
+    handlers[0]();
+    expect(editor._step).toBe(0);
+  });
+
+  it("covers _renderWizardActions step 1 valid branch", () => {
+    editor._step = 1;
+    editor._canGoNext = vi.fn(() => true);
+    const tpl = editor._renderWizardActions();
+    expect(tpl.__litHtml).toBe(true);
+  });
+
+  it("covers _renderWizardActions middle step branches", () => {
+    editor._step = 3;
+    editor._dispatchConfigChanged = vi.fn();
+    editor.wizard._prevStep = vi.fn();
+    editor._handleNextClick = vi.fn();
+    const tpl = editor._renderWizardActions();
+    const handlers = collectFunctions(tpl);
+    handlers[0]();
+    handlers[1]();
+    expect(editor.wizard._prevStep).toHaveBeenCalled();
+    expect(editor._handleNextClick).toHaveBeenCalled();
+  });
+
+  it("covers _renderWizardActions final step save branch", () => {
+    editor._step = 5;
+    editor._handleFinishClick = vi.fn();
+    const tpl = editor._renderWizardActions();
+    const handlers = collectFunctions(tpl);
+    handlers[handlers.length - 1]();
+    expect(editor._handleFinishClick).toHaveBeenCalledWith({ force: true });
+  });
+
+  it("covers render() output", () => {
+    const tpl = editor.render();
+    expect(tpl.__litHtml).toBe(true);
+  });
+
+  it("covers _saveGlobalSettings early return without hass", async () => {
+    editor.hass = null;
+    await expect(editor._saveGlobalSettings({ a: 1 })).resolves.toBeUndefined();
+  });
+
+  it("covers _saveGlobalSettings success with host update", async () => {
+    const host = { globalSettings: null };
+    editor.getRootNode = vi.fn(() => ({ host }));
+    await editor._saveGlobalSettings({ k: 1 });
+    expect(host.globalSettings).toEqual({ k: 1 });
+  });
+
+  it("covers handleShowHelp", () => {
+    expect(() => editor.handleShowHelp()).not.toThrow();
+  });
+
+  it("covers _saveMetadata early return", async () => {
+    editor.hass = null;
+    await expect(editor._saveMetadata()).resolves.toBeUndefined();
+
+    editor.hass = { callService: vi.fn() };
+    editor._config.global_prefix = null;
+    await expect(editor._saveMetadata()).resolves.toBeUndefined();
+  });
+
+  it("covers _saveMetadata full path using card stateManager", async () => {
+    const cardEl = {
+      selectedProfile: "ProfA",
+      stateManager: {
+        getData: vi.fn(() => [{ time: "00:00", value: 10 }]),
+      },
+    };
+    editor.shadowRoot.querySelector = vi.fn(() => cardEl);
+    editor.hass = { callService: vi.fn(() => Promise.resolve()) };
+    editor._config = {
+      global_prefix: "p_",
+      preset_type: "thermostat",
+      target_entity: "sensor.x",
+      enabled_entity: "switch.x",
+      profiles_select_entity: "select.x",
+    };
+    await editor._saveMetadata();
+    expect(extractCardConfig).toHaveBeenCalled();
+    expect(editor.hass.callService).toHaveBeenCalledWith(
+      "cronostar",
+      "save_profile",
+      expect.objectContaining({
+        profile_name: "ProfA",
+      }),
+    );
+  });
+
+  it("covers _saveMetadata using document.querySelector fallback", async () => {
+    editor.shadowRoot.querySelector = vi.fn(() => null);
+    document.querySelector = vi.fn(() => ({
+      selectedProfile: "ProfB",
+      stateManager: { getData: vi.fn(() => []) },
+    }));
+    editor.hass = { callService: vi.fn(() => Promise.resolve()) };
+    editor._config = { global_prefix: "p_", preset_type: "thermostat" };
+    await editor._saveMetadata();
+    expect(editor.hass.callService).toHaveBeenCalled();
+  });
+});
