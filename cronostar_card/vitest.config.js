@@ -1,4 +1,3 @@
-// vitest.config.js
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -6,27 +5,26 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./tests/setup.js"],
     globals: true,
+    include: ["tests/**/*.test.js"],
+    exclude: ["node_modules/**", "dist/**", "coverage/**"],
 
-    // Opzioni coverage
     coverage: {
       provider: "v8",
-      reporter: ["text", "json", "html", "lcov"],
+      all: true,
+      clean: true,
+      cleanOnRerun: true,
+      reportOnFailure: true,
+      reporter: ["text", "text-summary", "json", "html", "lcov"],
       reportsDirectory: "./coverage",
-
-      // Includi SOLO i sorgenti effettivi
       include: ["src/**/*.js"],
       exclude: [
         "src/**/*.test.js",
         "src/**/*.spec.js",
         "tests/**",
         "node_modules/**",
+        "dist/**",
+        "coverage/**",
       ],
-
-      // Forza il calcolo della coverage anche sui file non importati dai test
-      all: true,
-
-      // Soglia 100% su tutto (commenta per sviluppo incrementale)
-      // thresholds: { lines: 100, functions: 100, branches: 100, statements: 100 },
     },
   },
 });

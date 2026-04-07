@@ -12,6 +12,7 @@
     "format": "prettier src/ --write \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:coverage:chart-manager": "vitest run --coverage tests/chart_manager.test.js",
     "test:ui": "web-test-runner \"tests/**/*.test.js\" --node-resolve --playwright --browsers chromium",
     "test:ui:watch": "web-test-runner \"tests/**/*.test.js\" --node-resolve --playwright --browsers chromium --watch"
   },
