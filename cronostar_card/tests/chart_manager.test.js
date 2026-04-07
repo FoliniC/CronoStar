@@ -173,11 +173,19 @@ function makeContext(configOverrides = {}) {
 
 describe("ChartManager - Comprehensive Coverage", () => {
   let cm, ctx;
+  let resizeObserverInstance;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resizeObserverInstance = { observe: vi.fn(), disconnect: vi.fn() };
+    vi.stubGlobal("ResizeObserver", vi.fn(() => resizeObserverInstance));
+    vi.stubGlobal("requestAnimationFrame", vi.fn((cb) => cb()));
     ctx = makeContext();
     cm = new ChartManager(ctx);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   describe("Constructor and Init", () => {
@@ -201,31 +209,80 @@ describe("ChartManager - Comprehensive Coverage", () => {
 
     it("pointerdown handles edge cases", async () => {
         const stateManager = { getData: vi.fn(() => []) };
-        const selectionManager = { 
+        const selectionManager = {
           isSelected: vi.fn(() => false),
           selectPoint: vi.fn(),
           getSelectedPoints: vi.fn(() => [1]),
-          getAnchor: vi.fn(() => 1)
+          getAnchor: vi.fn(() => 1),
         };
-        ctx.getManager.mockImplementation((k) => k === 'state' ? stateManager : selectionManager);
-        const canvas = document.createElement('canvas');
-        vi.spyOn(canvas, 'addEventListener');
+        ctx.getManager.mockImplementation((k) => k === "state" ? stateManager : selectionManager);
+        const canvas = document.createElement("canvas");
+        vi.spyOn(canvas, "addEventListener");
         await cm.initChart(canvas);
-        
-        const pointerDownHandler = canvas.addEventListener.mock.calls.find(c => c[0] === 'pointerdown')[1];
-        
-        // button !== 0
+
+        const pointerDownHandler = canvas.addEventListener.mock.calls.find(c => c[0] === "pointerdown")[1];
+
         pointerDownHandler({ button: 1 });
-        
-        // !mainHit
+
         mockChartInstance.getElementsAtEventForMode.mockReturnValue([]);
         pointerDownHandler({ button: 0 });
-  
-        // mainHit
+
         mockChartInstance.getElementsAtEventForMode.mockReturnValue([{ datasetIndex: 0, index: 1 }]);
-        mockChartInstance.data.datasets[0].data = [{x: 0, y: 0}, {x: 300, y: 10}, {x: 1439, y: 0}];
+        mockChartInstance.data.datasets[0].data = [{ x: 0, y: 0 }, { x: 300, y: 10 }, { x: 1439, y: 0 }];
         pointerDownHandler({ button: 0, pointerId: 1 });
         expect(selectionManager.selectPoint).toHaveBeenCalledWith(1);
+    });
+
+    it("pointerdown skips selection when already selected and collects switch neighbors", async () => {
+        ctx.config.is_switch_preset = true;
+        const stateManager = { getData: vi.fn(() => []) };
+        const selectionManager = {
+          isSelected: vi.fn(() => true),
+          selectPoint: vi.fn(),
+          getSelectedPoints: vi.fn(() => [1]),
+          getAnchor: vi.fn(() => 1),
+        };
+        ctx.getManager.mockImplementation((k) => k === "state" ? stateManager : selectionManager);
+        const canvas = document.createElement("canvas");
+        vi.spyOn(canvas, "addEventListener");
+        await cm.initChart(canvas);
+
+        const pointerDownHandler = canvas.addEventListener.mock.calls.find(c => c[0] === "pointerdown")[1];
+
+        mockChartInstance.getElementsAtEventForMode.mockReturnValue([{ datasetIndex: 0, index: 1 }]);
+        mockChartInstance.data.datasets[0].data = [
+          { x: 0, y: 0 },
+          { x: 300, y: 1 },
+          { x: 301, y: 0 },
+          { x: 1439, y: 0 },
+        ];
+
+        pointerDownHandler({ button: 0, pointerId: 11 });
+
+        expect(selectionManager.selectPoint).not.toHaveBeenCalled();
+        expect(cm.hDragNeighbors).toEqual([2]);
+        expect(cm._hDragActive).toBe(true);
+    });
+
+    it("pointermove and pointerout listeners update hover state", async () => {
+        const stateManager = { getData: vi.fn(() => []) };
+        ctx.getManager.mockReturnValue(stateManager);
+        const canvas = document.createElement("canvas");
+        vi.spyOn(canvas, "addEventListener");
+        const hoverSpy = vi.spyOn(cm, "_showHoverInfo");
+        const hideSpy = vi.spyOn(cm, "_hideHoverInfo");
+
+        await cm.initChart(canvas);
+
+        const pointerMoveHandler = canvas.addEventListener.mock.calls.find(c => c[0] === "pointermove")[1];
+        const pointerOutHandler = canvas.addEventListener.mock.calls.find(c => c[0] === "pointerout")[1];
+
+        pointerMoveHandler({ clientX: 25, clientY: 30 });
+        expect(cm.lastMousePosition).toEqual({ x: 25, y: 30 });
+        expect(hoverSpy).toHaveBeenCalled();
+
+        pointerOutHandler();
+        expect(hideSpy).toHaveBeenCalled();
     });
   });
 
