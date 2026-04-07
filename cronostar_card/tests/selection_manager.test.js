@@ -24,19 +24,22 @@ describe("SelectionManager", () => {
     sm = new SelectionManager(ctx);
   });
 
-  it("dovrebbe inizializzare con selezione vuota", () => {
+  it("should initialize empty", () => {
     expect(sm.getSelectedPoints()).toEqual([]);
     expect(sm.getAnchor()).toBeNull();
   });
 
-  it("dovrebbe selezionare un singolo punto con selectPoint()", () => {
+  it("selectPoint should select one point", () => {
     sm.selectPoint(5);
     expect(sm.getSelectedPoints()).toEqual([5]);
     expect(sm.getAnchor()).toBe(5);
-    expect(ctx.events.emit).toHaveBeenCalledWith(Events.SELECTION_CHANGED, expect.any(Object));
+    expect(ctx.events.emit).toHaveBeenCalledWith(
+      Events.SELECTION_CHANGED,
+      expect.any(Object),
+    );
   });
 
-  it("dovrebbe gestire togglePoint() correttamente", () => {
+  it("togglePoint should add/remove selection", () => {
     sm.togglePoint(3);
     expect(sm.isSelected(3)).toBe(true);
     expect(sm.getAnchor()).toBe(3);
@@ -46,80 +49,128 @@ describe("SelectionManager", () => {
     expect(sm.getAnchor()).toBeNull();
   });
 
-  it("dovrebbe cambiare l'ancora se il punto rimosso con toggle era l'ancora", () => {
+  it("togglePoint should re-anchor to first remaining selected point", () => {
     sm.selectIndices([1, 2]);
     sm.setAnchor(1);
     sm.togglePoint(1);
     expect(sm.getAnchor()).toBe(2);
   });
 
-  it("dovrebbe selezionare un range con selectRange()", () => {
+  it("selectRange should select forward range", () => {
     sm.selectPoint(2);
     sm.selectRange(5);
     expect(sm.getSelectedPoints()).toEqual([2, 3, 4, 5]);
   });
 
-  it("dovrebbe selezionare un range inverso con selectRange()", () => {
+  it("selectRange should select reverse range", () => {
     sm.selectPoint(5);
     sm.selectRange(2);
     expect(sm.getSelectedPoints()).toEqual([2, 3, 4, 5]);
   });
 
-  it("dovrebbe selezionare il punto se selectRange() viene chiamato senza ancora", () => {
+  it("selectRange without anchor should fallback to selectPoint", () => {
     sm.selectRange(4);
     expect(sm.getSelectedPoints()).toEqual([4]);
   });
 
-  it("dovrebbe selezionare indici specifici con selectIndices()", () => {
-    sm.selectIndices([1, 3, 5]);
+  it("selectIndices should ignore invalid entries", () => {
+    sm.selectIndices([1, -1, 3, 1.2, 5]);
     expect(sm.getSelectedPoints()).toEqual([1, 3, 5]);
     expect(sm.getAnchor()).toBe(1);
   });
 
-  it("dovrebbe preservare l'ancora in selectIndices() se richiesto", () => {
+  it("selectIndices should preserve anchor when requested", () => {
     sm.selectPoint(5);
     sm.selectIndices([5, 6, 7], true);
     expect(sm.getAnchor()).toBe(5);
   });
 
-  it("dovrebbe selezionare tutto con selectAll()", () => {
+  it("selectIndices should reset anchor when preserveAnchor is false", () => {
+    sm.selectPoint(8);
+    sm.selectIndices([3, 4], false);
+    expect(sm.getAnchor()).toBe(3);
+  });
+
+  it("selectIndices should null anchor when all indices are invalid", () => {
+    sm.selectPoint(2);
+    sm.selectIndices([-1, 1.2], false);
+    expect(sm.getSelectedPoints()).toEqual([]);
+    expect(sm.getAnchor()).toBeNull();
+  });
+
+  it("selectAll should select all points", () => {
     sm.selectAll();
     expect(sm.getSelectedPoints().length).toBe(10);
     expect(sm.getAnchor()).toBe(0);
   });
 
-  it("dovrebbe pulire la selezione con clearSelection()", () => {
+  it("selectAll should return early when no state manager", () => {
+    ctx.getManager.mockReturnValue(null);
+    sm.selectAll();
+    expect(sm.getSelectedPoints()).toEqual([]);
+  });
+
+  it("clearSelection should empty state", () => {
     sm.selectPoint(5);
     sm.clearSelection();
     expect(sm.getSelectedPoints()).toEqual([]);
     expect(sm.getAnchor()).toBeNull();
   });
 
-  it("dovrebbe restituire gli indici attivi con getActiveIndices()", () => {
-    expect(sm.getActiveIndices()).toEqual([]);
-    
+  it("getActiveIndices should return selected points", () => {
     sm.selectPoint(5);
     expect(sm.getActiveIndices()).toEqual([5]);
-    
-    sm.clearSelection();
-    // Se non ci sono punti selezionati ma c'era un'ancora (teoricamente non possibile tramite API pubblica ma testiamo rami)
+  });
+
+  it("getActiveIndices should return anchor when no selected points", () => {
     sm._anchorPoint = 2;
     expect(sm.getActiveIndices()).toEqual([2]);
   });
 
-  it("dovrebbe validare la selezione quando lo schedule cambia", () => {
+  it("getActiveIndices should return empty when nothing active", () => {
+    expect(sm.getActiveIndices()).toEqual([]);
+  });
+
+  it("isAnchor should reflect current anchor", () => {
+    sm.selectPoint(4);
+    expect(sm.isAnchor(4)).toBe(true);
+    expect(sm.isAnchor(3)).toBe(false);
+  });
+
+  it("setAnchor should emit only when index is selected", () => {
+    sm.selectIndices([2, 3]);
+    ctx.events.emit.mockClear();
+    sm.setAnchor(3);
+    expect(sm.getAnchor()).toBe(3);
+    expect(ctx.events.emit).toHaveBeenCalled();
+
+    ctx.events.emit.mockClear();
+    sm.setAnchor(7);
+    expect(sm.getAnchor()).toBe(3);
+    expect(ctx.events.emit).not.toHaveBeenCalled();
+  });
+
+  it("should validate selection when schedule updates", () => {
     sm.selectPoint(8);
-    stateManager.getNumPoints.mockReturnValue(5); // Ora max index è 4
-    
-    // Recupera il callback registrato su SCHEDULE_UPDATED
-    const callback = ctx.events.on.mock.calls.find(c => c[0] === Events.SCHEDULE_UPDATED)[1];
+    stateManager.getNumPoints.mockReturnValue(5);
+
+    const callback = ctx.events.on.mock.calls.find(
+      (c) => c[0] === Events.SCHEDULE_UPDATED,
+    )[1];
     callback();
-    
+
     expect(sm.isSelected(8)).toBe(false);
     expect(sm.getAnchor()).toBeNull();
   });
 
-  it("dovrebbe gestire snapshot e restore", () => {
+  it("validateSelection should return early without state manager", () => {
+    ctx.getManager.mockReturnValue(null);
+    sm._selectedPoints.add(99);
+    sm._validateSelection();
+    expect(sm.isSelected(99)).toBe(true);
+  });
+
+  it("snapshot and restore should work", () => {
     sm.selectPoint(3);
     sm.snapshotSelection();
     sm.clearSelection();
@@ -127,38 +178,66 @@ describe("SelectionManager", () => {
     expect(sm.isSelected(3)).toBe(true);
   });
 
-  it("non dovrebbe fare nulla se restoreSelection() viene chiamato senza snapshot", () => {
-    sm.restoreSelection();
-    expect(sm.getSelectedPoints()).toEqual([]);
-  });
-
-  it("dovrebbe gestire snapshot senza selezione", () => {
+  it("snapshotSelection stores null when no active selection", () => {
     sm.snapshotSelection();
     expect(sm._snapshot).toBeNull();
   });
 
-  it("dovrebbe gestire delegazione eventi pointer", () => {
+  it("restoreSelection should return early when no snapshot exists", () => {
+    sm.restoreSelection();
+    expect(sm.getSelectedPoints()).toEqual([]);
+  });
+
+  it("restoreSelection should not restore invalid anchor", () => {
+    sm._snapshot = { points: [1, 2], anchor: 9 };
+    sm.restoreSelection();
+    expect(sm.getSelectedPoints()).toEqual([1, 2]);
+    expect(sm.getAnchor()).toBe(1);
+  });
+
+  it("logSelection should work without state manager", () => {
+    ctx.getManager.mockReturnValue(null);
+    expect(() => sm.logSelection("test")).not.toThrow();
+  });
+
+  it("selectedPoint getter should return anchor", () => {
+    sm.selectPoint(6);
+    expect(sm.selectedPoint).toBe(6);
+  });
+
+  it("selectedPoints getter should return selected points", () => {
+    sm.selectIndices([1, 4]);
+    expect(sm.selectedPoints).toEqual([1, 4]);
+  });
+
+  it("pointer handler delegation should call through when present", () => {
     ctx._card.pointerHandler = {
       onPointerDown: vi.fn(),
       onPointerMove: vi.fn(),
       onPointerUp: vi.fn(),
     };
-    
+
     const event = { type: "pointerdown" };
     sm.handlePointerDown(event);
-    expect(ctx._card.pointerHandler.onPointerDown).toHaveBeenCalledWith(event);
-    
     sm.handlePointerMove(event);
-    expect(ctx._card.pointerHandler.onPointerMove).toHaveBeenCalledWith(event);
-    
     sm.handlePointerUp(event);
+
+    expect(ctx._card.pointerHandler.onPointerDown).toHaveBeenCalledWith(event);
+    expect(ctx._card.pointerHandler.onPointerMove).toHaveBeenCalledWith(event);
     expect(ctx._card.pointerHandler.onPointerUp).toHaveBeenCalledWith(event);
   });
 
-  it("dovrebbe pulire le risorse con destroy()", () => {
+  it("pointer handler delegation should no-op when absent", () => {
+    expect(() => sm.handlePointerDown({})).not.toThrow();
+    expect(() => sm.handlePointerMove({})).not.toThrow();
+    expect(() => sm.handlePointerUp({})).not.toThrow();
+  });
+
+  it("destroy should clear internal state", () => {
     sm.selectPoint(1);
     sm.destroy();
     expect(sm.getSelectedPoints()).toEqual([]);
     expect(sm.getAnchor()).toBeNull();
+    expect(sm._snapshot).toBeNull();
   });
 });

@@ -31,7 +31,6 @@ describe("cronostar_define_guard", () => {
     document.body.innerHTML = "";
 
     window.CustomElementRegistry = MockRegistry;
-
     window.customElements = new MockRegistry();
 
     window.CronoStarCard = class extends HTMLElement {};
@@ -54,37 +53,36 @@ describe("cronostar_define_guard", () => {
     vi.restoreAllMocks();
   });
 
-  it("dovrebbe intercettare il costruttore di CustomElementRegistry", () => {
+  it("intercepts CustomElementRegistry constructor", () => {
     expect(window.CustomElementRegistry).not.toBe(originalRegistry);
     const newRegistry = new window.CustomElementRegistry();
     expect(newRegistry.__cronostar_patched__).toBe(true);
   });
 
-  it("dovrebbe patchare il registro globale customElements", () => {
+  it("patches global customElements registry", () => {
     expect(window.customElements.__cronostar_patched__).toBe(true);
   });
 
-  it("dovrebbe fornire fallback nel metodo get()", () => {
+  it("get() provides fallback to CronoStar elements", () => {
     const registry = window.customElements;
     expect(registry.get("cronostar-card")).toBe(window.CronoStarCard);
     expect(registry.get("cronostar-card-editor")).toBe(window.CronoStarEditor);
-
     expect(registry.get("throw-error-get")).toBeUndefined();
   });
 
-  it("dovrebbe fallback al registro globale se l'istanza è diversa", () => {
+  it("falls back to global registry for other elements", () => {
     const globalRegistry = window.customElements;
     const anotherRegistry = new window.CustomElementRegistry();
     globalRegistry.define("ha-icon", class extends HTMLElement {});
     expect(anotherRegistry.get("ha-icon")).toBe(globalRegistry.get("ha-icon"));
   });
 
-  it("dovrebbe restituire undefined se global customElements è this stesso", () => {
+  it("returns undefined when global customElements is this itself", () => {
     const registry = window.customElements;
     expect(registry.get("unknown-el")).toBeUndefined();
   });
 
-  it("dovrebbe gestire define() evitando doppie registrazioni", () => {
+  it("define() avoids duplicate registrations", () => {
     const registry = window.customElements;
     const myConstructor = class extends HTMLElement {};
     registry.define("my-el", myConstructor);
@@ -92,14 +90,14 @@ describe("cronostar_define_guard", () => {
     expect(registry.get("my-el")).toBe(myConstructor);
   });
 
-  it("dovrebbe gestire existing === constructor nel define", () => {
+  it("define() ignores when existing === constructor", () => {
     const registry = window.customElements;
     const ctor = class extends HTMLElement {};
     registry.define("same-el", ctor);
     expect(() => registry.define("same-el", ctor)).not.toThrow();
   });
 
-  it("dovrebbe loggare warning quando existing è diverso", () => {
+  it("warns when existing constructor differs", () => {
     const registry = window.customElements;
     registry.define("dup-el", class extends HTMLElement {});
     registry.define("dup-el", class extends HTMLElement {});
@@ -108,34 +106,35 @@ describe("cronostar_define_guard", () => {
     );
   });
 
-  it("dovrebbe gestire errori ignorabili in define", () => {
+  it("ignores duplicate define error 'already been used'", () => {
     const registry = window.customElements;
-    const c1 = class extends HTMLElement {};
-    expect(() => registry.define("throw-already-used", c1)).not.toThrow();
+    expect(() =>
+      registry.define("throw-already-used", class extends HTMLElement {}),
+    ).not.toThrow();
   });
 
-  it("dovrebbe gestire anche 'already defined' come errore ignorabile", () => {
+  it("ignores duplicate define error 'already defined'", () => {
     const registry = window.customElements;
     expect(() =>
       registry.define("throw-already-defined", class extends HTMLElement {}),
     ).not.toThrow();
   });
 
-  it("dovrebbe rilanciare errori inaspettati in define", () => {
+  it("rethrows unexpected define errors", () => {
     const registry = window.customElements;
     expect(() => registry.define("throw-error", class {})).toThrow(
       "Unexpected define error",
     );
   });
 
-  it("dovrebbe auto-registrare i componenti dopo un delay", () => {
+  it("auto-registers elements after delay", () => {
     const registry = new window.CustomElementRegistry();
     registry.elements.delete("cronostar-card");
     vi.advanceTimersByTime(10);
     expect(registry.get("cronostar-card")).toBe(window.CronoStarCard);
   });
 
-  it("dovrebbe non auto-registrare se window.CronoStarCard/Editor mancano", () => {
+  it("does not auto-register if CronoStar globals are missing", () => {
     delete window.CronoStarCard;
     delete window.CronoStarEditor;
     const registry = new window.CustomElementRegistry();
@@ -143,7 +142,7 @@ describe("cronostar_define_guard", () => {
     expect(registry.elements.size).toBe(0);
   });
 
-  it("dovrebbe gestire errori in auto-registrazione", () => {
+  it("handles auto-registration errors from get()", () => {
     const registry = new window.CustomElementRegistry();
     registry.get = vi.fn(() => {
       throw new Error("broken get");
@@ -158,7 +157,34 @@ describe("cronostar_define_guard", () => {
     );
   });
 
-  it("dovrebbe scansionare periodicamente nuovi registry", () => {
+  it("handles auto-registration errors from define() after falsy get()", () => {
+    const registry = new window.CustomElementRegistry();
+    registry.get = vi.fn(() => undefined);
+    registry.define = vi.fn(() => {
+      throw new Error("broken define");
+    });
+    vi.advanceTimersByTime(10);
+    expect(console.warn).toHaveBeenCalledWith(
+      "CRONOSTAR: Errore auto-registrazione:",
+      expect.any(Error),
+    );
+  });
+
+  it("covers second auto-registration branch for editor when card already exists", () => {
+    const registry = new window.CustomElementRegistry();
+    registry.get = vi.fn((name) => {
+      if (name === "cronostar-card") return window.CronoStarCard;
+      return undefined;
+    });
+    registry.define = vi.fn();
+    vi.advanceTimersByTime(10);
+    expect(registry.define).toHaveBeenCalledWith(
+      "cronostar-card-editor",
+      window.CronoStarEditor,
+    );
+  });
+
+  it("periodically scans and patches new registries", () => {
     const fakeRegistry = {
       define: vi.fn(),
       get: vi.fn(),
@@ -168,7 +194,7 @@ describe("cronostar_define_guard", () => {
     expect(fakeRegistry.__cronostar_patched__).toBe(true);
   });
 
-  it("dovrebbe scansionare i shadow root", () => {
+  it("periodically scans shadow roots", () => {
     const div = document.createElement("div");
     const shadow = div.attachShadow({ mode: "open" });
     shadow.customElements = {
@@ -181,7 +207,7 @@ describe("cronostar_define_guard", () => {
     document.body.removeChild(div);
   });
 
-  it("dovrebbe gestire errori nel loop di scansione", () => {
+  it("handles global property access errors during scanning", () => {
     Object.defineProperty(window, "errorProneRegistry", {
       get: () => {
         throw new Error("Oops");
@@ -192,7 +218,7 @@ describe("cronostar_define_guard", () => {
     delete window.errorProneRegistry;
   });
 
-  it("dovrebbe gestire errori nell'accesso agli shadow root", () => {
+  it("handles shadowRoot access errors during scanning", () => {
     const div = document.createElement("div");
     document.body.appendChild(div);
     Object.defineProperty(div, "shadowRoot", {
@@ -205,20 +231,20 @@ describe("cronostar_define_guard", () => {
     document.body.removeChild(div);
   });
 
-  it("dovrebbe smettere di scansionare dopo 30 iterazioni", () => {
+  it("stops scanning after 30 iterations", () => {
     vi.advanceTimersByTime(31 * 500);
     expect(console.log).toHaveBeenCalledWith(
       "CRONOSTAR: Scansione registry completata",
     );
   });
 
-  it("dovrebbe loggare il patch del registry", () => {
+  it("logs registry patching", () => {
     expect(console.log).toHaveBeenCalledWith(
       expect.stringContaining("Registry patchato"),
     );
   });
 
-  it("dovrebbe loggare il messaggio finale di init", () => {
+  it("logs final initialization message", () => {
     expect(console.log).toHaveBeenCalledWith(
       "CRONOSTAR: Guard ultra-aggressivo inizializzato",
     );

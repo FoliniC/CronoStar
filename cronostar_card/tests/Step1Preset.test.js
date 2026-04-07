@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Step1Preset } from "../src/editor/steps/Step1Preset.js";
 
-// Mock lit
 vi.mock("lit", () => ({
   html: (strings, ...values) => {
     return {
@@ -78,7 +77,7 @@ describe("Step1Preset", () => {
       _config: { global_prefix: "p_", target_entity: "climate.x" },
       _selectedPreset: "thermostat",
       _isEditing: false,
-      i18n: { _t: vi.fn((k, args) => k) },
+      i18n: { _t: vi.fn((k) => k) },
       hass: { states: { "climate.x": {}, "climate.y": {} } },
       renderEntityPicker: vi.fn(() => "picker"),
       _updateConfig: vi.fn(),
@@ -202,6 +201,29 @@ describe("Step1Preset", () => {
     );
   });
 
+  it("updates helper entities when current value is falsy and when standard predicate returns true", () => {
+    editor._config.enabled_entity = null;
+    editor._config.profiles_select_entity = "select.cronostar_old_current_profile";
+    step.selectPresetWithPrefix("ev_charging");
+    expect(editor._updateConfig).toHaveBeenCalledWith(
+      "enabled_entity",
+      "switch.cronostar_ev_charging_enabled",
+    );
+    expect(editor._updateConfig).toHaveBeenCalledWith(
+      "profiles_select_entity",
+      "select.cronostar_ev_charging_current_profile",
+    );
+  });
+
+  it("does not update enabled_entity when current custom entity is non-standard", () => {
+    editor._config.enabled_entity = "switch.custom_enabled";
+    step.selectPresetWithPrefix("ev_charging");
+    expect(editor._updateConfig).not.toHaveBeenCalledWith(
+      "enabled_entity",
+      "switch.cronostar_ev_charging_enabled",
+    );
+  });
+
   it("handles prefix change logic", () => {
     const inputEl = {
       setSelectionRange: vi.fn(),
@@ -253,6 +275,19 @@ describe("Step1Preset", () => {
     expect(editor._config.global_prefix).toBe("newprefix_");
   });
 
+  it("handles prefix change without titleBase", () => {
+    const event = {
+      target: {
+        value: "___",
+        selectionStart: 3,
+        setSelectionRange: vi.fn(),
+        focus: vi.fn(),
+      },
+    };
+    step._handlePrefixChange("___", event);
+    expect(editor._config.title).toBeUndefined();
+  });
+
   it("handles prefix change without shadow input fallback", () => {
     const event = {
       target: {
@@ -285,27 +320,33 @@ describe("Step1Preset", () => {
     vi.runAllTimers();
   });
 
-  it("updates enabled_entity only when isStandard returns true", () => {
-    editor._config.enabled_entity = "switch.cronostar_old_enable";
-    step.selectPresetWithPrefix("ev_charging");
-    expect(editor._updateConfig).toHaveBeenCalledWith(
-      "enabled_entity",
-      "switch.cronostar_ev_charging_enabled",
-    );
-  });
-
-  it("updates profiles_select_entity when current value ends with profiles", () => {
-    editor._config.profiles_select_entity = "select.cronostar_old_profiles";
-    step.selectPresetWithPrefix("ev_charging");
-    expect(editor._updateConfig).toHaveBeenCalledWith(
-      "profiles_select_entity",
-      "select.cronostar_ev_charging_current_profile",
-    );
+  it("covers _handlePrefixChange fallback title path with missing preset config title", () => {
+    editor._selectedPreset = "unknown_preset";
+    const event = {
+      target: {
+        value: "abc",
+        selectionStart: 3,
+        setSelectionRange: vi.fn(),
+        focus: vi.fn(),
+      },
+    };
+    step._handlePrefixChange("abc", event);
+    expect(editor._config.global_prefix).toBe("abc_");
   });
 
   it("handles save and close", async () => {
     await step._handleSaveAndClose();
     expect(editor._handleFinishClick).toHaveBeenCalledWith({ force: true });
+  });
+
+  it("save and close normalizes prefix before finishing", async () => {
+    editor._config.global_prefix = "plain";
+    await step._handleSaveAndClose();
+    expect(editor._updateConfig).toHaveBeenCalledWith(
+      "global_prefix",
+      "plain_",
+      true,
+    );
   });
 
   it("save and close does nothing when hass is missing", async () => {
@@ -321,6 +362,17 @@ describe("Step1Preset", () => {
 
   it("handles advanced config", async () => {
     await step._handleAdvancedConfig();
+    expect(editor._step).toBe(2);
+  });
+
+  it("advanced config normalizes prefix before step advance", async () => {
+    editor._config.global_prefix = "plain";
+    await step._handleAdvancedConfig();
+    expect(editor._updateConfig).toHaveBeenCalledWith(
+      "global_prefix",
+      "plain_",
+      true,
+    );
     expect(editor._step).toBe(2);
   });
 
@@ -348,6 +400,18 @@ describe("Step1Preset", () => {
         editor._selectedPreset = p;
         expect(step.getApplyIncludeDomains()).toEqual(d);
       });
+    });
+
+    it("falls back to config.preset_type when _selectedPreset is missing", () => {
+      editor._selectedPreset = null;
+      editor._config.preset_type = "thermostat";
+      expect(step.getApplyIncludeDomains()).toEqual(["climate"]);
+    });
+
+    it("falls back to thermostat when no preset info exists", () => {
+      editor._selectedPreset = null;
+      editor._config.preset_type = null;
+      expect(step.getApplyIncludeDomains()).toEqual(["climate"]);
     });
   });
 });
