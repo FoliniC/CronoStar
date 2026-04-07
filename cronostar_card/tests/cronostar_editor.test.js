@@ -732,7 +732,12 @@ describe("CronoStarEditor - Comprehensive", () => {
     editor._config = { target_entity: "sensor.x", global_prefix: "p_" };
     editor.dispatchEvent = vi.fn();
     editor._dispatchConfigChanged(false);
-    expect(editor.dispatchEvent).not.toHaveBeenCalled();
+    expect(editor.dispatchEvent).toHaveBeenCalledTimes(1);
+    expect(editor.dispatchEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "config-changed",
+      }),
+    );
   });
 
   it("covers _persistCardConfigNow and showToast", () => {
