@@ -14,6 +14,9 @@ if (!globalThis.customElements) {
     get: vi.fn((name) => registry.get(name)),
   };
 }
+if (!globalThis.window.customElements) {
+  globalThis.window.customElements = globalThis.customElements;
+}
 if (!globalThis.document) {
   globalThis.document = {
     head: { innerHTML: "" },

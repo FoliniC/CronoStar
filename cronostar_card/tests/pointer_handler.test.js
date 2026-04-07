@@ -6,6 +6,16 @@ if (!globalThis.window.addEventListener) globalThis.window.addEventListener = vi
 if (!globalThis.window.removeEventListener) globalThis.window.removeEventListener = vi.fn();
 if (!globalThis.window.setTimeout) globalThis.window.setTimeout = setTimeout;
 if (!globalThis.window.clearTimeout) globalThis.window.clearTimeout = clearTimeout;
+if (!globalThis.customElements) {
+  const registry = new Map();
+  globalThis.customElements = {
+    define: vi.fn((name, ctor) => registry.set(name, ctor)),
+    get: vi.fn((name) => registry.get(name)),
+  };
+}
+if (!globalThis.window.customElements) {
+  globalThis.window.customElements = globalThis.customElements;
+}
 if (!globalThis.document) {
   globalThis.document = {
     addEventListener: vi.fn(),

@@ -48,6 +48,9 @@ if (!globalThis.customElements) {
     get: vi.fn((name) => registry.get(name)),
   };
 }
+if (!globalThis.window.customElements) {
+  globalThis.window.customElements = globalThis.customElements;
+}
 
 // ─── Mock Chart.js e plugin ───────────────────────────────────────────────────
 globalThis.window = globalThis.window || globalThis;

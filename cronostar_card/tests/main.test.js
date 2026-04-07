@@ -2,9 +2,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 if (!globalThis.window) globalThis.window = globalThis;
-if (!globalThis.window.customElements && globalThis.customElements) {
-  globalThis.window.customElements = globalThis.customElements;
-}
 if (!globalThis.HTMLElement) {
   globalThis.HTMLElement = class HTMLElement {};
 }
@@ -14,6 +11,9 @@ if (!globalThis.customElements) {
     define: vi.fn((name, ctor) => registry.set(name, ctor)),
     get: vi.fn((name) => registry.get(name)),
   };
+}
+if (!globalThis.window.customElements) {
+  globalThis.window.customElements = globalThis.customElements;
 }
 if (!globalThis.document) {
   globalThis.document = { head: { innerHTML: "" } };
