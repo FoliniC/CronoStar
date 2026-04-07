@@ -124,7 +124,8 @@ export const TIMEOUTS = {
  * - merges defaults, preset defaults, and user config
  */
 export function validateConfig(config, isLoggingEnabled = false) {
-  const normalized = { ...config };
+  const sourceConfig = config || {};
+  const normalized = { ...sourceConfig };
 
   // Auto-migrate legacy 'preset' to 'preset_type'
   if (normalized.preset && !normalized.preset_type) {
@@ -155,12 +156,12 @@ export function validateConfig(config, isLoggingEnabled = false) {
   }
 
   // Preserve meta object if provided (including language preference)
-  if (config && typeof config.meta === "object") {
-    mergedConfig.meta = { ...config.meta };
+  if (sourceConfig && typeof sourceConfig.meta === "object") {
+    mergedConfig.meta = { ...sourceConfig.meta };
   }
 
   // CRITICAL: Ensure card type is always correct and stable
-  mergedConfig.type = config.type || DEFAULT_CONFIG.type;
+  mergedConfig.type = sourceConfig.type || DEFAULT_CONFIG.type;
 
   // Ensure global_prefix is present
   if (!mergedConfig.global_prefix) {
@@ -181,7 +182,7 @@ export function validateConfig(config, isLoggingEnabled = false) {
     );
   }
 
-  if (!config.not_configured) {
+  if (!sourceConfig.not_configured) {
     // Rely on backend registration to provide correct entity IDs.
     // Manual overrides in YAML/Config still take precedence.
   }

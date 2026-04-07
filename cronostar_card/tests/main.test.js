@@ -18,7 +18,6 @@ if (!globalThis.document) {
 }
 
 // ─── Mock delle dipendenze di main.js ────────────────────────────────────────
-// I path devono essere relativi al FILE DI TEST (tests/), non a main.js (src/)
 vi.mock("../src/core/CronoStar.js", () => ({
   CronoStarCard: class CronoStarCard extends HTMLElement {},
 }));
@@ -30,9 +29,6 @@ vi.mock("../src/config.js", () => ({
   CARD_CONFIG_PRESETS: { thermostat: {} },
 }));
 
-// ─── Helper: importa main.js con cache pulita ─────────────────────────────────
-// Deve essere chiamato all'interno di ogni test DOPO aver configurato i mock
-// di customElements, ScopedRegistryHost ecc.
 async function loadMain() {
   return import("../src/main.js");
 }
@@ -64,8 +60,6 @@ describe("main.js", () => {
     vi.unstubAllGlobals();
   });
 
-
-  // ─── Sezione 1: registrazione globale (customElements) ───────────────────────
   describe("registrazione globale", () => {
     let getSpy, defineSpy;
     beforeEach(() => {
@@ -105,7 +99,6 @@ describe("main.js", () => {
     });
   });
 
-  // ─── Sezione 2: branch di registerInRegistry ──────────────────────────────
   describe("registerInRegistry – branch", () => {
     it("log 'già registrato' e ritorna false se registry.get restituisce qualcosa", async () => {
       vi.spyOn(customElements, "define").mockImplementation(() => {});
@@ -207,7 +200,6 @@ describe("main.js", () => {
     });
   });
 
-  // ─── Sezione 3: ScopedRegistryHost assente ────────────────────────────────
   describe("ScopedRegistryHost assente", () => {
     beforeEach(() => {
       vi.spyOn(customElements, "get").mockReturnValue(null);
@@ -231,7 +223,7 @@ describe("main.js", () => {
     });
 
     it("logga 'non rilevato' se ScopedRegistryHost non ha prototype", async () => {
-      window.ScopedRegistryHost = Object.create(null); // oggetto senza prototype
+      window.ScopedRegistryHost = Object.create(null);
       window.ScopedRegistryHost.prototype = null;
       await loadMain();
       expect(console.log).toHaveBeenCalledWith(
@@ -240,7 +232,6 @@ describe("main.js", () => {
     });
   });
 
-  // ─── Sezione 4: ScopedRegistryHost presente – patch del prototype ─────────
   describe("ScopedRegistryHost presente", () => {
     let getSpy, defineSpy;
 
@@ -249,21 +240,16 @@ describe("main.js", () => {
       defineSpy = vi.spyOn(customElements, "define").mockImplementation(() => {});
     });
 
-    // ── Helper: crea host con prototype patchato da main.js ──────────────────
     async function setupPatchedHost(scopedRegistry, tagName = "MOCK-HOST", origCB = undefined) {
       class MockHost {
         connectedCallback() {
           if (origCB) origCB();
         }
       }
-      if (!origCB) {
-        // connectedCallback vuota (fa nulla)
-      }
       window.ScopedRegistryHost = MockHost;
 
       await loadMain();
 
-      // Crea host usando il prototype PATCHATO da main.js, non createElement
       const host = Object.create(window.ScopedRegistryHost.prototype);
       host.tagName = tagName;
       host.ownerDocument = null;
@@ -292,7 +278,6 @@ describe("main.js", () => {
       const original = MockHost.prototype.connectedCallback;
       window.ScopedRegistryHost = MockHost;
       await loadMain();
-      // Il prototype è stato rimpiazzato
       expect(window.ScopedRegistryHost.prototype.connectedCallback).not.toBe(original);
       expect(typeof window.ScopedRegistryHost.prototype.connectedCallback).toBe("function");
     });
@@ -334,7 +319,7 @@ describe("main.js", () => {
 
       const scopedReg = { get: vi.fn(() => null), define: vi.fn() };
       const host = Object.create(window.ScopedRegistryHost.prototype);
-      host.renderRoot = { customElements: null }; // null → fallback
+      host.renderRoot = { customElements: null };
       host.shadowRoot = null;
       host.ownerDocument = { customElements: scopedReg };
       host.tagName = "MOCK";
@@ -353,11 +338,10 @@ describe("main.js", () => {
       const host = Object.create(window.ScopedRegistryHost.prototype);
       host.renderRoot = null;
       host.shadowRoot = null;
-      host.ownerDocument = null; // → customElements (globale)
+      host.ownerDocument = null;
       host.tagName = "MOCK";
 
       host.connectedCallback();
-      // registry === customElements → il blocco if è false → niente registrazione
       expect(defineSpy).not.toHaveBeenCalled();
     });
 
@@ -373,7 +357,7 @@ describe("main.js", () => {
     it("usa 'scoped(unknown-host)' nel log quando tagName è undefined", async () => {
       const scopedReg = { get: vi.fn(() => null), define: vi.fn() };
       const host = await setupPatchedHost(scopedReg, undefined);
-      host.tagName = undefined; // override esplicito
+      host.tagName = undefined;
       host.connectedCallback();
       expect(console.log).toHaveBeenCalledWith(
         expect.stringContaining("unknown-host"),
@@ -392,7 +376,7 @@ describe("main.js", () => {
     });
 
     it("salta ha-elements non disponibili globalmente", async () => {
-      getSpy.mockReturnValue(null); // nessun ha-element disponibile
+      getSpy.mockReturnValue(null);
 
       const scopedReg = { get: vi.fn(() => null), define: vi.fn() };
       const host = await setupPatchedHost(scopedReg);
@@ -400,6 +384,30 @@ describe("main.js", () => {
 
       const names = scopedReg.define.mock.calls.map((c) => c[0]);
       expect(names.every((n) => !n.startsWith("ha-"))).toBe(true);
+    });
+
+    it("salta ha-elements quando customElements.get lancia eccezione nel callback patchato", async () => {
+      class MockHost { connectedCallback() {} }
+      window.ScopedRegistryHost = MockHost;
+      await loadMain();
+
+      customElements.get.mockImplementation((name) => {
+        if (name === "ha-icon") throw new Error("ha get failed");
+        return null;
+      });
+
+      const scopedReg = { get: vi.fn(() => null), define: vi.fn() };
+      const host = Object.create(window.ScopedRegistryHost.prototype);
+      host.renderRoot = { customElements: scopedReg };
+      host.shadowRoot = null;
+      host.ownerDocument = null;
+      host.tagName = "MOCK";
+
+      expect(() => host.connectedCallback()).not.toThrow();
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining("errore registrazione in scoped registry"),
+        expect.any(Error),
+      );
     });
 
     it("chiama origConnected se esisteva prima del patch", async () => {
@@ -422,7 +430,6 @@ describe("main.js", () => {
 
     it("non chiama origConnected se era undefined nel prototype", async () => {
       class MockHost {}
-      // Forza connectedCallback undefined sul prototype prima del patch
       MockHost.prototype.connectedCallback = undefined;
       window.ScopedRegistryHost = MockHost;
       await loadMain();
@@ -433,7 +440,6 @@ describe("main.js", () => {
       host.ownerDocument = null;
       host.tagName = "MOCK";
 
-      // Non deve lanciare "origConnected is not a function"
       expect(() => host.connectedCallback()).not.toThrow();
     });
 
@@ -478,7 +484,6 @@ describe("main.js", () => {
     });
   });
 
-  // ─── Sezione 5: window.customCards ───────────────────────────────────────
   describe("window.customCards", () => {
     beforeEach(() => {
       vi.spyOn(customElements, "get").mockReturnValue(null);

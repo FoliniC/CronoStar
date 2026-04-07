@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 // logger_utils è importato da config.js a livello di modulo; lo mocchiamo prima
 vi.mock("../src/utils/logger_utils.js", () => ({ log: vi.fn() }));
@@ -118,6 +118,12 @@ describe("normalizeHourBase", () => {
 describe("validateConfig", () => {
   it("applica il preset thermostat di default", () => {
     const r = validateConfig({ type: "custom:cronostar-card" });
+    expect(r.preset_type).toBe("thermostat");
+  });
+
+  it("gestisce config undefined senza errori", () => {
+    const r = validateConfig(undefined);
+    expect(r.type).toBe("custom:cronostar-card");
     expect(r.preset_type).toBe("thermostat");
   });
 
