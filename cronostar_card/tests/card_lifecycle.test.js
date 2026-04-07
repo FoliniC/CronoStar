@@ -78,6 +78,7 @@ function makeCard(overrides = {}) {
     chartManager: {
       isInitialized: vi.fn(() => true),
       update: vi.fn(),
+      updateData: vi.fn(),
       getChart: vi.fn(),
       recreateChartOptions: vi.fn(),
       updateChartLabels: vi.fn(),
@@ -1365,8 +1366,8 @@ describe("CardLifecycle – registerCard", () => {
     await lc.registerCard(hass);
     expect(card._backendMetaCache).toBeDefined();
     expect(card.config.enabled_entity).toBe("new_enabled");
-    expect(card.loggedPauseEntityMissing).toBe(false);
-    expect(card.loggedProfileSelectEntityMissing).toBe(false);
+    expect(lc.loggedPauseEntityMissing).toBe(false);
+    expect(lc.loggedProfileSelectEntityMissing).toBe(false);
   });
 
   it("applica la language dal meta del profile_data", async () => {

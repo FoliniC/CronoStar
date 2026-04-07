@@ -203,7 +203,11 @@ describe("Step1Preset", () => {
   });
 
   it("handles prefix change logic", () => {
-    const inputEl = { setSelectionRange: vi.fn(), focus: vi.fn() };
+    const inputEl = {
+      setSelectionRange: vi.fn(),
+      focus: vi.fn(),
+      selectionStart: 9,
+    };
     const event = {
       target: {
         value: "newprefix",
