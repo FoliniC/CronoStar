@@ -392,3 +392,8 @@ export class PointerHandler {
     });
   }
 }
+Please add this file to the chat so I can finish the frontend coverage work safely:
+- cronostar_card/src/handlers/pointer_handler.js
+
+I still also need this source file to verify and cover editor behavior against the real implementation:
+- cronostar_card/src/editor/CronoStarEditor.js
