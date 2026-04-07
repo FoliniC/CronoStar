@@ -19,6 +19,15 @@ if (!globalThis.document) {
       const Ctor = globalThis.customElements.get(name);
       return Ctor ? new Ctor() : { tagName: String(name).toUpperCase() };
     },
+    querySelectorAll: () => [],
+  };
+} else if (!globalThis.document.querySelectorAll) {
+  globalThis.document.querySelectorAll = () => [];
+}
+if (!globalThis.MutationObserver) {
+  globalThis.MutationObserver = class MutationObserver {
+    observe() {}
+    disconnect() {}
   };
 }
 

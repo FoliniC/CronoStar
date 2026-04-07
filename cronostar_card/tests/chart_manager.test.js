@@ -134,22 +134,18 @@ vi.mock("chart.js/auto", () => {
 vi.mock("chartjs-plugin-dragdata", () => ({ default: {} }));
 vi.mock("chartjs-plugin-zoom", () => ({ default: {} }));
 
-vi.mock("../src/utils.js", async () => {
-  const actual = await vi.importActual("../src/utils.js");
-  return { 
-    ...actual, 
-    Logger: { log: vi.fn(), chart: vi.fn(), error: vi.fn(), warn: vi.fn() },
-    timeToMinutes: (t) => {
-        const [h, m] = t.split(':').map(Number);
-        return h * 60 + m;
-    },
-    minutesToTime: (m) => {
-        const hh = String(Math.floor(m / 60)).padStart(2, '0');
-        const mm = String(Math.round(m % 60)).padStart(2, '0');
-        return `${hh}:${mm}`;
-    }
-  };
-});
+vi.mock("../src/utils.js", () => ({
+  Logger: { log: vi.fn(), chart: vi.fn(), error: vi.fn(), warn: vi.fn() },
+  timeToMinutes: (t) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  },
+  minutesToTime: (m) => {
+    const hh = String(Math.floor(m / 60)).padStart(2, "0");
+    const mm = String(Math.round(m % 60)).padStart(2, "0");
+    return `${hh}:${mm}`;
+  },
+}));
 
 vi.mock("../src/core/EventBus.js", () => ({
   Events: {

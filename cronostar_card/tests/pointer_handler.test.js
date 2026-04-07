@@ -2,11 +2,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 if (!globalThis.window) globalThis.window = globalThis;
+if (!globalThis.window.addEventListener) globalThis.window.addEventListener = vi.fn();
+if (!globalThis.window.removeEventListener) globalThis.window.removeEventListener = vi.fn();
 if (!globalThis.document) {
   globalThis.document = {
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   };
+} else {
+  if (!globalThis.document.addEventListener) globalThis.document.addEventListener = vi.fn();
+  if (!globalThis.document.removeEventListener) globalThis.document.removeEventListener = vi.fn();
 }
 
 import { PointerHandler } from "../src/handlers/pointer_handler.js";

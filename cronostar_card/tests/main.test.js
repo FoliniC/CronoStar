@@ -102,12 +102,18 @@ describe("main.js", () => {
   // ─── Sezione 2: branch di registerInRegistry ──────────────────────────────
   describe("registerInRegistry – branch", () => {
     it("log 'già registrato' e ritorna false se registry.get restituisce qualcosa", async () => {
-      vi.spyOn(customElements, "get").mockReturnValue(class {});
-      vi.spyOn(customElements, "define").mockImplementation(() => {});
+      const defineSpy = vi.spyOn(customElements, "define").mockImplementation(() => {});
+      vi.spyOn(customElements, "get").mockImplementation((name) => {
+        if (name === "cronostar-card" || name === "cronostar-card-editor") {
+          return class {};
+        }
+        return null;
+      });
 
       await loadMain();
 
-      expect(customElements.define).not.toHaveBeenCalled();
+      expect(defineSpy).not.toHaveBeenCalledWith("cronostar-card", expect.any(Function));
+      expect(defineSpy).not.toHaveBeenCalledWith("cronostar-card-editor", expect.any(Function));
       expect(console.log).toHaveBeenCalledWith(
         expect.stringContaining("già registrato")
       );
