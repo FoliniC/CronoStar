@@ -9,6 +9,27 @@ class MockResizeObserver {
 }
 global.ResizeObserver = MockResizeObserver;
 
+// ─── Ensure window/customElements exist in all test environments ─────────────
+if (typeof globalThis.window === "undefined") {
+  globalThis.window = globalThis;
+}
+
+if (typeof globalThis.customElements === "undefined") {
+  const registry = new Map();
+  globalThis.customElements = {
+    define: vi.fn((name, ctor) => {
+      if (!registry.has(name)) {
+        registry.set(name, ctor);
+      }
+    }),
+    get: vi.fn((name) => registry.get(name)),
+  };
+}
+
+if (typeof globalThis.window.customElements === "undefined") {
+  globalThis.window.customElements = globalThis.customElements;
+}
+
 // ─── Canvas (Chart.js needs all of these) ─────────────────────────────────────
 if (typeof HTMLCanvasElement !== "undefined") {
   HTMLCanvasElement.prototype.getContext = () => ({
@@ -30,7 +51,11 @@ if (typeof HTMLCanvasElement !== "undefined") {
     quadraticCurveTo: vi.fn(),
     clip: vi.fn(),
     isPointInPath: vi.fn(() => false),
-    measureText: vi.fn(() => ({ width: 0, actualBoundingBoxAscent: 0, actualBoundingBoxDescent: 0 })),
+    measureText: vi.fn(() => ({
+      width: 0,
+      actualBoundingBoxAscent: 0,
+      actualBoundingBoxDescent: 0,
+    })),
     fillText: vi.fn(),
     strokeText: vi.fn(),
     setLineDash: vi.fn(),
@@ -46,7 +71,11 @@ if (typeof HTMLCanvasElement !== "undefined") {
     createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
     createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
     createPattern: vi.fn(() => null),
-    getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4), width: 1, height: 1 })),
+    getImageData: vi.fn(() => ({
+      data: new Uint8ClampedArray(4),
+      width: 1,
+      height: 1,
+    })),
     putImageData: vi.fn(),
     createImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4) })),
     canvas: { width: 300, height: 150 },
@@ -70,57 +99,4 @@ if (typeof HTMLCanvasElement !== "undefined") {
   });
 }
 
-// ─── Custom Elements ─────────────────────────────────────────────────────────
-// Registra elementi stub per impedire "Invalid constructor" quando il codice sorgente
-// chiama customElements.define() o quando i test istanziano componenti Lit.
-const registerStub = (name) => {
-  if (!customElements.get(name)) {
-    try {
-      customElements.define(
-        name,
-        class extends HTMLElement {
-          connectedCallback() {}
-          disconnectedCallback() {}
-          attributeChangedCallback() {}
-        },
-      );
-    } catch {
-      /* già registrato o errore non bloccante */
-    }
-  }
-};
-
-[
-  // Componenti CronoStar
-  "cronostar-card",
-  "cronostar-card-editor",
-  // Componenti Home Assistant
-  "ha-card",
-  "ha-icon",
-  "ha-icon-button",
-  "ha-switch",
-  "ha-select",
-  "ha-circular-progress",
-  "ha-dialog",
-  // MWC / MDC
-  "mwc-button",
-  "mwc-list-item",
-  // Contesti editor HA (usati in checkIsEditorContext)
-  "hui-card-preview",
-  "hui-card-editor",
-  "hui-dialog-edit-card",
-  "hui-edit-view",
-  "hui-edit-card",
-  "hui-card-options",
-  // Contesti history chart (usati in _isInHistoryContext)
-  "state-history-chart-timeline",
-  "ha-chart-base",
-  "hui-history-graph-card",
-].forEach(registerStub);
-
-// ─── window.confirm / window.alert ───────────────────────────────────────────
-// jsdom non implementa questi; li stub-iamo per default a false/noop
-if (typeof window !== "undefined") {
-  window.confirm = window.confirm ?? vi.fn(() => false);
-  window.alert = window.alert ?? vi.fn();
-}
+// ─── Custom Elements ─────────────────────────────────────────────────
