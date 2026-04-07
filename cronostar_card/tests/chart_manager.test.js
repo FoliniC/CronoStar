@@ -176,15 +176,25 @@ describe("ChartManager - Comprehensive Coverage", () => {
   let resizeObserverInstance;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
     resizeObserverInstance = { observe: vi.fn(), disconnect: vi.fn() };
-    vi.stubGlobal("ResizeObserver", vi.fn(() => resizeObserverInstance));
+    vi.stubGlobal(
+      "ResizeObserver",
+      class ResizeObserver {
+        constructor(callback) {
+          this.callback = callback;
+          return resizeObserverInstance;
+        }
+      },
+    );
     vi.stubGlobal("requestAnimationFrame", vi.fn((cb) => cb()));
     ctx = makeContext();
     cm = new ChartManager(ctx);
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
