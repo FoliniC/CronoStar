@@ -174,16 +174,18 @@ function makeContext(configOverrides = {}) {
 describe("ChartManager - Comprehensive Coverage", () => {
   let cm, ctx;
   let resizeObserverInstance;
+  let resizeObserverCallback;
 
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
+    resizeObserverCallback = null;
     resizeObserverInstance = { observe: vi.fn(), disconnect: vi.fn() };
     vi.stubGlobal(
       "ResizeObserver",
       class ResizeObserver {
         constructor(callback) {
-          this.callback = callback;
+          resizeObserverCallback = callback;
           return resizeObserverInstance;
         }
       },
@@ -481,9 +483,9 @@ describe("ChartManager - Comprehensive Coverage", () => {
       cm._isDragging = false;
 
       cm.lastMousePosition = { x: 100, y: 140 };
-      expect(zoom.pan.mode()).toBe("x");
-      cm.lastMousePosition = { x: 10, y: 50 };
       expect(zoom.pan.mode()).toBe("y");
+      cm.lastMousePosition = { x: 10, y: 50 };
+      expect(zoom.pan.mode()).toBe("x");
 
       const fakeChart = {
         ...mockChartInstance,
@@ -915,16 +917,18 @@ describe("ChartManager - Comprehensive Coverage", () => {
 
     it("destroy removes hover listeners when handlers exist", () => {
       cm.chart = mockChartInstance;
-      cm._hoverHandler = vi.fn();
-      cm._hoverOutHandler = vi.fn();
+      const hoverHandler = vi.fn();
+      const hoverOutHandler = vi.fn();
+      cm._hoverHandler = hoverHandler;
+      cm._hoverOutHandler = hoverOutHandler;
       cm.destroy();
       expect(mockChartInstance.canvas.removeEventListener).toHaveBeenCalledWith(
         "pointermove",
-        cm._hoverHandler,
+        hoverHandler,
       );
       expect(mockChartInstance.canvas.removeEventListener).toHaveBeenCalledWith(
         "pointerout",
-        cm._hoverOutHandler,
+        hoverOutHandler,
       );
     });
 
@@ -932,8 +936,7 @@ describe("ChartManager - Comprehensive Coverage", () => {
       cm.chart = mockChartInstance;
       cm._setupResizeObserver({});
 
-      const resizeCallback = ResizeObserver.mock.calls[0][0];
-      resizeCallback();
+      resizeObserverCallback();
 
       expect(mockChartInstance.resize).toHaveBeenCalled();
       expect(resizeObserverInstance.observe).toHaveBeenCalled();
