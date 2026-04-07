@@ -7,19 +7,23 @@ export class Step0Dashboard {
     this._chartJsLoaded = false;
 
     // Inizializzazione: Caricamento automatico dei controller
-    try {
-      if (!this.editor._dashboardProfilesData) {
-        setTimeout(() => {
-          this._loadAllProfiles();
-        }, 0);
-      }
-      // Prime della lingua dai metadati backend
+    if (!this.editor._dashboardProfilesData) {
       setTimeout(() => {
-        this._primeLanguageFromCurrentProfile();
+        try {
+          this._loadAllProfiles();
+        } catch (e) {
+          /* ignore */
+        }
       }, 0);
-    } catch (e) {
-      /* ignore */
     }
+    // Prime della lingua dai metadati backend
+    setTimeout(() => {
+      try {
+        this._primeLanguageFromCurrentProfile();
+      } catch (e) {
+        /* ignore */
+      }
+    }, 0);
   }
 
   async _loadAllProfiles() {
