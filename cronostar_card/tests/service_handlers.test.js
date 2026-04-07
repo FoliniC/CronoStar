@@ -59,6 +59,16 @@ describe("service_handlers.js", () => {
         "{error}": "ERR",
       })).toContain("ERR");
     });
+
+    it("should apply replace branch after search branch", () => {
+      const result = localize(
+        "en",
+        "notify.language_save_error",
+        { "{error}": "A" },
+        { "A": "B" },
+      );
+      expect(result).toBe("Error saving language preference: B");
+    });
   });
 
   describe("copyToClipboard", () => {
@@ -273,6 +283,23 @@ describe("service_handlers.js", () => {
 
       const meta = mockHass.callWS.mock.calls[1][0].service_data.meta;
       expect(meta.entity_prefix).toBeUndefined();
+    });
+
+    it("should keep existing global_prefix in safeMeta when provided", async () => {
+      mockHass.callWS.mockRejectedValueOnce(new Error("Not found"));
+      mockHass.callWS.mockResolvedValueOnce({ success: true });
+
+      await handleInitializeData(
+        mockHass,
+        {
+          ...config,
+          global_prefix: "my_prefix_",
+        },
+        "en",
+      );
+
+      const meta = mockHass.callWS.mock.calls[1][0].service_data.meta;
+      expect(meta.global_prefix).toBe("my_prefix_");
     });
   });
 });

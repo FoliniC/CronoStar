@@ -74,6 +74,7 @@ describe("Step0Dashboard", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("renders loading state", () => {
@@ -222,6 +223,27 @@ describe("Step0Dashboard", () => {
       );
       expect(editor._dashboardLoading).toBe(false);
     });
+
+    it("uses italian confirm/success branches", async () => {
+      vi.stubGlobal("confirm", () => true);
+      editor._language = "it";
+      await step._handleDeleteController({
+        global_prefix: "p_",
+        meta: {},
+      });
+      expect(editor.showToast).toHaveBeenCalledWith("Controller eliminato", false);
+    });
+
+    it("covers delayed reload callback after delete success", async () => {
+      vi.stubGlobal("confirm", () => true);
+      const reloadSpy = vi.spyOn(step, "_loadAllProfiles").mockResolvedValue();
+      await step._handleDeleteController({
+        global_prefix: "p_",
+        meta: {},
+      });
+      vi.advanceTimersByTime(1000);
+      expect(reloadSpy).toHaveBeenCalled();
+    });
   });
 
   describe("_primeLanguageFromCurrentProfile", () => {
@@ -322,5 +344,29 @@ describe("Step0Dashboard", () => {
     };
     const res = step._renderProfilesList();
     expect(res.toString()).toContain("Configurazione Attiva");
+  });
+
+  it("constructor scheduled loadAllProfiles callback safely runs even if it throws", () => {
+    const localEditor = {
+      ...editor,
+      _dashboardProfilesData: null,
+    };
+    const localStep = new Step0Dashboard(localEditor);
+    vi.spyOn(localStep, "_loadAllProfiles").mockImplementation(() => {
+      throw new Error("scheduled fail");
+    });
+    expect(() => vi.runAllTimers()).not.toThrow();
+  });
+
+  it("constructor scheduled primeLanguage callback safely runs even if it throws", () => {
+    const localEditor = {
+      ...editor,
+      _dashboardProfilesData: { already: true },
+    };
+    const localStep = new Step0Dashboard(localEditor);
+    vi.spyOn(localStep, "_primeLanguageFromCurrentProfile").mockImplementation(() => {
+      throw new Error("scheduled fail");
+    });
+    expect(() => vi.runAllTimers()).not.toThrow();
   });
 });

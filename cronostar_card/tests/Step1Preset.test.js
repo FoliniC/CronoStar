@@ -224,6 +224,24 @@ describe("Step1Preset", () => {
     );
   });
 
+  it("updates enabled_entity when current value matches truncated suffix branch", () => {
+    editor._config.enabled_entity = "switch.cronostar_old_enable";
+    step.selectPresetWithPrefix("ev_charging");
+    expect(editor._updateConfig).toHaveBeenCalledWith(
+      "enabled_entity",
+      "switch.cronostar_ev_charging_enabled",
+    );
+  });
+
+  it("updates profiles_select_entity when current value ends with profiles suffix branch", () => {
+    editor._config.profiles_select_entity = "select.cronostar_old_profiles";
+    step.selectPresetWithPrefix("ev_charging");
+    expect(editor._updateConfig).toHaveBeenCalledWith(
+      "profiles_select_entity",
+      "select.cronostar_ev_charging_current_profile",
+    );
+  });
+
   it("handles prefix change logic", () => {
     const inputEl = {
       setSelectionRange: vi.fn(),
@@ -332,6 +350,17 @@ describe("Step1Preset", () => {
     };
     step._handlePrefixChange("abc", event);
     expect(editor._config.global_prefix).toBe("abc_");
+  });
+
+  it("covers _handlePrefixChange when selectionStart is undefined", () => {
+    const event = {
+      target: {
+        value: "abc",
+        shadowRoot: { querySelector: () => ({ setSelectionRange: vi.fn(), focus: vi.fn() }) },
+      },
+    };
+    expect(() => step._handlePrefixChange("abc", event)).not.toThrow();
+    vi.runAllTimers();
   });
 
   it("handles save and close", async () => {
