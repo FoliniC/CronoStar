@@ -363,6 +363,16 @@ describe("Step1Preset", () => {
     vi.runAllTimers();
   });
 
+  it("covers Step1Preset render lines 147-179 via successful minimal config branch", () => {
+    editor._config.global_prefix = "valid_prefix_";
+    editor._config.target_entity = "climate.x";
+    const res = step.render();
+    const text = res.toString();
+    expect(text).toContain("ui.minimal_config_complete");
+    expect(text).toContain("actions.save_and_close");
+    expect(text).toContain("actions.advanced_config");
+  });
+
   it("handles save and close", async () => {
     await step._handleSaveAndClose();
     expect(editor._handleFinishClick).toHaveBeenCalledWith({ force: true });

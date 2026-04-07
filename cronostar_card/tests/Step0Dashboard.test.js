@@ -369,4 +369,26 @@ describe("Step0Dashboard", () => {
     });
     expect(() => vi.runAllTimers()).not.toThrow();
   });
+
+  it("covers delayed constructor callback that calls _loadAllProfiles", () => {
+    const localEditor = {
+      ...editor,
+      _dashboardProfilesData: null,
+    };
+    const localStep = new Step0Dashboard(localEditor);
+    const spy = vi.spyOn(localStep, "_loadAllProfiles").mockResolvedValue();
+    vi.runAllTimers();
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it("covers delayed constructor callback that calls _primeLanguageFromCurrentProfile", () => {
+    const localEditor = {
+      ...editor,
+      _dashboardProfilesData: { already: true },
+    };
+    const localStep = new Step0Dashboard(localEditor);
+    const spy = vi.spyOn(localStep, "_primeLanguageFromCurrentProfile").mockResolvedValue();
+    vi.runAllTimers();
+    expect(spy).toHaveBeenCalled();
+  });
 });

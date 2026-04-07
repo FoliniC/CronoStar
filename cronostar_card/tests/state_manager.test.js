@@ -135,7 +135,6 @@ describe("StateManager – setData", () => {
       { time: "06:00", value: 1 },
       { time: "23:59", value: 0 },
     ]);
-    // finalizeSwitchData aggiunge punti di transizione
     expect(swSm.getData().length).toBeGreaterThan(3);
   });
 });
@@ -153,9 +152,9 @@ describe("StateManager – insertPoint", () => {
   it("aggiorna il valore di un punto esistente alla stessa minuta", () => {
     sm.insertPoint("12:00", 22);
     const countBefore = sm.getData().length;
-    sm.insertPoint("12:01", 25); // 12:01 è vicino ma non uguale
-    sm.insertPoint("12:00", 25); // stesso minuto
-    expect(sm.getData().length).toBe(countBefore + 1); // solo 12:01 è nuovo
+    sm.insertPoint("12:01", 25);
+    sm.insertPoint("12:00", 25);
+    expect(sm.getData().length).toBe(countBefore + 1);
     expect(sm.getData().find((p) => p.time === "12:00").value).toBe(25);
   });
 
@@ -180,7 +179,6 @@ describe("StateManager – insertPoint", () => {
 
   it("inserisce alla fine se dopo tutti i punti esistenti", () => {
     sm.setData([{ time: "00:00", value: 15 }, { time: "23:59", value: 15 }], true);
-    // insertPoint("23:58", ...) deve finire prima di 23:59
     const idx = sm.insertPoint("23:58", 20);
     expect(sm.getData()[idx].time).toBe("23:58");
   });
@@ -222,6 +220,14 @@ describe("StateManager – removePoint", () => {
     expect(sm.context.events.emit).toHaveBeenCalledWith("POINT_REMOVED", expect.any(Object));
     expect(sm.context.events.emit).toHaveBeenCalledWith("SCHEDULE_UPDATED", expect.any(Array));
   });
+
+  it("covers line 303 by refusing removal of 1440-minute boundary", () => {
+    sm.scheduleData = [
+      { time: "00:00", value: 15 },
+      { time: "24:00", value: 15 },
+    ];
+    expect(sm.removePoint(1)).toBe(false);
+  });
 });
 
 // ─── updatePoint ─────────────────────────────────────────────────────────────
@@ -258,7 +264,6 @@ describe("StateManager – alignSelectedPoints", () => {
     const i06 = d.findIndex((p) => p.time === "06:00");
     const i12 = d.findIndex((p) => p.time === "12:00");
     sm.alignSelectedPoints("right", [i06, i12]);
-    // Il più a destra è i12 (22); i06 deve diventare 22
     expect(sm.getData().find((p) => p.time === "06:00").value).toBe(22);
   });
 
@@ -267,7 +272,6 @@ describe("StateManager – alignSelectedPoints", () => {
     const i06 = d.findIndex((p) => p.time === "06:00");
     const i12 = d.findIndex((p) => p.time === "12:00");
     sm.alignSelectedPoints("left", [i06, i12]);
-    // Il più a sinistra è i06 (20); i12 deve diventare 20
     expect(sm.getData().find((p) => p.time === "12:00").value).toBe(20);
   });
 
@@ -299,7 +303,7 @@ describe("StateManager – alignSelectedPoints", () => {
     const d = sm.getData();
     const i06 = d.findIndex((p) => p.time === "06:00");
     const snapshot = JSON.stringify(sm.getData());
-    sm.alignSelectedPoints("left", [i06, 9999]); // 9999 non valido → < 2 punti validi
+    sm.alignSelectedPoints("left", [i06, 9999]);
     expect(JSON.stringify(sm.getData())).toBe(snapshot);
   });
 
@@ -310,7 +314,6 @@ describe("StateManager – alignSelectedPoints", () => {
     const i18 = d.findIndex((p) => p.time === "18:00");
     const val18Before = sm.getData().find((p) => p.time === "18:00").value;
     sm.alignSelectedPoints("right", [i06, i12, i18]);
-    // 18:00 è l'ancora → valore invariato
     expect(sm.getData().find((p) => p.time === "18:00").value).toBe(val18Before);
   });
 });
@@ -341,7 +344,7 @@ describe("StateManager – undo / redo", () => {
   it("una nuova azione svuota il redo stack", () => {
     sm.insertPoint("12:00", 22);
     sm.undo();
-    sm.insertPoint("06:00", 20); // nuova azione dopo undo
+    sm.insertPoint("06:00", 20);
     expect(sm.redo()).toBe(false);
   });
 
@@ -406,7 +409,6 @@ describe("StateManager – finalizeSwitchData", () => {
   });
 
   it("applica la regola spike suppression", () => {
-    // Sequenza: 06:00(V=1), 06:01(V=0), 06:02(V=1) → 06:01 è uno spike
     const data = [
       { time: "00:00", value: 0 },
       { time: "06:00", value: 1 },
@@ -415,7 +417,6 @@ describe("StateManager – finalizeSwitchData", () => {
       { time: "23:59", value: 0 },
     ];
     const result = swSm.finalizeSwitchData(data);
-    // Dopo soppressione dello spike, 06:01 deve avere il valore corretto
     expect(result).toBeDefined();
   });
 
@@ -423,11 +424,10 @@ describe("StateManager – finalizeSwitchData", () => {
     const data = [
       { time: "00:00", value: 0 },
       { time: "06:00", value: 1 },
-      { time: "06:01", value: 1 }, // già presente
+      { time: "06:01", value: 1 },
       { time: "23:59", value: 0 },
     ];
     const result = swSm.finalizeSwitchData(data);
-    // Non ci devono essere duplicati a 06:01
     const count = result.filter((p) => p.time === "06:01").length;
     expect(count).toBeLessThanOrEqual(1);
   });
@@ -439,7 +439,6 @@ describe("StateManager – finalizeSwitchData", () => {
       { time: "23:59", value: 0 },
     ];
     const result = swSm.finalizeSwitchData(data);
-    // Non deve esserci un punto oltre 23:59
     expect(result.every((p) => {
       const parts = p.time.split(":");
       return Number(parts[0]) * 60 + Number(parts[1]) < 1440;
@@ -449,7 +448,7 @@ describe("StateManager – finalizeSwitchData", () => {
   it("normalizza l'input nella deduplicazione finale", () => {
     const data = [
       { time: "00:00", value: 0 },
-      { time: "06:00", value: 0 }, // stesso valore → non genera step
+      { time: "06:00", value: 0 },
       { time: "23:59", value: 0 },
     ];
     const result = swSm.finalizeSwitchData(data);
@@ -457,7 +456,6 @@ describe("StateManager – finalizeSwitchData", () => {
   });
 
   it("gestisce input normalizzato vuoto dopo _normalizeSchedule", () => {
-    // Dati non validi che vengono scartati dalla normalizzazione
     const result = swSm.finalizeSwitchData([null, undefined, { bad: true }]);
     expect(result).toEqual([]);
   });
@@ -495,7 +493,7 @@ describe("StateManager – _normalizeSchedule (via setData)", () => {
   it("deduplica punti allo stesso minuto (usa l'ultimo valore)", () => {
     sm.setData([
       { time: "06:00", value: 20 },
-      { time: "06:00", value: 25 }, // stesso minuto
+      { time: "06:00", value: 25 },
       { time: "00:00", value: 15 },
       { time: "23:59", value: 15 },
     ]);
@@ -538,7 +536,7 @@ describe("StateManager – _ensureBoundaries", () => {
     const sm = new StateManager(makeContext({ min_value: 18 }));
     sm.scheduleData = [{ time: "23:59", value: 18 }];
     sm._ensureBoundaries();
-    expect(sm.getData()[0].value).toBe(18); // min_value di fallback
+    expect(sm.getData()[0].value).toBe(18);
   });
 });
 
@@ -550,7 +548,7 @@ describe("StateManager – PRESET_CHANGED", () => {
     sm.insertPoint("12:00", 22);
     ctx.events.emit.mockClear();
     ctx._listeners["PRESET_CHANGED"]?.();
-    expect(sm.getData()).toHaveLength(2); // reset ai soli boundary
+    expect(sm.getData()).toHaveLength(2);
     expect(ctx.events.emit).toHaveBeenCalledWith("SCHEDULE_UPDATED", expect.any(Array));
   });
 });
@@ -570,7 +568,7 @@ describe("StateManager – _pushHistory", () => {
     const sm = new StateManager(makeContext());
     sm._pushHistory();
     const after1 = sm._undoStack.length;
-    sm._pushHistory(); // stesso stato
+    sm._pushHistory();
     expect(sm._undoStack.length).toBe(after1);
   });
 

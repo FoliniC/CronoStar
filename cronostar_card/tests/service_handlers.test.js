@@ -301,5 +301,25 @@ describe("service_handlers.js", () => {
       const meta = mockHass.callWS.mock.calls[1][0].service_data.meta;
       expect(meta.global_prefix).toBe("my_prefix_");
     });
+
+    it("should cover line 107 by preserving explicit global_prefix and entity metadata", async () => {
+      mockHass.callWS.mockRejectedValueOnce(new Error("Not found"));
+      mockHass.callWS.mockResolvedValueOnce({ success: true });
+
+      await handleInitializeData(
+        mockHass,
+        {
+          preset_type: "thermostat",
+          global_prefix: "explicit_prefix_",
+          target_entity: "climate.office",
+        },
+        "en",
+      );
+
+      const payload = mockHass.callWS.mock.calls[1][0].service_data;
+      expect(payload.global_prefix).toBe("explicit_prefix_");
+      expect(payload.meta.global_prefix).toBe("explicit_prefix_");
+      expect(payload.meta.target_entity).toBe("climate.office");
+    });
   });
 });

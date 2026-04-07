@@ -826,6 +826,24 @@ describe("CardLifecycle – setHass", () => {
     expect(card.syncCheckTimer).toBeTruthy();
     clearInterval(card.syncCheckTimer);
   });
+
+  it("covers line 339 by not updating profileOptions when options are missing", () => {
+    card.config = {
+      profiles_select_entity: "input_select.prof",
+      not_configured: false,
+      global_prefix: "p_",
+    };
+    const hass = makeHass({
+      states: {
+        "input_select.prof": {
+          state: "Day",
+          attributes: {},
+        },
+      },
+    });
+    lc.setHass(hass);
+    expect(card.profileOptions).toEqual(undefined);
+  });
 });
 
 describe("CardLifecycle – connectedCallback", () => {
@@ -914,12 +932,29 @@ describe("CardLifecycle – connectedCallback", () => {
   it("skips canvas check when in editor context", () => {
     vi.useFakeTimers();
     const card = makeCard();
-    card.initialLoadComplete = false; // Prevent reinitializeCard from running
+    card.initialLoadComplete = false;
     const lc = new CardLifecycle(card);
     vi.spyOn(lc, "isEditorContext").mockReturnValue(true);
     lc.connectedCallback();
     vi.advanceTimersByTime(200);
     expect(card.shadowRoot.getElementById).not.toHaveBeenCalledWith("myChart");
+    vi.useRealTimers();
+  });
+
+  it("covers line 427 by having canvas ready but chart not ready", () => {
+    vi.useFakeTimers();
+    const card = makeCard();
+    const canvas = {
+      getBoundingClientRect: vi.fn(() => ({ width: 100, height: 100 })),
+    };
+    card.shadowRoot.getElementById.mockReturnValue(canvas);
+    card.chartManager.isInitialized.mockReturnValue(false);
+    const lc = new CardLifecycle(card);
+    const spy = vi.spyOn(lc, "reinitializeCard").mockImplementation(() => {});
+    vi.spyOn(lc, "isEditorContext").mockReturnValue(false);
+    lc.connectedCallback();
+    vi.advanceTimersByTime(100);
+    expect(spy).toHaveBeenCalled();
     vi.useRealTimers();
   });
 });
@@ -1562,6 +1597,18 @@ describe("CardLifecycle – registerCard", () => {
     await lc.registerCard(hass);
     expect(card.profileManager.loadProfile).not.toHaveBeenCalled();
   });
+
+  it("covers line 606 by using selectedProfile from guessed selector and preserving returned profile", async () => {
+    card.selectedProfile = "";
+    card.config.profiles_select_entity = null;
+    const guessedEntity = "select.cronostar_thermostat_test_current_profile";
+    const hass = makeHass({
+      states: { [guessedEntity]: { state: "Evening" } },
+    });
+    hass.callWS.mockResolvedValueOnce({ response: { schedule: [] } });
+    await lc.registerCard(hass);
+    expect(card.selectedProfile).toBe("Evening");
+  });
 });
 
 describe("CardLifecycle – _updatePreviewVisibility", () => {
@@ -1607,6 +1654,20 @@ describe("CardLifecycle – _updatePreviewVisibility", () => {
 
   it("does not crash if config is null", () => {
     const card = makeCard({ config: null });
+    const lc = new CardLifecycle(card);
+    expect(() => lc._updatePreviewVisibility()).not.toThrow();
+  });
+
+  it("covers line 994 with shouldHide true style content branch", () => {
+    const card = makeCard({ config: { step: 0 } });
+    const lc = new CardLifecycle(card);
+    lc._updatePreviewVisibility();
+    const styleEl = document.getElementById("cronostar-editor-style");
+    expect(styleEl.textContent).toContain("Force 0x0 preview collapse");
+  });
+
+  it("covers line 1003 with shouldHide false and no existing style", () => {
+    const card = makeCard({ config: { step: 5 } });
     const lc = new CardLifecycle(card);
     expect(() => lc._updatePreviewVisibility()).not.toThrow();
   });

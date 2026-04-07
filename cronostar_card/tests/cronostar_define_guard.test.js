@@ -249,4 +249,11 @@ describe("cronostar_define_guard", () => {
       "CRONOSTAR: Guard ultra-aggressivo inizializzato",
     );
   });
+
+  it("covers scan branch where object is non-patchable and skipped (line 55)", () => {
+    window.nonRegistry = { define: "nope", get: () => {} };
+    vi.advanceTimersByTime(500);
+    expect(window.nonRegistry.__cronostar_patched__).toBeUndefined();
+    delete window.nonRegistry;
+  });
 });
