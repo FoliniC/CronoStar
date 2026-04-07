@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 
 // Mock dependencies BEFORE importing CronoStarEditor
