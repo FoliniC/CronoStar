@@ -914,6 +914,7 @@ describe("CardLifecycle – connectedCallback", () => {
   it("skips canvas check when in editor context", () => {
     vi.useFakeTimers();
     const card = makeCard();
+    card.initialLoadComplete = false; // Prevent reinitializeCard from running
     const lc = new CardLifecycle(card);
     vi.spyOn(lc, "isEditorContext").mockReturnValue(true);
     lc.connectedCallback();
