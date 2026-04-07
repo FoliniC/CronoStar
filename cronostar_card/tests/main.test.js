@@ -57,7 +57,6 @@ describe("main.js", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.spyOn(process, "exit").mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -65,9 +64,6 @@ describe("main.js", () => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps the vitest command valid without unsupported custom reporter assumptions", () => {
-    expect(true).toBe(true);
-  });
 
   // ─── Sezione 1: registrazione globale (customElements) ───────────────────────
   describe("registrazione globale", () => {
