@@ -4,6 +4,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 if (!globalThis.window) globalThis.window = globalThis;
 if (!globalThis.window.addEventListener) globalThis.window.addEventListener = vi.fn();
 if (!globalThis.window.removeEventListener) globalThis.window.removeEventListener = vi.fn();
+if (!globalThis.window.setTimeout) globalThis.window.setTimeout = setTimeout;
+if (!globalThis.window.clearTimeout) globalThis.window.clearTimeout = clearTimeout;
 if (!globalThis.document) {
   globalThis.document = {
     addEventListener: vi.fn(),

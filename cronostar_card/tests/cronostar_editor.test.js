@@ -2,6 +2,8 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 
 if (!globalThis.window) globalThis.window = globalThis;
+if (!globalThis.window.setTimeout) globalThis.window.setTimeout = setTimeout;
+if (!globalThis.window.clearTimeout) globalThis.window.clearTimeout = clearTimeout;
 if (!globalThis.HTMLElement) {
   globalThis.HTMLElement = class HTMLElement {};
 }
@@ -29,6 +31,9 @@ if (!globalThis.MutationObserver) {
     observe() {}
     disconnect() {}
   };
+}
+if (!globalThis.window.MutationObserver) {
+  globalThis.window.MutationObserver = globalThis.MutationObserver;
 }
 
 // Mock dependencies BEFORE importing CronoStarEditor

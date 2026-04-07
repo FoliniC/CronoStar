@@ -33,7 +33,14 @@ function createTestDocument() {
 }
 
 if (!globalThis.window) globalThis.window = globalThis;
-if (!globalThis.document) globalThis.document = createTestDocument();
+if (!globalThis.window.addEventListener) globalThis.window.addEventListener = vi.fn();
+if (!globalThis.window.removeEventListener) globalThis.window.removeEventListener = vi.fn();
+if (!globalThis.document) {
+  globalThis.document = createTestDocument();
+} else {
+  if (!globalThis.document.createElement) globalThis.document.createElement = createTestDocument().createElement;
+  if (!globalThis.document.head) globalThis.document.head = { innerHTML: "" };
+}
 if (!globalThis.customElements) {
   const registry = new Map();
   globalThis.customElements = {
@@ -43,6 +50,8 @@ if (!globalThis.customElements) {
 }
 
 // ─── Mock Chart.js e plugin ───────────────────────────────────────────────────
+globalThis.window = globalThis.window || globalThis;
+
 const mockChartInstance = {
   data: {
     datasets: [
@@ -134,18 +143,21 @@ vi.mock("chart.js/auto", () => {
 vi.mock("chartjs-plugin-dragdata", () => ({ default: {} }));
 vi.mock("chartjs-plugin-zoom", () => ({ default: {} }));
 
-vi.mock("../src/utils.js", () => ({
-  Logger: { log: vi.fn(), chart: vi.fn(), error: vi.fn(), warn: vi.fn() },
-  timeToMinutes: (t) => {
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + m;
-  },
-  minutesToTime: (m) => {
-    const hh = String(Math.floor(m / 60)).padStart(2, "0");
-    const mm = String(Math.round(m % 60)).padStart(2, "0");
-    return `${hh}:${mm}`;
-  },
-}));
+vi.mock("../src/utils.js", () => {
+  if (!globalThis.window) globalThis.window = globalThis;
+  return {
+    Logger: { log: vi.fn(), chart: vi.fn(), error: vi.fn(), warn: vi.fn() },
+    timeToMinutes: (t) => {
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    },
+    minutesToTime: (m) => {
+      const hh = String(Math.floor(m / 60)).padStart(2, "0");
+      const mm = String(Math.round(m % 60)).padStart(2, "0");
+      return `${hh}:${mm}`;
+    },
+  };
+});
 
 vi.mock("../src/core/EventBus.js", () => ({
   Events: {

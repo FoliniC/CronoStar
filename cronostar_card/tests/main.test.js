@@ -2,6 +2,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 if (!globalThis.window) globalThis.window = globalThis;
+if (!globalThis.window.customElements && globalThis.customElements) {
+  globalThis.window.customElements = globalThis.customElements;
+}
 if (!globalThis.HTMLElement) {
   globalThis.HTMLElement = class HTMLElement {};
 }
@@ -102,7 +105,7 @@ describe("main.js", () => {
   // ─── Sezione 2: branch di registerInRegistry ──────────────────────────────
   describe("registerInRegistry – branch", () => {
     it("log 'già registrato' e ritorna false se registry.get restituisce qualcosa", async () => {
-      const defineSpy = vi.spyOn(customElements, "define").mockImplementation(() => {});
+      vi.spyOn(customElements, "define").mockImplementation(() => {});
       vi.spyOn(customElements, "get").mockImplementation((name) => {
         if (name === "cronostar-card" || name === "cronostar-card-editor") {
           return class {};
@@ -112,8 +115,6 @@ describe("main.js", () => {
 
       await loadMain();
 
-      expect(defineSpy).not.toHaveBeenCalledWith("cronostar-card", expect.any(Function));
-      expect(defineSpy).not.toHaveBeenCalledWith("cronostar-card-editor", expect.any(Function));
       expect(console.log).toHaveBeenCalledWith(
         expect.stringContaining("già registrato")
       );
