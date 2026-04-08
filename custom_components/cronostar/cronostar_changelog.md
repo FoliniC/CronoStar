@@ -2,6 +2,11 @@
 
 All notable changes to CronoStar will be documented in this file.
 
+## [6.1.2] - 2026-04-08
+
+### Fixed
+- **Persistence**: Fixed an issue where the controller's enabled state was not restored after a Home Assistant restart.
+
 ## [5.4.0] - 2026-01-05
 
 ### 🛡️ Quality and Testing

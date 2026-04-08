@@ -150,6 +150,13 @@ class CronoStarCoordinator(DataUpdateCoordinator):
                         if self.logging_enabled:
                             _LOGGER.info("Restored last active profile '%s' for '%s'", last_active, self.name)
 
+                    # Restore enabled state if available
+                    is_enabled = container.get("meta", {}).get("is_enabled")
+                    if is_enabled is not None:
+                        self.is_enabled = bool(is_enabled)
+                        if self.logging_enabled:
+                            _LOGGER.info("Restored enabled state '%s' for '%s'", self.is_enabled, self.name)
+
                     # Set initial profile selection (fallback)
                     if self.selected_profile not in self.available_profiles:
                         # Prefer "Default", then first available
@@ -227,6 +234,10 @@ class CronoStarCoordinator(DataUpdateCoordinator):
             _LOGGER.info("Setting enabled=%s for '%s'", enabled, self.name)
 
         self.is_enabled = enabled
+
+        # Persist enabled state to metadata
+        await self.storage_manager.update_enabled_state(self.preset_type, self.prefix, self.is_enabled)
+
         await self.async_refresh()
 
     async def apply_schedule(self):

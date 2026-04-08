@@ -390,6 +390,38 @@ class StorageManager:
             _LOGGER.error("Error updating active profile: %s", e)
             return False
 
+    async def update_enabled_state(self, preset_type: str, global_prefix: str, is_enabled: bool) -> bool:
+        """Update the enabled state in the container metadata."""
+        try:
+            from ..utils.filename_builder import build_profile_filename
+
+            filename = build_profile_filename(preset_type, global_prefix)
+            filepath = self.profiles_dir / filename
+
+            container = await self._load_container(filepath)
+            if not container:
+                return False
+
+            container.setdefault("meta", {})
+            container["meta"]["is_enabled"] = is_enabled
+            container["meta"]["updated_at"] = datetime.now().isoformat()
+
+            await self._write_json(filepath, container)
+
+            # Update cache
+            async with self._cache_lock:
+                self._cache[filename] = container
+                try:
+                    self._cache_mtimes[filename] = await self.hass.async_add_executor_job(os.path.getmtime, filepath)
+                except OSError:
+                    self._cache_mtimes[filename] = 0
+
+            _LOGGER.debug("Updated enabled state to '%s' in %s", is_enabled, filename)
+            return True
+        except Exception as e:
+            _LOGGER.error("Error updating enabled state: %s", e)
+            return False
+
     async def delete_controller_files(self, global_prefix: str, preset_type: str | None = None) -> bool:
         """
         Delete all profile files associated with a controller prefix.

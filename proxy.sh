@@ -1,0 +1,1 @@
+echo 'Acquire::http::Proxy "http://192.168.0.50:3142";' | sudo tee /etc/apt/apt.conf.d/00aptproxy && sudo apt update && sudo apt install openssh-server -y && sudo ufw allow ssh && sudo systemctl enable --now ssh

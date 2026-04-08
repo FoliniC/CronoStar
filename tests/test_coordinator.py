@@ -41,6 +41,7 @@ def _make_coordinator(hass, mock_entry, **entry_data_overrides):
     sm.list_profiles = AsyncMock(return_value=[])
     sm.load_profile_cached = AsyncMock(return_value=None)
     sm.update_active_profile = AsyncMock(return_value=True)
+    sm.update_enabled_state = AsyncMock(return_value=True)
     hass.data = {DOMAIN: {"storage_manager": sm, "version": "6.0.0", "global_config": {}}}
 
     coord = CronoStarCoordinator(hass, mock_entry)

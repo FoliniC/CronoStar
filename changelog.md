@@ -1,6 +1,11 @@
 # Changelog
 
-## v5.4.0
+## v6.1.2
+
+### 🔧 Fixes
+- **Persistence**: Fixed an issue where the controller's enabled state was not restored after a Home Assistant restart.
+
+## v6.1.1
 
 ### 🛡️ Quality and Testing
 - **Code Coverage**: Reached **94%** coverage across the entire backend codebase.

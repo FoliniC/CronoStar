@@ -539,6 +539,52 @@ def test_update_active_profile_success(tmp_path):
     assert data["meta"]["last_active_profile"] == "Comfort"
 
 
+def test_update_enabled_state(tmp_path):
+    """Test updating the enabled state in metadata."""
+    hass = _make_hass(tmp_path)
+    storage = _make_storage(hass, tmp_path)
+
+    filename = "cronostar_thermostat_k_profiles.json"
+    (storage.profiles_dir / filename).write_text(
+        json.dumps({"profiles": {"Comfort": {}}, "meta": {}})
+    )
+
+    with patch(
+        "custom_components.cronostar.utils.filename_builder.build_profile_filename",
+        return_value=filename,
+    ):
+        ok = run(storage.update_enabled_state("thermostat", "cronostar_thermostat_k_", False))
+
+    assert ok is True
+    data = json.loads((storage.profiles_dir / filename).read_text())
+    assert data["meta"]["is_enabled"] is False
+
+    # Update back to True
+    with patch(
+        "custom_components.cronostar.utils.filename_builder.build_profile_filename",
+        return_value=filename,
+    ):
+        ok = run(storage.update_enabled_state("thermostat", "cronostar_thermostat_k_", True))
+
+    assert ok is True
+    data = json.loads((storage.profiles_dir / filename).read_text())
+    assert data["meta"]["is_enabled"] is True
+
+
+def test_update_enabled_state_missing_container(tmp_path):
+    """Test updating enabled state with missing container."""
+    hass = _make_hass(tmp_path)
+    storage = _make_storage(hass, tmp_path)
+
+    with patch(
+        "custom_components.cronostar.utils.filename_builder.build_profile_filename",
+        return_value="nonexistent.json",
+    ):
+        ok = run(storage.update_enabled_state("thermostat", "prefix_", False))
+
+    assert ok is False
+
+
 def test_update_active_profile_missing_container(tmp_path):
     """Test aggiornamento profilo attivo con container mancante."""
     hass = _make_hass(tmp_path)
