@@ -20,7 +20,7 @@ describe("CardContext", () => {
     context = new CardContext(card);
   });
 
-  it("dovrebbe restituire le proprietà della card tramite getter", () => {
+  it("should return card properties via getters", () => {
     expect(context.hass).toBe(card.hass);
     expect(context.config).toBe(card.config);
     expect(context.language).toBe("en");
@@ -30,7 +30,7 @@ describe("CardContext", () => {
     expect(context.isMenuOpen).toBe(false);
   });
 
-  it("dovrebbe aggiornare le proprietà della card tramite setter ed emettere eventi", () => {
+  it("should update card properties via setters and emit events", () => {
     const emitSpy = vi.spyOn(context.events, "emit");
     
     context.hasUnsavedChanges = true;
@@ -46,28 +46,28 @@ describe("CardContext", () => {
     expect(emitSpy).toHaveBeenCalledWith("menu:changed", true);
   });
 
-  it("dovrebbe registrare e restituire i manager", () => {
+  it("should register and return managers", () => {
     const mockManager = { id: 1 };
     context.registerManager("test", mockManager);
     expect(context.getManager("test")).toBe(mockManager);
   });
 
-  it("dovrebbe chiamare requestUpdate sulla card", () => {
+  it("should call requestUpdate on the card", () => {
     context.requestUpdate();
     expect(card.requestUpdate).toHaveBeenCalled();
   });
 
-  it("dovrebbe restituire se è in editor context", () => {
-    // Di default card non ha host/parent quindi è false
+  it("should return whether it is in editor context", () => {
+    // By default, card has no host/parent so it is false
     expect(context.isEditorContext()).toBe(false);
 
-    // Mock parentNode per simulare editor
+    // Mock parentNode to simulate editor
     const mockParent = { tagName: "HUI-CARD-EDITOR" };
     card.parentElement = mockParent;
     expect(context.isEditorContext()).toBe(true);
   });
 
-  it("dovrebbe pulire le risorse con destroy()", () => {
+  it("should clean up resources with destroy()", () => {
     context.registerManager("m", {});
     const clearSpy = vi.spyOn(context.events, "clear");
     context.destroy();

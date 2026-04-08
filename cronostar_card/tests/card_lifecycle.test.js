@@ -1663,7 +1663,7 @@ describe("CardLifecycle – _updatePreviewVisibility", () => {
     const lc = new CardLifecycle(card);
     lc._updatePreviewVisibility();
     const styleEl = document.getElementById("cronostar-editor-style");
-    expect(styleEl.textContent).toContain("Force 0x0 preview collapse");
+    expect(styleEl.textContent).toContain("Aggressively hide preview in Step 0");
   });
 
   it("covers line 1003 with shouldHide false and no existing style", () => {

@@ -68,8 +68,12 @@ export class CardEventHandlers {
       const presetType =
         this.card.selectedPreset ||
         this.card.config.preset_type ||
+        this.card.config.preset ||
         "thermostat"; // Fallback to config or default
-      const globalPrefix = this.card.config.global_prefix || ""; // Ensure it's never undefined
+      const globalPrefix =
+        this.card.config.global_prefix ||
+        getEffectivePrefix(this.card.config) ||
+        `cronostar_${presetType}_`; // Robust fallback for saving
 
       if (this.card.hass && profileName && presetType && globalPrefix) {
         // Ensure to pass the current schedule, as save_profile requires it

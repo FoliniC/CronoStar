@@ -11,6 +11,13 @@ Easily add time-based schedules to any entity.
 
 ![CronoStar](custom_components/cronostar/www/cronostar_card/cronostar-logo.png)
 
+## 🎯 What's New in v6.1.1
+
+### 🧪 Internationalized Test Suite
+- **English Test Descriptions**: Translated all Italian test descriptions and comments to English across the entire frontend test suite (Vitest).
+- **Standardized Terminology**: Unified testing language to follow industry standards ("should return...", "renders...").
+- **Improved Maintainability**: Better accessibility for international contributors and improved clarity in CI/CD reports.
+
 ## 🎯 What's New in v6.1.0
 
 ### 📊 Optimized Admin Dashboard

@@ -103,24 +103,24 @@ describe("KeyboardHandler – enable / disable / focus / blur", () => {
   let kh, card;
   beforeEach(() => ({ kh, card } = makeKH()));
 
-  it("enable() imposta enabled = true", () => {
+  it("enable() sets enabled = true", () => {
     kh.disable();
     kh.enable();
     expect(kh.enabled).toBe(true);
   });
 
-  it("disable() imposta enabled = false", () => {
+  it("disable() sets enabled = false", () => {
     kh.disable();
     expect(kh.enabled).toBe(false);
   });
 
-  it("handleFocus() richiama enable()", () => {
+  it("handleFocus() calls enable()", () => {
     kh.disable();
     kh.handleFocus({});
     expect(kh.enabled).toBe(true);
   });
 
-  it("handleBlur() azzera tutti i modificatori", () => {
+  it("handleBlur() resets all modifiers", () => {
     kh.ctrlDown = true;
     kh.metaDown = true;
     kh.shiftDown = true;
@@ -138,27 +138,27 @@ describe("KeyboardHandler – enable / disable / focus / blur", () => {
 // ---------------------------------------------------------------------------
 
 describe("focusContainer", () => {
-  it("chiama containerEl.focus() se non siamo in editor context", () => {
+  it("calls containerEl.focus() if not in editor context", () => {
     const { kh } = makeKH();
     kh.containerEl.focus = vi.fn();
     kh.focusContainer();
     expect(kh.containerEl.focus).toHaveBeenCalled();
   });
 
-  it("non chiama focus() in editor context", () => {
+  it("does not call focus() in editor context", () => {
     const { kh } = makeKH({ isEditorContext: vi.fn(() => true) });
     kh.containerEl.focus = vi.fn();
     kh.focusContainer();
     expect(kh.containerEl.focus).not.toHaveBeenCalled();
   });
 
-  it("non fa nulla se containerEl è null", () => {
+  it("does nothing if containerEl is null", () => {
     const { kh } = makeKH();
     kh.containerEl = null;
     expect(() => kh.focusContainer()).not.toThrow();
   });
 
-  it("gestisce eccezioni dentro focus() senza propagarle", () => {
+  it("handles exceptions inside focus() without propagating them", () => {
     const { kh } = makeKH();
     kh.containerEl.focus = vi.fn(() => { throw new Error("focus error"); });
     expect(() => kh.focusContainer()).not.toThrow();
@@ -169,32 +169,32 @@ describe("focusContainer", () => {
 // Modifier key tracking (handleKeydown)
 // ---------------------------------------------------------------------------
 
-describe("handleKeydown – tracking modificatori", () => {
+describe("handleKeydown – modifier tracking", () => {
   let kh;
   beforeEach(() => ({ kh } = makeKH()));
 
-  it("traccia Control", () => {
+  it("tracks Control", () => {
     kh.handleKeydown(evt("Control"));
     expect(kh.ctrlDown).toBe(true);
   });
 
-  it("traccia Meta", () => {
+  it("tracks Meta", () => {
     kh.handleKeydown(evt("Meta"));
     expect(kh.metaDown).toBe(true);
   });
 
-  it("traccia Shift", () => {
+  it("tracks Shift", () => {
     kh.handleKeydown(evt("Shift"));
     expect(kh.shiftDown).toBe(true);
   });
 
-  it("traccia Alt", () => {
+  it("tracks Alt", () => {
     kh.handleKeydown(evt("Alt"));
     expect(kh.altDown).toBe(true);
   });
 
-  it("i modificatori restituiscono prima di processare azioni", () => {
-    // Nessuna eccezione = il return anticipato funziona
+  it("modifiers return before processing actions", () => {
+    // No exception = early return works
     expect(() => kh.handleKeydown(evt("Control"))).not.toThrow();
   });
 });
@@ -204,7 +204,7 @@ describe("handleKeydown – tracking modificatori", () => {
 // ---------------------------------------------------------------------------
 
 describe("handleKeydown – disabled", () => {
-  it("non esegue azioni quando è disabilitato", () => {
+  it("does not execute actions when disabled", () => {
     const { kh, card } = makeKH();
     kh.disable();
     kh.handleKeydown(evt("z", { ctrlKey: true }));
@@ -220,7 +220,7 @@ describe("handleKeydown – Undo / Redo", () => {
   let kh, card;
   beforeEach(() => ({ kh, card } = makeKH()));
 
-  it("Ctrl+Z chiama undo e previene default", () => {
+  it("Ctrl+Z calls undo and prevents default", () => {
     const e = evt("z", { ctrlKey: true });
     kh.handleKeydown(e);
     expect(card.stateManager.undo).toHaveBeenCalled();
@@ -228,26 +228,26 @@ describe("handleKeydown – Undo / Redo", () => {
     expect(e.stopPropagation).toHaveBeenCalled();
   });
 
-  it("Ctrl+Z (uppercase) chiama undo", () => {
+  it("Ctrl+Z (uppercase) calls undo", () => {
     const e = evt("Z", { ctrlKey: true });
     kh.handleKeydown(e);
     expect(card.stateManager.undo).toHaveBeenCalled();
   });
 
-  it("Ctrl+Y chiama redo", () => {
+  it("Ctrl+Y calls redo", () => {
     const e = evt("y", { ctrlKey: true });
     kh.handleKeydown(e);
     expect(card.stateManager.redo).toHaveBeenCalled();
     expect(e.preventDefault).toHaveBeenCalled();
   });
 
-  it("Ctrl+Shift+Z chiama redo", () => {
+  it("Ctrl+Shift+Z calls redo", () => {
     const e = evt("z", { ctrlKey: true, shiftKey: true });
     kh.handleKeydown(e);
     expect(card.stateManager.redo).toHaveBeenCalled();
   });
 
-  it("Meta+Z chiama undo (Mac)", () => {
+  it("Meta+Z calls undo (Mac)", () => {
     const e = evt("z", { metaKey: true });
     kh.handleKeydown(e);
     expect(card.stateManager.undo).toHaveBeenCalled();
@@ -262,7 +262,7 @@ describe("handleKeydown – Alt+Q / Alt+W", () => {
   let kh, card;
   beforeEach(() => ({ kh, card } = makeKH()));
 
-  it("Alt+Q chiama handleInsertPoint", () => {
+  it("Alt+Q calls handleInsertPoint", () => {
     kh.handleInsertPoint = vi.fn();
     kh.altDown = true;
     const e = evt("q");
@@ -271,14 +271,14 @@ describe("handleKeydown – Alt+Q / Alt+W", () => {
     expect(e.preventDefault).toHaveBeenCalled();
   });
 
-  it("Alt+Q via e.altKey chiama handleInsertPoint", () => {
+  it("Alt+Q via e.altKey calls handleInsertPoint", () => {
     kh.handleInsertPoint = vi.fn();
     const e = evt("q", { altKey: true });
     kh.handleKeydown(e);
     expect(kh.handleInsertPoint).toHaveBeenCalled();
   });
 
-  it("Alt+W chiama handleDeletePoint", () => {
+  it("Alt+W calls handleDeletePoint", () => {
     kh.handleDeletePoint = vi.fn();
     const e = evt("w", { altKey: true });
     kh.handleKeydown(e);
@@ -286,7 +286,7 @@ describe("handleKeydown – Alt+Q / Alt+W", () => {
     expect(e.preventDefault).toHaveBeenCalled();
   });
 
-  it("Alt+W via altDown chiama handleDeletePoint", () => {
+  it("Alt+W via altDown calls handleDeletePoint", () => {
     kh.handleDeletePoint = vi.fn();
     kh.altDown = true;
     kh.handleKeydown(evt("w"));
@@ -302,20 +302,20 @@ describe("handleKeydown – Ctrl+Enter, Ctrl+S, Ctrl+A, Escape", () => {
   let kh, card;
   beforeEach(() => ({ kh, card } = makeKH()));
 
-  it("Ctrl+Enter chiama eventHandlers.handleApplyNow", () => {
+  it("Ctrl+Enter calls eventHandlers.handleApplyNow", () => {
     const e = evt("Enter", { ctrlKey: true });
     kh.handleKeydown(e);
     expect(card.eventHandlers.handleApplyNow).toHaveBeenCalled();
     expect(e.preventDefault).toHaveBeenCalled();
   });
 
-  it("Ctrl+S fa preventDefault senza crash", () => {
+  it("Ctrl+S performs preventDefault without crash", () => {
     const e = evt("s", { ctrlKey: true });
     kh.handleKeydown(e);
     expect(e.preventDefault).toHaveBeenCalled();
   });
 
-  it("Ctrl+A chiama selectionManager.selectAll", () => {
+  it("Ctrl+A calls selectionManager.selectAll", () => {
     const e = evt("a", { ctrlKey: true });
     kh.handleKeydown(e);
     expect(card.selectionManager.selectAll).toHaveBeenCalled();
@@ -323,7 +323,7 @@ describe("handleKeydown – Ctrl+Enter, Ctrl+S, Ctrl+A, Escape", () => {
     expect(card.chartManager.update).toHaveBeenCalled();
   });
 
-  it("Escape con contextMenu.show=true nasconde il menu", () => {
+  it("Escape with contextMenu.show=true hides the menu", () => {
     card.contextMenu = { show: true };
     const e = evt("Escape");
     kh.handleKeydown(e);
@@ -331,7 +331,7 @@ describe("handleKeydown – Ctrl+Enter, Ctrl+S, Ctrl+A, Escape", () => {
     expect(card.requestUpdate).toHaveBeenCalled();
   });
 
-  it("Escape senza contextMenu attivo chiama handleEscape", () => {
+  it("Escape without active contextMenu calls handleEscape", () => {
     card.contextMenu = { show: false };
     kh.handleEscape = vi.fn();
     const e = evt("Escape");
@@ -339,7 +339,7 @@ describe("handleKeydown – Ctrl+Enter, Ctrl+S, Ctrl+A, Escape", () => {
     expect(kh.handleEscape).toHaveBeenCalled();
   });
 
-  it("Escape con contextMenu null chiama handleEscape senza crash", () => {
+  it("Escape with null contextMenu calls handleEscape without crash", () => {
     card.contextMenu = null;
     kh.handleEscape = vi.fn();
     expect(() => kh.handleKeydown(evt("Escape"))).not.toThrow();
@@ -359,13 +359,13 @@ describe("handleKeydown – Arrow keys", () => {
     kh.handleArrowLeftRight = vi.fn();
   });
 
-  it("nessun indice selezionato → ignora arrow keys", () => {
+  it("no selected index → ignores arrow keys", () => {
     card.selectionManager.getActiveIndices.mockReturnValue([]);
     kh.handleKeydown(evt("ArrowUp"));
     expect(kh.handleArrowUpDown).not.toHaveBeenCalled();
   });
 
-  it("ArrowUp con punti selezionati chiama handleArrowUpDown e imposta isDragging", () => {
+  it("ArrowUp with selected points calls handleArrowUpDown and sets isDragging", () => {
     card.selectionManager.getActiveIndices.mockReturnValue([0]);
     const e = evt("ArrowUp");
     kh.handleKeydown(e);
@@ -374,13 +374,13 @@ describe("handleKeydown – Arrow keys", () => {
     expect(e.preventDefault).toHaveBeenCalled();
   });
 
-  it("ArrowDown chiama handleArrowUpDown", () => {
+  it("ArrowDown calls handleArrowUpDown", () => {
     card.selectionManager.getActiveIndices.mockReturnValue([0]);
     kh.handleKeydown(evt("ArrowDown"));
     expect(kh.handleArrowUpDown).toHaveBeenCalled();
   });
 
-  it("ArrowLeft chiama handleArrowLeftRight", () => {
+  it("ArrowLeft calls handleArrowLeftRight", () => {
     card.selectionManager.getActiveIndices.mockReturnValue([0]);
     const e = evt("ArrowLeft");
     kh.handleKeydown(e);
@@ -388,7 +388,7 @@ describe("handleKeydown – Arrow keys", () => {
     expect(card.isDragging).toBe(true);
   });
 
-  it("ArrowRight chiama handleArrowLeftRight", () => {
+  it("ArrowRight calls handleArrowLeftRight", () => {
     card.selectionManager.getActiveIndices.mockReturnValue([0]);
     kh.handleKeydown(evt("ArrowRight"));
     expect(kh.handleArrowLeftRight).toHaveBeenCalled();
@@ -403,62 +403,62 @@ describe("handleKeyup", () => {
   let kh, card;
   beforeEach(() => ({ kh, card } = makeKH()));
 
-  it("rilascia Control → ctrlDown = false", () => {
+  it("releases Control → ctrlDown = false", () => {
     kh.ctrlDown = true;
     kh.handleKeyup(evt("Control"));
     expect(kh.ctrlDown).toBe(false);
   });
 
-  it("rilascia Meta → metaDown = false", () => {
+  it("releases Meta → metaDown = false", () => {
     kh.metaDown = true;
     kh.handleKeyup(evt("Meta"));
     expect(kh.metaDown).toBe(false);
   });
 
-  it("rilascia Shift → shiftDown = false", () => {
+  it("releases Shift → shiftDown = false", () => {
     kh.shiftDown = true;
     kh.handleKeyup(evt("Shift"));
     expect(kh.shiftDown).toBe(false);
   });
 
-  it("rilascia Alt → altDown = false", () => {
+  it("releases Alt → altDown = false", () => {
     kh.altDown = true;
     kh.handleKeyup(evt("Alt"));
     expect(kh.altDown).toBe(false);
   });
 
-  it("ArrowUp keyup imposta isDragging=false e chiama scheduleHideDragValueDisplay", () => {
+  it("ArrowUp keyup sets isDragging=false and calls scheduleHideDragValueDisplay", () => {
     card.isDragging = true;
     kh.handleKeyup(evt("ArrowUp"));
     expect(card.isDragging).toBe(false);
     expect(card.chartManager.scheduleHideDragValueDisplay).toHaveBeenCalledWith(2500);
   });
 
-  it("ArrowDown keyup imposta isDragging=false", () => {
+  it("ArrowDown keyup sets isDragging=false", () => {
     card.isDragging = true;
     kh.handleKeyup(evt("ArrowDown"));
     expect(card.isDragging).toBe(false);
   });
 
-  it("ArrowLeft keyup imposta isDragging=false", () => {
+  it("ArrowLeft keyup sets isDragging=false", () => {
     card.isDragging = true;
     kh.handleKeyup(evt("ArrowLeft"));
     expect(card.isDragging).toBe(false);
   });
 
-  it("ArrowRight keyup imposta isDragging=false", () => {
+  it("ArrowRight keyup sets isDragging=false", () => {
     card.isDragging = true;
     kh.handleKeyup(evt("ArrowRight"));
     expect(card.isDragging).toBe(false);
   });
 
-  it("tasto generico non tocca isDragging", () => {
+  it("generic key does not touch isDragging", () => {
     card.isDragging = true;
     kh.handleKeyup(evt("a"));
     expect(card.isDragging).toBe(true);
   });
 
-  it("chiama focusContainer dopo il keyup", () => {
+  it("calls focusContainer after keyup", () => {
     kh.focusContainer = vi.fn();
     kh.handleKeyup(evt("a"));
     expect(kh.focusContainer).toHaveBeenCalled();
@@ -473,47 +473,47 @@ describe("_winKeydown", () => {
   let kh, card;
   beforeEach(() => ({ kh, card } = makeKH()));
 
-  it("ignora se disabilitato", () => {
+  it("ignores if disabled", () => {
     kh.disable();
     kh.handleKeydown = vi.fn();
     kh._winKeydown(evt("z", { ctrlKey: true }));
     expect(kh.handleKeydown).not.toHaveBeenCalled();
   });
 
-  it("ignora se containerEl è null", () => {
+  it("ignores if containerEl is null", () => {
     kh.containerEl = null;
     kh.handleKeydown = vi.fn();
     kh._winKeydown(evt("z", { ctrlKey: true }));
     expect(kh.handleKeydown).not.toHaveBeenCalled();
   });
 
-  it("ignora se il containerEl è l'elemento attivo (ha il focus)", () => {
+  it("ignores if containerEl is the active element (focused)", () => {
     card.shadowRoot.activeElement = kh.containerEl;
     kh.handleKeydown = vi.fn();
     kh._winKeydown(evt("z", { ctrlKey: true }));
     expect(kh.handleKeydown).not.toHaveBeenCalled();
   });
 
-  it("ignora se nessun modificatore è premuto", () => {
+  it("ignores if no modifier is pressed", () => {
     kh.handleKeydown = vi.fn();
-    kh._winKeydown(evt("a"));  // nessun ctrlKey/metaKey/altKey
+    kh._winKeydown(evt("a"));  // no ctrlKey/metaKey/altKey
     expect(kh.handleKeydown).not.toHaveBeenCalled();
   });
 
-  it("propaga a handleKeydown con Ctrl premuto", () => {
+  it("propagates to handleKeydown with Ctrl pressed", () => {
     kh.handleKeydown = vi.fn();
     card.shadowRoot.activeElement = null;
     kh._winKeydown(evt("z", { ctrlKey: true }));
     expect(kh.handleKeydown).toHaveBeenCalled();
   });
 
-  it("propaga a handleKeydown con Meta premuto", () => {
+  it("propagates to handleKeydown with Meta pressed", () => {
     kh.handleKeydown = vi.fn();
     kh._winKeydown(evt("z", { metaKey: true }));
     expect(kh.handleKeydown).toHaveBeenCalled();
   });
 
-  it("propaga a handleKeydown con Alt premuto", () => {
+  it("propagates to handleKeydown with Alt pressed", () => {
     kh.handleKeydown = vi.fn();
     kh._winKeydown(evt("q", { altKey: true }));
     expect(kh.handleKeydown).toHaveBeenCalled();
@@ -524,34 +524,34 @@ describe("_winKeyup", () => {
   let kh, card;
   beforeEach(() => ({ kh, card } = makeKH()));
 
-  it("ignora se disabilitato", () => {
+  it("ignores if disabled", () => {
     kh.disable();
     kh.handleKeyup = vi.fn();
     kh._winKeyup(evt("Control", { ctrlKey: true }));
     expect(kh.handleKeyup).not.toHaveBeenCalled();
   });
 
-  it("ignora se containerEl è null", () => {
+  it("ignores if containerEl is null", () => {
     kh.containerEl = null;
     kh.handleKeyup = vi.fn();
     kh._winKeyup(evt("Control", { ctrlKey: true }));
     expect(kh.handleKeyup).not.toHaveBeenCalled();
   });
 
-  it("ignora se il container ha il focus", () => {
+  it("ignores if the container has focus", () => {
     card.shadowRoot.activeElement = kh.containerEl;
     kh.handleKeyup = vi.fn();
     kh._winKeyup(evt("Control", { ctrlKey: true }));
     expect(kh.handleKeyup).not.toHaveBeenCalled();
   });
 
-  it("ignora se nessun modificatore è premuto", () => {
+  it("ignores if no modifier is pressed", () => {
     kh.handleKeyup = vi.fn();
     kh._winKeyup(evt("a"));
     expect(kh.handleKeyup).not.toHaveBeenCalled();
   });
 
-  it("propaga a handleKeyup con Ctrl", () => {
+  it("propagates to handleKeyup with Ctrl", () => {
     kh.handleKeyup = vi.fn();
     kh._winKeyup(evt("Control", { ctrlKey: true }));
     expect(kh.handleKeyup).toHaveBeenCalled();
@@ -566,7 +566,7 @@ describe("handleInsertPoint", () => {
   let kh, card;
   beforeEach(() => ({ kh, card } = makeKH()));
 
-  it("inserisce il punto al valore e orario medi tra i due adiacenti", () => {
+  it("inserts point at mean value and time between two adjacent ones", () => {
     card.selectionManager.getActiveIndices.mockReturnValue([0]);
     card.stateManager.scheduleData = [
       { time: "00:00", value: 10 },
@@ -579,13 +579,13 @@ describe("handleInsertPoint", () => {
     expect(card.selectionManager.selectIndices).toHaveBeenCalledWith([1], false);
   });
 
-  it("non inserisce se nessun punto è selezionato", () => {
+  it("does not insert if no point is selected", () => {
     card.selectionManager.getActiveIndices.mockReturnValue([]);
     kh.handleInsertPoint();
     expect(card.stateManager.insertPoint).not.toHaveBeenCalled();
   });
 
-  it("non inserisce se il punto selezionato è l'ultimo", () => {
+  it("does not insert if selected point is the last one", () => {
     card.selectionManager.getActiveIndices.mockReturnValue([1]);
     card.stateManager.scheduleData = [
       { time: "00:00", value: 10 },
@@ -605,7 +605,7 @@ describe("handleDeletePoint", () => {
   let kh, card;
   beforeEach(() => ({ kh, card } = makeKH()));
 
-  it("rimuove il punto selezionato e aggiorna il chart", () => {
+  it("removes selected point and updates chart", () => {
     card.selectionManager.getActiveIndices.mockReturnValue([1]);
     card.stateManager.removePoint.mockReturnValue(true);
     kh.handleDeletePoint();
@@ -614,14 +614,14 @@ describe("handleDeletePoint", () => {
     expect(card.selectionManager.clearSelection).toHaveBeenCalled();
   });
 
-  it("non aggiorna il chart se removePoint restituisce false", () => {
+  it("does not update chart if removePoint returns false", () => {
     card.selectionManager.getActiveIndices.mockReturnValue([1]);
     card.stateManager.removePoint.mockReturnValue(false);
     kh.handleDeletePoint();
     expect(card.chartManager.updateData).not.toHaveBeenCalled();
   });
 
-  it("non fa nulla se nessun punto è selezionato", () => {
+  it("does nothing if no point is selected", () => {
     card.selectionManager.getActiveIndices.mockReturnValue([]);
     kh.handleDeletePoint();
     expect(card.stateManager.removePoint).not.toHaveBeenCalled();
@@ -633,7 +633,7 @@ describe("handleDeletePoint", () => {
 // ---------------------------------------------------------------------------
 
 describe("handleEscape", () => {
-  it("pulisce la selezione e aggiorna il chart", () => {
+  it("clears selection and updates chart", () => {
     const { kh, card } = makeKH();
     kh.handleEscape();
     expect(card.selectionManager.clearSelection).toHaveBeenCalled();
@@ -641,7 +641,7 @@ describe("handleEscape", () => {
     expect(card.chartManager.update).toHaveBeenCalled();
   });
 
-  it("funziona anche se chartManager è null", () => {
+  it("works even if chartManager is null", () => {
     const { kh, card } = makeKH();
     card.chartManager = null;
     expect(() => kh.handleEscape()).not.toThrow();
@@ -660,25 +660,25 @@ describe("handleArrowLeftRight", () => {
     return card;
   }
 
-  it("non fa nulla se il chart non è pronto", () => {
+  it("does nothing if chart is not ready", () => {
     const { kh, card } = makeKH();
-    card.chartManager = {};  // nessun chart.data.datasets
+    card.chartManager = {};  // no chart.data.datasets
     expect(() => kh.handleArrowLeftRight(evt("ArrowRight"), [0])).not.toThrow();
   });
 
-  it("movimento ArrowRight con default (5 minuti)", () => {
+  it("ArrowRight movement with default (5 minutes)", () => {
     const card = makeArrowCard([{ x: 60, y: 20 }, { x: 180, y: 30 }]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
     card.selectionManager.getActiveIndices.mockReturnValue([0]);
 
     kh.handleArrowLeftRight(evt("ArrowRight"), [0]);
-    // Il punto 0 è anche index 0 = primo, quindi è un "anchor" fisso (i===0 viene saltato)
-    // Verifichiamo che setData sia chiamato
+    // Point 0 is also index 0 = first, so it is a fixed anchor (i===0 is skipped)
+    // Check that setData is called
     expect(card.stateManager.setData).toHaveBeenCalled();
   });
 
-  it("movimento ArrowLeft con default", () => {
+  it("ArrowLeft movement with default", () => {
     const card = makeArrowCard([{ x: 0, y: 10 }, { x: 120, y: 20 }, { x: 300, y: 30 }]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
@@ -687,7 +687,7 @@ describe("handleArrowLeftRight", () => {
     expect(card.stateManager.setData).toHaveBeenCalled();
   });
 
-  it("ctrlKey usa minutesStep ridotto", () => {
+  it("ctrlKey uses reduced minutesStep", () => {
     const card = makeArrowCard([{ x: 0, y: 10 }, { x: 120, y: 20 }, { x: 300, y: 30 }]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
@@ -695,7 +695,7 @@ describe("handleArrowLeftRight", () => {
     expect(card.stateManager.setData).toHaveBeenCalled();
   });
 
-  it("shiftKey attiva snapToGrid", () => {
+  it("shiftKey activates snapToGrid", () => {
     const card = makeArrowCard([{ x: 0, y: 10 }, { x: 120, y: 20 }, { x: 300, y: 30 }]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
@@ -703,7 +703,7 @@ describe("handleArrowLeftRight", () => {
     expect(card.stateManager.setData).toHaveBeenCalled();
   });
 
-  it("altKey attiva snapToGrid con step maggiore", () => {
+  it("altKey activates snapToGrid with larger step", () => {
     const card = makeArrowCard([{ x: 0, y: 10 }, { x: 120, y: 20 }, { x: 300, y: 30 }]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
@@ -711,7 +711,7 @@ describe("handleArrowLeftRight", () => {
     expect(card.stateManager.setData).toHaveBeenCalled();
   });
 
-  it("is_switch_preset espande la selezione con partner adiacenti", () => {
+  it("is_switch_preset expands selection with adjacent partners", () => {
     const card = makeArrowCard(
       [{ x: 0, y: 0 }, { x: 119, y: 1 }, { x: 120, y: 0 }, { x: 1439, y: 0 }],
       { is_switch_preset: true }
@@ -722,7 +722,7 @@ describe("handleArrowLeftRight", () => {
     expect(card.stateManager.setData).toHaveBeenCalled();
   });
 
-  it("usa kb_def_h da config se definito", () => {
+  it("uses kb_def_h from config if defined", () => {
     const card = makeArrowCard(
       [{ x: 0, y: 10 }, { x: 120, y: 20 }, { x: 300, y: 30 }],
       { kb_def_h: 10 }
@@ -733,7 +733,7 @@ describe("handleArrowLeftRight", () => {
     expect(card.stateManager.setData).toHaveBeenCalled();
   });
 
-  it("usa kb_ctrl_h / kb_shift_h / kb_alt_h da config", () => {
+  it("uses kb_ctrl_h / kb_shift_h / kb_alt_h from config", () => {
     const card = makeArrowCard(
       [{ x: 0, y: 10 }, { x: 120, y: 20 }, { x: 300, y: 30 }],
       { kb_ctrl_h: 2, kb_shift_h: 15, kb_alt_h: 30 }
@@ -746,7 +746,7 @@ describe("handleArrowLeftRight", () => {
     expect(card.stateManager.setData).toHaveBeenCalledTimes(3);
   });
 
-  it("usa globalSettings.keyboard se presenti", () => {
+  it("uses globalSettings.keyboard if present", () => {
     const card = makeArrowCard([{ x: 0, y: 10 }, { x: 120, y: 20 }, { x: 300, y: 30 }]);
     card.globalSettings = {
       keyboard: {
@@ -762,7 +762,7 @@ describe("handleArrowLeftRight", () => {
     expect(card.stateManager.setData).toHaveBeenCalled();
   });
 
-  it("ritorna subito se nessun indice è valido", () => {
+  it("returns immediately if no index is valid", () => {
     const card = makeArrowCard([{ x: 0, y: 10 }]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
@@ -770,18 +770,18 @@ describe("handleArrowLeftRight", () => {
     expect(card.stateManager.setData).not.toHaveBeenCalled();
   });
 
-  it("filtra indici parzialmente invalidi e logga warning", () => {
+  it("filters partially invalid indices and logs warning", () => {
     const card = makeArrowCard([{ x: 0, y: 10 }, { x: 120, y: 20 }]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
-    // Indice 0 è valido, 99 è invalido
+    // Index 0 is valid, 99 is invalid
     kh.handleArrowLeftRight(evt("ArrowRight"), [0, 99]);
     expect(card.stateManager.setData).toHaveBeenCalled();
   });
 
-  it("clampa il movimento al leftLimit", () => {
-    // Punto a x=5, leftLimit sarà 1 (se non selezionato punto 0).
-    // Spostiamo a sinistra di 10 minuti.
+  it("clamps movement to leftLimit", () => {
+    // Point at x=5, leftLimit will be 1 (if point 0 not selected).
+    // Move left by 10 minutes.
     const card = makeArrowCard([
       { x: 0, y: 10 },
       { x: 5, y: 20 },
@@ -790,27 +790,27 @@ describe("handleArrowLeftRight", () => {
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
     kh.handleArrowLeftRight(evt("ArrowLeft"), [1]); // dx = -5 (default)
-    // In handleArrowLeftRight p.x viene modificato direttamente nell'oggetto chart
+    // In handleArrowLeftRight p.x is modified directly in chart object
     expect(card.chartManager.chart.data.datasets[0].data[1].x).toBe(1);
   });
 
-  it("clampa il movimento al rightLimit", () => {
-    // Configurazione per forzare il clamping: punto a 1435, step di 10, limite a 1438
+  it("clamps movement to rightLimit", () => {
+    // Configuration to force clamping: point at 1435, step 10, limit 1438
     const card = makeArrowCard([
       { x: 0, y: 10 },
-      { x: 1435, y: 20 }, // Punto molto vicino al limite (1438)
-      { x: 1439, y: 30 }, // Punto di ancoraggio a destra
+      { x: 1435, y: 20 }, // Point very close to limit (1438)
+      { x: 1439, y: 30 }, // Right anchor point
     ]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
 
-    // Mock delle impostazioni per usare uno step di 10
+    // Mock settings to use a step of 10
     card.config.kb_def_h = 10;
 
-    // Sposta a destra di 10 - dovrebbe arrivare a 1438 (limite)
+    // Move right by 10 - should reach 1438 (limit)
     kh.handleArrowLeftRight(evt("ArrowRight"), [1]);
 
-    // Verifica che il punto sia stato clampato al limite
+    // Verify that point was clamped to limit
     expect(card.chartManager.chart.data.datasets[0].data[1].x).toBe(1438);
   });});
 
@@ -836,7 +836,7 @@ describe("handleArrowUpDown", () => {
     return card;
   }
 
-  it("ritorna subito se e.altKey è true", () => {
+  it("returns immediately if e.altKey is true", () => {
     const card = makeUpDownCard([{ x: 60, y: 50 }]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
@@ -844,25 +844,25 @@ describe("handleArrowUpDown", () => {
     expect(card.stateManager.setData).not.toHaveBeenCalled();
   });
 
-  it("non fa nulla se il chart non è pronto", () => {
+  it("does nothing if chart is not ready", () => {
     const { kh, card } = makeKH();
     card.chartManager = {};
     expect(() => kh.handleArrowUpDown(evt("ArrowUp"), [0])).not.toThrow();
     expect(card.stateManager.setData).not.toHaveBeenCalled();
   });
 
-  it("ArrowUp incrementa il valore del punto", () => {
+  it("ArrowUp increments point value", () => {
     const card = makeUpDownCard([{ x: 0, y: 0 }, { x: 60, y: 50 }, { x: 120, y: 100 }]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
     kh.handleArrowUpDown(evt("ArrowUp"), [1]);
-    // Il valore deve essere stato modificato nel dataset
+    // Value must have been modified in dataset
     expect(card.stateManager.setData).toHaveBeenCalled();
     const newData = card.stateManager.setData.mock.calls[0][0];
     expect(newData[1].value).toBeGreaterThanOrEqual(50);
   });
 
-  it("ArrowDown decrementa il valore del punto", () => {
+  it("ArrowDown decrements point value", () => {
     const card = makeUpDownCard([{ x: 0, y: 0 }, { x: 60, y: 50 }, { x: 120, y: 100 }]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
@@ -872,7 +872,7 @@ describe("handleArrowUpDown", () => {
     expect(newData[1].value).toBeLessThanOrEqual(50);
   });
 
-  it("clamp al massimo con allow_max_value=false", () => {
+  it("clamp to max with allow_max_value=false", () => {
     const card = makeUpDownCard(
       [{ x: 0, y: 0 }, { x: 60, y: 100 }],
       { max_value: 100, allow_max_value: false }
@@ -884,7 +884,7 @@ describe("handleArrowUpDown", () => {
     expect(newData[1].value).toBeLessThanOrEqual(100);
   });
 
-  it("allow_max_value=true permette di superare max_value", () => {
+  it("allow_max_value=true allows exceeding max_value", () => {
     const card = makeUpDownCard(
       [{ x: 0, y: 0 }, { x: 60, y: 100 }],
       { max_value: 100, step_value: 1, allow_max_value: true, is_switch_preset: false }
@@ -897,7 +897,7 @@ describe("handleArrowUpDown", () => {
     expect(newData[1].value).toBeLessThanOrEqual(101);
   });
 
-  it("ctrlKey usa step ridotto", () => {
+  it("ctrlKey uses reduced step", () => {
     const card = makeUpDownCard([{ x: 0, y: 0 }, { x: 60, y: 50 }]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
@@ -905,7 +905,7 @@ describe("handleArrowUpDown", () => {
     expect(card.stateManager.setData).toHaveBeenCalled();
   });
 
-  it("shiftKey usa step maggiore", () => {
+  it("shiftKey uses larger step", () => {
     const card = makeUpDownCard([{ x: 0, y: 0 }, { x: 60, y: 50 }]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
@@ -913,7 +913,7 @@ describe("handleArrowUpDown", () => {
     expect(card.stateManager.setData).toHaveBeenCalled();
   });
 
-  it("is_switch_preset: ArrowUp imposta y=1 su tutti i punti target", () => {
+  it("is_switch_preset: ArrowUp sets y=1 on all target points", () => {
     const card = makeUpDownCard(
       [{ x: 0, y: 0 }, { x: 59, y: 1 }, { x: 60, y: 0 }, { x: 1439, y: 0 }],
       { is_switch_preset: true }
@@ -926,13 +926,13 @@ describe("handleArrowUpDown", () => {
     kh.containerEl = document.createElement("div");
     kh.handleArrowUpDown(evt("ArrowUp"), [1]);
     expect(card.stateManager.setData).toHaveBeenCalled();
-    // Per switch ArrowUp → val = 1
+    // For switch ArrowUp → val = 1
     const args = card.stateManager.setData.mock.calls[0][0];
     const movedPoint = args.find((p) => p.time === "00:59");
     if (movedPoint) expect(movedPoint.value).toBe(1);
   });
 
-  it("is_switch_preset: ArrowDown imposta y=0", () => {
+  it("is_switch_preset: ArrowDown sets y=0", () => {
     const card = makeUpDownCard(
       [{ x: 0, y: 0 }, { x: 60, y: 1 }, { x: 1439, y: 0 }],
       { is_switch_preset: true }
@@ -947,7 +947,7 @@ describe("handleArrowUpDown", () => {
     expect(card.stateManager.setData).toHaveBeenCalled();
   });
 
-  it("usa kb_def_v / kb_ctrl_v / kb_shift_v da config", () => {
+  it("uses kb_def_v / kb_ctrl_v / kb_shift_v from config", () => {
     const card = makeUpDownCard(
       [{ x: 0, y: 0 }, { x: 60, y: 50 }],
       { kb_def_v: 2, kb_ctrl_v: 0.5, kb_shift_v: 5, kb_alt_v: 10 }
@@ -961,7 +961,7 @@ describe("handleArrowUpDown", () => {
     expect(card.stateManager.setData).toHaveBeenCalledTimes(3);
   });
 
-  it("showDragValueDisplay viene chiamato con il primo punto selezionato", () => {
+  it("showDragValueDisplay is called with the first selected point", () => {
     const card = makeUpDownCard([{ x: 0, y: 0 }, { x: 60, y: 50 }]);
     const kh = new KeyboardHandler(card);
     kh.containerEl = document.createElement("div");
@@ -969,7 +969,7 @@ describe("handleArrowUpDown", () => {
     expect(card.chartManager.showDragValueDisplay).toHaveBeenCalled();
   });
 
-  it("ripristina la selezione per tempo dopo il movimento", () => {
+  it("restores selection by time after movement", () => {
     const card = makeUpDownCard([{ x: 0, y: 0 }, { x: 60, y: 50 }]);
     card.stateManager.getData.mockReturnValue([
       { time: "00:00", value: 0 },
@@ -987,12 +987,12 @@ describe("handleArrowUpDown", () => {
 // ---------------------------------------------------------------------------
 
 describe("attachListeners / detachListeners", () => {
-  it("attachListeners con null non lancia eccezioni", () => {
+  it("attachListeners with null does not throw exceptions", () => {
     const { kh } = makeKH();
     expect(() => kh.attachListeners(null)).not.toThrow();
   });
 
-  it("attachListeners registra gli event listener sull'elemento", () => {
+  it("attachListeners registers event listeners on element", () => {
     const { kh } = makeKH();
     const el = document.createElement("div");
     el.addEventListener = vi.fn();
@@ -1005,7 +1005,7 @@ describe("attachListeners / detachListeners", () => {
     expect(kh.containerEl).toBe(el);
   });
 
-  it("attachListeners chiama prima detachListeners sull'elemento precedente", () => {
+  it("attachListeners calls detachListeners on previous element first", () => {
     const { kh } = makeKH();
     const el = document.createElement("div");
     el.removeEventListener = vi.fn();
@@ -1019,7 +1019,7 @@ describe("attachListeners / detachListeners", () => {
     expect(el.removeEventListener).toHaveBeenCalled();
   });
 
-  it("detachListeners rimuove gli event listener", () => {
+  it("detachListeners removes event listeners", () => {
     const { kh } = makeKH();
     const el = document.createElement("div");
     el.removeEventListener = vi.fn();
@@ -1031,12 +1031,12 @@ describe("attachListeners / detachListeners", () => {
     expect(el.removeEventListener).toHaveBeenCalledWith("blur", kh.handleBlur);
   });
 
-  it("detachListeners con elemento null non lancia eccezioni", () => {
+  it("detachListeners with null element does not throw exceptions", () => {
     const { kh } = makeKH();
     expect(() => kh.detachListeners(null)).not.toThrow();
   });
 
-  it("attachListeners registra listener globali su window", () => {
+  it("attachListeners registers global listeners on window", () => {
     const { kh } = makeKH();
     const addSpy = vi.spyOn(window, "addEventListener");
     const el = document.createElement("div");
@@ -1046,7 +1046,7 @@ describe("attachListeners / detachListeners", () => {
     addSpy.mockRestore();
   });
 
-  it("detachListeners rimuove listener globali da window", () => {
+  it("detachListeners removes global listeners from window", () => {
     const { kh } = makeKH();
     const removeSpy = vi.spyOn(window, "removeEventListener");
     kh.detachListeners(null);
@@ -1057,11 +1057,11 @@ describe("attachListeners / detachListeners", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Edge cases / branch coverage aggiuntiva
+// Edge cases / additional branch coverage
 // ---------------------------------------------------------------------------
 
-describe("handleKeydown – rami aggiuntivi", () => {
-  it("Ctrl+Z senza stateManager non lancia eccezioni", () => {
+describe("handleKeydown – additional branches", () => {
+  it("Ctrl+Z without stateManager does not throw exceptions", () => {
     const card = makeCard();
     card.stateManager = undefined;
     const kh = new KeyboardHandler(card);
@@ -1069,7 +1069,7 @@ describe("handleKeydown – rami aggiuntivi", () => {
     expect(() => kh.handleKeydown(evt("z", { ctrlKey: true }))).not.toThrow();
   });
 
-  it("Ctrl+A senza chartManager non lancia eccezioni", () => {
+  it("Ctrl+A without chartManager does not throw exceptions", () => {
     const card = makeCard();
     card.chartManager = null;
     const kh = new KeyboardHandler(card);
@@ -1077,7 +1077,7 @@ describe("handleKeydown – rami aggiuntivi", () => {
     expect(() => kh.handleKeydown(evt("a", { ctrlKey: true }))).not.toThrow();
   });
 
-  it("Ctrl+Enter senza eventHandlers non lancia eccezioni", () => {
+  it("Ctrl+Enter without eventHandlers does not throw exceptions", () => {
     const card = makeCard();
     card.eventHandlers = undefined;
     const kh = new KeyboardHandler(card);
@@ -1086,12 +1086,12 @@ describe("handleKeydown – rami aggiuntivi", () => {
   });
 });
 
-describe("handleArrowUpDown – data numerico (non oggetto)", () => {
-  it("gestisce dataset con valori numerici puri (non oggetto)", () => {
+describe("handleArrowUpDown – numeric data (non-object)", () => {
+  it("handles dataset with pure numeric values (non-object)", () => {
     const card = makeCard();
     card.config = { min_value: 0, max_value: 100, step_value: 1, allow_max_value: false };
     const cm = makeDataset([{ x: 0, y: 0 }, { x: 60, y: 50 }]);
-    // Sostituiamo il punto con un numero puro (branch `typeof data[i] !== "object"`)
+    // Replace point with pure number (branch `typeof data[i] !== "object"`)
     cm.chart.data.datasets[0].data[1] = 50;
     card.chartManager = cm;
     card.stateManager.getData.mockReturnValue([

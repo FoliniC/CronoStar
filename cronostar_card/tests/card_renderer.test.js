@@ -2,18 +2,18 @@
 /**
  * CardRenderer.test.js  –  Vitest + jsdom
  *
- * Strategia generale
+ * General strategy
  * ──────────────────
- * Il mock di `lit` restituisce oggetti { strings, values, __litHtml } ispezionabili.
- * La funzione `serialize()` percorre ricorsivamente l'albero di template e produce
- * una stringa piatta su cui fare le asserzioni testuali (contiene / non contiene).
+ * The `lit` mock returns inspectable { strings, values, __litHtml } objects.
+ * The `serialize()` function recursively traverses the template tree and produces
+ * a flat string for textual assertions (contains / does not contain).
  *
- * Per i branch che contengono handler di eventi (expand, profile selection, dialog
- * buttons…) NON usiamo .toString() sulle closure (fragile e dipendente dalla
- * minificazione). Invece estraiamo la stessa logica in helper locali e la
- * eseguiamo direttamente sui mock della card, verificando gli effetti collaterali.
+ * For branches containing event handlers (expand, profile selection, dialog
+ * buttons…) we DO NOT use .toString() on closures (fragile and dependent on
+ * minification). Instead, we extract the same logic into local helpers and
+ * execute it directly on the card mocks, verifying the side effects.
  *
- * Esecuzione:
+ * Execution:
  *   npx vitest run card_renderer.test.js --coverage
  */
 
@@ -33,10 +33,10 @@ vi.mock("../src/config.js", () => ({
 
 const { CardRenderer } = await import("../src/core/CardRenderer.js");
 
-// ─── Serializzazione ricorsiva ────────────────────────────────────────────────
+// ─── Recursive serialization ────────────────────────────────────────────────
 /**
- * Converte un albero di template lit (o un valore primitivo) in stringa piatta
- * per le asserzioni testuali.
+ * Converts a lit template tree (or a primitive value) into a flat string
+ * for textual assertions.
  */
 function serialize(node) {
   if (node === null || node === undefined) return "";
@@ -143,17 +143,17 @@ beforeEach(() => {
 // 1. Constructor
 // ══════════════════════════════════════════════════════════════════════════════
 describe("Constructor", () => {
-  it("assegna correttamente this.card", () => {
+  it("correctly assigns this.card", () => {
     const card = buildCard();
     expect(new CardRenderer(card).card).toBe(card);
   });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 2. render() – config assente
+// 2. render() – missing config
 // ══════════════════════════════════════════════════════════════════════════════
-describe("render() – config null", () => {
-  it("restituisce un template lit vuoto", () => {
+describe("render() – null config", () => {
+  it("returns an empty lit template", () => {
     const r = new CardRenderer(buildCard({ config: null })).render();
     expect(r.__litHtml).toBe(true);
     expect(serialize(r)).toBe("");
@@ -164,30 +164,30 @@ describe("render() – config null", () => {
 // 3. render() – isEditorInternal
 // ══════════════════════════════════════════════════════════════════════════════
 describe("render() – isEditorInternal", () => {
-  it("mostra CONFIGURATION WIZARD in EN senza step", () => {
+  it("shows CONFIGURATION WIZARD in EN without step", () => {
     const card = buildCard({ isEditorInternal: true, language: "en", editorStep: null });
     const s = serialize(new CardRenderer(card).render());
     expect(s).toContain("CONFIGURATION WIZARD");
     expect(s).not.toContain("Step");
   });
 
-  it("mostra WIZARD CONFIGURAZIONE in IT", () => {
+  it("shows WIZARD CONFIGURAZIONE in IT", () => {
     const card = buildCard({ isEditorInternal: true, language: "it", editorStep: null });
     expect(serialize(new CardRenderer(card).render())).toContain("WIZARD CONFIGURAZIONE");
   });
 
-  it("include il numero di step quando è un numero positivo", () => {
+  it("includes the step number when it is a positive number", () => {
     const card = buildCard({ isEditorInternal: true, editorStep: 3 });
     expect(serialize(new CardRenderer(card).render())).toContain("Step 3");
   });
 
-  it("include lo step 0 (falsy ma non null)", () => {
+  it("includes step 0 (falsy but not null)", () => {
     const card = buildCard({ isEditorInternal: true, editorStep: 0 });
     expect(serialize(new CardRenderer(card).render())).toContain("Step 0");
   });
 
-  // ── Handler pulsante X – testato eseguendo la stessa logica inline ────────
-  describe("close handler (logica del pulsante X)", () => {
+  // ── X button handler – tested by executing the same logic inline ────────
+  describe("close handler (X button logic)", () => {
     async function runCloseHandler(card) {
       card.isEditorInternal = false;
       if (card._lastGoodConfig) card.setConfig(card._lastGoodConfig);
@@ -199,7 +199,7 @@ describe("render() – isEditorInternal", () => {
       }
     }
 
-    it("chiama setConfig se _lastGoodConfig è presente", async () => {
+    it("calls setConfig if _lastGoodConfig is present", async () => {
       const card = buildCard({ isEditorInternal: true, _lastGoodConfig: { x: 1 } });
       await runCloseHandler(card);
       expect(card.setConfig).toHaveBeenCalledWith({ x: 1 });
@@ -207,18 +207,18 @@ describe("render() – isEditorInternal", () => {
       expect(card.cardLifecycle.registerCard).toHaveBeenCalledWith(card.hass);
     });
 
-    it("NON chiama setConfig se _lastGoodConfig è null", async () => {
+    it("does NOT call setConfig if _lastGoodConfig is null", async () => {
       const card = buildCard({ isEditorInternal: true, _lastGoodConfig: null });
       await runCloseHandler(card);
       expect(card.setConfig).not.toHaveBeenCalled();
     });
 
-    it("non lancia se cardLifecycle è null", async () => {
+    it("does not throw if cardLifecycle is null", async () => {
       const card = buildCard({ isEditorInternal: true, cardLifecycle: null });
       await expect(runCloseHandler(card)).resolves.not.toThrow();
     });
 
-    it("non chiama registerCard se hass è null", async () => {
+    it("does not call registerCard if hass is null", async () => {
       const card = buildCard({ isEditorInternal: true, hass: null });
       await runCloseHandler(card);
       expect(card.cardLifecycle.reinitializeCard).toHaveBeenCalled();
@@ -226,7 +226,7 @@ describe("render() – isEditorInternal", () => {
     });
   });
 
-  // ── Handler @config-changed ───────────────────────────────────────────────
+  // ── @config-changed handler ───────────────────────────────────────────────
   describe("config-changed handler", () => {
     async function runConfigChanged(card, detailConfig) {
       const newConfig = { ...detailConfig };
@@ -248,21 +248,21 @@ describe("render() – isEditorInternal", () => {
       }
     }
 
-    it("con _close_wizard chiude editor e reinizializza", async () => {
+    it("closes editor and reinitializes when _close_wizard is true", async () => {
       const card = buildCard({ isEditorInternal: true });
       await runConfigChanged(card, { _close_wizard: true, key: "v" });
       expect(card.isEditorInternal).toBe(false);
       expect(card.cardLifecycle.reinitializeCard).toHaveBeenCalled();
     });
 
-    it("senza _close_wizard chiama solo requestUpdate", async () => {
+    it("only calls requestUpdate when _close_wizard is missing", async () => {
       const card = buildCard({ isEditorInternal: true, config: { old: true } });
       await runConfigChanged(card, { new_field: true });
       expect(card.requestUpdate).toHaveBeenCalled();
       expect(card.isEditorInternal).toBe(true);
     });
 
-    it("non chiama setConfig se il config non cambia", async () => {
+    it("does not call setConfig if config does not change", async () => {
       const card = buildCard({ isEditorInternal: true, config: { same: 1 } });
       await runConfigChanged(card, { same: 1 });
       expect(card.setConfig).not.toHaveBeenCalled();
@@ -274,7 +274,7 @@ describe("render() – isEditorInternal", () => {
 // 4. render() – title logic
 // ══════════════════════════════════════════════════════════════════════════════
 describe("render() – title logic", () => {
-  it("usa config.title quando presente (non chiama localize per preset)", () => {
+  it("uses config.title when present (does not call localize for preset)", () => {
     const card = buildCard({ config: { title: "MyTitle", target_entity: "sensor.x" } });
     new CardRenderer(card).render();
     const presetCall = card.localizationManager.localize.mock.calls.find(
@@ -283,25 +283,25 @@ describe("render() – title logic", () => {
     expect(presetCall).toBeUndefined();
   });
 
-  it("costruisce titolo da config.preset_type quando title è assente", () => {
+  it("constructs title from config.preset_type when title is missing", () => {
     const card = buildCard({ config: { preset_type: "boiler", target_entity: "x" }, selectedPreset: null });
     new CardRenderer(card).render();
     expect(card.localizationManager.localize).toHaveBeenCalledWith("en", "preset.boiler", undefined, undefined);
   });
 
-  it("usa selectedPreset se config.preset_type è assente", () => {
+  it("uses selectedPreset if config.preset_type is missing", () => {
     const card = buildCard({ config: { target_entity: "x" }, selectedPreset: "cooling" });
     new CardRenderer(card).render();
     expect(card.localizationManager.localize).toHaveBeenCalledWith("en", "preset.cooling", undefined, undefined);
   });
 
-  it("usa 'thermostat' come fallback finale quando entrambi sono assenti", () => {
+  it("uses 'thermostat' as final fallback when both are missing", () => {
     const card = buildCard({ config: { target_entity: "x" }, selectedPreset: null });
     new CardRenderer(card).render();
     expect(card.localizationManager.localize).toHaveBeenCalledWith("en", "preset.thermostat", undefined, undefined);
   });
 
-  it("aggiunge il suffix quando il prefix supera il basePrefix", () => {
+  it("adds the suffix when the prefix exceeds the basePrefix", () => {
     const card = buildCard({
       config: { target_entity: "x", global_prefix: "cronostar_thermostat_piano1", preset_type: "thermostat" },
     });
@@ -310,7 +310,7 @@ describe("render() – title logic", () => {
     expect(s).toContain("piano1");
   });
 
-  it("normalizza underscores nel suffix (trailing e replace)", () => {
+  it("normalizes underscores in suffix (trailing and replace)", () => {
     const card = buildCard({
       config: { target_entity: "x", global_prefix: "cronostar_thermostat_primo_piano_", preset_type: "thermostat" },
     });
@@ -318,11 +318,11 @@ describe("render() – title logic", () => {
     expect(s).toContain("primo piano");
   });
 
-  it("NON aggiunge suffix se il prefix finisce esattamente con basePrefix_", () => {
+  it("does NOT add suffix if prefix ends exactly with basePrefix_", () => {
     const card = buildCard({
       config: { target_entity: "x", global_prefix: "cronostar_thermostat_", preset_type: "thermostat" },
     });
-    // non deve lanciare e deve produrre un template valido
+    // should not throw and should produce a valid template
     expect(() => new CardRenderer(card).render()).not.toThrow();
   });
 });
@@ -331,7 +331,7 @@ describe("render() – title logic", () => {
 // 5. render() – view_mode admin
 // ══════════════════════════════════════════════════════════════════════════════
 describe("render() – view_mode admin", () => {
-  it("delega a _renderAdminBox", () => {
+  it("delegates to _renderAdminBox", () => {
     const card = buildCard({ config: { view_mode: "admin" } });
     const renderer = new CardRenderer(card);
     const spy = vi.spyOn(renderer, "_renderAdminBox");
@@ -344,26 +344,26 @@ describe("render() – view_mode admin", () => {
 // 6. _renderAdminBox – not_configured
 // ══════════════════════════════════════════════════════════════════════════════
 describe("_renderAdminBox() – not_configured", () => {
-  it("mostra 'Aggiungi Nuovo Controller' in IT quando title è null", () => {
+  it("shows 'Aggiungi Nuovo Controller' in IT when title is null", () => {
     const card = buildCard({ language: "it", config: { not_configured: true } });
     expect(serialize(new CardRenderer(card)._renderAdminBox(null))).toContain("Aggiungi Nuovo Controller");
   });
 
-  it("mostra 'Add New Controller' in EN quando title è null", () => {
+  it("shows 'Add New Controller' in EN when title is null", () => {
     const card = buildCard({ language: "en", config: { not_configured: true } });
     expect(serialize(new CardRenderer(card)._renderAdminBox(null))).toContain("Add New Controller");
   });
 
-  it("usa il title passato come argomento anziché il fallback", () => {
+  it("uses the passed title instead of fallback", () => {
     const card = buildCard({ language: "en", config: { not_configured: true } });
     expect(serialize(new CardRenderer(card)._renderAdminBox("Titolo Custom"))).toContain("Titolo Custom");
   });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 7. _renderAdminBox – configured + valido
+// 7. _renderAdminBox – configured + valid
 // ══════════════════════════════════════════════════════════════════════════════
-describe("_renderAdminBox() – configured, valido", () => {
+describe("_renderAdminBox() – configured, valid", () => {
   function makeValid(lang = "en", extra = {}) {
     return buildCard({
       language: lang,
@@ -377,46 +377,46 @@ describe("_renderAdminBox() – configured, valido", () => {
     });
   }
 
-  it("mostra 'Configure' in EN", () => {
+  it("shows 'Configure' in EN", () => {
     expect(serialize(new CardRenderer(makeValid("en"))._renderAdminBox("T"))).toContain("Configure");
   });
 
-  it("mostra 'Configura' in IT", () => {
+  it("shows 'Configura' in IT", () => {
     expect(serialize(new CardRenderer(makeValid("it"))._renderAdminBox("T"))).toContain("Configura");
   });
 
-  it("mostra 'Controller Active and Valid' in EN", () => {
+  it("shows 'Controller Active and Valid' in EN", () => {
     expect(serialize(new CardRenderer(makeValid("en"))._renderAdminBox("T"))).toContain("Controller Active and Valid");
   });
 
-  it("mostra 'Controller Attivo e Valido' in IT", () => {
+  it("shows 'Controller Attivo e Valido' in IT", () => {
     expect(serialize(new CardRenderer(makeValid("it"))._renderAdminBox("T"))).toContain("Controller Attivo e Valido");
   });
 
-  it("mostra 'Delete Controller' in EN sul pulsante elimina", () => {
+  it("shows 'Delete Controller' in EN on delete button", () => {
     expect(serialize(new CardRenderer(makeValid("en"))._renderAdminBox("T"))).toContain("Delete Controller");
   });
 
-  it("mostra 'Elimina Controller' in IT sul pulsante elimina", () => {
+  it("shows 'Elimina Controller' in IT on delete button", () => {
     expect(serialize(new CardRenderer(makeValid("it"))._renderAdminBox("T"))).toContain("Elimina Controller");
   });
 
-  it("mostra N/A (×2) quando target_entity e global_prefix sono undefined", () => {
+  it("shows N/A (×2) when target_entity and global_prefix are undefined", () => {
     const card = buildCard({ config: { not_configured: false, validation: { valid: true, errors: [] } } });
     const count = (serialize(new CardRenderer(card)._renderAdminBox("T")).match(/N\/A/g) || []).length;
     expect(count).toBe(2);
   });
 
-  it("usa validation di default quando config.validation è assente", () => {
+  it("uses default validation when config.validation is missing", () => {
     const card = buildCard({ config: { not_configured: false } });
     expect(serialize(new CardRenderer(card)._renderAdminBox("T"))).toContain("Controller Active and Valid");
   });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 8. _renderAdminBox – NON valido
+// 8. _renderAdminBox – NOT valid
 // ══════════════════════════════════════════════════════════════════════════════
-describe("_renderAdminBox() – NON valido", () => {
+describe("_renderAdminBox() – NOT valid", () => {
   function makeInvalid(lang = "en") {
     return buildCard({
       language: lang,
@@ -424,15 +424,15 @@ describe("_renderAdminBox() – NON valido", () => {
     });
   }
 
-  it("mostra 'CONFIGURATION ISSUES' in EN", () => {
+  it("shows 'CONFIGURATION ISSUES' in EN", () => {
     expect(serialize(new CardRenderer(makeInvalid("en"))._renderAdminBox("T"))).toContain("CONFIGURATION ISSUES");
   });
 
-  it("mostra 'PROBLEMI DI CONFIGURAZIONE' in IT", () => {
+  it("shows 'PROBLEMI DI CONFIGURAZIONE' in IT", () => {
     expect(serialize(new CardRenderer(makeInvalid("it"))._renderAdminBox("T"))).toContain("PROBLEMI DI CONFIGURAZIONE");
   });
 
-  it("include tutti gli errori nella lista", () => {
+  it("includes all errors in the list", () => {
     const s = serialize(new CardRenderer(makeInvalid())._renderAdminBox("T"));
     expect(s).toContain("Err1");
     expect(s).toContain("Err2");
@@ -440,7 +440,7 @@ describe("_renderAdminBox() – NON valido", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 9. render() – not_configured (standard view, fuori admin)
+// 9. render() – not_configured (standard view, outside admin)
 // ══════════════════════════════════════════════════════════════════════════════
 describe("render() – not_configured standard view", () => {
   function makeNC(lang, isEditor) {
@@ -449,11 +449,11 @@ describe("render() – not_configured standard view", () => {
     return card;
   }
 
-  it("EN fuori editor: 'No controller configured'", () => {
+  it("EN outside editor: 'No controller configured'", () => {
     expect(serialize(new CardRenderer(makeNC("en", false)).render())).toContain("No controller configured");
   });
 
-  it("IT fuori editor: 'Nessun controller configurato'", () => {
+  it("IT outside editor: 'Nessun controller configurato'", () => {
     expect(serialize(new CardRenderer(makeNC("it", false)).render())).toContain("Nessun controller configurato");
   });
 
@@ -465,23 +465,23 @@ describe("render() – not_configured standard view", () => {
     expect(serialize(new CardRenderer(makeNC("it", true)).render())).toContain("Usa il pannello di configurazione");
   });
 
-  it("EN fuori editor: messaggio 'Add a controller'", () => {
+  it("EN outside editor: 'Add a controller' message", () => {
     expect(serialize(new CardRenderer(makeNC("en", false)).render())).toContain("Add a controller to start");
   });
 
-  it("IT fuori editor: messaggio 'Aggiungi un controller'", () => {
+  it("IT outside editor: 'Aggiungi un controller' message", () => {
     expect(serialize(new CardRenderer(makeNC("it", false)).render())).toContain("Aggiungi un controller");
   });
 
-  it("mostra 'Configuration required' solo in editor (EN)", () => {
+  it("shows 'Configuration required' only in editor (EN)", () => {
     expect(serialize(new CardRenderer(makeNC("en", true)).render())).toContain("Configuration required");
   });
 
-  it("mostra 'Configurazione necessaria' solo in editor (IT)", () => {
+  it("shows 'Configurazione necessaria' only in editor (IT)", () => {
     expect(serialize(new CardRenderer(makeNC("it", true)).render())).toContain("Configurazione necessaria");
   });
 
-  it("NON mostra il box 'required' fuori editor", () => {
+  it("does NOT show 'required' box outside editor", () => {
     expect(serialize(new CardRenderer(makeNC("en", false)).render())).not.toContain("Configuration required");
   });
 });
@@ -490,19 +490,19 @@ describe("render() – not_configured standard view", () => {
 // 10. render() – isPickerPreview
 // ══════════════════════════════════════════════════════════════════════════════
 describe("render() – picker preview", () => {
-  it("mostra preview_image custom", () => {
+  it("shows custom preview_image", () => {
     const card = buildCard({ config: { preview_image: "/custom.png" } });
     card.cardLifecycle.isPickerPreviewContext.mockReturnValue(true);
     expect(serialize(new CardRenderer(card).render())).toContain("/custom.png");
   });
 
-  it("usa l'immagine default se preview_image non è definita", () => {
+  it("uses default image if preview_image is undefined", () => {
     const card = buildCard({ config: {} });
     card.cardLifecycle.isPickerPreviewContext.mockReturnValue(true);
     expect(serialize(new CardRenderer(card).render())).toContain("cronostar-preview.png");
   });
 
-  it("NON mostra la preview se config.step è definito (isFromWizard=true)", () => {
+  it("does NOT show preview if config.step is defined (isFromWizard=true)", () => {
     const card = buildCard({ config: { step: 1 } });
     card.cardLifecycle.isPickerPreviewContext.mockReturnValue(true);
     expect(serialize(new CardRenderer(card).render())).not.toContain("cronostar-preview.png");
@@ -528,23 +528,23 @@ describe("render() – isBroken", () => {
     expect(serialize(new CardRenderer(makeBroken("it")).render())).toContain("Controller non operativo");
   });
 
-  it("EN: testo descrittivo inglese", () => {
+  it("EN: descriptive English text", () => {
     expect(serialize(new CardRenderer(makeBroken("en")).render())).toContain("The target entity has not been configured");
   });
 
-  it("IT: testo descrittivo italiano", () => {
+  it("IT: descriptive Italian text", () => {
     expect(serialize(new CardRenderer(makeBroken("it")).render())).toContain("entità di destinazione");
   });
 
-  it("EN: pulsante 'Configure now'", () => {
+  it("EN: 'Configure now' button", () => {
     expect(serialize(new CardRenderer(makeBroken("en")).render())).toContain("Configure now");
   });
 
-  it("IT: pulsante 'Configura ora'", () => {
+  it("IT: 'Configura ora' button", () => {
     expect(serialize(new CardRenderer(makeBroken("it")).render())).toContain("Configura ora");
   });
 
-  it("NON mostra broken overlay se isEditor=true", () => {
+  it("does NOT show broken overlay if isEditor=true", () => {
     const card = buildCard({ config: {}, initialLoadComplete: true });
     card.cardLifecycle.isEditorContext.mockReturnValue(true);
     card.cardLifecycle.isPickerPreviewContext.mockReturnValue(false);
@@ -570,43 +570,43 @@ describe("render() – main card", () => {
   }
 
   // ── Version ───────────────────────────────────────────────────────────────
-  it("mostra alert-outline se versioni diverse (EN)", () => {
+  it("shows alert-outline if versions differ (EN)", () => {
     const card = mainCard({ versionCheckEnabled: true, integrationVersion: "9.0.0", language: "en" });
     expect(serialize(new CardRenderer(card).render())).toContain("Version mismatch");
   });
 
-  it("mostra alert-outline se versioni diverse (IT)", () => {
+  it("shows alert-outline if versions differ (IT)", () => {
     const card = mainCard({ versionCheckEnabled: true, integrationVersion: "9.0.0", language: "it" });
     expect(serialize(new CardRenderer(card).render())).toContain("Versione non aggiornata");
   });
 
-  it("NON mostra alert-outline se versioni uguali", () => {
+  it("does NOT show alert-outline if versions are equal", () => {
     const card = mainCard({ versionCheckEnabled: true, integrationVersion: "1.2.3" });
     expect(serialize(new CardRenderer(card).render())).not.toContain("Version mismatch");
   });
 
-  it("NON mostra alert-outline se versionCheckEnabled=false", () => {
+  it("does NOT show alert-outline if versionCheckEnabled=false", () => {
     const card = mainCard({ versionCheckEnabled: false, integrationVersion: "9.0.0" });
     expect(serialize(new CardRenderer(card).render())).not.toContain("Version mismatch");
   });
 
   // ── Expansion ─────────────────────────────────────────────────────────────
-  it("mostra mdi:arrow-collapse quando isExpandedV=true", () => {
+  it("shows mdi:arrow-collapse when isExpandedV=true", () => {
     expect(serialize(new CardRenderer(mainCard({ isExpandedV: true })).render())).toContain("mdi:arrow-collapse");
   });
 
-  it("mostra mdi:arrow-collapse quando isExpandedH=true", () => {
+  it("shows mdi:arrow-collapse when isExpandedH=true", () => {
     expect(serialize(new CardRenderer(mainCard({ isExpandedH: true })).render())).toContain("mdi:arrow-collapse");
   });
 
-  it("mostra mdi:arrow-expand quando nessun expanded", () => {
+  it("shows mdi:arrow-expand when none are expanded", () => {
     expect(serialize(new CardRenderer(mainCard({ isExpandedV: false, isExpandedH: false })).render())).toContain("mdi:arrow-expand");
   });
 
-  // Handler expansion: verificato tramite logica equivalente
-  it("logica expand: imposta isExpandedV/H a true e chiama requestUpdate", () => {
+  // Expansion handler: verified via equivalent logic
+  it("expand logic: sets isExpandedV/H to true and calls requestUpdate", () => {
     const card = mainCard({ isExpandedV: false, isExpandedH: false });
-    // Replica dell'handler @click sul pulsante Expand
+    // Replicating @click handler on Expand button
     const e = { stopPropagation: vi.fn() };
     e.stopPropagation();
     card.isExpandedV = true;
@@ -617,7 +617,7 @@ describe("render() – main card", () => {
     expect(card.requestUpdate).toHaveBeenCalled();
   });
 
-  it("logica collapse: imposta isExpandedV/H a false e chiama requestUpdate", () => {
+  it("collapse logic: sets isExpandedV/H to false and calls requestUpdate", () => {
     const card = mainCard({ isExpandedV: true, isExpandedH: true });
     const e = { stopPropagation: vi.fn() };
     e.stopPropagation();
@@ -629,100 +629,100 @@ describe("render() – main card", () => {
   });
 
   // ── isEnabled ─────────────────────────────────────────────────────────────
-  it("mostra pause-indicator quando isEnabled=false", () => {
+  it("shows pause-indicator when isEnabled=false", () => {
     expect(serialize(new CardRenderer(mainCard({ isEnabled: false })).render())).toContain("pause-indicator");
   });
 
-  it("NON mostra pause-indicator quando isEnabled=true", () => {
+  it("does NOT show pause-indicator when isEnabled=true", () => {
     expect(serialize(new CardRenderer(mainCard({ isEnabled: true })).render())).not.toContain("pause-indicator");
   });
 
   // ── Menu ──────────────────────────────────────────────────────────────────
-  it("mostra il menu quando isMenuOpen=true", () => {
+  it("shows the menu when isMenuOpen=true", () => {
     expect(serialize(new CardRenderer(mainCard({ isMenuOpen: true })).render())).toContain("menu.apply_now");
   });
 
-  it("NON mostra il menu quando isMenuOpen=false", () => {
+  it("does NOT show the menu when isMenuOpen=false", () => {
     expect(serialize(new CardRenderer(mainCard({ isMenuOpen: false })).render())).not.toContain("menu.apply_now");
   });
 
-  it("mostra 'Configure Controller' in EN nel menu", () => {
+  it("shows 'Configure Controller' in EN in the menu", () => {
     const s = serialize(new CardRenderer(mainCard({ isMenuOpen: true, language: "en" })).render());
     expect(s).toContain("Configure Controller");
   });
 
-  it("mostra 'Configura Controller' in IT nel menu", () => {
+  it("shows 'Configura Controller' in IT in the menu", () => {
     const s = serialize(new CardRenderer(mainCard({ isMenuOpen: true, language: "it" })).render());
     expect(s).toContain("Configura Controller");
   });
 
-  it("lang-btn EN è active quando language=en", () => {
+  it("EN lang-btn is active when language=en", () => {
     const s = serialize(new CardRenderer(mainCard({ isMenuOpen: true, language: "en" })).render());
     expect(s).toContain("lang-btn active");
   });
 
-  it("lang-btn IT è active quando language=it", () => {
+  it("IT lang-btn is active when language=it", () => {
     const s = serialize(new CardRenderer(mainCard({ isMenuOpen: true, language: "it" })).render());
     expect(s).toContain("lang-btn active");
   });
 
-  // ── Preview – nasconde add/delete/preset ──────────────────────────────────
-  it("nasconde add/delete profile in preview", () => {
+  // ── Preview – hides add/delete/preset ──────────────────────────────────
+  it("hides add/delete profile in preview", () => {
     expect(serialize(new CardRenderer(mainCard({ isMenuOpen: true, isPreview: true })).render())).not.toContain("menu.add_profile");
   });
 
-  it("mostra add/delete profile fuori preview", () => {
+  it("shows add/delete profile outside preview", () => {
     expect(serialize(new CardRenderer(mainCard({ isMenuOpen: true, isPreview: false })).render())).toContain("menu.add_profile");
   });
 
-  it("nasconde select preset in preview", () => {
+  it("hides select preset in preview", () => {
     expect(serialize(new CardRenderer(mainCard({ isMenuOpen: true, isPreview: true })).render())).not.toContain("menu.select_preset");
   });
 
-  it("mostra select preset fuori preview", () => {
+  it("shows select preset outside preview", () => {
     expect(serialize(new CardRenderer(mainCard({ isMenuOpen: true, isPreview: false })).render())).toContain("menu.select_preset");
   });
 
   // ── enabled_entity ────────────────────────────────────────────────────────
-  it("mostra ha-switch se enabled_entity è definito", () => {
+  it("shows ha-switch if enabled_entity is defined", () => {
     const card = mainCard({ config: { target_entity: "sensor.temp", enabled_entity: "ib.x" } });
     expect(serialize(new CardRenderer(card).render())).toContain("automation_enabled");
   });
 
-  it("NON mostra ha-switch se enabled_entity è assente", () => {
+  it("does NOT show ha-switch if enabled_entity is missing", () => {
     expect(serialize(new CardRenderer(mainCard()).render())).not.toContain("automation_enabled");
   });
 
   // ── isStartup ─────────────────────────────────────────────────────────────
-  it("mostra 'HA Starting...' in EN quando isStartup=true", () => {
+  it("shows 'HA Starting...' in EN when isStartup=true", () => {
     expect(serialize(new CardRenderer(mainCard({ isStartup: true, language: "en" })).render())).toContain("HA Starting...");
   });
 
-  it("mostra 'Avvio HA in corso...' in IT quando isStartup=true", () => {
+  it("shows 'Avvio HA in corso...' in IT when isStartup=true", () => {
     expect(serialize(new CardRenderer(mainCard({ isStartup: true, language: "it" })).render())).toContain("Avvio HA in corso...");
   });
 
   // ── profileOptions ────────────────────────────────────────────────────────
-  it("mostra ha-select con profileOptions valide (fuori preview, fuori startup)", () => {
+  it("shows ha-select with valid profileOptions (outside preview, outside startup)", () => {
     const card = mainCard({ isStartup: false, isPreview: false, profileOptions: ["p1", "p2"] });
     expect(serialize(new CardRenderer(card).render())).toContain("ui.select_profile");
   });
 
-  it("NON mostra ha-select se profileOptions è vuoto", () => {
+  it("does NOT show ha-select if profileOptions is empty", () => {
     expect(serialize(new CardRenderer(mainCard({ profileOptions: [] })).render())).not.toContain("ui.select_profile");
   });
 
-  it("NON mostra ha-select in isPreview (anche con profileOptions)", () => {
+  it("does NOT show ha-select in isPreview (even with profileOptions)", () => {
     const card = mainCard({ isPreview: true, profileOptions: ["p1"] });
     expect(serialize(new CardRenderer(card).render())).not.toContain("ui.select_profile");
   });
 
-  it("NON mostra ha-select durante isStartup", () => {
+  it("does NOT show ha-select during isStartup", () => {
     const card = mainCard({ isStartup: true, profileOptions: ["p1"] });
     expect(serialize(new CardRenderer(card).render())).not.toContain("ui.select_profile");
   });
 
-  it("filtra le opzioni speciali (undefined/unavailable/unknown) e include quelle valide", () => {
+  it("filters special options (undefined/unavailable/unknown) and includes valid ones", () => {
     const card = mainCard({
       isStartup: false, isPreview: false,
       profileOptions: ["undefined", "unavailable", "unknown", "valid_opt"],
@@ -731,11 +731,11 @@ describe("render() – main card", () => {
     expect(s).toContain("valid_opt");
   });
 
-  // ── Profile selection – logica handler @selected ──────────────────────────
-  it("@selected: NON chiama handleProfileSelection se val === selectedProfile", () => {
+  // ── Profile selection – @selected handler logic ──────────────────────────
+  it("@selected: does NOT call handleProfileSelection if val === selectedProfile", () => {
     const card = mainCard({ profileOptions: ["p1"], selectedProfile: "p1" });
     new CardRenderer(card).render();
-    // Replica logica dell'handler @selected
+    // Replicating @selected handler logic
     const val = "p1";
     if (val && val !== card.selectedProfile) {
       card.profileManager.handleProfileSelection({ target: { value: val } });
@@ -743,7 +743,7 @@ describe("render() – main card", () => {
     expect(card.profileManager.handleProfileSelection).not.toHaveBeenCalled();
   });
 
-  it("@selected: chiama handleProfileSelection se val !== selectedProfile", () => {
+  it("@selected: calls handleProfileSelection if val !== selectedProfile", () => {
     const card = mainCard({ profileOptions: ["p1", "p2"], selectedProfile: "p1" });
     new CardRenderer(card).render();
     const val = "p2";
@@ -754,18 +754,18 @@ describe("render() – main card", () => {
   });
 
   // ── Context menu ──────────────────────────────────────────────────────────
-  it("mostra il context menu quando contextMenu.show=true", () => {
+  it("shows the context menu when contextMenu.show=true", () => {
     const card = mainCard({ contextMenu: { show: true, x: 5, y: 10 } });
     expect(serialize(new CardRenderer(card).render())).toContain("menu.delete_selected");
   });
 
-  it("NON mostra il context menu quando contextMenu.show=false", () => {
+  it("does NOT show the context menu when contextMenu.show=false", () => {
     expect(serialize(new CardRenderer(mainCard()).render())).not.toContain("menu.delete_selected");
   });
 
-  it("logica 'chiudi menu' del context menu: imposta show=false", () => {
+  it("context menu 'close menu' logic: sets show=false", () => {
     const card = mainCard({ contextMenu: { show: true, x: 0, y: 0 } });
-    // Replica dell'handler @click nel mwc-list-item "chiudi"
+    // Replicating @click handler in "close" mwc-list-item
     card.contextMenu = { ...card.contextMenu, show: false };
     card.requestUpdate();
     expect(card.contextMenu.show).toBe(false);
@@ -773,25 +773,25 @@ describe("render() – main card", () => {
   });
 
   // ── Overlays ──────────────────────────────────────────────────────────────
-  it("mostra loading overlay quando initialLoadComplete=false", () => {
+  it("shows loading overlay when initialLoadComplete=false", () => {
     expect(serialize(new CardRenderer(mainCard({ initialLoadComplete: false })).render())).toContain("ui.loading_data");
   });
 
-  it("mostra startup overlay quando cronostarReady=false e load completato", () => {
+  it("shows startup overlay when cronostarReady=false and load completed", () => {
     expect(serialize(new CardRenderer(mainCard({ cronostarReady: false })).render())).toContain("ui.starting_backend");
   });
 
-  it("mostra missing entities overlay con le entità mancanti", () => {
+  it("shows missing entities overlay with missing entities", () => {
     const card = mainCard({ cronostarReady: false, missingEntities: ["sensor.a", "sensor.b"] });
     expect(serialize(new CardRenderer(card).render())).toContain("ui.missing_entities");
   });
 
-  it("mostra anomalous overlay quando missingEntities.length > 0", () => {
+  it("shows anomalous overlay when missingEntities.length > 0", () => {
     const card = mainCard({ missingEntities: ["sensor.x"] });
     expect(serialize(new CardRenderer(card).render())).toContain("ui.check_configuration");
   });
 
-  it("mostra awaiting automation overlay nelle condizioni corrette", () => {
+  it("shows awaiting automation overlay in correct conditions", () => {
     const card = mainCard({
       awaitingAutomation: true, hasUnsavedChanges: false, isDragging: false,
       overlaySuppressionUntil: 0, lastEditAt: null,
@@ -799,65 +799,65 @@ describe("render() – main card", () => {
     expect(serialize(new CardRenderer(card).render())).toContain("Awaiting…");
   });
 
-  it("NON mostra awaiting overlay se hasUnsavedChanges=true", () => {
+  it("does NOT show awaiting overlay if hasUnsavedChanges=true", () => {
     const card = mainCard({ awaitingAutomation: true, hasUnsavedChanges: true });
     expect(serialize(new CardRenderer(card).render())).not.toContain("Awaiting…");
   });
 
-  it("NON mostra awaiting overlay se isDragging=true", () => {
+  it("does NOT show awaiting overlay if isDragging=true", () => {
     const card = mainCard({ awaitingAutomation: true, isDragging: true, overlaySuppressionUntil: 0 });
     expect(serialize(new CardRenderer(card).render())).not.toContain("Awaiting…");
   });
 
-  it("NON mostra awaiting overlay se overlaySuppressionUntil è nel futuro", () => {
+  it("does NOT show awaiting overlay if overlaySuppressionUntil is in the future", () => {
     const card = mainCard({ awaitingAutomation: true, overlaySuppressionUntil: Date.now() + 60_000 });
     expect(serialize(new CardRenderer(card).render())).not.toContain("Awaiting…");
   });
 
-  it("NON mostra awaiting overlay se lastEditAt è dentro il grace period", () => {
+  it("does NOT show awaiting overlay if lastEditAt is within the grace period", () => {
     const card = mainCard({ awaitingAutomation: true, lastEditAt: Date.now() - 100, overlaySuppressionUntil: 0 });
     expect(serialize(new CardRenderer(card).render())).not.toContain("Awaiting…");
   });
 
-  // ── Retry button nel missing entities overlay ─────────────────────────────
-  it("il pulsante retry chiama cardLifecycle.registerCard", () => {
+  // ── Retry button in missing entities overlay ─────────────────────────────
+  it("retry button calls cardLifecycle.registerCard", () => {
     const card = mainCard({ cronostarReady: false, missingEntities: ["s.a"] });
     new CardRenderer(card).render();
-    // Replica logica del @click del retry button
+    // Replicating @click logic of retry button
     card.cardLifecycle.registerCard(card.hass);
     expect(card.cardLifecycle.registerCard).toHaveBeenCalledWith(card.hass);
   });
 
   // ── showUnsavedChangesDialog ──────────────────────────────────────────────
-  it("mostra il dialog in EN", () => {
+  it("shows the dialog in EN", () => {
     const card = mainCard({ showUnsavedChangesDialog: true, language: "en" });
     card.profileManager.lastLoadedProfile = "prof_a";
     expect(serialize(new CardRenderer(card).render())).toContain("Unsaved Changes");
   });
 
-  it("mostra il dialog in IT", () => {
+  it("shows the dialog in IT", () => {
     const card = mainCard({ showUnsavedChangesDialog: true, language: "it" });
     expect(serialize(new CardRenderer(card).render())).toContain("Modifiche non salvate");
   });
 
-  it("NON mostra il dialog quando showUnsavedChangesDialog=false", () => {
+  it("does NOT show the dialog when showUnsavedChangesDialog=false", () => {
     expect(serialize(new CardRenderer(mainCard({ showUnsavedChangesDialog: false })).render())).not.toContain("Unsaved Changes");
   });
 
-  it("il dialog mostra lastLoadedProfile se presente", () => {
+  it("dialog shows lastLoadedProfile if present", () => {
     const card = mainCard({ showUnsavedChangesDialog: true, language: "en" });
     card.profileManager.lastLoadedProfile = "my_profile";
     expect(serialize(new CardRenderer(card).render())).toContain("my_profile");
   });
 
-  it("il dialog mostra selectedProfile se lastLoadedProfile è null", () => {
+  it("dialog shows selectedProfile if lastLoadedProfile is null", () => {
     const card = mainCard({ showUnsavedChangesDialog: true, language: "en", selectedProfile: "sel_prof" });
     card.profileManager.lastLoadedProfile = null;
     expect(serialize(new CardRenderer(card).render())).toContain("sel_prof");
   });
 
   // ── Dialog – Save handler ─────────────────────────────────────────────────
-  it("Save: chiama saveProfile, loadProfile, aggiorna selectedProfile", async () => {
+  it("Save: calls saveProfile, loadProfile, updates selectedProfile", async () => {
     const card = mainCard({ showUnsavedChangesDialog: true, pendingProfileChange: "prof_b" });
     const saveHandler = async () => {
       await card.profileManager.saveProfile();
@@ -875,7 +875,7 @@ describe("render() – main card", () => {
     expect(card.showUnsavedChangesDialog).toBe(false);
   });
 
-  it("Save: non lancia se keyboardHandler è null", async () => {
+  it("Save: does not throw if keyboardHandler is null", async () => {
     const card = mainCard({ showUnsavedChangesDialog: true, pendingProfileChange: "p" });
     card.keyboardHandler = null;
     const saveHandler = async () => {
@@ -891,7 +891,7 @@ describe("render() – main card", () => {
   });
 
   // ── Dialog – Discard handler ──────────────────────────────────────────────
-  it("Discard: scarta modifiche e carica il profilo pending", async () => {
+  it("Discard: discards changes and loads the pending profile", async () => {
     const card = mainCard({ showUnsavedChangesDialog: true, pendingProfileChange: "prof_c" });
     const discardHandler = async () => {
       card.showUnsavedChangesDialog = false;
@@ -909,9 +909,9 @@ describe("render() – main card", () => {
   });
 
   // ── Dialog – Cancel handler ───────────────────────────────────────────────
-  it("Cancel: chiude il dialog e azzera pendingProfileChange", () => {
+  it("Cancel: closes the dialog and resets pendingProfileChange", () => {
     const card = mainCard({ showUnsavedChangesDialog: true, pendingProfileChange: "prof_d" });
-    // Replica logica del pulsante Cancel
+    // Replicating Cancel button logic
     card.showUnsavedChangesDialog = false;
     card.pendingProfileChange = null;
     card.requestUpdate();
@@ -964,7 +964,7 @@ describe("Coverage Boost", () => {
     }
   }
 
-  it("attiva tutti gli handler nel template della card principale", async () => {
+  it("activates all handlers in the main card template", async () => {
     const card = buildCard({
       isMenuOpen: true,
       profileOptions: ["p1"],
@@ -977,13 +977,13 @@ describe("Coverage Boost", () => {
     await executeAllHandlers(renderer.render());
   });
 
-  it("attiva tutti gli handler nel template della card espansa (minimize)", async () => {
+  it("activates all handlers in the expanded card template (minimize)", async () => {
     const card = buildCard({ isExpandedV: true });
     const renderer = new CardRenderer(card);
     await executeAllHandlers(renderer.render());
   });
 
-  it("attiva tutti gli handler nel template admin", async () => {
+  it("activates all handlers in the admin template", async () => {
     const card = buildCard({ config: { not_configured: true } });
     const renderer = new CardRenderer(card);
     await executeAllHandlers(renderer._renderAdminBox("Title"));
@@ -992,13 +992,13 @@ describe("Coverage Boost", () => {
     await executeAllHandlers(renderer._renderAdminBox("Title"));
   });
 
-  it("attiva tutti gli handler nel wizard interno", async () => {
+  it("activates all handlers in the internal wizard", async () => {
     const card = buildCard({ isEditorInternal: true, _lastGoodConfig: { ok: 1 } });
     const renderer = new CardRenderer(card);
     await executeAllHandlers(renderer.render());
   });
 
-  it("attiva tutti gli handler nel wizard interno (shouldClose=true)", async () => {
+  it("activates all handlers in the internal wizard (shouldClose=true)", async () => {
     const card = buildCard({ isEditorInternal: true, config: { target_entity: "old" } });
     const renderer = new CardRenderer(card);
     const closeEvent = {
@@ -1008,13 +1008,13 @@ describe("Coverage Boost", () => {
     await executeAllHandlers(renderer.render(), closeEvent);
   });
 
-  it("attiva tutti gli handler nel broken overlay", async () => {
+  it("activates all handlers in the broken overlay", async () => {
     const card = buildCard({ config: { target_entity: null }, initialLoadComplete: true });
     const renderer = new CardRenderer(card);
     await executeAllHandlers(renderer.render());
   });
 
-  it("attiva tutti gli handler nel dialog di chiusura", async () => {
+  it("activates all handlers in the closing dialog", async () => {
     const card = buildCard({ showUnsavedChangesDialog: true });
     const renderer = new CardRenderer(card);
     await executeAllHandlers(renderer.render());

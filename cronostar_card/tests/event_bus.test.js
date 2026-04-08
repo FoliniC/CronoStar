@@ -9,18 +9,18 @@ describe("EventBus", () => {
     bus = new EventBus();
   });
 
-  it("dovrebbe inizializzare con una mappa vuota di listener", () => {
+  it("should initialize with an empty listener map", () => {
     expect(bus._listeners.size).toBe(0);
   });
 
-  it("dovrebbe registrare un listener con on()", () => {
+  it("should register a listener with on()", () => {
     const callback = vi.fn();
     bus.on("test-event", callback);
     expect(bus._listeners.has("test-event")).toBe(true);
     expect(bus._listeners.get("test-event")).toContain(callback);
   });
 
-  it("dovrebbe restituire una funzione di unsubscribe da on()", () => {
+  it("should return an unsubscribe function from on()", () => {
     const callback = vi.fn();
     const unsubscribe = bus.on("test-event", callback);
     expect(typeof unsubscribe).toBe("function");
@@ -29,7 +29,7 @@ describe("EventBus", () => {
     expect(bus._listeners.get("test-event")).not.toContain(callback);
   });
 
-  it("dovrebbe emettere un evento con i dati corretti", () => {
+  it("should emit an event with correct data", () => {
     const callback = vi.fn();
     const data = { foo: "bar" };
     bus.on("test-event", callback);
@@ -37,11 +37,11 @@ describe("EventBus", () => {
     expect(callback).toHaveBeenCalledWith(data);
   });
 
-  it("non dovrebbe fare nulla se emit() viene chiamato per un evento senza listener", () => {
+  it("should do nothing if emit() is called for an event without listeners", () => {
     expect(() => bus.emit("no-listeners", "data")).not.toThrow();
   });
 
-  it("dovrebbe gestire più listener per lo stesso evento", () => {
+  it("should handle multiple listeners for the same event", () => {
     const cb1 = vi.fn();
     const cb2 = vi.fn();
     bus.on("test", cb1);
@@ -51,7 +51,7 @@ describe("EventBus", () => {
     expect(cb2).toHaveBeenCalledWith("data");
   });
 
-  it("dovrebbe rimuovere un listener con off()", () => {
+  it("should remove a listener with off()", () => {
     const callback = vi.fn();
     bus.on("test", callback);
     bus.off("test", callback);
@@ -59,11 +59,11 @@ describe("EventBus", () => {
     expect(callback).not.toHaveBeenCalled();
   });
 
-  it("non dovrebbe crashare se off() viene chiamato per un evento inesistente", () => {
+  it("should not crash if off() is called for a non-existent event", () => {
     expect(() => bus.off("non-existent", () => {})).not.toThrow();
   });
 
-  it("non dovrebbe fare nulla se off() viene chiamato per un callback non registrato", () => {
+  it("should do nothing if off() is called for an unregistered callback", () => {
     const cb1 = vi.fn();
     const cb2 = vi.fn();
     bus.on("test", cb1);
@@ -73,7 +73,7 @@ describe("EventBus", () => {
     expect(bus._listeners.get("test")).toHaveLength(1);
   });
 
-  it("dovrebbe gestire errori nei callback senza bloccare l'emissione agli altri", () => {
+  it("should handle errors in callbacks without blocking emission to others", () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const cbError = vi.fn(() => { throw new Error("fail"); });
     const cbOk = vi.fn();
@@ -87,14 +87,14 @@ describe("EventBus", () => {
     consoleSpy.mockRestore();
   });
 
-  it("dovrebbe pulire tutti i listener con clear()", () => {
+  it("should clear all listeners with clear()", () => {
     bus.on("a", () => {});
     bus.on("b", () => {});
     bus.clear();
     expect(bus._listeners.size).toBe(0);
   });
 
-  it("dovrebbe avere le costanti degli eventi definite", () => {
+  it("should have event constants defined", () => {
     expect(Events.STATE_CHANGED).toBeDefined();
     expect(Events.CONFIG_CHANGED).toBeDefined();
   });

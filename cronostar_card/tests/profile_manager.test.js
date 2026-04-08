@@ -14,7 +14,7 @@ vi.mock("../src/utils/prefix_utils.js", () => ({
 
 import { ProfileManager } from "../src/managers/profile_manager.js";
 
-// ─── Factory: context minimale ───────────────────────────────────────────────
+// ─── Factory: minimal context ───────────────────────────────────────────────
 function makeContext(overrides = {}) {
   const stateManager = {
     getData: vi.fn().mockReturnValue([{ time: "00:00", value: 20 }, { time: "23:59", value: 20 }]),
@@ -62,15 +62,15 @@ function makeContext(overrides = {}) {
   return { ctx, card, stateManager, selectionManager };
 }
 
-// ─── Costruttore ─────────────────────────────────────────────────────────────
-describe("ProfileManager – costruttore", () => {
-  it("inizializza lastLoadedProfile a stringa vuota", () => {
+// ─── Constructor ─────────────────────────────────────────────────────────────
+describe("ProfileManager – constructor", () => {
+  it("initializes lastLoadedProfile to an empty string", () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
     expect(pm.lastLoadedProfile).toBe("");
   });
 
-  it("inizializza _isLoading a false", () => {
+  it("initializes _isLoading to false", () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
     expect(pm._isLoading).toBe(false);
@@ -91,7 +91,7 @@ describe("ProfileManager – loadProfile", () => {
     vi.restoreAllMocks();
   });
 
-  it("carica un profilo valido e chiama stateManager.setData", async () => {
+  it("loads a valid profile and calls stateManager.setData", async () => {
     ctx.hass.callWS.mockResolvedValueOnce({
       response: { schedule: [{ time: "06:00", value: 20 }], meta: {} },
     });
@@ -100,7 +100,7 @@ describe("ProfileManager – loadProfile", () => {
     expect(pm.lastLoadedProfile).toBe("Day");
   });
 
-  it("usa thermostat come default preset_type se selectedPreset è mancante", async () => {
+  it("uses thermostat as default preset_type if selectedPreset is missing", async () => {
     ctx.selectedPreset = null;
     ctx.hass.callWS.mockResolvedValueOnce({ response: { schedule: [], meta: {} } });
     await pm.loadProfile("Day");
@@ -109,44 +109,44 @@ describe("ProfileManager – loadProfile", () => {
     }));
   });
 
-  it("gestisce responseData senza meta o schedule", async () => {
+  it("handles responseData without meta or schedule", async () => {
     ctx.hass.callWS.mockResolvedValueOnce({ response: {} });
     await pm.loadProfile("Day");
     expect(stateManager.setData).toHaveBeenCalledWith([], true);
   });
 
-  it("ignora nomi di profilo non validi (unavailable, unknown, undefined, vuoto)", async () => {
+  it("ignores invalid profile names (unavailable, unknown, undefined, empty)", async () => {
     for (const name of ["unavailable", "unknown", "undefined", "", null, undefined]) {
       await pm.loadProfile(name);
       expect(ctx.hass.callWS).not.toHaveBeenCalled();
     }
   });
 
-  it("ritorna se già in caricamento (_isLoading)", async () => {
+  it("returns if already loading (_isLoading)", async () => {
     pm._isLoading = true;
     await pm.loadProfile("Day");
     expect(ctx.hass.callWS).not.toHaveBeenCalled();
     pm._isLoading = false;
   });
 
-  it("gestisce errore nella risposta (response.error)", async () => {
+  it("handles error in response (response.error)", async () => {
     ctx.hass.callWS.mockResolvedValueOnce({ response: { error: "Not found" } });
     await expect(pm.loadProfile("Missing")).resolves.toBeUndefined();
     expect(stateManager.setData).not.toHaveBeenCalled();
   });
 
-  it("gestisce risposta nulla (responseData null)", async () => {
+  it("handles null response (responseData null)", async () => {
     ctx.hass.callWS.mockResolvedValueOnce({ response: null });
     await expect(pm.loadProfile("Null")).resolves.toBeUndefined();
   });
 
-  it("rilancia l'errore di rete e reimposta _isLoading", async () => {
+  it("rethrows network error and resets _isLoading", async () => {
     ctx.hass.callWS.mockRejectedValueOnce(new Error("Network error"));
     await expect(pm.loadProfile("Day")).rejects.toThrow("Network error");
     expect(pm._isLoading).toBe(false);
   });
 
-  it("applica i metadati tramite _updateConfigFromMeta", async () => {
+  it("applies metadata via _updateConfigFromMeta", async () => {
     ctx.hass.callWS.mockResolvedValueOnce({
       response: {
         schedule: [],
@@ -157,7 +157,7 @@ describe("ProfileManager – loadProfile", () => {
     expect(ctx._card.language).toBe("it");
   });
 
-  it("emette PROFILE_LOADED dopo il caricamento", async () => {
+  it("emits PROFILE_LOADED after loading", async () => {
     ctx.hass.callWS.mockResolvedValueOnce({ response: { schedule: [], meta: {} } });
     await pm.loadProfile("Day");
     expect(ctx.events.emit).toHaveBeenCalledWith("PROFILE_LOADED", expect.any(Object));
@@ -179,7 +179,7 @@ describe("ProfileManager – saveProfile", () => {
     vi.restoreAllMocks();
   });
 
-  it("salva con il profilo corrente se non specificato", async () => {
+  it("saves with current profile if not specified", async () => {
     await pm.saveProfile();
     expect(ctx.hass.callService).toHaveBeenCalledWith(
       "cronostar",
@@ -188,7 +188,7 @@ describe("ProfileManager – saveProfile", () => {
     );
   });
 
-  it("usa thermostat come default preset_type se selectedPreset è mancante nel salvataggio", async () => {
+  it("uses thermostat as default preset_type if selectedPreset is missing on save", async () => {
     ctx.selectedPreset = null;
     await pm.saveProfile("Day");
     expect(ctx.hass.callService).toHaveBeenCalledWith(
@@ -198,7 +198,7 @@ describe("ProfileManager – saveProfile", () => {
     );
   });
 
-  it("salva con il nome specificato", async () => {
+  it("saves with specified name", async () => {
     await pm.saveProfile("Night");
     expect(ctx.hass.callService).toHaveBeenCalledWith(
       "cronostar",
@@ -207,27 +207,27 @@ describe("ProfileManager – saveProfile", () => {
     );
   });
 
-  it("lancia errore se nessun profilo specificato e lastLoadedProfile è vuoto", async () => {
+  it("throws error if no profile specified and lastLoadedProfile is empty", async () => {
     pm.lastLoadedProfile = "";
     await expect(pm.saveProfile()).rejects.toThrow("No profile specified");
   });
 
-  it("lancia errore se stateManager non disponibile", async () => {
+  it("throws error if stateManager not available", async () => {
     ctx.getManager.mockReturnValue(null);
     await expect(pm.saveProfile("Day")).rejects.toThrow("StateManager not available");
   });
 
-  it("rilancia errori di rete", async () => {
+  it("rethrows network errors", async () => {
     ctx.hass.callService.mockRejectedValueOnce(new Error("Service error"));
     await expect(pm.saveProfile("Day")).rejects.toThrow("Service error");
   });
 
-  it("emette PROFILE_SAVED dopo il salvataggio", async () => {
+  it("emits PROFILE_SAVED after saving", async () => {
     await pm.saveProfile("Day");
     expect(ctx.events.emit).toHaveBeenCalledWith("PROFILE_SAVED", expect.any(Object));
   });
 
-  it("reimposta hasUnsavedChanges a false", async () => {
+  it("resets hasUnsavedChanges to false", async () => {
     ctx.hasUnsavedChanges = true;
     await pm.saveProfile("Day");
     expect(ctx.hasUnsavedChanges).toBe(false);
@@ -250,31 +250,31 @@ describe("ProfileManager – handleProfileSelection", () => {
     vi.restoreAllMocks();
   });
 
-  it("non fa nulla se value è vuoto", async () => {
+  it("does nothing if value is empty", async () => {
     await pm.handleProfileSelection({ target: { value: "" } });
     expect(ctx.hass.callWS).not.toHaveBeenCalled();
   });
 
-  it("non fa nulla se il profilo è già selezionato", async () => {
+  it("does nothing if profile is already selected", async () => {
     ctx.selectedProfile = "Default";
     await pm.handleProfileSelection({ target: { value: "Default" } });
     expect(ctx.hass.callWS).not.toHaveBeenCalled();
   });
 
-  it("mostra il dialog se ci sono modifiche non salvate", async () => {
+  it("shows dialog if there are unsaved changes", async () => {
     ctx.hasUnsavedChanges = true;
     await pm.handleProfileSelection({ target: { value: "Night" } });
     expect(ctx._card.showUnsavedChangesDialog).toBe(true);
     expect(ctx._card.pendingProfileChange).toBe("Night");
   });
 
-  it("carica il nuovo profilo se non ci sono modifiche non salvate", async () => {
+  it("loads new profile if there are no unsaved changes", async () => {
     ctx.hasUnsavedChanges = false;
     await pm.handleProfileSelection({ target: { value: "Night" } });
     expect(pm.lastLoadedProfile).toBe("Night");
   });
 
-  it("usa selectedProfile se lastLoadedProfile è vuoto per il check modifiche", async () => {
+  it("uses selectedProfile if lastLoadedProfile is empty for changes check", async () => {
     pm.lastLoadedProfile = "";
     ctx.selectedProfile = "Default";
     ctx.hasUnsavedChanges = true;
@@ -282,9 +282,9 @@ describe("ProfileManager – handleProfileSelection", () => {
     expect(ctx._card.showUnsavedChangesDialog).toBe(true);
   });
 
-  it("gestisce assenza di selectionManager in handleProfileSelection", async () => {
+  it("handles absence of selectionManager in handleProfileSelection", async () => {
     const { ctx, stateManager } = makeContext();
-    // Non includiamo selectionManager nei manager restituiti
+    // Do not include selectionManager in returned managers
     ctx.getManager.mockImplementation((k) => k === "state" ? stateManager : null);
     const pm = new ProfileManager(ctx);
     pm.lastLoadedProfile = "Default";
@@ -293,26 +293,26 @@ describe("ProfileManager – handleProfileSelection", () => {
     expect(pm.lastLoadedProfile).toBe("Night");
   });
 
-  it("usa event.detail.value se target.value è assente", async () => {
+  it("uses event.detail.value if target.value is absent", async () => {
     ctx.hasUnsavedChanges = false;
     await pm.handleProfileSelection({ detail: { value: "Night" } });
     expect(pm.lastLoadedProfile).toBe("Night");
   });
 
-  it("usa event.detail.item.value come fallback MDC", async () => {
+  it("uses event.detail.item.value as MDC fallback", async () => {
     ctx.hasUnsavedChanges = false;
     await pm.handleProfileSelection({ detail: { item: { value: "Night" } } });
     expect(pm.lastLoadedProfile).toBe("Night");
   });
 
-  it("chiude il menu se è aperto", async () => {
+  it("closes menu if open", async () => {
     ctx._card.isMenuOpen = true;
     ctx.hasUnsavedChanges = false;
     await pm.handleProfileSelection({ target: { value: "Night" } });
     expect(ctx._card.isMenuOpen).toBe(false);
   });
 
-  it("gestisce errori nel loadProfile senza crashing", async () => {
+  it("handles errors in loadProfile without crashing", async () => {
     ctx.hass.callWS.mockRejectedValueOnce(new Error("Load error"));
     ctx.hasUnsavedChanges = false;
     await expect(pm.handleProfileSelection({ target: { value: "Night" } })).resolves.toBeUndefined();
@@ -321,7 +321,7 @@ describe("ProfileManager – handleProfileSelection", () => {
 
 // ─── _showUnsavedDialog ───────────────────────────────────────────────────────
 describe("ProfileManager – _showUnsavedDialog", () => {
-  it("imposta showUnsavedChangesDialog e pendingProfileChange", () => {
+  it("sets showUnsavedChangesDialog and pendingProfileChange", () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
     pm._showUnsavedDialog("Night");
@@ -342,20 +342,20 @@ describe("ProfileManager – _updateProfileSelector", () => {
     vi.restoreAllMocks();
   });
 
-  it("non fa niente se profiles_select_entity è null", () => {
+  it("does nothing if profiles_select_entity is null", () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
     pm._updateProfileSelector("Night");
     expect(ctx.hass.callService).not.toHaveBeenCalled();
   });
 
-  it("chiama callService per aggiornare l'entity", async () => {
+  it("calls callService to update the entity", async () => {
     const { ctx } = makeContext({
       config: { profiles_select_entity: "input_select.profile", global_prefix: "p_" },
     });
     const pm = new ProfileManager(ctx);
     pm._updateProfileSelector("Night");
-    // la promise è fire-and-forget, aspettiamo un tick
+    // promise is fire-and-forget, wait a tick
     await new Promise((r) => setTimeout(r, 0));
     expect(ctx.hass.callService).toHaveBeenCalledWith(
       "input_select",
@@ -364,7 +364,7 @@ describe("ProfileManager – _updateProfileSelector", () => {
     );
   });
 
-  it("usa input_select come default domain se l'entity non ha domain", async () => {
+  it("uses input_select as default domain if entity has no domain", async () => {
     const { ctx } = makeContext({
       config: { profiles_select_entity: ".nopointentity", global_prefix: "p_" },
     });
@@ -378,7 +378,7 @@ describe("ProfileManager – _updateProfileSelector", () => {
     );
   });
 
-  it("gestisce errori di callService senza crashing", async () => {
+  it("handles callService errors without crashing", async () => {
     const { ctx } = makeContext({
       config: { profiles_select_entity: "input_select.profile", global_prefix: "p_" },
     });
@@ -395,7 +395,7 @@ describe("ProfileManager – _updateProfileSelector", () => {
 
 // ─── _buildSchedulePayload ────────────────────────────────────────────────────
 describe("ProfileManager – _buildSchedulePayload", () => {
-  it("normalizza e ordina i punti", () => {
+  it("normalizes and sorts points", () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
     const result = pm._buildSchedulePayload([
@@ -406,7 +406,7 @@ describe("ProfileManager – _buildSchedulePayload", () => {
     expect(result[1].time).toBe("12:00");
   });
 
-  it("filtra i punti con time non valido", () => {
+  it("filters points with invalid time", () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
     const result = pm._buildSchedulePayload([
@@ -417,7 +417,7 @@ describe("ProfileManager – _buildSchedulePayload", () => {
     expect(result[0].time).toBe("06:00");
   });
 
-  it("filtra valori non finiti", () => {
+  it("filters non-finite values", () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
     const result = pm._buildSchedulePayload([
@@ -427,7 +427,7 @@ describe("ProfileManager – _buildSchedulePayload", () => {
     expect(result.some((p) => p.time === "06:00")).toBe(false);
   });
 
-  it("converte i valori a Number", () => {
+  it("converts values to Number", () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
     const result = pm._buildSchedulePayload([{ time: "06:00", value: "22.5" }]);
@@ -437,21 +437,21 @@ describe("ProfileManager – _buildSchedulePayload", () => {
 
 // ─── _buildMetaPayload ────────────────────────────────────────────────────────
 describe("ProfileManager – _buildMetaPayload", () => {
-  it("ritorna un oggetto con global_prefix", () => {
+  it("returns an object with global_prefix", () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
     const meta = pm._buildMetaPayload();
     expect(meta.global_prefix).toBeDefined();
   });
 
-  it("ritorna un oggetto con global_prefix anche se non presente in config", () => {
+  it("returns an object with global_prefix even if missing in config", () => {
     const { ctx } = makeContext({ config: { global_prefix: null } });
     const pm = new ProfileManager(ctx);
     const meta = pm._buildMetaPayload();
-    expect(meta.global_prefix).toBe("cronostar_thermostat_test_"); // valore dal mock getEffectivePrefix
+    expect(meta.global_prefix).toBe("cronostar_thermostat_test_"); // value from mock getEffectivePrefix
   });
 
-  it("rimuove le chiavi deprecate (entity_prefix, step)", () => {
+  it("removes deprecated keys (entity_prefix, step)", () => {
     const { ctx } = makeContext({
       config: { global_prefix: "p_", entity_prefix: "old_", step: 0.5 },
     });
@@ -461,7 +461,7 @@ describe("ProfileManager – _buildMetaPayload", () => {
     expect(meta.step).toBeUndefined();
   });
 
-  it("include la language dal card", () => {
+  it("includes language from card", () => {
     const { ctx, card } = makeContext();
     card.language = "it";
     const pm = new ProfileManager(ctx);
@@ -469,7 +469,7 @@ describe("ProfileManager – _buildMetaPayload", () => {
     expect(meta.language).toBe("it");
   });
 
-  it("include la language da config.meta.language se card non la ha", () => {
+  it("includes language from config.meta.language if card lacks it", () => {
     const { ctx, card } = makeContext();
     card.language = null;
     ctx.config.meta = { language: "de" };
@@ -478,7 +478,7 @@ describe("ProfileManager – _buildMetaPayload", () => {
     expect(meta.language).toBe("de");
   });
 
-  it("include la language da config.language come fallback", () => {
+  it("includes language from config.language as fallback", () => {
     const { ctx, card } = makeContext();
     card.language = null;
     ctx.config.meta = null;
@@ -488,7 +488,7 @@ describe("ProfileManager – _buildMetaPayload", () => {
     expect(meta.language).toBe("fr");
   });
 
-  it("include entities come array filtrato", () => {
+  it("includes entities as filtered array", () => {
     const { ctx } = makeContext({
       config: {
         global_prefix: "p_",
@@ -504,16 +504,16 @@ describe("ProfileManager – _buildMetaPayload", () => {
     expect(meta.entities).not.toContain(null);
   });
 
-  it("gestisce config null in _buildMetaPayload", () => {
+  it("handles null config in _buildMetaPayload", () => {
     const { ctx } = makeContext();
     ctx.config = null;
     const pm = new ProfileManager(ctx);
     expect(() => pm._buildMetaPayload()).not.toThrow();
   });
 
-  it("gestisce eccezioni nel recupero della language silenziosamente", () => {
+  it("handles language retrieval exceptions silently", () => {
     const { ctx } = makeContext();
-    // Forza un errore nel getter
+    // Force an error in the getter
     Object.defineProperty(ctx._card, "language", {
       get() { throw new Error("oops"); },
       configurable: true,
@@ -525,7 +525,7 @@ describe("ProfileManager – _buildMetaPayload", () => {
 
 // ─── _updateConfigFromMeta ────────────────────────────────────────────────────
 describe("ProfileManager – _updateConfigFromMeta", () => {
-  it("applica le chiavi valide alla config del card", () => {
+  it("applies valid keys to card config", () => {
     const { ctx, card } = makeContext();
     card.config = { ...ctx.config };
     const pm = new ProfileManager(ctx);
@@ -533,7 +533,7 @@ describe("ProfileManager – _updateConfigFromMeta", () => {
     expect(card.config.title).toBe("My Card");
   });
 
-  it("non fa nulla per meta null/undefined/non-object", () => {
+  it("does nothing for null/undefined/non-object meta", () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
     expect(() => pm._updateConfigFromMeta(null)).not.toThrow();
@@ -541,7 +541,7 @@ describe("ProfileManager – _updateConfigFromMeta", () => {
     expect(() => pm._updateConfigFromMeta("string")).not.toThrow();
   });
 
-  it("applica la language dal meta al card", () => {
+  it("applies language from meta to card", () => {
     const { ctx, card } = makeContext();
     card.config = { ...ctx.config };
     const pm = new ProfileManager(ctx);
@@ -550,9 +550,9 @@ describe("ProfileManager – _updateConfigFromMeta", () => {
     expect(card.languageInitialized).toBe(true);
   });
 
-  it("gestisce errori nell'applicazione della language", () => {
+  it("handles errors when applying language", () => {
     const { ctx, card } = makeContext();
-    // Simula un errore nel setter
+    // Simulate error in setter
     Object.defineProperty(card, "language", {
       set() { throw new Error("oops"); },
       get() { return "en"; },
@@ -562,7 +562,7 @@ describe("ProfileManager – _updateConfigFromMeta", () => {
     expect(() => pm._updateConfigFromMeta({ language: "it" })).not.toThrow();
   });
 
-  it("non applica aggiornamenti se nessuna chiave valida presente", () => {
+  it("does not apply updates if no valid key is present", () => {
     const { ctx, card } = makeContext();
     const originalConfig = { ...card.config };
     const pm = new ProfileManager(ctx);
@@ -582,7 +582,7 @@ describe("ProfileManager – resetChanges", () => {
     vi.restoreAllMocks();
   });
 
-  it("ricarica il profilo corrente", async () => {
+  it("reloads current profile", async () => {
     const { ctx } = makeContext();
     ctx.hass.callWS.mockResolvedValue({ response: { schedule: [], meta: {} } });
     const pm = new ProfileManager(ctx);
@@ -591,7 +591,7 @@ describe("ProfileManager – resetChanges", () => {
     expect(ctx.hass.callWS).toHaveBeenCalled();
   });
 
-  it("non fa nulla se non c'è nessun profilo", async () => {
+  it("does nothing if no profile is active", async () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
     pm.lastLoadedProfile = "";
@@ -600,7 +600,7 @@ describe("ProfileManager – resetChanges", () => {
     expect(ctx.hass.callWS).not.toHaveBeenCalled();
   });
 
-  it("usa selectedProfile se lastLoadedProfile è vuoto", async () => {
+  it("uses selectedProfile if lastLoadedProfile is empty", async () => {
     const { ctx } = makeContext();
     ctx.hass.callWS.mockResolvedValue({ response: { schedule: [], meta: {} } });
     ctx.selectedProfile = "Night";
@@ -610,7 +610,7 @@ describe("ProfileManager – resetChanges", () => {
     expect(ctx.hass.callWS).toHaveBeenCalled();
   });
 
-  it("gestisce errori nel loadProfile senza crashing", async () => {
+  it("handles loadProfile errors without crashing", async () => {
     const { ctx } = makeContext();
     ctx.hass.callWS.mockRejectedValueOnce(new Error("error"));
     const pm = new ProfileManager(ctx);
@@ -618,7 +618,7 @@ describe("ProfileManager – resetChanges", () => {
     await expect(pm.resetChanges()).resolves.toBeUndefined();
   });
 
-  it("chiama snapshotSelection e restoreSelection se disponibili", async () => {
+  it("calls snapshotSelection and restoreSelection if available", async () => {
     const { ctx, selectionManager } = makeContext();
     ctx.hass.callWS.mockResolvedValue({ response: { schedule: [], meta: {} } });
     const pm = new ProfileManager(ctx);
@@ -628,7 +628,7 @@ describe("ProfileManager – resetChanges", () => {
     expect(selectionManager.restoreSelection).toHaveBeenCalled();
   });
 
-  it("gestisce assenza di selectionManager in resetChanges", async () => {
+  it("handles absence of selectionManager in resetChanges", async () => {
     const { ctx, stateManager } = makeContext();
     ctx.getManager.mockImplementation((k) => k === "state" ? stateManager : null);
     ctx.hass.callWS.mockResolvedValue({ response: { schedule: [], meta: {} } });
@@ -641,13 +641,13 @@ describe("ProfileManager – resetChanges", () => {
 
 // ─── destroy ─────────────────────────────────────────────────────────────────
 describe("ProfileManager – destroy", () => {
-  it("non lancia errori", () => {
+  it("does not throw errors", () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
     expect(() => pm.destroy()).not.toThrow();
   });
 
-  it("cancella l'autoSaveTimer se presente", () => {
+  it("clears autoSaveTimer if present", () => {
     const { ctx } = makeContext();
     const pm = new ProfileManager(ctx);
     pm._autoSaveTimer = setTimeout(() => {}, 10000);

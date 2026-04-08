@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 
-// logger_utils è importato da config.js a livello di modulo; lo mocchiamo prima
+// logger_utils is imported from config.js at module level; we mock it first
 vi.mock("../src/utils/logger_utils.js", () => ({ log: vi.fn() }));
 
 import {
@@ -19,20 +19,20 @@ import {
 
 // ─── VERSION ─────────────────────────────────────────────────────────────────
 describe("VERSION", () => {
-  it("è una stringa", () => expect(typeof VERSION).toBe("string"));
-  it('fa fallback a "0.0.0" se window.CRONOSTAR_CARD_VERSION non è definita', () => {
-    // window.CRONOSTAR_CARD_VERSION è undefined in jsdom → "0.0.0"
+  it("is a string", () => expect(typeof VERSION).toBe("string"));
+  it('falls back to "0.0.0" if window.CRONOSTAR_CARD_VERSION is not defined', () => {
+    // window.CRONOSTAR_CARD_VERSION is undefined in jsdom → "0.0.0"
     expect(VERSION).toBe("0.0.0");
   });
 });
 
 // ─── COLORS ──────────────────────────────────────────────────────────────────
 describe("COLORS", () => {
-  it("ha un colore primario", () => expect(COLORS.primary).toBe("#03a9f4"));
-  it("ha il colore selected", () => expect(COLORS.selected).toBeDefined());
-  it("ha il colore anchor", () => expect(COLORS.anchor).toBeDefined());
-  it("ha primaryLight", () => expect(COLORS.primaryLight).toBeDefined());
-  it("ha max_value e max_value_border", () => {
+  it("has a primary color", () => expect(COLORS.primary).toBe("#03a9f4"));
+  it("has the selected color", () => expect(COLORS.selected).toBeDefined());
+  it("has the anchor color", () => expect(COLORS.anchor).toBeDefined());
+  it("has primaryLight", () => expect(COLORS.primaryLight).toBeDefined());
+  it("has max_value and max_value_border", () => {
     expect(COLORS.max_value).toBeDefined();
     expect(COLORS.max_value_border).toBeDefined();
   });
@@ -40,7 +40,7 @@ describe("COLORS", () => {
 
 // ─── CARD_CONFIG_PRESETS ──────────────────────────────────────────────────────
 describe("CARD_CONFIG_PRESETS", () => {
-  it("ha esattamente 5 preset", () => {
+  it("has exactly 5 presets", () => {
     expect(Object.keys(CARD_CONFIG_PRESETS)).toHaveLength(5);
   });
 
@@ -57,7 +57,7 @@ describe("CARD_CONFIG_PRESETS", () => {
     expect(CARD_CONFIG_PRESETS.generic_switch.is_switch_preset).toBe(true);
   });
 
-  it("tutti i preset hanno i campi obbligatori", () => {
+  it("all presets have required fields", () => {
     const required = ["title", "y_axis_label", "unit_of_measurement", "min_value", "max_value", "step_value"];
     for (const preset of Object.values(CARD_CONFIG_PRESETS)) {
       for (const key of required) {
@@ -69,136 +69,136 @@ describe("CARD_CONFIG_PRESETS", () => {
 
 // ─── DEFAULT_CONFIG ───────────────────────────────────────────────────────────
 describe("DEFAULT_CONFIG", () => {
-  it("ha not_configured: true", () => expect(DEFAULT_CONFIG.not_configured).toBe(true));
-  it("ha il tipo corretto", () => expect(DEFAULT_CONFIG.type).toBe("custom:cronostar-card"));
-  it("ha il preset type di default", () => expect(DEFAULT_CONFIG.preset_type).toBe("thermostat"));
+  it("has not_configured: true", () => expect(DEFAULT_CONFIG.not_configured).toBe(true));
+  it("has the correct type", () => expect(DEFAULT_CONFIG.type).toBe("custom:cronostar-card"));
+  it("has the default preset type", () => expect(DEFAULT_CONFIG.preset_type).toBe("thermostat"));
 });
 
 // ─── CHART_DEFAULTS ───────────────────────────────────────────────────────────
 describe("CHART_DEFAULTS", () => {
-  it("ha il raggio del punto", () => expect(CHART_DEFAULTS.pointRadius).toBeDefined());
-  it("ha il borderWidth", () => expect(CHART_DEFAULTS.borderWidth).toBeDefined());
+  it("has the point radius", () => expect(CHART_DEFAULTS.pointRadius).toBeDefined());
+  it("has the borderWidth", () => expect(CHART_DEFAULTS.borderWidth).toBeDefined());
 });
 
 // ─── TIMEOUTS ─────────────────────────────────────────────────────────────────
 describe("TIMEOUTS", () => {
-  it("ha entityStateWait", () => expect(typeof TIMEOUTS.entityStateWait).toBe("number"));
-  it("ha automationSuppression", () => expect(typeof TIMEOUTS.automationSuppression).toBe("number"));
+  it("has entityStateWait", () => expect(typeof TIMEOUTS.entityStateWait).toBe("number"));
+  it("has automationSuppression", () => expect(typeof TIMEOUTS.automationSuppression).toBe("number"));
 });
 
 // ─── normalizeHourBase ────────────────────────────────────────────────────────
 describe("normalizeHourBase", () => {
-  // Numeri
-  it("numero 0 → { value:0, determined:true }", () =>
+  // Numbers
+  it("number 0 → { value:0, determined:true }", () =>
     expect(normalizeHourBase(0)).toEqual({ value: 0, determined: true }));
-  it("numero 1 → { value:1, determined:true }", () =>
+  it("number 1 → { value:1, determined:true }", () =>
     expect(normalizeHourBase(1)).toEqual({ value: 1, determined: true }));
 
-  // Stringhe → 0
-  it('"0" → determinato 0', () => expect(normalizeHourBase("0")).toEqual({ value: 0, determined: true }));
-  it('"zero" → determinato 0', () => expect(normalizeHourBase("zero")).toEqual({ value: 0, determined: true }));
-  it('"00" → determinato 0', () => expect(normalizeHourBase("00")).toEqual({ value: 0, determined: true }));
+  // Strings → 0
+  it('"0" → determined 0', () => expect(normalizeHourBase("0")).toEqual({ value: 0, determined: true }));
+  it('"zero" → determined 0', () => expect(normalizeHourBase("zero")).toEqual({ value: 0, determined: true }));
+  it('"00" → determined 0', () => expect(normalizeHourBase("00")).toEqual({ value: 0, determined: true }));
 
-  // Stringhe → 1
-  it('"1" → determinato 1', () => expect(normalizeHourBase("1")).toEqual({ value: 1, determined: true }));
-  it('"one" → determinato 1', () => expect(normalizeHourBase("one")).toEqual({ value: 1, determined: true }));
-  it('"01" → determinato 1', () => expect(normalizeHourBase("01")).toEqual({ value: 1, determined: true }));
+  // Strings → 1
+  it('"1" → determined 1', () => expect(normalizeHourBase("1")).toEqual({ value: 1, determined: true }));
+  it('"one" → determined 1', () => expect(normalizeHourBase("one")).toEqual({ value: 1, determined: true }));
+  it('"01" → determined 1', () => expect(normalizeHourBase("01")).toEqual({ value: 1, determined: true }));
 
-  // Stringa sconosciuta
-  it('"auto" → non determinato', () => expect(normalizeHourBase("auto")).toEqual({ value: 0, determined: false }));
-  it('"blah" → non determinato', () => expect(normalizeHourBase("blah")).toEqual({ value: 0, determined: false }));
+  // Unknown string
+  it('"auto" → not determined', () => expect(normalizeHourBase("auto")).toEqual({ value: 0, determined: false }));
+  it('"blah" → not determined', () => expect(normalizeHourBase("blah")).toEqual({ value: 0, determined: false }));
 
-  // Non stringa né 0/1
-  it("undefined → non determinato", () => expect(normalizeHourBase(undefined)).toEqual({ value: 0, determined: false }));
-  it("null → non determinato", () => expect(normalizeHourBase(null)).toEqual({ value: 0, determined: false }));
-  it("stringa con spazi → trim applicato", () => expect(normalizeHourBase("  1  ")).toEqual({ value: 1, determined: true }));
+  // Not a string nor 0/1
+  it("undefined → not determined", () => expect(normalizeHourBase(undefined)).toEqual({ value: 0, determined: false }));
+  it("null → not determined", () => expect(normalizeHourBase(null)).toEqual({ value: 0, determined: false }));
+  it("string with spaces → trim applied", () => expect(normalizeHourBase("  1  ")).toEqual({ value: 1, determined: true }));
 });
 
 // ─── validateConfig ───────────────────────────────────────────────────────────
 describe("validateConfig", () => {
-  it("applica il preset thermostat di default", () => {
+  it("applies the default thermostat preset", () => {
     const r = validateConfig({ type: "custom:cronostar-card" });
     expect(r.preset_type).toBe("thermostat");
   });
 
-  it("gestisce config undefined senza errori", () => {
+  it("handles undefined config without errors", () => {
     const r = validateConfig(undefined);
     expect(r.type).toBe("custom:cronostar-card");
     expect(r.preset_type).toBe("thermostat");
   });
 
-  it("migra la chiave legacy 'preset' → 'preset_type'", () => {
+  it("migrates legacy 'preset' key → 'preset_type'", () => {
     const r = validateConfig({ preset: "thermostat", global_prefix: "p_", target_entity: "c.x" });
     expect(r.preset_type).toBe("thermostat");
     expect(r.preset).toBeUndefined();
   });
 
-  it("inferisce preset_type dal global_prefix", () => {
+  it("infers preset_type from global_prefix", () => {
     const r = validateConfig({ global_prefix: "cronostar_ev_charging_test_", target_entity: "c.x" });
     expect(r.preset_type).toBe("ev_charging");
   });
 
-  it("non inferisce il preset se il prefix non corrisponde", () => {
+  it("does not infer preset if prefix does not match", () => {
     const r = validateConfig({ global_prefix: "something_unknown_" });
-    expect(r.preset_type).toBe("thermostat"); // fallback default
+    expect(r.preset_type).toBe("thermostat"); // default fallback
   });
 
-  it("non_configured = false se ha prefix + entity", () => {
+  it("non_configured = false if it has prefix + entity", () => {
     const r = validateConfig({ global_prefix: "pfx_", target_entity: "climate.x" });
     expect(r.not_configured).toBe(false);
   });
 
-  it("not_configured rimane true se non c'è entity", () => {
+  it("not_configured remains true if there is no entity", () => {
     const r = validateConfig({ not_configured: true });
     expect(r.not_configured).toBe(true);
   });
 
-  it("preserva l'oggetto meta", () => {
+  it("preserves the meta object", () => {
     const r = validateConfig({ meta: { language: "it" } });
     expect(r.meta.language).toBe("it");
   });
 
-  it("normalizza hour_base stringa", () => {
+  it("normalizes hour_base string", () => {
     const r = validateConfig({ hour_base: "1" });
     expect(r.hour_base).toEqual({ value: 1, determined: true });
   });
 
-  it("auto-genera global_prefix se mancante", () => {
+  it("auto-generates global_prefix if missing", () => {
     const r = validateConfig({ preset_type: "generic_switch" });
     expect(r.global_prefix).toBe("cronostar_generic_switch_");
   });
 
-  it("auto-genera global_prefix per preset sconosciuto", () => {
+  it("auto-generates global_prefix for unknown preset", () => {
     const r = validateConfig({ preset_type: "custom_preset" });
     expect(r.global_prefix).toBe("cronostar_custom_preset_");
   });
 
-  it("preserva type dalla config originale", () => {
+  it("preserves type from original config", () => {
     const r = validateConfig({ type: "custom:cronostar-card" });
     expect(r.type).toBe("custom:cronostar-card");
   });
 
-  it("usa il preset ev_charging correttamente", () => {
+  it("uses ev_charging preset correctly", () => {
     const r = validateConfig({ preset_type: "ev_charging", global_prefix: "p_", target_entity: "e.x" });
     expect(r.allow_max_value).toBe(true);
   });
 
-  it("usa il preset generic_kwh", () => {
+  it("uses generic_kwh preset", () => {
     const r = validateConfig({ preset_type: "generic_kwh" });
     expect(r.unit_of_measurement).toBe("kWh");
   });
 
-  it("usa il preset generic_temperature", () => {
+  it("uses generic_temperature preset", () => {
     const r = validateConfig({ preset_type: "generic_temperature" });
     expect(r.unit_of_measurement).toBe("°C");
   });
 
-  it("usa il preset generic_switch", () => {
+  it("uses generic_switch preset", () => {
     const r = validateConfig({ preset_type: "generic_switch" });
     expect(r.is_switch_preset).toBe(true);
   });
 
-  it("accetta preview: true senza errori", () => {
+  it("accepts preview: true without errors", () => {
     const r = validateConfig({ preview: true });
     expect(r.preview).toBe(true);
   });
@@ -206,11 +206,11 @@ describe("validateConfig", () => {
 
 // ─── getStubConfig ────────────────────────────────────────────────────────────
 describe("getStubConfig", () => {
-  it("ritorna un oggetto con not_configured: true", () => {
+  it("returns an object with not_configured: true", () => {
     expect(getStubConfig().not_configured).toBe(true);
   });
 
-  it("ritorna una copia indipendente da DEFAULT_CONFIG", () => {
+  it("returns a copy independent of DEFAULT_CONFIG", () => {
     const stub = getStubConfig();
     stub.extra = "x";
     expect(DEFAULT_CONFIG.extra).toBeUndefined();
@@ -219,42 +219,42 @@ describe("getStubConfig", () => {
 
 // ─── extractCardConfig ────────────────────────────────────────────────────────
 describe("extractCardConfig", () => {
-  it("lancia errore se trova la chiave 'preset' deprecata", () => {
+  it("throws an error if it finds the deprecated 'preset' key", () => {
     expect(() => extractCardConfig({ preset: "thermostat", global_prefix: "p_" })).toThrow();
   });
 
-  it("lancia errore se trova 'preset' con global_prefix mancante (branch coverage)", () => {
+  it("throws an error if it finds 'preset' with missing global_prefix (branch coverage)", () => {
     expect(() => extractCardConfig({ preset: "thermostat" })).toThrow(/cronostar_thermostat_prefix_data.json/);
   });
 
-  it("lancia errore se trova 'preset' con global_prefix pieno di underscore", () => {
+  it("throws an error if it finds 'preset' with global_prefix full of underscores", () => {
     expect(() => extractCardConfig({ preset: "thermostat", global_prefix: "p___" })).toThrow(/cronostar_thermostat_p_data.json/);
   });
 
-  it("filtra chiavi non valide", () => {
+  it("filters invalid keys", () => {
     const r = extractCardConfig({ global_prefix: "p_", unknown_key: "x", hack: true });
     expect(r.unknown_key).toBeUndefined();
     expect(r.hack).toBeUndefined();
     expect(r.global_prefix).toBe("p_");
   });
 
-  it("aggiunge type di default se assente in src", () => {
+  it("adds default type if absent in src", () => {
     const r = extractCardConfig({ global_prefix: "p_" });
     expect(r.type).toBe("custom:cronostar-card");
   });
 
-  it("non sovrascrive type se già presente", () => {
+  it("does not overwrite type if already present", () => {
     const r = extractCardConfig({ type: "custom:other", global_prefix: "p_" });
     expect(r.type).toBe("custom:other");
   });
 
-  it("salta valori null/undefined", () => {
+  it("skips null/undefined values", () => {
     const r = extractCardConfig({ global_prefix: null, target_entity: undefined });
     expect(r.global_prefix).toBeUndefined();
     expect(r.target_entity).toBeUndefined();
   });
 
-  it("include tutte le chiavi valide se presenti", () => {
+  it("includes all valid keys if present", () => {
     const src = {
       type: "custom:cronostar-card",
       preset_type: "thermostat",
@@ -289,7 +289,7 @@ describe("extractCardConfig", () => {
     expect(r.kb_ctrl_h).toBe(1);
   });
 
-  it("funziona con oggetto vuoto (ritorna solo type default)", () => {
+  it("works with an empty object (returns only default type)", () => {
     const r = extractCardConfig({});
     expect(r.type).toBe("custom:cronostar-card");
   });

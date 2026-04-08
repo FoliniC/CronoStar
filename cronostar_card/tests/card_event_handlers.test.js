@@ -44,7 +44,15 @@ describe("CardEventHandlers", () => {
         callWS: vi.fn().mockResolvedValue({ response: {} }),
         states: {},
       },
-      localizationManager: { localize: vi.fn((l, k) => k) },
+      localizationManager: {
+        localize: vi.fn((lang, key) => {
+          if (lang === "it" && key === "help.title") return "Aiuto CronoStar";
+          if (key === "help.copy_technical_details_button")
+            return "📋 Copy technical details";
+          if (key === "notify.language_saved") return "Language saved";
+          return key;
+        }),
+      },
       chartManager: {
         updateChartLabels: vi.fn(),
         isInitialized: vi.fn(() => false),
@@ -89,6 +97,7 @@ describe("CardEventHandlers", () => {
       entityStates: {},
     };
     handlers = new CardEventHandlers(card);
+    validateConfig.mockClear();
     vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -98,7 +107,7 @@ describe("CardEventHandlers", () => {
     vi.unstubAllGlobals();
   });
 
-  it("toggleMenu dovrebbe invertire lo stato del menu", () => {
+  it("toggleMenu should toggle the menu state", () => {
     handlers.toggleMenu();
     expect(card.isMenuOpen).toBe(true);
     expect(card.keyboardHandler.disable).toHaveBeenCalled();
@@ -161,7 +170,7 @@ describe("CardEventHandlers", () => {
     expect(focus).not.toHaveBeenCalled();
   });
 
-  it("handleLanguageSelect dovrebbe aggiornare la lingua e chiamare il servizio save_profile", async () => {
+  it("handleLanguageSelect should update the language and call the save_profile service", async () => {
     await handlers.handleLanguageSelect("it");
     expect(card.language).toBe("it");
     expect(card.config.meta.language).toBe("it");
@@ -185,7 +194,7 @@ describe("CardEventHandlers", () => {
       expect.objectContaining({
         profile_name: "Default",
         preset_type: "thermostat",
-        global_prefix: "",
+        global_prefix: "p_",
       }),
     );
   });
@@ -206,7 +215,7 @@ describe("CardEventHandlers", () => {
     );
   });
 
-  it("handleLoggingToggle dovrebbe aggiornare lo stato dei log", async () => {
+  it("handleLoggingToggle should update the logs state", async () => {
     const event = {
       stopPropagation: vi.fn(),
       preventDefault: vi.fn(),
@@ -217,7 +226,7 @@ describe("CardEventHandlers", () => {
     expect(card.isMenuOpen).toBe(false);
   });
 
-  it("showNotification dovrebbe chiamare il servizio persistent_notification", () => {
+  it("showNotification should call the persistent_notification service", () => {
     handlers.showNotification("test msg", "success");
     expect(card.hass.callService).toHaveBeenCalledWith(
       "persistent_notification",
@@ -238,7 +247,7 @@ describe("CardEventHandlers", () => {
     expect(() => handlers.showNotification("x")).not.toThrow();
   });
 
-  it("handleCardClick dovrebbe chiudere il menu se aperto", () => {
+  it("handleCardClick should close the menu if open", () => {
     card.isMenuOpen = true;
     const event = {
       target: { closest: vi.fn(() => false) },
@@ -248,7 +257,7 @@ describe("CardEventHandlers", () => {
   });
 
   describe("handlePresetChange", () => {
-    it("dovrebbe cambiare preset e ricaricare opzioni chart", async () => {
+    it("should change preset and reload chart options", async () => {
       const event = {
         stopPropagation: vi.fn(),
         preventDefault: vi.fn(),
@@ -281,7 +290,7 @@ describe("CardEventHandlers", () => {
       expect(card.selectedPreset).toBe("generic_switch");
     });
 
-    it("non dovrebbe fare nulla se il preset è uguale", async () => {
+    it("should do nothing if the preset is the same", async () => {
       const event = {
         stopPropagation: vi.fn(),
         preventDefault: vi.fn(),
@@ -329,7 +338,7 @@ describe("CardEventHandlers", () => {
     });
   });
 
-  it("handleSelectAll dovrebbe selezionare tutto e aggiornare stile", () => {
+  it("handleSelectAll should select all and update styling", () => {
     handlers.handleSelectAll();
     expect(card.selectionManager.selectAll).toHaveBeenCalled();
     expect(card.chartManager.updatePointStyling).toHaveBeenCalled();
@@ -350,20 +359,20 @@ describe("CardEventHandlers", () => {
     expect(focus).toHaveBeenCalled();
   });
 
-  it("handleAlignLeft dovrebbe chiamare stateManager.alignSelectedPoints", () => {
+  it("handleAlignLeft should call stateManager.alignSelectedPoints", () => {
     handlers.handleAlignLeft();
     expect(card.stateManager.alignSelectedPoints).toHaveBeenCalledWith("left");
     expect(card.isMenuOpen).toBe(false);
   });
 
-  it("handleAlignRight dovrebbe chiamare stateManager.alignSelectedPoints", () => {
+  it("handleAlignRight should call stateManager.alignSelectedPoints", () => {
     handlers.handleAlignRight();
     expect(card.stateManager.alignSelectedPoints).toHaveBeenCalledWith("right");
     expect(card.isMenuOpen).toBe(false);
   });
 
   describe("toggleEnabled", () => {
-    it("dovrebbe chiamare il servizio turn_on quando checked è true", async () => {
+    it("should call turn_on service when checked is true", async () => {
       const event = { target: { checked: true } };
       card.config = { enabled_entity: "switch.test" };
 
@@ -375,7 +384,7 @@ describe("CardEventHandlers", () => {
       expect(card.isEnabled).toBe(true);
     });
 
-    it("dovrebbe chiamare il servizio turn_off quando checked è false", async () => {
+    it("should call turn_off service when checked is false", async () => {
       const event = { target: { checked: false } };
       card.config = { enabled_entity: "switch.test" };
 
@@ -408,7 +417,7 @@ describe("CardEventHandlers", () => {
   });
 
   describe("handleApplyNow", () => {
-    it("dovrebbe chiamare save_profile e apply_now", async () => {
+    it("should call save_profile and apply_now", async () => {
       card.config = { target_entity: "climate.test", global_prefix: "p_" };
       card.stateManager.getData.mockReturnValue([{ time: "00:00", value: 20 }]);
 
@@ -427,7 +436,7 @@ describe("CardEventHandlers", () => {
       expect(card.hasUnsavedChanges).toBe(false);
     });
 
-    it("dovrebbe mostrare errore se hass manca", async () => {
+    it("should show error if hass is missing", async () => {
       card.hass = null;
       const showNotificationSpy = vi.spyOn(handlers, "showNotification");
       await handlers.handleApplyNow();
@@ -437,7 +446,7 @@ describe("CardEventHandlers", () => {
       );
     });
 
-    it("dovrebbe mostrare errore se backend non è pronto", async () => {
+    it("should show error if backend is not ready", async () => {
       card.cronostarReady = false;
       const showNotificationSpy = vi.spyOn(handlers, "showNotification");
 
@@ -449,7 +458,7 @@ describe("CardEventHandlers", () => {
       );
     });
 
-    it("dovrebbe mostrare errore se target_entity non è configurata", async () => {
+    it("should show error if target_entity is not configured", async () => {
       card.config = { target_entity: null };
       const showNotificationSpy = vi.spyOn(handlers, "showNotification");
 
@@ -518,7 +527,7 @@ describe("CardEventHandlers", () => {
   });
 
   describe("handleAddProfile", () => {
-    it("dovrebbe chiamare add_profile e aggiornare UI", async () => {
+    it("should call add_profile and update UI", async () => {
       vi.spyOn(handlers, "_openAddProfileDialog").mockResolvedValue("NewProfile");
       card.config = {
         global_prefix: "p_",
@@ -625,7 +634,7 @@ describe("CardEventHandlers", () => {
   });
 
   describe("handleDeleteProfile", () => {
-    it("dovrebbe chiamare delete_profile e aggiornare UI", async () => {
+    it("should call delete_profile and update UI", async () => {
       vi.stubGlobal("confirm", vi.fn(() => true));
       card.selectedProfile = "ToDelete";
       card.profileOptions = ["ToDelete", "Default"];
@@ -714,7 +723,7 @@ describe("CardEventHandlers", () => {
     });
   });
 
-  it("handleHelp dovrebbe creare un overlay nel DOM", () => {
+  it("handleHelp should create an overlay in the DOM", () => {
     const appendChildSpy = vi.spyOn(document.body, "appendChild");
     handlers.handleHelp();
     expect(appendChildSpy).toHaveBeenCalled();
@@ -748,7 +757,7 @@ describe("CardEventHandlers", () => {
     expect(document.body.textContent).toContain("Aiuto CronoStar");
   });
 
-  it("handleDeleteSelected dovrebbe cancellare i punti selezionati", () => {
+  it("handleDeleteSelected should delete selected points", () => {
     card.selectionManager.getSelectedPoints = vi.fn(() => [1, 2]);
     card.stateManager.getNumPoints = vi.fn(() => 10);
     card.chartManager.isInitialized.mockReturnValue(true);
@@ -759,7 +768,7 @@ describe("CardEventHandlers", () => {
     expect(card.selectionManager.clearSelection).toHaveBeenCalled();
   });
 
-  it("handleDeleteSelected non dovrebbe cancellare i punti di confine", () => {
+  it("handleDeleteSelected should not delete boundary points", () => {
     card.selectionManager.getSelectedPoints = vi.fn(() => [0, 9]);
     card.stateManager.getNumPoints = vi.fn(() => 10);
 
@@ -774,7 +783,7 @@ describe("CardEventHandlers", () => {
     expect(card.contextMenu.show).toBe(false);
   });
 
-  it("handleCopyJson dovrebbe copiare il JSON negli appunti", async () => {
+  it("handleCopyJson should copy JSON to clipboard", async () => {
     card.stateManager.getData.mockReturnValue([{ time: "00:00", value: 20 }]);
 
     await handlers.handleCopyJson();
@@ -805,7 +814,7 @@ describe("CardEventHandlers", () => {
     expect(spy).toHaveBeenCalledWith("Failed to copy JSON", "error");
   });
 
-  it("handleDeleteProfile dovrebbe gestire la cancellazione confermata", async () => {
+  it("handleDeleteProfile should handle confirmed deletion", async () => {
     vi.stubGlobal("confirm", vi.fn(() => true));
     card.selectedProfile = "Test";
     card.profileOptions = ["Test", "Other"];
@@ -820,7 +829,7 @@ describe("CardEventHandlers", () => {
     expect(card.selectedProfile).toBe("Other");
   });
 
-  it("handleDeleteProfile non dovrebbe fare nulla se non confermato", async () => {
+  it("handleDeleteProfile should do nothing if not confirmed", async () => {
     vi.stubGlobal("confirm", vi.fn(() => false));
     card.selectedProfile = "Test";
 
@@ -833,7 +842,7 @@ describe("CardEventHandlers", () => {
     );
   });
 
-  it("showNotification dovrebbe gestire il timeout di chiusura", async () => {
+  it("showNotification should handle the close timeout", async () => {
     vi.useFakeTimers();
     handlers.showNotification("test", "success");
 
@@ -865,7 +874,7 @@ describe("CardEventHandlers", () => {
     vi.useRealTimers();
   });
 
-  it("handleEditCard dovrebbe scatenare l'evento hass-edit-card", () => {
+  it("handleEditCard should trigger the hass-edit-card event", () => {
     const dispatchSpy = vi.spyOn(card, "dispatchEvent");
     handlers.handleEditCard();
     expect(dispatchSpy).toHaveBeenCalledWith(
@@ -873,7 +882,7 @@ describe("CardEventHandlers", () => {
     );
   });
 
-  it("handleCardClick dovrebbe chiudere il menu se si clicca fuori", () => {
+  it("handleCardClick should close the menu if clicking outside", () => {
     card.isMenuOpen = true;
     const event = {
       target: {
@@ -896,7 +905,7 @@ describe("CardEventHandlers", () => {
   });
 
   describe("_fetchProfileNameSuggestions", () => {
-    it("dovrebbe ritornare suggerimenti filtrando il profilo attuale", async () => {
+    it("should return suggestions filtering the current profile", async () => {
       card.config.global_prefix = "p_";
       card.profileOptions = ["Default"];
       card.hass.callWS.mockResolvedValueOnce({
@@ -938,7 +947,7 @@ describe("CardEventHandlers", () => {
       expect(suggestions).toEqual([]);
     });
 
-    it("dovrebbe gestire errori del servizio", async () => {
+    it("should handle service errors", async () => {
       card.hass.callWS.mockRejectedValueOnce(new Error("WS fail"));
       const suggestions = await handlers._fetchProfileNameSuggestions(
         "thermostat",
@@ -948,7 +957,7 @@ describe("CardEventHandlers", () => {
   });
 
   describe("_openAddProfileDialog", () => {
-    it("dovrebbe aprire il dialog e risolvere con il nome inserito", async () => {
+    it("should open the dialog and resolve with the entered name", async () => {
       vi.spyOn(handlers, "_fetchProfileNameSuggestions").mockResolvedValue([
         "Night",
       ]);
@@ -1033,7 +1042,7 @@ describe("CardEventHandlers", () => {
       expect(result).toBeNull();
     });
 
-    it("dovrebbe risolvere con null se annullato", async () => {
+    it("should resolve with null if cancelled", async () => {
       vi.spyOn(handlers, "_fetchProfileNameSuggestions").mockResolvedValue([]);
       const promise = handlers._openAddProfileDialog();
 

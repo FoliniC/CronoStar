@@ -8,21 +8,21 @@ import * as editorUtils from "../src/utils/editor_utils.js";
 describe("Utility Extended Tests", () => {
 
   describe("prefix_utils", () => {
-    it("normalizePrefix dovrebbe aggiungere underscore se mancante", () => {
+    it("normalizePrefix should add an underscore if missing", () => {
       expect(prefixUtils.normalizePrefix("test")).toBe("test_");
       expect(prefixUtils.normalizePrefix("test_")).toBe("test_");
       expect(prefixUtils.normalizePrefix("  TEST  ")).toBe("test_");
       expect(prefixUtils.normalizePrefix("")).toBe("");
     });
 
-    it("isValidPrefix dovrebbe validare correttamente", () => {
+    it("isValidPrefix should validate correctly", () => {
       expect(prefixUtils.isValidPrefix("valid_")).toBe(true);
       expect(prefixUtils.isValidPrefix("invalid")).toBe(false);
       expect(prefixUtils.isValidPrefix("")).toBe(false);
       expect(prefixUtils.isValidPrefix(null)).toBe(false);
     });
 
-    it("humanizePrefix dovrebbe rendere leggibile il prefisso", () => {
+    it("humanizePrefix should make the prefix readable", () => {
       expect(prefixUtils.humanizePrefix("cronostar_thermostat_living_", "en")).toBe("thermostat living");
       expect(prefixUtils.humanizePrefix("cronostar_test_", "it")).toBe("test");
       expect(prefixUtils.humanizePrefix("", "en")).toBe("schedule");
@@ -31,19 +31,19 @@ describe("Utility Extended Tests", () => {
       expect(prefixUtils.humanizePrefix("___", "it")).toBe("programma");
     });
 
-    it("humanizePrefix gestisce il catch block (branch coverage)", () => {
+    it("humanizePrefix handles the catch block (branch coverage)", () => {
       const faulty = { toString: () => { throw new Error("fail"); } };
       expect(prefixUtils.humanizePrefix(faulty, "en")).toBe("schedule");
       expect(prefixUtils.humanizePrefix(faulty, "it")).toBe("programma");
     });
 
-    it("getEffectivePrefix dovrebbe restituire il prefisso dalla config", () => {
+    it("getEffectivePrefix should return the prefix from config", () => {
       expect(prefixUtils.getEffectivePrefix({ global_prefix: "custom_" })).toBe("custom_");
       expect(prefixUtils.getEffectivePrefix({})).toBe("cronostar_");
       expect(prefixUtils.getEffectivePrefix({ global_prefix: "  " })).toBe("cronostar_");
     });
 
-    it("getAliasWithPrefix dovrebbe generare l'alias corretto", () => {
+    it("getAliasWithPrefix should generate the correct alias", () => {
       expect(prefixUtils.getAliasWithPrefix("p_", "en")).toBe("CronoStar - apply p");
       expect(prefixUtils.getAliasWithPrefix("p_", "it")).toBe("CronoStar - applica p");
     });
@@ -64,7 +64,7 @@ describe("Utility Extended Tests", () => {
 
     afterEach(() => vi.restoreAllMocks());
 
-    it("dovrebbe loggare solo se abilitato o se livello è warn/error", () => {
+    it("should log only if enabled or if level is warn/error", () => {
       loggerUtils.log("debug", false, "msg");
       expect(consoleSpy.debug).not.toHaveBeenCalled();
 
@@ -75,43 +75,43 @@ describe("Utility Extended Tests", () => {
       expect(consoleSpy.info).toHaveBeenCalled();
     });
 
-    it("dovrebbe gestire il livello di default", () => {
+    it("should handle the default level", () => {
       loggerUtils.log("unknown", true, "msg");
       expect(consoleSpy.log).toHaveBeenCalledWith("[CronoStar]", "msg");
     });
   });
 
   describe("filename_utils", () => {
-    it("buildProfileFilename dovrebbe generare il nome corretto", () => {
+    it("buildProfileFilename should generate the correct name", () => {
       expect(filenameUtils.buildProfileFilename("thermostat", "living")).toBe("cronostar_thermostat_living_data.json");
     });
 
-    it("buildHelpersFilename dovrebbe generare il nome corretto", () => {
+    it("buildHelpersFilename should generate the correct name", () => {
       expect(filenameUtils.buildHelpersFilename("test")).toBe("test_package.yaml");
     });
 
-    it("buildAutomationFilename dovrebbe generare il nome corretto", () => {
+    it("buildAutomationFilename should generate the correct name", () => {
       expect(filenameUtils.buildAutomationFilename("test")).toBe("test_automation.yaml");
     });
 
-    it("getExpectedAutomationId dovrebbe generare l'ID corretto", () => {
+    it("getExpectedAutomationId should generate the correct ID", () => {
       expect(filenameUtils.getExpectedAutomationId("test")).toBe("test_apply");
     });
   });
 
   describe("editor_utils", () => {
-    it("slugify dovrebbe funzionare correttamente", () => {
+    it("slugify should work correctly", () => {
       expect(editorUtils.slugify("Hello World")).toBe("hello_world");
       expect(editorUtils.slugify("Café")).toBe("cafe");
       expect(editorUtils.slugify("")).toBe("");
     });
 
-    it("pad2 dovrebbe formattare con zero iniziale", () => {
+    it("pad2 should format with a leading zero", () => {
       expect(editorUtils.pad2(5)).toBe("05");
       expect(editorUtils.pad2(12)).toBe("12");
     });
 
-    it("getHoursList dovrebbe generare la lista corretta", () => {
+    it("getHoursList should generate the correct list", () => {
       const list0 = editorUtils.getHoursList(0); // 00..23
       expect(list0[0]).toBe("00");
       expect(list0[23]).toBe("23");
@@ -126,7 +126,7 @@ describe("Utility Extended Tests", () => {
       expect(list48[0]).toBe("00");
     });
 
-    it("escapeHtml dovrebbe fare l'escape dei caratteri", () => {
+    it("escapeHtml should escape HTML characters", () => {
       expect(editorUtils.escapeHtml("<b>")).toBe("&lt;b&gt;");
       expect(editorUtils.escapeHtml("a & b")).toBe("a &amp; b");
     });

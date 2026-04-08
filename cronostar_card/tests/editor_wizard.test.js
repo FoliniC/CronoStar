@@ -18,62 +18,62 @@ describe("EditorWizard", () => {
     wizard = new EditorWizard(editor);
   });
 
-  it("dovrebbe avanzare allo step successivo con _nextStep()", () => {
+  it("should advance to the next step with _nextStep()", () => {
     wizard._nextStep();
     expect(editor._step).toBe(2);
     expect(editor.scrollToTop).toHaveBeenCalled();
     expect(editor.requestUpdate).toHaveBeenCalled();
   });
 
-  it("dovrebbe eseguire deep checks quando entra nello step 2", () => {
+  it("should perform deep checks when entering step 2", () => {
     editor._step = 1;
-    wizard._nextStep(); // va a 2
+    wizard._nextStep(); // goes to 2
     expect(editor._runDeepChecks).toHaveBeenCalled();
     expect(editor._deepCheckRanForStep2).toBe(true);
   });
 
-  it("non dovrebbe superare lo step 5", () => {
+  it("should not exceed step 5", () => {
     editor._step = 5;
     wizard._nextStep();
     expect(editor._step).toBe(5);
   });
 
-  it("dovrebbe tornare allo step precedente con _prevStep()", () => {
+  it("should return to the previous step with _prevStep()", () => {
     editor._step = 2;
     wizard._prevStep();
     expect(editor._step).toBe(1);
     expect(editor.scrollToTop).toHaveBeenCalled();
   });
 
-  it("non dovrebbe scendere sotto lo step 1", () => {
+  it("should not go below step 1", () => {
     editor._step = 1;
     wizard._prevStep();
     expect(editor._step).toBe(1);
   });
 
-  it("dovrebbe resettare deepCheckRan quando esce dallo step 2 verso l'1", () => {
+  it("should reset deepCheckRan when moving from step 2 to 1", () => {
     editor._step = 2;
     editor._deepCheckRanForStep2 = true;
     wizard._prevStep();
     expect(editor._deepCheckRanForStep2).toBe(false);
   });
 
-  it("dovrebbe terminare il wizard con _finish()", async () => {
+  it("should finish the wizard with _finish()", async () => {
     await wizard._finish();
     expect(editor._persistCardConfigNow).toHaveBeenCalled();
     expect(editor._dispatchConfigChanged).toHaveBeenCalledWith(true);
   });
 
-  it("dovrebbe gestire errori di persistenza in _finish() senza bloccare la chiusura", async () => {
+  it("should handle persistence errors in _finish() without blocking closure", async () => {
     editor._persistCardConfigNow.mockRejectedValue(new Error("fail"));
     await wizard._finish();
     
-    // Aspettiamo un tick per la risoluzione della promise interna
+    // Wait a tick for the internal promise resolution
     await new Promise(r => setTimeout(r, 0));
     expect(editor._dispatchConfigChanged).toHaveBeenCalledWith(true);
   });
 
-  it("dovrebbe gestire _finish() se _persistCardConfigNow non è definito", () => {
+  it("should handle _finish() if _persistCardConfigNow is not defined", () => {
     editor._persistCardConfigNow = null;
     wizard._finish();
     expect(editor._dispatchConfigChanged).toHaveBeenCalledWith(true);

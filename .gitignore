@@ -85,3 +85,4 @@ cronostar_card/coverage/
 
 # Git credentials
 github_ssh_key.pub
+.aider*

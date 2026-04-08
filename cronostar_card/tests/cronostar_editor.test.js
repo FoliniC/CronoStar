@@ -663,6 +663,10 @@ describe("CronoStarEditor - Comprehensive", () => {
   it("covers setConfig without config.hass fallback", () => {
     editor.language = null;
     editor.hass = { language: "fr-FR" };
+    // Clear meta.language that might be set by constructor timeout
+    if (!editor._config.meta) editor._config.meta = {};
+    editor._config.meta.language = undefined;
+    
     editor.setConfig({ meta: {} });
     expect(editor._language).toBe("fr");
   });

@@ -17,7 +17,7 @@ if (!globalThis.document) {
   globalThis.document = { head: { innerHTML: "" } };
 }
 
-// ─── Mock delle dipendenze di main.js ────────────────────────────────────────
+// ─── Mock main.js dependencies ────────────────────────────────────────
 vi.mock("../src/core/CronoStar.js", () => ({
   CronoStarCard: class CronoStarCard extends HTMLElement {},
 }));
@@ -60,39 +60,39 @@ describe("main.js", () => {
     vi.unstubAllGlobals();
   });
 
-  describe("registrazione globale", () => {
+  describe("global registration", () => {
     let getSpy, defineSpy;
     beforeEach(() => {
       getSpy = vi.spyOn(customElements, "get").mockReturnValue(null);
       defineSpy = vi.spyOn(customElements, "define").mockImplementation(() => {});
     });
 
-    it("registra cronostar-card nel registro globale", async () => {
+    it("registers cronostar-card in the global registry", async () => {
       await loadMain();
       expect(defineSpy).toHaveBeenCalledWith("cronostar-card", expect.any(Function));
     });
 
-    it("registra cronostar-card-editor nel registro globale", async () => {
+    it("registers cronostar-card-editor in the global registry", async () => {
       await loadMain();
       expect(defineSpy).toHaveBeenCalledWith("cronostar-card-editor", expect.any(Function));
     });
 
-    it("assegna CronoStarCard a window", async () => {
+    it("assigns CronoStarCard to window", async () => {
       await loadMain();
       expect(window.CronoStarCard).toBeDefined();
     });
 
-    it("assegna CronoStarEditor a window", async () => {
+    it("assigns CronoStarEditor to window", async () => {
       await loadMain();
       expect(window.CronoStarEditor).toBeDefined();
     });
 
-    it("assegna PRESETS a globalThis", async () => {
+    it("assigns PRESETS to globalThis", async () => {
       await loadMain();
       expect(globalThis.PRESETS).toEqual({ thermostat: {} });
     });
 
-    it("esporta CronoStarCard e CronoStarEditor", async () => {
+    it("exports CronoStarCard and CronoStarEditor", async () => {
       const mod = await loadMain();
       expect(mod.CronoStarCard).toBeDefined();
       expect(mod.CronoStarEditor).toBeDefined();
@@ -100,7 +100,7 @@ describe("main.js", () => {
   });
 
   describe("registerInRegistry – branch", () => {
-    it("log 'già registrato' e ritorna false se registry.get restituisce qualcosa", async () => {
+    it("logs 'già registrato' and returns false if registry.get returns something", async () => {
       vi.spyOn(customElements, "define").mockImplementation(() => {});
       vi.spyOn(customElements, "get").mockImplementation((name) => {
         if (name === "cronostar-card" || name === "cronostar-card-editor") {
@@ -116,7 +116,7 @@ describe("main.js", () => {
       );
     });
 
-    it("tenta define anche se registry.get lancia eccezione", async () => {
+    it("tries define even if registry.get throws exception", async () => {
       vi.spyOn(customElements, "get").mockImplementation(() => {
         throw new Error("get failed");
       });
@@ -127,7 +127,7 @@ describe("main.js", () => {
       expect(defineSpy).toHaveBeenCalled();
     });
 
-    it("define ok: logga '✅' e ritorna true", async () => {
+    it("define ok: logs '✅' and returns true", async () => {
       vi.spyOn(customElements, "get").mockReturnValue(null);
       vi.spyOn(customElements, "define").mockImplementation(() => {});
 
@@ -138,7 +138,7 @@ describe("main.js", () => {
       );
     });
 
-    it("define lancia 'already been used': logga 'già definito'", async () => {
+    it("define throws 'already been used': logs 'già definito'", async () => {
       vi.spyOn(customElements, "get").mockReturnValue(null);
       vi.spyOn(customElements, "define").mockImplementation(() => {
         throw new Error("already been used");
@@ -151,7 +151,7 @@ describe("main.js", () => {
       );
     });
 
-    it("define lancia 'already defined': logga 'già definito'", async () => {
+    it("define throws 'already defined': logs 'già definito'", async () => {
       vi.spyOn(customElements, "get").mockReturnValue(null);
       vi.spyOn(customElements, "define").mockImplementation(() => {
         throw new Error("This name has already defined");
@@ -164,7 +164,7 @@ describe("main.js", () => {
       );
     });
 
-    it("define lancia errore generico: chiama console.error", async () => {
+    it("define throws generic error: calls console.error", async () => {
       vi.spyOn(customElements, "get").mockReturnValue(null);
       vi.spyOn(customElements, "define").mockImplementation(() => {
         throw new Error("generic unexpected error");
@@ -178,7 +178,7 @@ describe("main.js", () => {
       );
     });
 
-    it("log 'registry nullo' e ritorna false se customElements è null", async () => {
+    it("logs 'registry nullo' and returns false if customElements is null", async () => {
       vi.stubGlobal("customElements", null);
 
       await loadMain();
@@ -200,13 +200,13 @@ describe("main.js", () => {
     });
   });
 
-  describe("ScopedRegistryHost assente", () => {
+  describe("ScopedRegistryHost absent", () => {
     beforeEach(() => {
       vi.spyOn(customElements, "get").mockReturnValue(null);
       vi.spyOn(customElements, "define").mockImplementation(() => {});
     });
 
-    it("logga 'non rilevato' se ScopedRegistryHost non esiste", async () => {
+    it("logs 'non rilevato' if ScopedRegistryHost does not exist", async () => {
       delete window.ScopedRegistryHost;
       await loadMain();
       expect(console.log).toHaveBeenCalledWith(
@@ -214,7 +214,7 @@ describe("main.js", () => {
       );
     });
 
-    it("logga 'non rilevato' se ScopedRegistryHost è null (falsy)", async () => {
+    it("logs 'non rilevato' if ScopedRegistryHost is null (falsy)", async () => {
       window.ScopedRegistryHost = null;
       await loadMain();
       expect(console.log).toHaveBeenCalledWith(
@@ -222,7 +222,7 @@ describe("main.js", () => {
       );
     });
 
-    it("logga 'non rilevato' se ScopedRegistryHost non ha prototype", async () => {
+    it("logs 'non rilevato' if ScopedRegistryHost has no prototype", async () => {
       window.ScopedRegistryHost = Object.create(null);
       window.ScopedRegistryHost.prototype = null;
       await loadMain();
@@ -232,7 +232,7 @@ describe("main.js", () => {
     });
   });
 
-  describe("ScopedRegistryHost presente", () => {
+  describe("ScopedRegistryHost present", () => {
     let getSpy, defineSpy;
 
     beforeEach(() => {
@@ -264,7 +264,7 @@ describe("main.js", () => {
       return host;
     }
 
-    it("logga 'ScopedRegistryHost rilevato'", async () => {
+    it("logs 'ScopedRegistryHost rilevato'", async () => {
       class MockHost { connectedCallback() {} }
       window.ScopedRegistryHost = MockHost;
       await loadMain();
@@ -273,7 +273,7 @@ describe("main.js", () => {
       );
     });
 
-    it("patcha connectedCallback nel prototype", async () => {
+    it("patches connectedCallback in the prototype", async () => {
       class MockHost { connectedCallback() {} }
       const original = MockHost.prototype.connectedCallback;
       window.ScopedRegistryHost = MockHost;
@@ -282,21 +282,21 @@ describe("main.js", () => {
       expect(typeof window.ScopedRegistryHost.prototype.connectedCallback).toBe("function");
     });
 
-    it("registra cronostar-card nel scoped registry (diverso dal globale)", async () => {
+    it("registers cronostar-card in the scoped registry (different from global)", async () => {
       const scopedReg = { get: vi.fn(() => null), define: vi.fn() };
       const host = await setupPatchedHost(scopedReg);
       host.connectedCallback();
       expect(scopedReg.define).toHaveBeenCalledWith("cronostar-card", expect.any(Function));
     });
 
-    it("registra cronostar-card-editor nel scoped registry", async () => {
+    it("registers cronostar-card-editor in the scoped registry", async () => {
       const scopedReg = { get: vi.fn(() => null), define: vi.fn() };
       const host = await setupPatchedHost(scopedReg);
       host.connectedCallback();
       expect(scopedReg.define).toHaveBeenCalledWith("cronostar-card-editor", expect.any(Function));
     });
 
-    it("usa shadowRoot se renderRoot è null", async () => {
+    it("uses shadowRoot if renderRoot is null", async () => {
       class MockHost { connectedCallback() {} }
       window.ScopedRegistryHost = MockHost;
       await loadMain();
@@ -312,7 +312,7 @@ describe("main.js", () => {
       expect(scopedReg.define).toHaveBeenCalledWith("cronostar-card", expect.any(Function));
     });
 
-    it("usa ownerDocument.customElements se root.customElements è nullish", async () => {
+    it("uses ownerDocument.customElements if root.customElements is nullish", async () => {
       class MockHost { connectedCallback() {} }
       window.ScopedRegistryHost = MockHost;
       await loadMain();
@@ -328,7 +328,7 @@ describe("main.js", () => {
       expect(scopedReg.define).toHaveBeenCalled();
     });
 
-    it("NON registra nel scoped se registry === customElements globale", async () => {
+    it("DOES NOT register in scoped if registry === global customElements", async () => {
       class MockHost { connectedCallback() {} }
       window.ScopedRegistryHost = MockHost;
       await loadMain();
@@ -345,7 +345,7 @@ describe("main.js", () => {
       expect(defineSpy).not.toHaveBeenCalled();
     });
 
-    it("usa 'scoped(<tagname>)' nel log quando tagName è definito", async () => {
+    it("uses 'scoped(<tagname>)' in the log when tagName is defined", async () => {
       const scopedReg = { get: vi.fn(() => null), define: vi.fn() };
       const host = await setupPatchedHost(scopedReg, "MY-HOST");
       host.connectedCallback();
@@ -354,7 +354,7 @@ describe("main.js", () => {
       );
     });
 
-    it("usa 'scoped(unknown-host)' nel log quando tagName è undefined", async () => {
+    it("uses 'scoped(unknown-host)' in the log when tagName is undefined", async () => {
       const scopedReg = { get: vi.fn(() => null), define: vi.fn() };
       const host = await setupPatchedHost(scopedReg, undefined);
       host.tagName = undefined;
@@ -364,7 +364,7 @@ describe("main.js", () => {
       );
     });
 
-    it("registra ha-elements disponibili globalmente nel scoped registry", async () => {
+    it("registers ha-elements available globally in the scoped registry", async () => {
       const HaIcon = class extends HTMLElement {};
       getSpy.mockImplementation((name) => (name === "ha-icon" ? HaIcon : null));
 
@@ -375,7 +375,7 @@ describe("main.js", () => {
       expect(scopedReg.define).toHaveBeenCalledWith("ha-icon", HaIcon);
     });
 
-    it("salta ha-elements non disponibili globalmente", async () => {
+    it("skips ha-elements not available globally", async () => {
       getSpy.mockReturnValue(null);
 
       const scopedReg = { get: vi.fn(() => null), define: vi.fn() };
@@ -386,7 +386,7 @@ describe("main.js", () => {
       expect(names.every((n) => !n.startsWith("ha-"))).toBe(true);
     });
 
-    it("salta ha-elements quando customElements.get lancia eccezione nel callback patchato", async () => {
+    it("skips ha-elements when customElements.get throws exception in the patched callback", async () => {
       class MockHost { connectedCallback() {} }
       window.ScopedRegistryHost = MockHost;
       await loadMain();
@@ -410,7 +410,7 @@ describe("main.js", () => {
       );
     });
 
-    it("chiama origConnected se esisteva prima del patch", async () => {
+    it("calls origConnected if it existed before patching", async () => {
       const origCB = vi.fn();
       class MockHost {
         connectedCallback() { origCB(); }
@@ -428,7 +428,7 @@ describe("main.js", () => {
       expect(origCB).toHaveBeenCalled();
     });
 
-    it("non chiama origConnected se era undefined nel prototype", async () => {
+    it("does not call origConnected if it was undefined in the prototype", async () => {
       class MockHost {}
       MockHost.prototype.connectedCallback = undefined;
       window.ScopedRegistryHost = MockHost;
@@ -443,7 +443,7 @@ describe("main.js", () => {
       expect(() => host.connectedCallback()).not.toThrow();
     });
 
-    it("cattura eccezioni nel try block e chiama console.error", async () => {
+    it("catches exceptions in the try block and calls console.error", async () => {
       class MockHost {
         connectedCallback() {}
       }
@@ -490,13 +490,13 @@ describe("main.js", () => {
       vi.spyOn(customElements, "define").mockImplementation(() => {});
     });
 
-    it("aggiunge la card se customCards è vuoto", async () => {
+    it("adds the card if customCards is empty", async () => {
       window.customCards = [];
       await loadMain();
       expect(window.customCards.some((c) => c.type === "cronostar-card")).toBe(true);
     });
 
-    it("la card aggiunta ha i metadati corretti", async () => {
+    it("the added card has the correct metadata", async () => {
       window.customCards = [];
       await loadMain();
       const card = window.customCards.find((c) => c.type === "cronostar-card");
@@ -506,7 +506,7 @@ describe("main.js", () => {
       expect(card.thumbnail).toContain("cronostar-logo.png");
     });
 
-    it("aggiorna la card esistente (type === 'cronostar-card')", async () => {
+    it("updates existing card (type === 'cronostar-card')", async () => {
       window.customCards = [{ type: "cronostar-card", name: "old name" }];
       await loadMain();
       expect(window.customCards).toHaveLength(1);
@@ -516,21 +516,21 @@ describe("main.js", () => {
       );
     });
 
-    it("aggiorna la card esistente (type === 'custom:cronostar-card')", async () => {
+    it("updates existing card (type === 'custom:cronostar-card')", async () => {
       window.customCards = [{ type: "custom:cronostar-card", name: "legacy" }];
       await loadMain();
       expect(window.customCards).toHaveLength(1);
       expect(window.customCards[0].name).toBe("🌟 CronoStar Card");
     });
 
-    it("inizializza customCards se undefined", async () => {
+    it("initializes customCards if undefined", async () => {
       delete window.customCards;
       await loadMain();
       expect(Array.isArray(window.customCards)).toBe(true);
       expect(window.customCards.some((c) => c.type === "cronostar-card")).toBe(true);
     });
 
-    it("logga '✅ Aggiunto' quando la card è nuova", async () => {
+    it("logs '✅ Aggiunto' when the card is new", async () => {
       window.customCards = [];
       await loadMain();
       expect(console.log).toHaveBeenCalledWith(

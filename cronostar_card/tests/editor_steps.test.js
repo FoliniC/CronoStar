@@ -71,7 +71,7 @@ describe("Editor Steps Rendering", () => {
     };
   });
 
-  it("Step0Dashboard dovrebbe renderizzare il sommario", () => {
+  it("Step0Dashboard should render the summary", () => {
     const step = new Step0Dashboard(editor);
     const html = step.render();
     expect(html).toContain("step0");
@@ -116,7 +116,7 @@ describe("Editor Steps Rendering", () => {
     expect(title).toBe("Custom");
   });
 
-  it("Step1Preset dovrebbe mostrare i preset disponibili", () => {
+  it("Step1Preset should show available presets", () => {
     const step = new Step1Preset(editor);
     const html = step.render();
     expect(html).toContain("Thermostat");
@@ -129,7 +129,7 @@ describe("Editor Steps Rendering", () => {
     expect(editor._updateConfig).toHaveBeenCalledWith("preset_type", "generic_switch");
   });
 
-  it("Step2Entities dovrebbe mostrare i campi entità", () => {
+  it("Step2Entities should show entity fields", () => {
     const step = new Step2Entities(editor);
     const html = step.render();
     expect(html).toContain("step2");
@@ -173,7 +173,7 @@ describe("Editor Steps Rendering", () => {
     expect(html).toContain("Italiano");
   });
 
-  it("Step4Automation dovrebbe mostrare il pulsante per creare automazioni", () => {
+  it("Step4Automation should show the button to create automations", () => {
     const step = new Step4Automation(editor);
     const html = step.render();
     expect(html).toContain("step4");
@@ -186,7 +186,7 @@ describe("Editor Steps Rendering", () => {
     expect(html).toContain("Home Assistant");
   });
 
-  it("Step5Summary dovrebbe mostrare il riepilogo finale", () => {
+  it("Step5Summary should show the final summary", () => {
     const step = new Step5Summary(editor);
     const html = step.render();
     expect(html).toContain("step5");

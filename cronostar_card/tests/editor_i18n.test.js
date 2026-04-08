@@ -1,81 +1,81 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// ─── Sopprime il log "Missing translation" dallo stderr ──────────────────────
+// ─── Suppresses the 'Missing translation' log from stderr ──────────────────────
 vi.mock("../src/utils/logger_utils.js", () => ({ log: vi.fn() }));
 
 import { EditorI18n, I18N } from "../src/editor/EditorI18n.js";
 import { log } from "../src/utils/logger_utils.js";
 
-// ─── _t – lingua di base ──────────────────────────────────────────────────────
-describe("EditorI18n – _t lingua", () => {
-  it("ritorna la traduzione inglese di default (editor oggetto senza _language)", () => {
+// ─── _t – base language ──────────────────────────────────────────────────────
+describe("EditorI18n – _t language", () => {
+  it("returns the default English translation (editor object without _language)", () => {
     const i18n = new EditorI18n({});
     expect(i18n._t("actions.save")).toBe("Save");
   });
 
-  it("ritorna la traduzione inglese esplicita", () => {
+  it("returns the explicit English translation", () => {
     const i18n = new EditorI18n({ _language: "en" });
     expect(i18n._t("actions.save")).toBe("Save");
   });
 
-  it("supporta la lingua italiana", () => {
+  it("supports the Italian language", () => {
     const i18n = new EditorI18n({ _language: "it" });
     expect(i18n._t("actions.save")).toBe("Salva");
   });
 
-  it("gestisce sub-tag en-US → en", () => {
+  it("handles en-US → en sub-tags", () => {
     const i18n = new EditorI18n({ _language: "en-US" });
     expect(i18n._t("actions.save")).toBe("Save");
   });
 
-  it("gestisce sub-tag it-IT → it (editor come oggetto)", () => {
+  it("handles it-IT → it sub-tags (editor as object)", () => {
     const i18n = new EditorI18n({ _language: "it-IT" });
     expect(i18n._t("steps.tipo")).toBe("Setup");
   });
 
-  it("gestisce sub-tag it-IT → it (editor come stringa)", () => {
+  it("handles it-IT → it sub-tags (editor as string)", () => {
     const i18n = new EditorI18n("it-IT");
     expect(i18n._t("steps.tipo")).toBe("Setup");
   });
 
-  it("usa _lang come fallback quando _language è assente", () => {
+  it("uses _lang as fallback when _language is absent", () => {
     const i18n = new EditorI18n({ _lang: "it" });
     expect(i18n._t("actions.save")).toBe("Salva");
   });
 
-  it("usa 'en' se editor è null", () => {
+  it("uses 'en' if editor is null", () => {
     const i18n = new EditorI18n(null);
     expect(i18n._t("actions.save")).toBe("Save");
   });
 
-  it("usa 'en' se editor è undefined", () => {
+  it("uses 'en' if editor is undefined", () => {
     const i18n = new EditorI18n(undefined);
     expect(i18n._t("actions.save")).toBe("Save");
   });
 
-  it("usa 'en' se editor è una stringa sconosciuta senza trattino", () => {
-    // 'fr' non esiste in I18N → fallback I18N.en
+  it("uses 'en' if editor is an unknown string without hyphen", () => {
+    // 'fr' does not exist in I18N → fallback I18N.en
     const i18n = new EditorI18n({ _language: "fr" });
     expect(i18n._t("actions.save")).toBe("Save");
   });
 
-  it("usa 'en' per sub-tag di lingua sconosciuta (es. fr-FR)", () => {
+  it("uses 'en' for unknown language sub-tags (e.g., fr-FR)", () => {
     const i18n = new EditorI18n({ _language: "fr-FR" });
     expect(i18n._t("actions.save")).toBe("Save");
   });
 });
 
-// ─── _t – chiave mancante ─────────────────────────────────────────────────────
-describe("EditorI18n – _t chiave mancante", () => {
+// ─── _t – missing key ─────────────────────────────────────────────────────
+describe("EditorI18n – _t missing key", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("ritorna il path se la traduzione manca in entrambe le lingue", () => {
+  it("returns the path if the translation is missing in both languages", () => {
     const i18n = new EditorI18n({ _language: "en" });
     expect(i18n._t("missing.key")).toBe("missing.key");
   });
 
-  it("chiama log('warn', ...) quando la traduzione manca", () => {
+  it("calls log('warn', ...) when the translation is missing", () => {
     const i18n = new EditorI18n({ _language: "en" });
     i18n._t("totally.missing.key");
     expect(log).toHaveBeenCalledWith(
@@ -85,42 +85,42 @@ describe("EditorI18n – _t chiave mancante", () => {
     );
   });
 
-  it("usa il fallback inglese se la chiave manca solo nella lingua corrente", () => {
-    // Simula chiave presente in 'en' ma non in 'it': usiamo una chiave reale
-    // 'descriptions.step0' esiste in entrambe, verifichiamo solo che il fallback funzioni
-    // Patch temporanea dell'oggetto I18N per questo test
+  it("uses the English fallback if the key is missing only in the current language", () => {
+    // Simulate key present in 'en' but not in 'it': we use a real key
+    // 'descriptions.step0' exists in both, we only check that the fallback works
+    // Temporary patch of the I18N object for this test
     const originalIt = I18N.it.descriptions.step0;
     delete I18N.it.descriptions.step0;
     const i18n = new EditorI18n({ _language: "it" });
     const result = i18n._t("descriptions.step0");
-    // Deve tornare il valore inglese
+    // Must return the English value
     expect(result).toBe(I18N.en.descriptions.step0);
-    // Ripristina
+    // Restore
     I18N.it.descriptions.step0 = originalIt;
   });
 
-  it("ritorna il path se la chiave manca anche nel fallback inglese", () => {
+  it("returns the path if the key is missing even in the English fallback", () => {
     const i18n = new EditorI18n({ _language: "it" });
     expect(i18n._t("ghost.key")).toBe("ghost.key");
   });
 
-  it("usa logging_enabled dal config se disponibile", () => {
+  it("uses logging_enabled from config if available", () => {
     const i18n = new EditorI18n({ _language: "en", _config: { logging: true } });
     i18n._t("another.missing");
     expect(log).toHaveBeenCalled();
   });
 });
 
-// ─── _t – rimpiazzi dinamici ──────────────────────────────────────────────────
-describe("EditorI18n – _t rimpiazzi", () => {
-  it("effettua rimpiazzi dinamici con placeholder", () => {
+// ─── _t – dynamic replacements ──────────────────────────────────────────────────
+describe("EditorI18n – _t replacements", () => {
+  it("performs dynamic replacements with placeholders", () => {
     const i18n = new EditorI18n({ _language: "en" });
     const msg = i18n._t("notify.language_save_error", { "{error}": "FAILED" });
     expect(msg).toBe("Error saving language preference: FAILED");
   });
 
-  it("effettua rimpiazzi multipli nella stessa stringa", () => {
-    // Patch temporanea per testare rimpiazzi multipli
+  it("performs multiple replacements in the same string", () => {
+    // Temporary patch to test multiple replacements
     const original = I18N.en.ui.no_matching_entities;
     I18N.en.ui.no_matching_entities = "Types: {domains} and {extra}";
     const i18n = new EditorI18n({ _language: "en" });
@@ -132,7 +132,7 @@ describe("EditorI18n – _t rimpiazzi", () => {
     I18N.en.ui.no_matching_entities = original;
   });
 
-  it("rimpiazza tutte le occorrenze globalmente (regex 'g')", () => {
+  it("replaces all occurrences globally (regex 'g')", () => {
     const original = I18N.en.ui.no_matching_entities;
     I18N.en.ui.no_matching_entities = "{x} and {x}";
     const i18n = new EditorI18n({ _language: "en" });
@@ -141,19 +141,19 @@ describe("EditorI18n – _t rimpiazzi", () => {
     I18N.en.ui.no_matching_entities = original;
   });
 
-  it("non effettua rimpiazzi se replacements è vuoto", () => {
+  it("does not perform replacements if replacements is empty", () => {
     const i18n = new EditorI18n({ _language: "en" });
     expect(i18n._t("actions.save", {})).toBe("Save");
   });
 
-  it("rimpiazzi in italiano", () => {
+  it("replacements in Italian", () => {
     const i18n = new EditorI18n({ _language: "it" });
     const msg = i18n._t("notify.language_save_error", { "{error}": "ERRORE" });
     expect(msg).toBe("Errore nel salvataggio della lingua: ERRORE");
   });
 
-  it("escape dei caratteri speciali regex nel placeholder", () => {
-    // Patch per testare un placeholder con caratteri speciali come '.'
+  it("escape regex special characters in the placeholder", () => {
+    // Patch to test a placeholder with special characters like '.'
     const original = I18N.en.ui.prefix_ok;
     I18N.en.ui.prefix_ok = "Value is {val.ue}";
     const i18n = new EditorI18n({ _language: "en" });
@@ -163,8 +163,8 @@ describe("EditorI18n – _t rimpiazzi", () => {
   });
 });
 
-// ─── _t – accesso a tutti i namespace (coverage completo di I18N) ─────────────
-describe("EditorI18n – copertura namespace I18N", () => {
+// ─── _t – access to all namespaces (full I18N coverage) ─────────────
+describe("EditorI18n – I18N namespace coverage", () => {
   const enI18n = new EditorI18n({ _language: "en" });
   const itI18n = new EditorI18n({ _language: "it" });
 
@@ -203,20 +203,20 @@ describe("EditorI18n – copertura namespace I18N", () => {
   ];
 
   for (const key of namespacesToCheck) {
-    it(`en: "${key}" ritorna una stringa non vuota`, () => {
+    it(`en: "${key}" returns a non-empty string`, () => {
       const result = enI18n._t(key);
       expect(typeof result).toBe("string");
       expect(result.length).toBeGreaterThan(0);
     });
   }
 
-  // Chiavi presenti solo in 'en' (campi non tradotti in 'it' usano fallback)
+  // Keys present only in 'en' (fields not translated in 'it' use fallback)
   const itOnlyKeys = [
     "steps.tipo", "presetNames.thermostat", "presetNames.ev_charging",
     "actions.save", "notify.language_saved", "ui.prefix_ok",
   ];
   for (const key of itOnlyKeys) {
-    it(`it: "${key}" ritorna una stringa`, () => {
+    it(`it: "${key}" returns a string`, () => {
       expect(typeof itI18n._t(key)).toBe("string");
     });
   }
@@ -224,22 +224,22 @@ describe("EditorI18n – copertura namespace I18N", () => {
 
 // ─── _getPresetName ───────────────────────────────────────────────────────────
 describe("EditorI18n – _getPresetName", () => {
-  it("ritorna il nome del preset selezionato in italiano", () => {
+  it("returns the name of the selected preset in Italian", () => {
     const i18n = new EditorI18n({ _selectedPreset: "ev_charging", _language: "it" });
     expect(i18n._getPresetName()).toBe("Ricarica EV");
   });
 
-  it("ritorna il nome del preset in inglese", () => {
+  it("returns the name of the preset in English", () => {
     const i18n = new EditorI18n({ _selectedPreset: "thermostat", _language: "en" });
     expect(i18n._getPresetName()).toBe("Thermostat");
   });
 
-  it("usa 'thermostat' come preset di default se _selectedPreset è assente", () => {
+  it("uses 'thermostat' as default preset if _selectedPreset is absent", () => {
     const i18n = new EditorI18n({ _language: "en" });
     expect(i18n._getPresetName()).toBe("Thermostat");
   });
 
-  it("tutti i preset hanno un nome in inglese", () => {
+  it("all presets have a name in English", () => {
     const presets = ["thermostat", "ev_charging", "generic_kwh", "generic_temperature", "generic_switch"];
     for (const preset of presets) {
       const i18n = new EditorI18n({ _selectedPreset: preset, _language: "en" });
@@ -250,17 +250,17 @@ describe("EditorI18n – _getPresetName", () => {
 
 // ─── _localizePreset ──────────────────────────────────────────────────────────
 describe("EditorI18n – _localizePreset", () => {
-  it("ritorna il nome localizzato del preset in italiano", () => {
+  it("returns the localized name of the preset in Italian", () => {
     const i18n = new EditorI18n({ _language: "it" });
     expect(i18n._localizePreset("thermostat")).toBe("Termostato");
   });
 
-  it("ritorna il nome localizzato del preset in inglese", () => {
+  it("returns the localized name of the preset in English", () => {
     const i18n = new EditorI18n({ _language: "en" });
     expect(i18n._localizePreset("generic_switch")).toBe("Generic switch");
   });
 
-  it("ritorna il path per un preset inesistente", () => {
+  it("returns the path for a non-existent preset", () => {
     const i18n = new EditorI18n({ _language: "en" });
     expect(i18n._localizePreset("unknown_preset")).toBe("presetNames.unknown_preset");
   });

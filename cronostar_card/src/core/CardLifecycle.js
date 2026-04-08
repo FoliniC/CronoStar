@@ -393,10 +393,11 @@ export class CardLifecycle {
 
       // Canvas size check deferred
       try {
-        if (!this.isEditorContext()) {
-          const doCanvasCheck = () => {
-            try {
-              const canvas = this.card.shadowRoot?.getElementById("myChart");
+        const doCanvasCheck = () => {
+          try {
+            if (this.isEditorContext()) return;
+
+            const canvas = this.card.shadowRoot?.getElementById("myChart");
               if (!canvas) {
                 setTimeout(doCanvasCheck, 100);
                 return;
@@ -433,7 +434,6 @@ export class CardLifecycle {
             /* ignore */
           }
           requestAnimationFrame(() => setTimeout(doCanvasCheck, 0));
-        }
       } catch (e) {
         Logger.warn("LIFECYCLE", "Canvas size check failed:", e);
       }
@@ -646,6 +646,7 @@ export class CardLifecycle {
           selState.state !== "unavailable"
         ) {
           selectedProfile = selState.state;
+          this.card.selectedProfile = selectedProfile; // Update card property
           Logger.log(
             "LOAD",
             "Found profile via selector entity:",
@@ -665,6 +666,7 @@ export class CardLifecycle {
           selState.state !== "unavailable"
         ) {
           selectedProfile = selState.state;
+          this.card.selectedProfile = selectedProfile; // Update card property
           Logger.log(
             "LOAD",
             "Found profile via guessed selector:",
