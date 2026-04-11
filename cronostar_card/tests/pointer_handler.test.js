@@ -272,6 +272,28 @@ describe("PointerHandler Coverage Boost", () => {
     expect(card.selectionManager.clearSelection).toHaveBeenCalled();
   });
 
+  it("onPointerUp handles standard selection (not additive)", () => {
+    const target = { setPointerCapture: vi.fn(), releasePointerCapture: vi.fn() };
+    handler.onPointerDown({ pointerId: 1, clientX: 100, clientY: 50, target });
+    handler.onPointerMove({ pointerId: 1, clientX: 100, clientY: 60, target });
+    
+    card.chartManager.getIndicesInArea.mockReturnValue([5]);
+    handler.onPointerUp({ pointerId: 1, target });
+    
+    expect(card.selectionManager.selectIndices).toHaveBeenCalledWith([5], true);
+  });
+
+  it("onPointerUp covers catch block on error", () => {
+    handler.isSelecting = true;
+    handler.activePointerId = 1;
+    handler.selStartPx = null; // Trigger error in Math.min
+    
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    handler.onPointerUp({ pointerId: 1 });
+    // Should not throw, but call Logger.warn
+    // (Logger is mocked in this test)
+  });
+
   it("onPointerUp handles click/no-selection path", () => {
     handler.activePointerId = 1;
     handler.pendingSelectStart = { x: 10, y: 10 };

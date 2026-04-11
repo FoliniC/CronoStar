@@ -1,1 +1,0 @@
-npm run test:coverage -- --run cronostar_card/tests/chart_manager.test.js

@@ -51,6 +51,8 @@ if (!globalThis.customElements) {
 globalThis.window.customElements = globalThis.customElements;
 
 // ─── Mock Chart.js e plugin ───────────────────────────────────────────────────
+let lastChartConfig = null;
+
 const mockChartInstance = {
   data: {
     datasets: [
@@ -128,7 +130,8 @@ const mockChartInstance = {
 
 vi.mock("chart.js/auto", () => {
   class MockChart {
-    constructor() {
+    constructor(canvas, config) {
+      lastChartConfig = config;
       return mockChartInstance;
     }
     static register = vi.fn();
@@ -229,6 +232,7 @@ describe("ChartManager - Comprehensive Coverage", () => {
     vi.clearAllMocks();
     window.addEventListener = vi.fn();
     window.removeEventListener = vi.fn();
+    lastChartConfig = null;
     resizeObserverCallback = null;
     resizeObserverInstance = { observe: vi.fn(), disconnect: vi.fn() };
     vi.stubGlobal(
@@ -254,6 +258,17 @@ describe("ChartManager - Comprehensive Coverage", () => {
     it("constructor sets up state", () => {
         expect(cm.isInitialized()).toBe(false);
         expect(ctx.events.on).toHaveBeenCalledTimes(2);
+    });
+
+    it("registered event listeners invoke chart updates and style refresh", () => {
+      const scheduleSpy = vi.spyOn(cm, "_scheduleChartUpdate");
+      const stylesSpy = vi.spyOn(cm, "_updatePointStyles");
+
+      ctx.events._listeners.SCHEDULE_UPDATED({});
+      ctx.events._listeners.SELECTION_CHANGED({});
+
+      expect(scheduleSpy).toHaveBeenCalled();
+      expect(stylesSpy).toHaveBeenCalled();
     });
 
     it("initChart handles success and failure", async () => {
@@ -342,6 +357,42 @@ describe("ChartManager - Comprehensive Coverage", () => {
         expect(cm._hDragActive).toBe(true);
     });
 
+    it("pointerdown tolerates selected indices missing from sorted data in switch mode", async () => {
+        ctx.config.is_switch_preset = true;
+        const stateManager = { getData: vi.fn(() => []) };
+        const selectionManager = {
+          isSelected: vi.fn(() => true),
+          selectPoint: vi.fn(),
+          getSelectedPoints: vi.fn(() => [1]),
+          getAnchor: vi.fn(() => 1),
+        };
+        ctx.getManager.mockImplementation((k) => k === "state" ? stateManager : selectionManager);
+        const canvas = document.createElement("canvas");
+        vi.spyOn(canvas, "addEventListener");
+        await cm.initChart(canvas);
+
+        const pointerDownHandler = canvas.addEventListener.mock.calls.find(c => c[0] === "pointerdown")[1];
+        let mapCall = 0;
+        const stagedData = {
+          0: { x: 0, y: 0 },
+          1: { x: 300, y: 1 },
+          2: { x: 301, y: 0 },
+          3: { x: 1439, y: 0 },
+          length: 4,
+          map(cb) {
+            mapCall += 1;
+            const indices = mapCall === 1 ? [0, 1, 2, 3] : [0, 2, 3];
+            return indices.map((idx) => cb(this[idx], idx));
+          },
+        };
+
+        mockChartInstance.getElementsAtEventForMode.mockReturnValue([{ datasetIndex: 0, index: 1 }]);
+        mockChartInstance.data.datasets[0].data = stagedData;
+
+        expect(() => pointerDownHandler({ button: 0, pointerId: 12 })).not.toThrow();
+        expect(cm._hDragActive).toBe(true);
+    });
+
     it("pointermove and pointerout listeners update hover state", async () => {
         const stateManager = { getData: vi.fn(() => []) };
         ctx.getManager.mockReturnValue(stateManager);
@@ -363,28 +414,12 @@ describe("ChartManager - Comprehensive Coverage", () => {
         expect(hideSpy).toHaveBeenCalled();
     });
 
-    it("currentTimeIndicator plugin afterDatasetsDraw executes drawing branch", () => {
-      const plugin = {
-        afterDatasetsDraw: (chart) => {
-          const { ctx, chartArea, scales } = chart;
-          if (!ctx || !chartArea || !scales?.x) return;
-          const xPos = scales.x.getPixelForValue(600);
-          if (xPos < chartArea.left || xPos > chartArea.right) return;
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, chartArea.bottom - chartArea.top);
-          ctx.clip();
-          ctx.setLineDash([5, 5]);
-          ctx.lineWidth = 1;
-          ctx.strokeStyle = "rgba(255, 82, 82, 0.6)";
-          ctx.beginPath();
-          ctx.moveTo(xPos, chartArea.top);
-          ctx.lineTo(xPos, chartArea.bottom);
-          ctx.stroke();
-          ctx.restore();
-        },
-      };
+    it("currentTimeIndicator plugin afterDatasetsDraw executes all branches from initChart", async () => {
+      const stateManager = { getData: vi.fn(() => []) };
+      ctx.getManager.mockReturnValue(stateManager);
+      await cm.initChart(document.createElement("canvas"));
 
+      const plugin = lastChartConfig.plugins[0];
       const fakeCtx = {
         save: vi.fn(),
         beginPath: vi.fn(),
@@ -399,13 +434,19 @@ describe("ChartManager - Comprehensive Coverage", () => {
         strokeStyle: "",
       };
 
-      const fakeChart = {
+      plugin.afterDatasetsDraw({ ctx: null, chartArea: null, scales: null });
+      plugin.afterDatasetsDraw({
+        ctx: fakeCtx,
+        chartArea: { left: 0, right: 300, top: 0, bottom: 150 },
+        scales: { x: { getPixelForValue: vi.fn(() => 500) } },
+      });
+      plugin.afterDatasetsDraw({
         ctx: fakeCtx,
         chartArea: { left: 0, right: 300, top: 0, bottom: 150 },
         scales: { x: { getPixelForValue: vi.fn(() => 120) } },
-      };
+      });
 
-      plugin.afterDatasetsDraw(fakeChart);
+      expect(plugin.id).toBe("currentTimeIndicator");
       expect(fakeCtx.save).toHaveBeenCalled();
       expect(fakeCtx.stroke).toHaveBeenCalled();
       expect(fakeCtx.restore).toHaveBeenCalled();
@@ -545,6 +586,27 @@ describe("ChartManager - Comprehensive Coverage", () => {
       expect(mockChartInstance.update).toHaveBeenCalled();
     });
 
+    it("returns early for edge and missing-origX points during horizontal drag", () => {
+      cm._hDragActive = true;
+      cm.chart = mockChartInstance;
+      cm.dragDatasetIndex = 0;
+      cm.dragActiveIndex = 1;
+      cm.dragSelectedPoints = [0, 1, 2];
+      cm.hDragNeighbors = [];
+      cm.initialSelectedX = { 0: 0, 2: 1439 };
+      cm.dragBounds = {};
+
+      mockChartInstance.data.datasets[0].data = [
+        { x: 0, y: 0 },
+        { x: 300, y: 10 },
+        { x: 1439, y: 0 },
+      ];
+      mockChartInstance.scales.x.getValueForPixel.mockReturnValue(320);
+
+      cm._onWindowPointerMove({ clientX: 320, pointerId: null });
+      expect(mockChartInstance.update).toHaveBeenCalled();
+    });
+
     it("_onWindowPointerUp handles inactive and normal branches", () => {
       cm._hDragActive = false;
       cm._onWindowPointerUp({});
@@ -647,6 +709,41 @@ describe("ChartManager - Comprehensive Coverage", () => {
 
       options.plugins.zoom.pan.onPan({ chart: fakeChart });
       expect(fakeChart.update).toHaveBeenCalled();
+    });
+
+    it("covers zoom x-mode, click wrapper, and deferred resize callback", async () => {
+      const stateManager = { getData: vi.fn().mockReturnValue([]) };
+      ctx.getManager.mockReturnValue(stateManager);
+      await cm.initChart(document.createElement("canvas"));
+
+      const options = cm._buildChartOptions();
+      const clickSpy = vi.spyOn(cm, "_handleClick").mockImplementation(() => {});
+      const resizeSpy = vi.fn();
+      cm.chart = {
+        ...mockChartInstance,
+        canvas: { style: {} },
+        resize: resizeSpy,
+        scales: mockChartInstance.scales,
+      };
+
+      mockChartInstance.scales.x.top = 100;
+      mockChartInstance.scales.y.right = 50;
+      cm.lastMousePosition = { x: 100, y: 120 };
+      expect(options.plugins.zoom.zoom.mode()).toBe("x");
+      expect(options.plugins.zoom.pan.mode()).toBe("x");
+
+      options.onClick({ native: {} }, []);
+      expect(clickSpy).toHaveBeenCalled();
+
+      options.plugins.zoom.zoom.onZoom({
+        chart: {
+          scales: mockChartInstance.scales,
+          options: { scales: { x: { ticks: { stepSize: 60 } } } },
+          update: vi.fn(),
+        },
+      });
+      vi.advanceTimersByTime(410);
+      expect(resizeSpy).toHaveBeenCalled();
     });
 
     it("suppresses zoom callback errors", async () => {
@@ -761,6 +858,34 @@ describe("ChartManager - Comprehensive Coverage", () => {
       expect(stateManager.setData).toHaveBeenCalled();
     });
 
+    it("covers previous-neighbor branch in dragData onDragStart", async () => {
+      ctx.config.is_switch_preset = true;
+      const selectionManager = {
+        getSelectedPoints: vi.fn(() => [2]),
+        getAnchor: vi.fn(() => 2),
+      };
+      const stateManager = {
+        getData: vi.fn().mockReturnValue([]),
+        setData: vi.fn(),
+      };
+      ctx.getManager.mockImplementation((k) =>
+        k === "selection" ? selectionManager : stateManager,
+      );
+
+      await cm.initChart(document.createElement("canvas"));
+      const dd = cm._buildChartOptions().plugins.dragData;
+
+      mockChartInstance.data.datasets[0].data = [
+        { x: 0, y: 0 },
+        { x: 300, y: 0 },
+        { x: 301, y: 1 },
+        { x: 1439, y: 0 },
+      ];
+      dd.onDragStart({}, 0, 2, 1);
+
+      expect(cm.dragNeighbors).toContain(1);
+    });
+
     it("covers switch neighbors branch in onDrag explicitly", async () => {
       ctx.config.is_switch_preset = true;
       const selectionManager = {
@@ -818,6 +943,11 @@ describe("ChartManager - Comprehensive Coverage", () => {
         k === "selection" ? selectionManager : stateManager,
       );
       await cm.initChart(document.createElement("canvas"));
+    });
+
+    it("returns early in click handler when chart is missing", () => {
+      cm.chart = null;
+      expect(() => cm._handleClick({ native: {} }, [])).not.toThrow();
     });
 
     it("returns early when click is suppressed or managers are missing", () => {
@@ -1046,6 +1176,36 @@ describe("ChartManager - Comprehensive Coverage", () => {
       expect(cm._getLocalizedLabel("Custom")).toBe("Custom");
     });
 
+    it("skips equal adjacent switch values while building and updating chart data", () => {
+      ctx.config.is_switch_preset = true;
+
+      const built = cm._buildChartData([
+        { time: "00:00", value: 0 },
+        { time: "10:00", value: 0 },
+        { time: "12:00", value: 1 },
+      ]);
+      expect(built.datasets[1].data).toEqual([
+        { x: 719, y: 0 },
+      ]);
+
+      const stateManager = {
+        getData: vi.fn(() => [
+          { time: "00:00", value: 0 },
+          { time: "10:00", value: 0 },
+          { time: "12:00", value: 1 },
+        ]),
+      };
+      ctx.getManager.mockReturnValue(stateManager);
+      cm.chart = mockChartInstance;
+      mockChartInstance.data.datasets = [{ data: [] }, { data: [], label: "Corners" }];
+
+      cm._updateChartData();
+      expect(mockChartInstance.data.datasets[1].data).toEqual([
+        { x: 719, y: 0 },
+        { x: 721, y: 1 },
+      ]);
+    });
+
     it("covers _getLocalizedLabel default fallback branch explicitly", () => {
       expect(cm._getLocalizedLabel("TotallyCustomLabel")).toBe("TotallyCustomLabel");
     });
@@ -1076,6 +1236,7 @@ describe("ChartManager - Comprehensive Coverage", () => {
 
       expect(options.scales.x.ticks.callback(1439)).toBe("23:59");
       expect(options.scales.y.ticks.callback(12)).toContain("12.0");
+      expect(options.scales.y.ticks.callback("not-a-number")).toBe("");
 
       ctx.config.is_switch_preset = true;
       const switchOptions = cm._buildChartOptions();
@@ -1102,6 +1263,42 @@ describe("ChartManager - Comprehensive Coverage", () => {
       mockChartInstance.data.datasets = [{ data: [] }, { data: [{ x: 1, y: 1 }] }];
       cm.updateData([]);
       expect(mockChartInstance.data.datasets).toHaveLength(1);
+    });
+
+    it("covers chart data push branch and interpolation fallback with NaN x values", () => {
+      ctx.config.is_switch_preset = true;
+      const stateManager = {
+        getData: vi.fn(() => [
+          { time: "00:00", value: 0 },
+          { time: "10:00", value: 1 },
+        ]),
+      };
+      ctx.getManager.mockReturnValue(stateManager);
+      cm.chart = mockChartInstance;
+      mockChartInstance.data.datasets = [{ data: [] }];
+
+      cm._updateChartData();
+      expect(mockChartInstance.data.datasets[1].label).toBe("Corners");
+
+      mockChartInstance.data.datasets[0].data = [
+        { x: Number.NaN, y: 5 },
+        { x: Number.NaN, y: 10 },
+      ];
+      expect(cm._interpolateValueAtMinutes(50)).toBe(10);
+    });
+
+    it("handles scheduled update clear and missing chart early returns", () => {
+      const updateSpy = vi.spyOn(cm, "_updateChartData").mockImplementation(() => {});
+
+      cm._scheduleChartUpdate();
+      cm._scheduleChartUpdate();
+      vi.runAllTimers();
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+
+      cm.chart = null;
+      expect(() => cm._updateChartData()).not.toThrow();
+      expect(cm.getIndicesInArea(0, 0, 1, 1)).toEqual([]);
+      expect(() => cm._updateXAxisTicksDensity()).not.toThrow();
     });
 
     it("schedules chart updates and updates tick density", () => {
@@ -1189,6 +1386,14 @@ describe("ChartManager - Comprehensive Coverage", () => {
       expect(cm.getIndicesInArea(0, 0, 10, 10)).toEqual([0]);
     });
 
+    it("destroy clears pending update timer", () => {
+      cm._updateTimer = setTimeout(() => {}, 1000);
+      cm.chart = mockChartInstance;
+
+      cm.destroy();
+      expect(mockChartInstance.destroy).toHaveBeenCalled();
+    });
+
     it("deletePointAtEvent handles success and failure", () => {
       const stateManager = { removePoint: vi.fn() };
       ctx.getManager.mockReturnValue(stateManager);
@@ -1210,6 +1415,25 @@ describe("ChartManager - Comprehensive Coverage", () => {
   });
 
   describe("UI Helpers", () => {
+    it("covers hover and drag helper early-return guard branches", async () => {
+      const stateManager = { getData: vi.fn().mockReturnValue([]) };
+      ctx.getManager.mockReturnValue(stateManager);
+      await cm.initChart(document.createElement("canvas"));
+
+      cm.chart.scales = { x: null, y: mockChartInstance.scales.y };
+      expect(() => cm._showHoverInfo({})).not.toThrow();
+
+      cm.chart = null;
+      expect(() => cm.showDragValueDisplay(5, 10)).not.toThrow();
+
+      cm.chart = {
+        ...mockChartInstance,
+        canvas: { isConnected: true },
+        scales: { x: null, y: mockChartInstance.scales.y },
+      };
+      expect(() => cm.showDragValueDisplay(5, 10)).not.toThrow();
+    });
+
     it("exercises _showHoverInfo branches", async () => {
       const stateManager = {
         getData: vi
@@ -1272,14 +1496,86 @@ describe("ChartManager - Comprehensive Coverage", () => {
       });
     });
 
-    it("ignores display helpers safely when prerequisites are missing", () => {
-      cm.chart = null;
-      cm.showDragValueDisplay(1, 1);
+    it("clears existing hover and drag timers before replacing them", () => {
+      const myCtx = makeContext();
+      const myCm = new ChartManager(myCtx);
+      myCm.chart = mockChartInstance;
+      mockChartInstance.canvas.isConnected = true;
+      myCm._getCanvasRelativePosition = () => ({ x: 120, y: 60 });
+      myCm._interpolateValueAtMinutes = vi.fn(() => 20);
 
-      cm.chart = mockChartInstance;
+      myCm._showHoverInfo({});
+      myCm._showHoverInfo({});
+      expect(myCm._hoverHideTimer).toBeTruthy();
+
+      mockChartInstance.scales = { ...mockChartInstance.scales };
+      mockChartInstance.scales.x.getPixelForValue.mockReturnValue(50);
+      mockChartInstance.scales.y.getPixelForValue = vi.fn(() => 40);
+      myCm._dragDisplayTimer = setTimeout(() => {}, 1000);
+      myCm.showDragValueDisplay(20, 60);
+      expect(myCm._dragDisplayTimer).toBeTruthy();
+
+      myCm.scheduleHideDragValueDisplay(1000);
+      myCm.scheduleHideDragValueDisplay(1);
+      vi.runAllTimers();
+      expect(
+        myCtx._card.shadowRoot.getElementById("drag-value-display").style.display,
+      ).toBe("none");
+    });
+
+    it("covers hover auto-hide timer and drag tooltip error handling", () => {
+      const myCtx = makeContext();
+      const myCm = new ChartManager(myCtx);
+      myCm.chart = mockChartInstance;
+      mockChartInstance.canvas.isConnected = true;
+      const hideSpy = vi.spyOn(myCm, "_hideHoverInfo");
+
+      myCm._getCanvasRelativePosition = () => ({ x: 120, y: 60 });
+      myCm._interpolateValueAtMinutes = vi.fn(() => 20);
+      myCm._showHoverInfo({});
+      vi.advanceTimersByTime(1500);
+      expect(hideSpy).toHaveBeenCalled();
+
+      mockChartInstance.scales.x.getPixelForValue.mockReturnValue(50);
+      mockChartInstance.scales.y.getPixelForValue.mockImplementation(() => {
+        throw new Error("boom");
+      });
+      expect(() => myCm.showDragValueDisplay(20, 60)).not.toThrow();
+    });
+
+    it("ignores display helpers safely when prerequisites are missing", () => {
+      const myCtx = makeContext();
+      const myCm = new ChartManager(myCtx);
+      myCm.chart = null;
+      myCm.showDragValueDisplay(1, 1);
+
+      myCm.chart = mockChartInstance;
       mockChartInstance.canvas.isConnected = false;
-      cm.showDragValueDisplay(1, 1);
-      cm._showHoverInfo({});
+      myCm.showDragValueDisplay(1, 1);
+      myCm._showHoverInfo({});
+    });
+
+    it("returns early in click handler when chart is missing", () => {
+      const myCtx = makeContext();
+      const myCm = new ChartManager(myCtx);
+      myCm.chart = null;
+      myCm._handleClick({ native: {} }, []);
+    });
+
+    it("returns early in showDragValueDisplay when container is missing", () => {
+      const myCtx = makeContext();
+      myCtx._card.shadowRoot.querySelector.mockReturnValue(null);
+      const myCm = new ChartManager(myCtx);
+      myCm.chart = mockChartInstance;
+      myCm.showDragValueDisplay(1, 1);
+    });
+
+    it("returns early in _showHoverInfo if value is null", () => {
+      const myCtx = makeContext();
+      const myCm = new ChartManager(myCtx);
+      myCm.chart = mockChartInstance;
+      myCm._interpolateValueAtMinutes = vi.fn(() => null);
+      myCm._showHoverInfo({ native: { clientX: 100, clientY: 100 } });
     });
   });
 });

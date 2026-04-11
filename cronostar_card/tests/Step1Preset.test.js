@@ -453,4 +453,97 @@ describe("Step1Preset", () => {
       expect(step.getApplyIncludeDomains()).toEqual(["climate"]);
     });
   });
+
+  it("covers lit-html event bindings in render", () => {
+    editor._config.global_prefix = "valid_prefix_";
+    editor._config.target_entity = "climate.x";
+    step._handlePrefixChange = vi.fn();
+    step._handleSaveAndClose = vi.fn();
+    step._handleAdvancedConfig = vi.fn();
+    editor._dispatchConfigChanged = vi.fn();
+    editor.handleShowHelp = vi.fn();
+
+    const res = step.render();
+    const handlers = collectFunctions(res);
+
+    // Call all the handlers safely to trigger the uncovered lines
+    handlers.forEach((fn) => {
+      try { fn({ target: { value: "test" } }); } catch (e) {}
+    });
+
+    expect(step._handlePrefixChange).toHaveBeenCalledWith("test", expect.any(Object));
+    expect(editor._dispatchConfigChanged).toHaveBeenCalledWith(true);
+    expect(step._handleSaveAndClose).toHaveBeenCalled();
+    expect(step._handleAdvancedConfig).toHaveBeenCalled();
+  });
+
+  it("covers isStandard internal branches when val is present but not standard in selectPresetWithPrefix", () => {
+    editor._config.enabled_entity = "switch.cronostar_custom_thing";
+    editor._config.profiles_select_entity = "select.cronostar_custom_thing";
+    step.selectPresetWithPrefix("thermostat");
+    // Since "switch.cronostar_custom_thing" doesn't end with 'enabled' or 'enable',
+    // isStandard returns false, so enabled_entity is NOT updated.
+    expect(editor._updateConfig).not.toHaveBeenCalledWith("enabled_entity", expect.any(String));
+  });
+
+  it("covers isStandard with falsy val via getter in selectPresetWithPrefix", () => {
+    let callCount = 0;
+    Object.defineProperty(editor._config, 'enabled_entity', {
+      get: () => {
+        callCount++;
+        // prima chiamata: in !config.enabled_entity -> false
+        if (callCount === 1) return "truthy";
+        // seconda chiamata: in isStandard(config.enabled_entity, "enabled") -> null, per coprire if (!val) return true;
+        return null;
+      }
+    });
+    
+    let callCount2 = 0;
+    Object.defineProperty(editor._config, 'profiles_select_entity', {
+      get: () => {
+        callCount2++;
+        // prima chiamata: in !config.profiles_select_entity -> false
+        if (callCount2 === 1) return "truthy";
+        // seconda chiamata: in isStandard(config.profiles_select_entity, "current_profile") -> null, per coprire if (!val) return true;
+        return null;
+      }
+    });
+
+    step.selectPresetWithPrefix("ev_charging");
+    expect(editor._updateConfig).toHaveBeenCalledWith("enabled_entity", "switch.cronostar_ev_charging_enabled");
+    expect(editor._updateConfig).toHaveBeenCalledWith("profiles_select_entity", "select.cronostar_ev_charging_current_profile");
+  });
+
+  it("covers isStandard internal branches in _handlePrefixChange (return statement)", () => {
+    editor._config.enabled_entity = "switch.cronostar_custom_enabled";
+    editor._config.profiles_select_entity = "select.cronostar_custom_current_profile";
+    const event = {
+      target: {
+        value: "newprefix",
+        selectionStart: 9,
+        shadowRoot: null,
+        setSelectionRange: vi.fn(),
+        focus: vi.fn(),
+      },
+    };
+    step._handlePrefixChange("newprefix", event);
+    expect(editor._config.enabled_entity).toBe("switch.newprefix_enabled");
+    expect(editor._config.profiles_select_entity).toBe("select.newprefix_current_profile");
+  });
+
+  it("covers isStandard with falsy val in _handlePrefixChange", () => {
+    editor._config.enabled_entity = null;
+    editor._config.profiles_select_entity = null;
+    const event = {
+      target: {
+        value: "test",
+        shadowRoot: null,
+        setSelectionRange: vi.fn(),
+        focus: vi.fn(),
+      },
+    };
+    step._handlePrefixChange("test", event);
+    expect(editor._config.enabled_entity).toBe("switch.test_enabled");
+    expect(editor._config.profiles_select_entity).toBe("select.test_current_profile");
+  });
 });

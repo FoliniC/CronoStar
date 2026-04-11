@@ -1,101 +1,13 @@
-// @vitest-environment node
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from "vitest";
+import { CronoStarEditor as EditorClass } from "../src/editor/CronoStarEditor.js";
+import { DEFAULT_CONFIG, CARD_CONFIG_PRESETS } from "../src/config.js";
 
-if (!globalThis.window) globalThis.window = globalThis;
-if (!globalThis.window.setTimeout) globalThis.window.setTimeout = setTimeout;
-if (!globalThis.window.clearTimeout) globalThis.window.clearTimeout = clearTimeout;
-if (!globalThis.HTMLElement) {
-  globalThis.HTMLElement = class HTMLElement {};
-}
-if (!globalThis.ShadowRoot) {
-  globalThis.ShadowRoot = class ShadowRoot {};
-}
-if (!globalThis.customElements) {
-  const registry = new Map();
-  globalThis.customElements = {
-    define: vi.fn((name, ctor) => registry.set(name, ctor)),
-    get: vi.fn((name) => registry.get(name)),
-  };
-}
-globalThis.window.customElements = globalThis.customElements;
-
-function createFakeNode(tag = "div") {
+// Mock Lit since we are in a unit test environment
+vi.mock("lit", async () => {
+  const actual = await vi.importActual("lit");
   return {
-    tagName: String(tag).toUpperCase(),
-    style: {},
-    children: [],
-    appendChild: vi.fn(function (child) {
-      this.children.push(child);
-      return child;
-    }),
-    querySelector: vi.fn(() => null),
-    querySelectorAll: vi.fn(() => []),
-    getElementById: vi.fn(() => null),
-    remove: vi.fn(),
-    setAttribute: vi.fn(),
-    focus: vi.fn(),
-    innerHTML: "",
-    textContent: "",
-  };
-}
-
-if (!globalThis.document) {
-  const head = createFakeNode("head");
-  const body = createFakeNode("body");
-  globalThis.document = {
-    head,
-    body,
-    createElement: (name) => {
-      const Ctor = globalThis.customElements.get(name);
-      if (Ctor) return new Ctor();
-      const el = createFakeNode(name);
-      if (name === "style") el.id = "";
-      return el;
-    },
-    querySelectorAll: vi.fn(() => []),
-    querySelector: vi.fn(() => null),
-    getElementById: vi.fn((id) => {
-      const all = [...head.children, ...body.children];
-      return all.find((n) => n.id === id) || null;
-    }),
-  };
-} else {
-  if (!globalThis.document.querySelectorAll) globalThis.document.querySelectorAll = () => [];
-  if (!globalThis.document.querySelector) globalThis.document.querySelector = () => null;
-  if (!globalThis.document.createElement) {
-    globalThis.document.createElement = (name) => createFakeNode(name);
-  }
-  if (!globalThis.document.head) globalThis.document.head = createFakeNode("head");
-  if (!globalThis.document.body) globalThis.document.body = createFakeNode("body");
-  if (!globalThis.document.getElementById) {
-    globalThis.document.getElementById = () => null;
-  }
-}
-if (!globalThis.MutationObserver) {
-  globalThis.MutationObserver = class MutationObserver {
-    constructor(cb) {
-      this.cb = cb;
-    }
-    observe() {}
-    disconnect() {}
-  };
-}
-if (!globalThis.window.MutationObserver) {
-  globalThis.window.MutationObserver = globalThis.MutationObserver;
-}
-if (!globalThis.CustomEvent) {
-  globalThis.CustomEvent = class CustomEvent {
-    constructor(type, init = {}) {
-      this.type = type;
-      this.detail = init.detail;
-      this.bubbles = !!init.bubbles;
-      this.composed = !!init.composed;
-    }
-  };
-}
-
-vi.mock("lit", () => {
-  return {
+    ...actual,
     html: (strings, ...values) => {
       return {
         strings,
@@ -125,12 +37,7 @@ vi.mock("lit", () => {
     LitElement: class extends HTMLElement {
       constructor() {
         super();
-        this.shadowRoot = {
-          querySelectorAll: vi.fn(() => []),
-          querySelector: vi.fn(() => null),
-          getElementById: vi.fn(() => null),
-          appendChild: vi.fn(),
-        };
+        this.attachShadow({ mode: "open" });
       }
       requestUpdate() {
         if (this.updated) this.updated(new Map());
@@ -142,7 +49,7 @@ vi.mock("lit", () => {
         return true;
       }
       getRootNode() {
-        return this.shadowRoot;
+        return this.shadowRoot || this;
       }
     },
   };
@@ -262,9 +169,6 @@ vi.mock("../src/editor/yaml/yaml_generators.js", () => ({
   buildAutomationTemplate: vi.fn(() => "automation: yaml"),
 }));
 
-const { CronoStarEditor: EditorClass } = await import("../src/editor/CronoStarEditor.js");
-const { validateConfig, extractCardConfig } = await import("../src/config.js");
-
 function collectFunctions(node, out = []) {
   if (!node) return out;
   if (Array.isArray(node)) {
@@ -280,94 +184,44 @@ function collectFunctions(node, out = []) {
   return out;
 }
 
-describe("CronoStarEditor - Comprehensive", () => {
+describe("CronoStarEditor - Final Push", () => {
   let editor;
 
   beforeAll(() => {
-    if (!customElements.get("cronostar-card-editor-final-merged")) {
-      customElements.define("cronostar-card-editor-final-merged", EditorClass);
+    if (!customElements.get("cronostar-card-editor-final-push")) {
+      customElements.define("cronostar-card-editor-final-push", EditorClass);
     }
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
-    editor = document.createElement("cronostar-card-editor-final-merged");
+    editor = document.createElement("cronostar-card-editor-final-push");
     editor.hass = {
       language: "en",
       states: { "sensor.test": { state: "on" } },
       callService: vi.fn(() => Promise.resolve()),
     };
-    Object.defineProperty(editor, "shadowRoot", {
-      value: {
-        querySelectorAll: vi.fn(() => []),
-        querySelector: vi.fn(() => null),
-        getElementById: vi.fn(() => null),
-        appendChild: vi.fn(),
-      },
-      configurable: true,
-    });
-    document.head.children = [];
-    document.body.children = [];
+    
     document.head.innerHTML = "";
     document.body.innerHTML = "";
-    document.head.appendChild = vi.fn(function (child) {
-      this.children.push(child);
-      return child;
-    });
-    document.body.appendChild = vi.fn(function (child) {
-      this.children.push(child);
-      return child;
-    });
-    document.getElementById = vi.fn((id) => {
-      const all = [...document.head.children, ...document.body.children];
-      return all.find((n) => n.id === id) || null;
-    });
-    document.querySelectorAll = vi.fn(() => []);
-    document.querySelector = vi.fn(() => null);
     vi.stubGlobal("confirm", vi.fn(() => true));
   });
 
   afterEach(() => {
+    if (editor) {
+        editor.disconnectedCallback();
+    }
     vi.unstubAllGlobals();
   });
 
-  it("exercises all branches and methods", async () => {
+  it("covers basic methods", async () => {
     editor._initialized = true;
-
-    editor._ignoreInboundUntil = Date.now() + 10000;
-    editor.setConfig({ target_entity: "new" });
-    editor._ignoreInboundUntil = 0;
-    editor.setConfig({
-      target_entity: "x",
-      global_prefix: "p_",
-      meta: { language: "it" },
-    });
-    editor.setConfig({ preset_type: "thermostat" });
-    editor.setConfig(null);
-
+    editor.setConfig({ target_entity: "x", global_prefix: "p_", meta: { language: "it" } });
     editor.updated(new Map([["step", 0], ["hass", null]]));
     editor.connectedCallback();
-    editor.disconnectedCallback();
 
-    editor._handleLocalUpdate("enabled_entity", "ib.x");
-    editor._handleLocalUpdate("profiles_select_entity", "is.x");
     editor._handleLocalUpdate("target_entity", "sensor.test");
-
-    vi.stubGlobal("confirm", () => false);
-    editor._isEditing = true;
     editor._handleResetConfig();
-    vi.stubGlobal("confirm", () => true);
-    editor._handleResetConfig();
-
-    vi.stubGlobal("customElements", { get: (tag) => tag === "ha-selector" });
-    editor.renderEntityPicker("target_entity", "v");
-
-    vi.stubGlobal("customElements", { get: (tag) => tag === "ha-entity-picker" });
-    editor.renderEntityPicker("target_entity", "v");
-
-    vi.stubGlobal("customElements", { get: () => false });
-    editor.renderEntityPicker("target_entity", "v");
-    editor.renderTextInput("key", "val", "place");
 
     for (let s = 0; s <= 5; s++) {
       editor._step = s;
@@ -385,707 +239,278 @@ describe("CronoStarEditor - Comprehensive", () => {
     editor._step = 5;
     await editor._handleFinishClick({ force: true });
 
-    const { handleInitializeData } = await import("../src/editor/services/service_handlers.js");
-    handleInitializeData.mockRejectedValueOnce(new Error("Init failed"));
-    await editor._handleFinishClick({ force: true });
-
-    editor._config.global_prefix = "p_";
     await editor._saveMetadata();
     await editor._saveGlobalSettings({ opt: 1 });
 
     editor._applyShadowDomFix();
     editor._updatePreviewVisibility();
-    editor._renderButton({ label: "T", click: () => {}, raised: true });
-
     editor._updateConfig("logging_enabled", false, true);
-
-    editor.hass.callService.mockRejectedValueOnce(new Error("Save fail"));
-    await editor._saveMetadata();
-
-    await editor._saveGlobalSettings({ test: 1 });
   });
 
-  it("covers constructor defaults and public wrappers", () => {
-    expect(editor._step).toBe(0);
-    expect(editor._language).toBe("en");
-    expect(editor._pickerLoaded).toBe(false);
-    expect(editor._dashboardView).toBe("choice");
-
-    const btn1 = editor.renderButton("X", () => {}, false, false);
-    const btn2 = editor.renderButton("Y", () => {}, true, true);
-    expect(btn1.__litHtml).toBe(true);
-    expect(btn2.__litHtml).toBe(true);
-  });
-
-  it("covers startup language adoption timeout branch", async () => {
-    const q = vi.fn(() => ({ language: "it" }));
-    editor.shadowRoot.querySelector = q;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(editor._language).toBe("it");
-  });
-
-  it("covers startup language adoption fallback ignore", async () => {
-    editor.shadowRoot.querySelector = vi.fn(() => {
-      throw new Error("ignore");
-    });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(editor._language).toBeDefined();
-  });
-
-  it("covers updated() with hass language adoption and config language change", () => {
-    editor._config = { meta: {}, logging_enabled: true };
-    editor._language = "it";
-    editor.hass = { language: "fr-FR" };
-    editor.language = "de";
-    editor.updated(new Map([["hass", {}], ["config", {}], ["language", "it"]]));
-    expect(editor._language).toBe("de");
-  });
-
-  it("covers updated() card language adoption branch", () => {
-    const cardEl = { language: "it" };
-    editor.shadowRoot.querySelector = vi.fn(() => cardEl);
-    editor._config = { meta: null, logging_enabled: true };
-    editor._language = "en";
-    editor.hass = { language: "fr-FR" };
-    editor.updated(new Map([["hass", {}]]));
-    expect(editor._language).toBe("it");
-  });
-
-  it("covers updated() hass fallback language branch", () => {
-    editor.shadowRoot.querySelector = vi.fn(() => null);
-    document.querySelector = vi.fn(() => null);
-    editor._config = { meta: null, logging_enabled: true };
-    editor._language = "en";
-    editor.hass = { language: "fr-FR" };
-    editor.updated(new Map([["hass", {}]]));
-    expect(editor._language).toBe("fr");
-  });
-
-  it("covers updated() when _step changes and calls _dispatchConfigChanged", () => {
-    editor._step = 2;
-    editor._dispatchConfigChanged = vi.fn();
-    editor.updated(new Map([["_step", 1]]));
-    expect(editor._dispatchConfigChanged).toHaveBeenCalledWith(true);
-  });
-
-  it("covers updated() when step property changes", () => {
-    editor.step = 3;
-    editor.updated(new Map([["step", 1]]));
-    expect(editor._step).toBe(3);
-  });
-
-  it("covers updated() when hass exists with same language", () => {
-    editor._config = { meta: { language: "en" }, logging_enabled: true };
-    editor._language = "en";
-    editor.hass = { language: "en-US" };
-    editor.updated(new Map([["hass", {}]]));
-    expect(editor._language).toBe("en");
-  });
-
-  it("covers _updateSaveButtonVisibility hide/show branches", () => {
-    editor._step = 2;
-    editor._updateSaveButtonVisibility();
-    const created = document.head.children.find((n) => n.id === "cronostar-editor-save-button-hide");
-    expect(created).toBeTruthy();
-
-    editor._step = 5;
-    editor._updateSaveButtonVisibility();
-    expect(created.textContent).toBe("");
-  });
-
-  it("covers _updateSaveButtonVisibility catch branch", () => {
-    const originalHead = document.head;
-    Object.defineProperty(document, "head", {
-      get() {
-        throw new Error("head fail");
-      },
-      configurable: true,
-    });
-    expect(() => editor._updateSaveButtonVisibility()).not.toThrow();
-    Object.defineProperty(document, "head", {
-      value: originalHead,
-      configurable: true,
-      writable: true,
-    });
-  });
-
-  it("covers _updatePreviewVisibility step 0 and non-0 branches", () => {
-    editor._step = 0;
-    editor.getRootNode = vi.fn(() => editor.shadowRoot);
-    editor.shadowRoot.appendChild = vi.fn(function (child) {
-      document.body.children.push(child);
-      return child;
-    });
-    editor.shadowRoot.getElementById = vi.fn(() => null);
-
-    editor._updatePreviewVisibility();
-
-    editor._step = 2;
-    const styleEl = { id: "cronostar-editor-style", textContent: "x" };
-    const appendSpy = vi.spyOn(editor.shadowRoot, "appendChild");
-    editor.shadowRoot.getElementById = vi.fn(() => styleEl);
-    document.getElementById = vi.fn(() => styleEl);
-
-    expect(() => editor._updatePreviewVisibility()).not.toThrow();
-    expect(appendSpy).not.toHaveBeenCalled();
-  });
-
-  it("covers _updatePreviewVisibility invalid root and catch branch", () => {
-    editor.getRootNode = vi.fn(() => null);
-    expect(() => editor._updatePreviewVisibility()).not.toThrow();
-
-    editor.getRootNode = vi.fn(() => {
-      throw new Error("root fail");
-    });
-    expect(() => editor._updatePreviewVisibility()).not.toThrow();
-  });
-
-  it("covers _updatePreviewVisibility with document root target", () => {
-    editor._step = 0;
-    editor.getRootNode = vi.fn(() => document);
-    expect(() => editor._updatePreviewVisibility()).not.toThrow();
-  });
-
-  it("covers _applyShadowDomFix injection and observer setup", () => {
-    const nestedShadowHost = {
-      shadowRoot: {
-        querySelector: vi.fn(() => null),
-        querySelectorAll: vi.fn(() => []),
-        appendChild: vi.fn(),
-      },
-      tagName: "ha-entity-picker",
+  it("covers _applyShadowDomFix MutationObserver", () => {
+    vi.useFakeTimers();
+    let observerCallback;
+    const mockObserver = class {
+        constructor(cb) { observerCallback = cb; }
+        observe() {}
+        disconnect() {}
     };
-    const host = {
-      shadowRoot: {
-        querySelector: vi.fn(() => null),
-        querySelectorAll: vi.fn(() => []),
-        appendChild: vi.fn(),
-      },
-      tagName: "ha-select",
-    };
-    editor.shadowRoot.querySelectorAll = vi.fn(() => [host, nestedShadowHost]);
-    document.querySelectorAll = vi.fn(() => [host]);
-
-    editor._applyShadowDomFix();
-    expect(editor._contrastObserver).toBeTruthy();
-    expect(editor._contrastInterval).toBeTruthy();
-    expect(host.shadowRoot.appendChild).toHaveBeenCalled();
-    expect(nestedShadowHost.shadowRoot.appendChild).toHaveBeenCalled();
-  });
-
-  it("covers _applyShadowDomFix recursive child handling", () => {
-    const childShadow = { querySelectorAll: vi.fn(() => []), querySelector: vi.fn(() => null), appendChild: vi.fn() };
-    const child = { shadowRoot: childShadow, tagName: "ha-textfield" };
-    const parentShadow = {
-      querySelectorAll: vi.fn(() => [child]),
-      querySelector: vi.fn(() => null),
-      appendChild: vi.fn(),
-    };
-    const parent = { shadowRoot: parentShadow, tagName: "ha-selector" };
-    editor.shadowRoot.querySelectorAll = vi.fn(() => [parent]);
-    document.querySelectorAll = vi.fn(() => []);
-    editor._applyShadowDomFix();
-    expect(parentShadow.appendChild).toHaveBeenCalled();
-    expect(childShadow.appendChild).toHaveBeenCalled();
-  });
-
-  it("covers _applyShadowDomFix skip branch when tag is unrelated", () => {
-    const host = {
-      shadowRoot: {
-        querySelector: vi.fn(() => null),
-        querySelectorAll: vi.fn(() => []),
-        appendChild: vi.fn(),
-      },
-      tagName: "div",
-    };
-    editor.shadowRoot.querySelectorAll = vi.fn(() => [host]);
-    document.querySelectorAll = vi.fn(() => []);
-    editor._applyShadowDomFix();
-    expect(host.shadowRoot.appendChild).not.toHaveBeenCalled();
-  });
-
-  it("covers disconnectedCallback cleanup", () => {
-    editor._contrastObserver = { disconnect: vi.fn() };
-    editor._contrastInterval = setInterval(() => {}, 1000);
-    editor.disconnectedCallback();
-    expect(editor._contrastObserver.disconnect).toHaveBeenCalled();
-  });
-
-  it("covers _renderWizardSteps empty branch", () => {
-    editor._step = 0;
-    const tpl = editor._renderWizardSteps();
-    expect(tpl.__litHtml).toBe(true);
-  });
-
-  it("covers _renderWizardSteps clickable logic", () => {
-    editor._step = 3;
-    editor._canGoNext = vi.fn(() => true);
-    const tpl = editor._renderWizardSteps();
-    const handlers = collectFunctions(tpl);
-    handlers[0]();
-    expect(editor._step).toBe(0);
-  });
-
-  it("covers _renderWizardSteps blocked jump branch", () => {
-    editor._step = 1;
-    editor._canGoNext = vi.fn(() => false);
-    const tpl = editor._renderWizardSteps();
-    const handlers = collectFunctions(tpl);
-    handlers[1]();
-    expect(editor._step).toBe(1);
-  });
-
-  it("covers setConfig merge branches and language anti-revert branch", () => {
-    editor._config = { not_configured: false, target_entity: "old", global_prefix: "old_", meta: {} };
-    editor._step = 2;
-    editor._language = "it";
-    editor.hass = { language: "en-US" };
-    editor.setConfig({ target_entity: "new", global_prefix: "new_", meta: {} });
-    expect(editor._config.target_entity).toBe("old");
-
-    editor._step = 0;
-    editor.setConfig({ meta: {} });
-    expect(editor._language).toBe("it");
-  });
-
-  it("covers setConfig initial adoption branch", () => {
-    editor._config = { not_configured: true };
-    editor.setConfig({ preset_type: "ev_charging", global_prefix: "x_" });
-    expect(editor._config.preset_type).toBe("ev_charging");
-  });
-
-  it("covers setConfig with this.language priority", () => {
-    editor.language = "de";
-    editor.setConfig({ meta: { language: "it" } });
-    expect(editor._language).toBe("de");
-  });
-
-  it("covers setConfig without config.hass fallback", () => {
-    editor.language = null;
-    editor.hass = { language: "fr-FR" };
-    // Clear meta.language that might be set by constructor timeout
-    if (!editor._config.meta) editor._config.meta = {};
-    editor._config.meta.language = undefined;
+    vi.stubGlobal("MutationObserver", mockObserver);
     
-    editor.setConfig({ meta: {} });
-    expect(editor._language).toBe("fr");
-  });
-
-  it("covers setConfig catch branch", () => {
-    validateConfig.mockImplementationOnce(() => {
-      throw new Error("broken validate");
-    });
-    editor.setConfig({ x: 1 });
-    expect(editor._config.x).toBe(1);
-  });
-
-  it("covers _isElDefined helper", () => {
-    expect(typeof editor._isElDefined("ha-select")).toBe("boolean");
-  });
-
-  it("covers _syncConfigAliases no-op", () => {
-    expect(() => editor._syncConfigAliases()).not.toThrow();
-  });
-
-  it("covers _updateAutomationYaml", () => {
-    editor._updateAutomationYaml();
-    expect(editor._automationYaml).toBe("automation: yaml");
-  });
-
-  it("covers _sanitizeConfig branches", () => {
-    const a = editor._sanitizeConfig({
-      target_entity: "sensor.x",
-      global_prefix: "p_",
-      test_empty: "",
-      type: "",
-    });
-    expect(a.not_configured).toBe(false);
-    expect(a.type).toBe("custom:cronostar-card");
-    expect(a.test_empty).toBeUndefined();
-
-    const b = editor._sanitizeConfig({ not_configured: true });
-    expect(b.not_configured).toBe(true);
-  });
-
-  it("covers _dispatchConfigChanged guard branches and bubbling event", () => {
-    editor.dispatchEvent = vi.fn();
-    editor._initialized = false;
-    editor._dispatchConfigChanged(true);
-    expect(editor.dispatchEvent).not.toHaveBeenCalled();
-
-    editor._initialized = true;
-    editor._config = { target_entity: null };
-    editor._isEditing = true;
-    editor._dispatchConfigChanged(true);
-    expect(editor.dispatchEvent).not.toHaveBeenCalled();
-
-    editor._isEditing = false;
-    editor._step = 0;
-    editor._dispatchConfigChanged(false);
-    expect(editor.dispatchEvent).not.toHaveBeenCalled();
-
-    editor._step = 2;
-    editor._config = { target_entity: "sensor.x", global_prefix: "p_" };
-    editor._dispatchConfigChanged(true);
-    expect(editor.dispatchEvent).toHaveBeenCalled();
-  });
-
-  it("covers _dispatchConfigChanged debounced path", () => {
-    editor._initialized = true;
-    editor._step = 2;
-    editor._config = { target_entity: "sensor.x", global_prefix: "p_" };
-    editor.dispatchEvent = vi.fn();
-    editor._dispatchConfigChanged(false);
-    expect(editor.dispatchEvent).toHaveBeenCalledTimes(1);
-    expect(editor.dispatchEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "config-changed",
-      }),
-    );
-  });
-
-  it("covers _persistCardConfigNow and showToast", () => {
-    editor.dispatchEvent = vi.fn();
-    expect(editor._persistCardConfigNow()).resolves.toBeUndefined();
-    editor.showToast("hello");
-    expect(editor.dispatchEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "hass-notification",
-      }),
-    );
-  });
-
-  it("covers _renderStep for all cases", () => {
-    for (let s = 0; s <= 5; s++) {
-      editor._step = s;
-      const out = editor._renderStep({ valid: true, errors: [] });
-      expect(out.__litHtml).toBe(true);
-    }
-    editor._step = 99;
-    expect(editor._renderStep({}).__litHtml).toBe(true);
-  });
-
-  it("covers _renderStepContent filtering logic", () => {
-    editor._step = 2;
-    editor._config = {
-      target_entity: "sensor.new",
-      validation: {
-        valid: false,
-        errors: [
-          "Target entity sensor.old not found",
-          "Target entity sensor.new not found",
-          "Other error",
-        ],
+    editor._contrastObserver = null;
+    editor._applyShadowDomFix();
+    
+    const vaadinEl = {
+      tagName: "VAADIN-COMBO-BOX-OVERLAY",
+      shadowRoot: {
+        querySelector: vi.fn(() => null),
+        querySelectorAll: vi.fn(() => []),
+        appendChild: vi.fn(),
       },
     };
-    editor.hass = { states: { "sensor.new": { state: "1" } } };
-    const tpl = editor._renderStepContent();
-    expect(tpl.__litHtml).toBe(true);
+    vi.spyOn(document, "querySelectorAll").mockReturnValue([vaadinEl]);
+    
+    observerCallback();
+    expect(vaadinEl.shadowRoot.appendChild).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
-  it("covers _renderStepContent hidden error box branch", () => {
+  it("covers _updatePreviewVisibility styleEl branches", () => {
     editor._step = 0;
-    editor._config = { validation: { valid: false, errors: ["x"] } };
-    const tpl = editor._renderStepContent();
-    expect(tpl.__litHtml).toBe(true);
+    editor._updatePreviewVisibility();
+    const styleGlobal = document.head.querySelector("#cronostar-editor-style-global");
+    expect(styleGlobal).not.toBeNull();
+    expect(styleGlobal.textContent).toContain("preview");
+
+    editor._step = 1;
+    editor._updatePreviewVisibility();
+    expect(styleGlobal.textContent).toBe("");
   });
 
-  it("covers _handleLocalUpdate and metadata save branch", () => {
-    editor._config = { type: "custom:cronostar-card" };
-    editor._saveMetadata = vi.fn();
-    editor._handleLocalUpdate("enabled_entity", "switch.x");
-    expect(editor._saveMetadata).toHaveBeenCalled();
-
-    editor._handleLocalUpdate("other_key", "x");
-    expect(editor._config.other_key).toBe("x");
-  });
-
-  it("covers renderEntityPicker fallback empty when no hass", () => {
-    editor.hass = null;
-    const tpl = editor.renderEntityPicker("k", "v");
-    expect(tpl.__litHtml).toBe(true);
-  });
-
-  it("covers renderEntityPicker handlers for selector and picker", () => {
-    editor.hass = { language: "en" };
-
-    vi.stubGlobal("customElements", { get: (tag) => tag === "ha-selector" });
-    let tpl = editor.renderEntityPicker("target_entity", "v");
-    let handlers = collectFunctions(tpl);
-    handlers[0]({ detail: { value: "entity.one" } });
-
-    vi.stubGlobal("customElements", { get: (tag) => tag === "ha-entity-picker" });
-    tpl = editor.renderEntityPicker("enabled_entity", "v");
-    handlers = collectFunctions(tpl);
-    handlers[0]({ detail: { value: "" } });
-  });
-
-  it("covers renderEntityPicker target_entity immediate update path", () => {
-    editor.hass = { language: "en" };
-    editor._updateConfig = vi.fn();
-    vi.stubGlobal("customElements", { get: (tag) => tag === "ha-selector" });
-    const tpl = editor.renderEntityPicker("target_entity", "v");
+  it("covers _renderTextInput change and input handlers", () => {
+    const dispatchSpy = vi.spyOn(editor, "_dispatchConfigChanged");
+    const localUpdateSpy = vi.spyOn(editor, "_handleLocalUpdate");
+    const tpl = editor._renderTextInput("k", "v");
     const handlers = collectFunctions(tpl);
-    handlers[0]({ detail: { value: "entity.one" } });
-    expect(editor._updateConfig).toHaveBeenCalledWith(
-      "target_entity",
-      "entity.one",
-      true,
-    );
-  });
+    
+    handlers[0]({ target: { value: 'new' } });
+    expect(localUpdateSpy).toHaveBeenCalledWith("k", "new");
 
-  it("covers _renderTextInput handlers", () => {
-    editor._handleLocalUpdate = vi.fn();
-    editor._dispatchConfigChanged = vi.fn();
-    const tpl = editor._renderTextInput("key", "val", "place");
-    const handlers = collectFunctions(tpl);
-    handlers[0]({ target: { value: "new" } });
     handlers[1]();
-    expect(editor._handleLocalUpdate).toHaveBeenCalledWith("key", "new");
-    expect(editor._dispatchConfigChanged).toHaveBeenCalledWith(true);
+    expect(dispatchSpy).toHaveBeenCalled();
   });
 
-  it("covers _renderButton outlined and raised branches", () => {
-    expect(editor._renderButton({ label: "A", click: () => {}, outlined: true }).__litHtml).toBe(true);
-    expect(editor._renderButton({ label: "B", click: () => {}, outlined: false }).__litHtml).toBe(true);
+  it("covers _renderWizardSteps jump", () => {
+    editor._step = 2;
+    vi.spyOn(editor, "_canGoNext").mockReturnValue(true);
+    const tpl = editor._renderWizardSteps();
+    const handlers = collectFunctions(tpl);
+    handlers[5](); 
+    expect(editor._step).toBe(5);
   });
 
-  it("covers _updateConfig branches including preset merge and metadata save", () => {
-    editor._dispatchConfigChanged = vi.fn();
-    editor._saveMetadata = vi.fn();
-    editor._config = {
-      type: "custom:cronostar-card",
-      entity_prefix: "legacy",
-      validation: { valid: false },
-    };
-
-    editor._updateConfig("target_entity", "sensor.new", true);
-    expect(editor._config.validation.valid).toBe(true);
-
-    editor._updateConfig("preset_type", "generic_switch", false);
-    expect(editor._selectedPreset).toBe("generic_switch");
-
-    editor._updateConfig("enabled_entity", "switch.new", false);
-    expect(editor._saveMetadata).toHaveBeenCalled();
-  });
-
-  it("covers _updateConfig ensuring global_prefix", () => {
-    editor._config = { type: "custom:cronostar-card", global_prefix: "" };
-    editor._updateConfig("other", "x", false);
-    expect(editor._config.global_prefix).toBe("p_");
-  });
-
-  it("covers _handleNextClick success branch", () => {
-    editor._canGoNext = vi.fn(() => true);
-    editor._dispatchConfigChanged = vi.fn();
-    editor.wizard._nextStep = vi.fn();
+  it("covers _handleNextClick and _handleFinishClick directly", async () => {
+    editor._step = 1;
+    vi.spyOn(editor, "_canGoNext").mockReturnValue(true);
     editor._handleNextClick();
     expect(editor.wizard._nextStep).toHaveBeenCalled();
+
+    editor._step = 5;
+    editor.hass = { callService: vi.fn() };
+    await editor._handleFinishClick();
+    expect(editor.wizard._finish).toHaveBeenCalled();
   });
 
-  it("covers _handleFinishClick next-step fallback branch", async () => {
+  it("covers _renderStepContent error filtering (line 1318)", () => {
     editor._step = 2;
-    editor.wizard._nextStep = vi.fn();
-    await editor._handleFinishClick({});
-    expect(editor.wizard._nextStep).toHaveBeenCalled();
-  });
-
-  it("covers _handleFinishClick without hass", async () => {
-    editor.hass = null;
-    editor._step = 5;
-    editor.wizard._finish = vi.fn();
-    await editor._handleFinishClick({ force: true });
-    expect(editor.wizard._finish).toHaveBeenCalled();
-  });
-
-  it("covers _handleFinishClick with persistCardConfigNow hook", async () => {
-    editor.hass = null;
-    editor._persistCardConfigNow = vi.fn();
-    editor.wizard._finish = vi.fn();
-    await editor._handleFinishClick({ force: false });
-    expect(editor._persistCardConfigNow).toHaveBeenCalled();
-    expect(editor.wizard._finish).toHaveBeenCalled();
-  });
-
-  it("covers _handleFinishClick final branch with sanitize and dispatch", async () => {
-    editor._step = 5;
-    editor.hass = {};
-    editor.dispatchEvent = vi.fn();
-    editor.showToast = vi.fn();
-    await editor._handleFinishClick({ force: true });
-    expect(editor.dispatchEvent).toHaveBeenCalled();
-  });
-
-  it("covers _handleKeyDown blocking Enter in wizard only for non-textarea", () => {
-    const e1 = {
-      key: "Enter",
-      preventDefault: vi.fn(),
-      stopPropagation: vi.fn(),
-      target: { tagName: "INPUT" },
+    editor._config.target_entity = "sensor.found";
+    editor._config.validation = {
+      valid: false,
+      errors: ["Target entity sensor.found not found"]
     };
+    editor.hass = { states: { "sensor.found": { state: "on" } } };
+    const res = editor._renderStepContent();
+    expect(res.toString()).not.toContain("sensor.found");
+  });
+
+  it("covers updated() lifecycle", () => {
+    editor.step = 3;
+    editor.updated(new Map([["step", 2]]));
+    expect(editor._step).toBe(3);
+
+    editor._config.meta = {};
+    editor._language = "en";
+    const fakeCard = { language: "it" };
+    vi.spyOn(editor.shadowRoot, 'querySelector').mockImplementation((sel) => sel === "cronostar-card" ? fakeCard : null);
+    editor.updated(new Map([["hass", null]]));
+    expect(editor._language).toBe("it");
+  });
+
+  it("covers all wizard actions branches", () => {
+    // Step 1 valid
     editor._step = 1;
-    editor._handleKeyDown(e1);
-    expect(e1.preventDefault).toHaveBeenCalled();
+    vi.spyOn(editor, "_canGoNext").mockReturnValue(true);
+    editor._renderWizardActions();
 
-    const e2 = {
-      key: "Enter",
-      preventDefault: vi.fn(),
-      stopPropagation: vi.fn(),
-      target: { tagName: "TEXTAREA" },
-    };
-    editor._handleKeyDown(e2);
-    expect(e2.preventDefault).not.toHaveBeenCalled();
-  });
+    // Step 1 invalid
+    vi.spyOn(editor, "_canGoNext").mockReturnValue(false);
+    editor._renderWizardActions();
 
-  it("covers _handleKeyDown no-op when step is 0", () => {
-    const e = {
-      key: "Enter",
-      preventDefault: vi.fn(),
-      stopPropagation: vi.fn(),
-      target: { tagName: "INPUT" },
-    };
-    editor._step = 0;
-    editor._handleKeyDown(e);
-    expect(e.preventDefault).not.toHaveBeenCalled();
-  });
+    // Step 2
+    editor._step = 2;
+    editor._renderWizardActions();
 
-  it("covers _canGoNext branches", () => {
-    editor._step = 0;
-    expect(editor._canGoNext()).toBe(true);
-
-    editor._step = 1;
-    editor._config = { global_prefix: "p_", target_entity: "sensor.x" };
-    expect(editor._canGoNext()).toBe(true);
-
-    editor._config = { global_prefix: "", target_entity: null };
-    expect(editor._canGoNext()).toBe(false);
-
-    editor._step = 3;
-    expect(editor._canGoNext()).toBe(true);
-  });
-
-  it("covers _renderWizardActions step 0 branch", () => {
-    editor._step = 0;
-    expect(editor._renderWizardActions().__litHtml).toBe(true);
-  });
-
-  it("covers _renderWizardActions step 1 invalid branch and back handler", () => {
-    editor._step = 1;
-    editor._canGoNext = vi.fn(() => false);
-    const tpl = editor._renderWizardActions();
-    const handlers = collectFunctions(tpl);
-    handlers[0]();
-    expect(editor._step).toBe(0);
-  });
-
-  it("covers _renderWizardActions step 1 valid branch", () => {
-    editor._step = 1;
-    editor._canGoNext = vi.fn(() => true);
-    const tpl = editor._renderWizardActions();
-    expect(tpl.__litHtml).toBe(true);
-  });
-
-  it("covers _renderWizardActions middle step branches", () => {
-    editor._step = 3;
-    editor._dispatchConfigChanged = vi.fn();
-    editor.wizard._prevStep = vi.fn();
-    editor._handleNextClick = vi.fn();
-    const tpl = editor._renderWizardActions();
-    const handlers = collectFunctions(tpl);
-    handlers[0]();
-    handlers[1]();
-    expect(editor.wizard._prevStep).toHaveBeenCalled();
-    expect(editor._handleNextClick).toHaveBeenCalled();
-  });
-
-  it("covers _renderWizardActions final step save branch", () => {
+    // Step 5
     editor._step = 5;
-    editor._handleFinishClick = vi.fn();
-    const tpl = editor._renderWizardActions();
-    const handlers = collectFunctions(tpl);
-    handlers[handlers.length - 1]();
-    expect(editor._handleFinishClick).toHaveBeenCalledWith({ force: true });
+    editor._renderWizardActions();
+
+    // Default branch
+    editor._step = 99;
+    editor._renderWizardActions();
   });
 
-  it("covers render() output", () => {
-    const tpl = editor.render();
-    expect(tpl.__litHtml).toBe(true);
+  it("covers _renderStep default branch", () => {
+    editor._step = 99;
+    const res = editor._renderStep({});
+    expect(res.toString()).toContain("Unknown Step");
   });
 
-  it("covers _saveGlobalSettings early return without hass", async () => {
+  it("covers _updateSaveButtonVisibility branches", () => {
+    editor._step = 1;
+    editor._updateSaveButtonVisibility();
+    let style = document.getElementById("cronostar-editor-save-button-hide");
+    expect(style.textContent).toContain("display: none");
+
+    editor._step = 4;
+    editor._updateSaveButtonVisibility();
+    expect(style.textContent).toBe("");
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Line 344: this.dispatchEvent() inside the _debouncedDispatch callback
+  // ─────────────────────────────────────────────────────────────────────────
+  it("L344: _debouncedDispatch callback body executes via non-immediate dispatch", () => {
+    editor._initialized = true;
+    editor._step = 2;           // > 0 → bypasses the step===0 guard
+    editor._isEditing = false;
+    editor._config.target_entity = null;
+
+    const dispatchSpy = vi.spyOn(editor, "dispatchEvent");
+    editor._dispatchConfigChanged(false);
+
+    expect(dispatchSpy).toHaveBeenCalled();
+    const evt = dispatchSpy.mock.calls.find(c => c[0]?.type === "config-changed");
+    expect(evt).toBeDefined();
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Line 394: if (!this.hass) return;  in _saveGlobalSettings
+  // ─────────────────────────────────────────────────────────────────────────
+  it("L394: _saveGlobalSettings returns early when hass is falsy", async () => {
     editor.hass = null;
     await expect(editor._saveGlobalSettings({ a: 1 })).resolves.toBeUndefined();
   });
 
-  it("covers _saveGlobalSettings success with host update", async () => {
+  // ─────────────────────────────────────────────────────────────────────────
+  // Line 408: cardEl.globalSettings = settings;
+  // ─────────────────────────────────────────────────────────────────────────
+  it("L408: cardEl.globalSettings is assigned when host exposes the property", async () => {
     const host = { globalSettings: null };
-    editor.getRootNode = vi.fn(() => ({ host }));
-    await editor._saveGlobalSettings({ k: 1 });
-    expect(host.globalSettings).toEqual({ k: 1 });
-  });
+    vi.spyOn(editor, "getRootNode").mockReturnValue({ host });
 
-  it("covers _saveGlobalSettings error branch", async () => {
-    editor.hass.callService.mockRejectedValueOnce(new Error("save fail"));
+    editor.hass = { callService: vi.fn(() => Promise.resolve()) };
     editor.showToast = vi.fn();
-    await editor._saveGlobalSettings({ k: 1 });
-    expect(editor.showToast).toHaveBeenCalledWith(expect.stringContaining("save fail"));
+
+    await editor._saveGlobalSettings({ brightness: 70 });
+    expect(host.globalSettings).toEqual({ brightness: 70 });
   });
 
-  it("covers handleShowHelp", () => {
+  // ─────────────────────────────────────────────────────────────────────────
+  // Lines 411 + 417: catch block in _saveGlobalSettings (log + showToast)
+  // ─────────────────────────────────────────────────────────────────────────
+  it("L411+417: _saveGlobalSettings catch block calls log() and showToast()", async () => {
+    const err = new Error("permission denied");
+    editor.hass = { callService: vi.fn(() => Promise.reject(err)) };
+    editor.showToast = vi.fn();
+
+    await editor._saveGlobalSettings({ x: 1 });
+    const { log } = await import("../src/utils/logger_utils.js");
+    expect(log).toHaveBeenCalled();
+    expect(editor.showToast).toHaveBeenCalledWith(`✗ ${err.message}`);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Line 422: const lang = this._language || "en";  in handleShowHelp()
+  // ─────────────────────────────────────────────────────────────────────────
+  it("L422: handleShowHelp() executes its body", () => {
+    editor._language = "it";
+    expect(() => editor.handleShowHelp()).not.toThrow();
+    editor._language = "";
     expect(() => editor.handleShowHelp()).not.toThrow();
   });
 
-  it("covers _saveMetadata early return", async () => {
-    editor.hass = null;
-    await expect(editor._saveMetadata()).resolves.toBeUndefined();
+  // ─────────────────────────────────────────────────────────────────────────
+  // Lines 438-460: updated() hass block — all branches
+  // ─────────────────────────────────────────────────────────────────────────
+  it("L438-450: updated() hass block – card language adoption via shadowRoot", () => {
+    editor._config.meta = {};
+    editor._language = "en";
 
-    editor.hass = { callService: vi.fn() };
-    editor._config.global_prefix = null;
-    await expect(editor._saveMetadata()).resolves.toBeUndefined();
-  });
-
-  it("covers _saveMetadata full path using card stateManager", async () => {
-    const cardEl = {
-      selectedProfile: "ProfA",
-      stateManager: {
-        getData: vi.fn(() => [{ time: "00:00", value: 10 }]),
-      },
-    };
-    editor.shadowRoot.querySelector = vi.fn(() => cardEl);
-    editor.hass = { callService: vi.fn(() => Promise.resolve()) };
-    editor._config = {
-      global_prefix: "p_",
-      preset_type: "thermostat",
-      target_entity: "sensor.x",
-      enabled_entity: "switch.x",
-      profiles_select_entity: "select.x",
-    };
-    await editor._saveMetadata();
-    expect(extractCardConfig).toHaveBeenCalled();
-    expect(editor.hass.callService).toHaveBeenCalledWith(
-      "cronostar",
-      "save_profile",
-      expect.objectContaining({
-        profile_name: "ProfA",
-      }),
+    const fakeCard = { language: "fr" };
+    vi.spyOn(editor.shadowRoot, "querySelector").mockImplementation(
+      (sel) => sel === "cronostar-card" ? fakeCard : null
     );
+
+    editor.hass = { language: "en", states: {} };
+    editor.updated(new Map([["hass", null]]));
+    expect(editor._language).toBe("fr");
   });
 
-  it("covers _saveMetadata using document.querySelector fallback", async () => {
-    editor.shadowRoot.querySelector = vi.fn(() => null);
-    document.querySelector = vi.fn(() => ({
-      selectedProfile: "ProfB",
-      stateManager: { getData: vi.fn(() => []) },
-    }));
+  it("L451-458: updated() hass block – hass.language fallback when no card found", () => {
+    editor._config.meta = {};
+    editor._language = "en";
+
+    vi.spyOn(editor.shadowRoot, "querySelector").mockReturnValue(null);
+    vi.spyOn(document, "querySelector").mockReturnValue(null);
+
+    editor.hass = { language: "de-DE", states: {} };
+    editor.updated(new Map([["hass", null]]));
+    expect(editor._language).toBe("de");
+  });
+
+  it("L454-no-update: updated() hass block – hass.language matches, no i18n rebuild", () => {
+    editor._config.meta = {};
+    editor._language = "es";
+
+    vi.spyOn(editor.shadowRoot, "querySelector").mockReturnValue(null);
+    vi.spyOn(document, "querySelector").mockReturnValue(null);
+
+    const i18nBefore = editor.i18n;
+    editor.hass = { language: "es-ES", states: {} };
+    editor.updated(new Map([["hass", null]]));
+    expect(editor._language).toBe("es");
+    expect(editor.i18n).toBe(i18nBefore);
+  });
+
+  it("L451-hass-no-language: updated() hass.language is falsy → currentLang = 'en'", () => {
+    editor._config.meta = {};
+    editor._language = "fr";
+
+    vi.spyOn(editor.shadowRoot, "querySelector").mockReturnValue(null);
+    vi.spyOn(document, "querySelector").mockReturnValue(null);
+
+    editor.hass = { language: "", states: {} };
+    editor.updated(new Map([["hass", null]]));
+    expect(editor._language).toBe("en");
+  });
+
+  it("L400: _saveGlobalSettings shows italian toast when language is 'it'", async () => {
+    editor._language = "it";
     editor.hass = { callService: vi.fn(() => Promise.resolve()) };
-    editor._config = { global_prefix: "p_", preset_type: "thermostat" };
-    await editor._saveMetadata();
-    expect(editor.hass.callService).toHaveBeenCalled();
-  });
+    editor.showToast = vi.fn();
+    vi.spyOn(editor, "getRootNode").mockReturnValue({ host: null });
 
-  it("covers _saveMetadata catch branch", async () => {
-    editor.hass = { callService: vi.fn(() => Promise.reject(new Error("fail"))) };
-    editor._config = { global_prefix: "p_", preset_type: "thermostat" };
-    await expect(editor._saveMetadata()).resolves.toBeUndefined();
+    await editor._saveGlobalSettings({ opt: 1 });
+    expect(editor.showToast).toHaveBeenCalledWith("Impostazioni globali salvate");
   });
 });

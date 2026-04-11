@@ -426,9 +426,6 @@ export class CronoStarEditor extends LitElement {
     super.connectedCallback();
   }
 
-  disconnectedCallback() {
-    super.disconnectedCallback();
-  }
   updated(changedProps) {
     super.updated(changedProps);
 

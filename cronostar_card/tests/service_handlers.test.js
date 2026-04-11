@@ -110,10 +110,14 @@ describe("service_handlers.js", () => {
   });
 
   describe("downloadFile", () => {
-    it("should create a link and click it", () => {
+    it("should create a link and click it and then revoke the URL", () => {
+      vi.useFakeTimers();
       const click = vi.fn();
       const spy = vi.spyOn(document, "createElement").mockReturnValue({
         click,
+        style: {},
+        setAttribute: vi.fn(),
+        remove: vi.fn(),
       });
       const result = downloadFile("test.yaml", "content", "Success", "Error");
 
@@ -121,6 +125,10 @@ describe("service_handlers.js", () => {
       expect(spy).toHaveBeenCalledWith("a");
       expect(click).toHaveBeenCalled();
       expect(result.success).toBe(true);
+
+      vi.advanceTimersByTime(1000);
+      expect(global.URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+      vi.useRealTimers();
     });
 
     it("should handle exceptions", () => {

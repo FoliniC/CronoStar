@@ -812,7 +812,41 @@ describe("handleArrowLeftRight", () => {
 
     // Verify that point was clamped to limit
     expect(card.chartManager.chart.data.datasets[0].data[1].x).toBe(1438);
-  });});
+  });
+
+  it("covers curX === undefined branch in is_switch_preset expansion", () => {
+    const card = makeArrowCard(
+      [{ x: 0, y: 0 }, { x: 120, y: 1 }, { x: 1439, y: 0 }],
+      { is_switch_preset: true }
+    );
+    // Force undefined x in one point
+    card.chartManager.chart.data.datasets[0].data[1] = { y: 1 }; // missing x
+    const kh = new KeyboardHandler(card);
+    kh.containerEl = document.createElement("div");
+    kh.handleArrowLeftRight(evt("ArrowRight"), [1]);
+    // Should not throw and proceed
+  });
+
+  it("covers validToMove.length === 0 branch", () => {
+    const card = makeArrowCard([{ x: 0, y: 10 }]);
+    card.chartManager.chart.data.datasets[0].data[0] = { y: 10 }; // missing x
+    const kh = new KeyboardHandler(card);
+    kh.containerEl = document.createElement("div");
+    kh.handleArrowLeftRight(evt("ArrowRight"), [0]);
+    expect(card.stateManager.setData).not.toHaveBeenCalled();
+  });
+
+  it("covers p === undefined or p.x !== number branch in apply movement loop", () => {
+    const card = makeArrowCard([{ x: 0, y: 10 }, { x: 60, y: 20 }, { x: 120, y: 30 }]);
+    const kh = new KeyboardHandler(card);
+    kh.containerEl = document.createElement("div");
+    // Point 1 exists but we'll mess with the array during execution if we could, 
+    // but easier to just mock data[i] as non-numeric
+    card.chartManager.chart.data.datasets[0].data[1].x = "string";
+    kh.handleArrowLeftRight(evt("ArrowRight"), [1]);
+    // Point 1 should be skipped
+  });
+});
 
 // ---------------------------------------------------------------------------
 // handleArrowUpDown

@@ -178,9 +178,9 @@ describe("StateManager – insertPoint", () => {
   });
 
   it("inserts at the end if after all existing points", () => {
-    sm.setData([{ time: "00:00", value: 15 }, { time: "23:59", value: 15 }], true);
-    const idx = sm.insertPoint("23:58", 20);
-    expect(sm.getData()[idx].time).toBe("23:58");
+    sm.setData([{ time: "00:00", value: 15 }, { time: "10:00", value: 15 }], true);
+    const idx = sm.insertPoint("12:00", 20);
+    expect(sm.getData()[idx].time).toBe("12:00");
   });
 });
 
@@ -305,6 +305,18 @@ describe("StateManager – alignSelectedPoints", () => {
     const snapshot = JSON.stringify(sm.getData());
     sm.alignSelectedPoints("left", [i06, 9999]);
     expect(JSON.stringify(sm.getData())).toBe(snapshot);
+  });
+
+  it("covers anchorValue === undefined branch by mocking a missing point", () => {
+    const d = sm.getData();
+    const i06 = d.findIndex((p) => p.time === "06:00");
+    const i12 = d.findIndex((p) => p.time === "12:00");
+    
+    const oldPoint = sm.scheduleData[i06];
+    sm.scheduleData[i06] = null; // simulate missing point
+    
+    expect(() => sm.alignSelectedPoints("left", [i06, i12])).not.toThrow();
+    sm.scheduleData[i06] = oldPoint;
   });
 
   it("does not touch the anchor point (anchorIndex remains unchanged)", () => {
