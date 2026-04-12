@@ -206,8 +206,8 @@ describe("CardEventHandlers", () => {
   });
 
   it("handleLanguageSelect handles save errors with notification", async () => {
-    card.hass.callService.mockRejectedValueOnce(new Error("save failed"));
     const spy = vi.spyOn(handlers, "showNotification");
+    card.hass.callService.mockRejectedValueOnce(new Error("save failed"));
     await handlers.handleLanguageSelect("it");
     expect(spy).toHaveBeenCalledWith(
       expect.stringContaining("notify.language_save_error"),
@@ -215,6 +215,119 @@ describe("CardEventHandlers", () => {
     );
   });
 
+  it("handleLanguageSelect initializes meta if missing", async () => {
+    card.config.meta = undefined;
+    await handlers.handleLanguageSelect("en");
+    expect(card.config.meta.language).toBe("en");
+  });
+
+  it("toggleMenu focuses chart container when closing outside editor", () => {
+    const focus = vi.fn();
+    card.shadowRoot.querySelector.mockReturnValue({ focus });
+    card.isMenuOpen = true;
+    handlers.toggleMenu();
+    expect(focus).toHaveBeenCalled();
+  });
+
+  it("handleLoggingToggle focuses chart container when closing outside editor", async () => {
+    const focus = vi.fn();
+    card.shadowRoot.querySelector.mockReturnValue({ focus });
+    const event = {
+      stopPropagation: vi.fn(),
+      preventDefault: vi.fn(),
+      target: { checked: true },
+    };
+    await handlers.handleLoggingToggle(event);
+    expect(focus).toHaveBeenCalled();
+  });
+
+  it("handleApplyNow handles sparse config and populates canonical target", async () => {
+    card.config = { global_prefix: "p_", target_entity: "climate.test" };
+    card.selectedPreset = "thermostat";
+    const entityStates = { "climate.test": { attributes: { temperature: 20 } } };
+    card.entityStates = entityStates;
+    card.stateManager.getData.mockReturnValue([]);
+    
+    await handlers.handleApplyNow();
+    
+    expect(card.hass.callService).toHaveBeenCalledWith(
+      "cronostar",
+      "save_profile",
+      expect.objectContaining({
+        meta: expect.objectContaining({
+          target_entity: "climate.test",
+          global_prefix: "p_",
+        }),
+      }),
+    );
+  });
+
+  it("handleAddProfile retries selector sync when new option is not yet present", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(handlers, "_openAddProfileDialog").mockResolvedValue("NewProfile");
+    card.config = {
+      global_prefix: "p_",
+      profiles_select_entity: "input_select.test",
+    };
+    card.profileOptions = [];
+    card.hass.states["input_select.test"] = { attributes: { options: [] } };
+
+    await handlers.handleAddProfile();
+    
+    // First call to check options
+    expect(card.hass.callService).not.toHaveBeenCalledWith("input_select", "select_option", expect.any(Object));
+    
+    // Simulate option appearing in HA state
+    card.hass.states["input_select.test"].attributes.options = ["NewProfile"];
+    
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve(); // allow microtasks
+    
+    expect(card.hass.callService).toHaveBeenCalledWith("input_select", "select_option", expect.objectContaining({
+      option: "NewProfile"
+    }));
+    vi.useRealTimers();
+  });
+
+  it("handleHelp should create an overlay in the DOM and handle Italian", () => {
+    const appendChildSpy = vi.spyOn(document.body, "appendChild");
+    handlers.handleHelp();
+    expect(appendChildSpy).toHaveBeenCalled();
+    
+    // Close it
+    const closeBtn = document.body.querySelector("button");
+    closeBtn.click();
+    expect(document.body.innerHTML).toBe("");
+    
+    // Italian path
+    card.language = "it";
+    handlers.handleHelp();
+    expect(document.body.innerHTML).toContain("Aiuto CronoStar");
+  });
+
+  it("handleDeleteSelected returns early if no selection", () => {
+    card.selectionManager.getSelectedPoints = vi.fn(() => []);
+    card.contextMenu = { show: true };
+    handlers.handleDeleteSelected();
+    expect(card.contextMenu.show).toBe(false);
+  });
+
+  it("_fetchProfileNameSuggestions returns [] if section/files are missing", async () => {
+    card.hass.callWS.mockResolvedValueOnce({ response: {} });
+    const suggestions = await handlers._fetchProfileNameSuggestions("thermostat");
+    expect(suggestions).toEqual([]);
+  });
+
+  it("_openAddProfileDialog resolves with null on background click", async () => {
+    const promise = handlers._openAddProfileDialog();
+    await new Promise(r => setTimeout(r, 50));
+    
+    const overlay = document.body.querySelector("div[style*='position: fixed']");
+    overlay.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    
+    const result = await promise;
+    expect(result).toBeNull();
+  });
   it("handleLoggingToggle should update the logs state", async () => {
     const event = {
       stopPropagation: vi.fn(),
@@ -524,6 +637,43 @@ describe("CardEventHandlers", () => {
         "error",
       );
     });
+
+    it("handles apply_now setTimeout errors", async () => {
+      vi.useFakeTimers();
+      card.config = { target_entity: "climate.test", global_prefix: "p_" };
+      card.cardSync.updateAutomationSync.mockImplementation(() => {
+        throw new Error("sync error");
+      });
+      await handlers.handleApplyNow();
+      vi.advanceTimersByTime(1000);
+      // Verify no crash, Logger.warn would be called
+      vi.useRealTimers();
+    });
+
+    it("uses safeMeta fallbacks", async () => {
+      card.config = { target_entity: "climate.test" };
+      // Ensure the property exists so vi.spyOn doesn't fail
+      Object.defineProperty(card.config, 'global_prefix', {
+        get: () => undefined,
+        configurable: true
+      });
+      vi.spyOn(card.config, 'global_prefix', 'get').mockReturnValue(undefined);
+      
+      card.selectedPreset = "thermostat";
+      card.stateManager.getData.mockReturnValue([]);
+      await handlers.handleApplyNow();
+      
+      expect(card.hass.callService).toHaveBeenNthCalledWith(
+        1,
+        "cronostar",
+        "save_profile",
+        expect.objectContaining({
+          meta: expect.objectContaining({
+            global_prefix: "p_",
+          }),
+        }),
+      );
+    });
   });
 
   describe("handleAddProfile", () => {
@@ -604,6 +754,27 @@ describe("CardEventHandlers", () => {
       vi.runOnlyPendingTimers();
       vi.useRealTimers();
       expect(card.hass.callService).toHaveBeenCalled();
+    });
+
+    it("selector sync fails after max retries", async () => {
+      vi.useFakeTimers();
+      vi.spyOn(handlers, "_openAddProfileDialog").mockResolvedValue("NewProfile");
+      card.config = {
+        global_prefix: "p_",
+        profiles_select_entity: "input_select.test",
+      };
+      card.profileOptions = [];
+      card.hass.states["input_select.test"] = { attributes: { options: [] } };
+      
+      await handlers.handleAddProfile();
+      
+      // Exhaust 5 retries
+      for(let i=0; i<5; i++) {
+        vi.advanceTimersByTime(1000);
+        await Promise.resolve(); // Allow microtasks
+      }
+      
+      vi.useRealTimers();
     });
 
     it("handles UI post-create errors gracefully", async () => {

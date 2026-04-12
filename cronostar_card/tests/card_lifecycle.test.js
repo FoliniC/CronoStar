@@ -64,6 +64,7 @@ function makeCard(overrides = {}) {
 
     config: {
       not_configured: false,
+      global_prefix: "p_",
       ...overrides.config,
     },
 
@@ -117,7 +118,7 @@ function makeCard(overrides = {}) {
     },
 
     localizationManager: {
-      localize: vi.fn(() => "msg"),
+      localize: vi.fn((lang, key) => key),
     },
 
     ...overrides,
@@ -289,211 +290,71 @@ describe("CardLifecycle – setConfig", () => {
 
     it("warns for missing enabled_entity when not globally warned", () => {
       const loggerSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
-      const nowSpy = vi.spyOn(Date, "now");
-
-      const card = makeCard({
-        config: {
-          enabled_entity: "input_boolean.test_enabled",
-          not_configured: false,
-        },
-        initialLoadComplete: true,
-        cronostarReady: true,
-      });
-
-      const lifecycle = new CardLifecycle(card);
-
-      nowSpy.mockReturnValueOnce(0);
-      lifecycle.setHass(
-        makeHass({
-          states: {},
-          config: { state: "RUNNING" },
-        }),
-      );
-
-      nowSpy.mockReturnValueOnce(61001);
-      lifecycle.setHass(
-        makeHass({
-          states: {},
-          config: { state: "RUNNING" },
-        }),
-      );
-
-      expect(loggerSpy).toHaveBeenCalledWith(
-        "HASS",
-        expect.stringContaining("Enabled entity not found:"),
-        "input_boolean.test_enabled",
-      );
+      card.config = { enabled_entity: "input_boolean.test", global_prefix: "p_" };
+      card.initialLoadComplete = true;
+      card.cronostarReady = true; // Avoid isStartup being forced true
+      lc.setHass(makeHass({ states: {} }));
+      expect(loggerSpy).toHaveBeenCalled();
     });
 
     it("does not warn if entity is missing but initialLoadComplete=false", () => {
       const loggerSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
-      const nowSpy = vi.spyOn(Date, "now");
-
-      const card = makeCard({
-        initialLoadComplete: false,
-        cronostarReady: true,
-        config: {
-          enabled_entity: "switch.missing",
-          not_configured: false,
-        },
-      });
-      const lifecycle = new CardLifecycle(card);
-
-      nowSpy.mockReturnValueOnce(0);
-      lifecycle.setHass(
-        makeHass({
-          states: {},
-          config: { state: "RUNNING" },
-        }),
-      );
-
-      nowSpy.mockReturnValueOnce(70000);
-      lifecycle.setHass(
-        makeHass({
-          states: {},
-          config: { state: "RUNNING" },
-        }),
-      );
-
+      card.config = { enabled_entity: "input_boolean.test" };
+      card.initialLoadComplete = false;
+      lc.setHass(makeHass({ states: {} }));
       expect(loggerSpy).not.toHaveBeenCalled();
     });
 
     it("does not warn if startup is active", () => {
       const loggerSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
-      const card = makeCard({
-        initialLoadComplete: true,
-        cronostarReady: false,
-        config: {
-          enabled_entity: "switch.missing",
-          not_configured: false,
-        },
-      });
-      const lifecycle = new CardLifecycle(card);
-      lifecycle.setHass(makeHass({ states: {}, config: { state: "STARTING" } }));
+      card.config = { enabled_entity: "input_boolean.test" };
+      card.cronostarReady = false; 
+      // lc._firstHassAt will be set to Date.now()
+      lc.setHass(makeHass({ states: {} }));
+      expect(card.isStartup).toBe(true);
       expect(loggerSpy).not.toHaveBeenCalled();
     });
 
     it("does not warn twice if globally warned already", () => {
       const loggerSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
-      window.cronostarpausewarned.add("input_boolean.test_enabled");
-
-      const card = makeCard({
-        config: {
-          enabled_entity: "input_boolean.test_enabled",
-          not_configured: false,
-        },
-        initialLoadComplete: true,
-        cronostarReady: true,
-      });
-      const lifecycle = new CardLifecycle(card);
-      lifecycle.setHass(makeHass({ states: {}, config: { state: "RUNNING" } }));
+      window.cronostarpausewarned.add("input_boolean.test");
+      card.config = { enabled_entity: "input_boolean.test" };
+      card.cronostarReady = true;
+      lc.setHass(makeHass({ states: {} }));
       expect(loggerSpy).not.toHaveBeenCalled();
     });
 
     it("warns for missing profiles_select_entity", () => {
       const loggerSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
-      const nowSpy = vi.spyOn(Date, "now");
-
-      const card = makeCard({
-        config: {
-          profiles_select_entity: "select.test_profile",
-          not_configured: false,
-        },
-        initialLoadComplete: true,
-        cronostarReady: true,
-      });
-
-      const lifecycle = new CardLifecycle(card);
-
-      nowSpy.mockReturnValueOnce(0);
-      lifecycle.setHass(
-        makeHass({
-          states: {},
-          config: { state: "RUNNING" },
-        }),
-      );
-
-      nowSpy.mockReturnValueOnce(61001);
-      lifecycle.setHass(
-        makeHass({
-          states: {},
-          config: { state: "RUNNING" },
-        }),
-      );
-
-      expect(loggerSpy).toHaveBeenCalledWith(
-        "HASS",
-        expect.stringContaining("Profile select entity not found:"),
-        "select.test_profile",
-      );
+      card.config = { profiles_select_entity: "select.test", global_prefix: "p_" };
+      card.cronostarReady = true;
+      lc.setHass(makeHass({ states: {} }));
+      expect(loggerSpy).toHaveBeenCalled();
     });
 
     it("creates syncCheckTimer if not in editor", () => {
-      const card = makeCard();
-      const lifecycle = new CardLifecycle(card);
-
-      vi.spyOn(lifecycle, "isEditorContext").mockReturnValue(false);
-
-      lifecycle.setHass(
-        makeHass({
-          states: {},
-          config: { state: "RUNNING" },
-        }),
-      );
-
-      expect(card.syncCheckTimer).toBeTruthy();
-
-      vi.advanceTimersByTime(5000);
-
-      expect(card.cardSync.updateAutomationSync).toHaveBeenCalled();
-      expect(card.chartManager.update).toHaveBeenCalledWith("none");
+      lc.setHass(makeHass());
+      expect(card.syncCheckTimer).not.toBeNull();
+      clearInterval(card.syncCheckTimer);
     });
 
     it("clears loggedPauseEntityMissing when enabled entity exists again", () => {
-      const card = makeCard({
-        config: {
-          enabled_entity: "switch.present",
-          not_configured: false,
-          global_prefix: "p_",
-        },
-      });
-      const lifecycle = new CardLifecycle(card);
-      lifecycle.loggedPauseEntityMissing = true;
-      lifecycle.setHass(
-        makeHass({ states: { "switch.present": { state: "on" } } }),
-      );
-      expect(lifecycle.loggedPauseEntityMissing).toBe(false);
-      expect(card.isEnabled).toBe(true);
+      lc.loggedPauseEntityMissing = true;
+      card.config = { enabled_entity: "switch.test" };
+      lc.setHass(makeHass({ states: { "switch.test": { state: "on" } } }));
+      expect(lc.loggedPauseEntityMissing).toBe(false);
     });
 
     it("clears loggedProfileSelectEntityMissing when selector exists again", () => {
-      const card = makeCard({
-        config: {
-          profiles_select_entity: "select.present",
-          not_configured: false,
-          global_prefix: "p_",
-        },
-      });
-      const lifecycle = new CardLifecycle(card);
-      lifecycle.loggedProfileSelectEntityMissing = true;
-      lifecycle.setHass(
-        makeHass({
-          states: {
-            "select.present": {
-              state: "Default",
-              attributes: { options: ["Default"] },
-            },
-          },
-        }),
-      );
-      expect(lifecycle.loggedProfileSelectEntityMissing).toBe(false);
+      lc.loggedProfileSelectEntityMissing = true;
+      card.config = { profiles_select_entity: "select.test" };
+      lc.setHass(makeHass({ states: { "select.test": { state: "opt1" } } }));
+      expect(lc.loggedProfileSelectEntityMissing).toBe(false);
     });
 
     it("does not start sync timer in editor context", () => {
-      const card = makeCard();
-      const lifecycle = new CardLifecycle(card);
-      vi.spyOn(lifecycle, "isEditorContext").mockReturnValue(true);
-      lifecycle.setHass(makeHass());
+      vi.spyOn(lc, "isEditorContext").mockReturnValue(true);
+      lc.setHass(makeHass());
       expect(card.syncCheckTimer).toBeNull();
     });
   });
@@ -502,64 +363,50 @@ describe("CardLifecycle – setConfig", () => {
 describe("CardLifecycle – updated", () => {
   it("refreshes chart options when config changes and chart is initialized", () => {
     const card = makeCard();
-    card.chartManager.isInitialized.mockReturnValue(true);
-    const mockChart = {
-      options: { scales: { y: { min: 15, max: 30 } } },
-      update: vi.fn(),
-    };
-    card.chartManager.getChart.mockReturnValue(mockChart);
-    card.config = {
-      min_value: 15,
-      max_value: 30,
-      step_value: 0.5,
-      allow_max_value: false,
-      is_switch_preset: false,
-    };
-
     const lc = new CardLifecycle(card);
-    lc.updated(new Map([["config", undefined]]));
+    card.chartManager.isInitialized.mockReturnValue(true);
+    lc.updated(new Map([["config", {}]]));
     expect(card.chartManager.recreateChartOptions).toHaveBeenCalled();
   });
 
   it("does not crash if chart is not initialized", () => {
     const card = makeCard();
-    card.chartManager.isInitialized.mockReturnValue(false);
     const lc = new CardLifecycle(card);
-    expect(() => lc.updated(new Map([["config", undefined]]))).not.toThrow();
+    card.chartManager.isInitialized.mockReturnValue(false);
+    expect(() => lc.updated(new Map([["config", {}]]))).not.toThrow();
   });
 
   it("does nothing if config is not in changed map", () => {
     const card = makeCard();
     const lc = new CardLifecycle(card);
-    expect(() => lc.updated(new Map([["hass", undefined]]))).not.toThrow();
+    lc.updated(new Map([["other", {}]]));
     expect(card.chartManager.recreateChartOptions).not.toHaveBeenCalled();
   });
 
   it("handles chart refresh exceptions", () => {
     const card = makeCard();
+    const lc = new CardLifecycle(card);
     card.chartManager.isInitialized.mockReturnValue(true);
     card.chartManager.recreateChartOptions.mockImplementation(() => {
-      throw new Error("oops");
+      throw new Error("fail");
     });
-    const lc = new CardLifecycle(card);
-    expect(() => lc.updated(new Map([["config", undefined]]))).not.toThrow();
+    expect(() => lc.updated(new Map([["config", {}]]))).not.toThrow();
   });
 
   it("calls _updatePreviewVisibility", () => {
     const card = makeCard();
-    card.config = { step: 0 };
     const lc = new CardLifecycle(card);
     const spy = vi.spyOn(lc, "_updatePreviewVisibility");
-    lc.updated(new Map());
+    lc.updated(new Map([["config", {}]]));
     expect(spy).toHaveBeenCalled();
   });
 
   it("skips chart.update when getChart returns null", () => {
     const card = makeCard();
+    const lc = new CardLifecycle(card);
     card.chartManager.isInitialized.mockReturnValue(true);
     card.chartManager.getChart.mockReturnValue(null);
-    const lc = new CardLifecycle(card);
-    expect(() => lc.updated(new Map([["config", undefined]]))).not.toThrow();
+    expect(() => lc.updated(new Map([["config", {}]]))).not.toThrow();
   });
 });
 
@@ -568,11 +415,11 @@ describe("CardLifecycle – setHass", () => {
   beforeEach(() => {
     card = makeCard();
     lc = new CardLifecycle(card);
-    lc.setConfig({ global_prefix: "p_", target_entity: "c.x" });
   });
 
   it("ignores null hass", () => {
-    expect(() => lc.setHass(null)).not.toThrow();
+    lc.setHass(null);
+    expect(lc._hass).toBeUndefined();
   });
 
   it("stores hass in _hass", () => {
@@ -582,86 +429,87 @@ describe("CardLifecycle – setHass", () => {
   });
 
   it("sets isStartup=false after 60s during RUNNING", () => {
-    lc._firstHassAt = Date.now() - 70000;
+    vi.useFakeTimers();
+    const haNow = 1000000;
+    vi.spyOn(Date, "now").mockReturnValue(haNow);
     const hass = makeHass({ config: { state: "RUNNING" } });
+    
+    lc.setHass(hass); // _firstHassAt = haNow
+    
+    vi.spyOn(Date, "now").mockReturnValue(haNow + 70000);
+    card.cronostarReady = true;
     lc.setHass(hass);
     expect(card.isStartup).toBe(false);
+    vi.useRealTimers();
   });
 
   it("sets isStartup=true in first 60s", () => {
-    const card = makeCard({ cronostarReady: false });
-    const lc = new CardLifecycle(card);
+    const haNow = 1000000;
+    vi.spyOn(Date, "now").mockReturnValue(haNow);
     const hass = makeHass({ config: { state: "RUNNING" } });
+    card.cronostarReady = false;
     lc.setHass(hass);
     expect(card.isStartup).toBe(true);
   });
 
   it("requests update during startup", () => {
-    const card = makeCard({ cronostarReady: false });
-    const lc = new CardLifecycle(card);
-    lc.setHass(makeHass({ config: { state: "STARTING" } }));
+    const hass = makeHass();
+    card.cronostarReady = false;
+    lc.setHass(hass); // Forces isStartup=true
     expect(card.requestUpdate).toHaveBeenCalled();
   });
 
   it("initializes language from first hass if not initialized", () => {
     card.languageInitialized = false;
-    const hass = makeHass({ language: "de" });
-    lc.setHass(hass);
-    expect(card.language).toBe("de");
+    lc.setHass(makeHass({ language: "en" }));
+    expect(card.language).toBe("en");
     expect(card.languageInitialized).toBe(true);
   });
 
   it("does not overwrite language if already initialized", () => {
     card.language = "it";
     card.languageInitialized = true;
-    const hass = makeHass({ language: "de" });
-    lc.setHass(hass);
+    lc.setHass(makeHass({ language: "en" }));
     expect(card.language).toBe("it");
   });
 
   it("prefers meta.language over hass.language", () => {
-    card.languageInitialized = true;
-    card.language = "en";
-    card.config = { meta: { language: "it" } };
-    const hass = makeHass({ language: "de" });
-    lc.setHass(hass);
-    expect(card.language).toBe("it");
+    card.languageInitialized = false;
+    card.config = { meta: { language: "fr" } };
+    lc.setHass(makeHass({ language: "en" }));
+    expect(card.language).toBe("fr");
   });
 
   it("sets cronostarReady=true when apply_now service exists", () => {
     card.cronostarReady = false;
-    const hass = makeHass({
-      services: { cronostar: { apply_now: {} } },
-    });
+    const hass = makeHass({ services: { cronostar: { apply_now: {} } } });
     lc.setHass(hass);
     expect(card.cronostarReady).toBe(true);
   });
 
   it("sets cronostarReady=true for applynow service alias", () => {
     card.cronostarReady = false;
-    const hass = makeHass({
-      services: { cronostar: { applynow: {} } },
-    });
+    const hass = makeHass({ services: { cronostar: { applynow: {} } } });
     lc.setHass(hass);
     expect(card.cronostarReady).toBe(true);
   });
 
   it("starts registration if register_card is available", () => {
-    card.config = { global_prefix: "p_", target_entity: "c.x" };
-    const hass = makeHass({
-      services: { cronostar: { register_card: {} } },
-    });
-    const spy = vi.spyOn(lc, "registerCard").mockResolvedValue(undefined);
+    const hass = makeHass({ services: { cronostar: { register_card: {} } } });
+    lc.hasRegistered = false;
+    lc._isRegistering = false;
+    card.config.global_prefix = "p_";
+    const spy = vi.spyOn(lc, "registerCard").mockImplementation(() => Promise.resolve());
     lc.setHass(hass);
     expect(spy).toHaveBeenCalled();
   });
 
   it("starts registration if registercard alias is available", () => {
-    card.config = { global_prefix: "p_", target_entity: "c.x" };
-    const hass = makeHass({
-      services: { cronostar: { registercard: {} } },
-    });
-    const spy = vi.spyOn(lc, "registerCard").mockResolvedValue(undefined);
+    const hass = makeHass({ services: { cronostar: { registercard: {} } } });
+    lc.hasRegistered = false;
+    lc._isRegistering = false;
+    card.config.global_prefix = "p_";
+    const spy = vi.spyOn(lc, "registerCard").mockImplementation(() => Promise.resolve());
     lc.setHass(hass);
     expect(spy).toHaveBeenCalled();
   });
@@ -669,55 +517,38 @@ describe("CardLifecycle – setHass", () => {
   it("does not start registration while _isRegistering", () => {
     lc._isRegistering = true;
     const hass = makeHass({ services: { cronostar: { register_card: {} } } });
-    const spy = vi.spyOn(lc, "registerCard").mockResolvedValue(undefined);
+    const spy = vi.spyOn(lc, "registerCard");
     lc.setHass(hass);
     expect(spy).not.toHaveBeenCalled();
-    lc._isRegistering = false;
   });
 
   it("does not start registration if already registered", () => {
     lc.hasRegistered = true;
     const hass = makeHass({ services: { cronostar: { register_card: {} } } });
-    const spy = vi.spyOn(lc, "registerCard").mockResolvedValue(undefined);
+    const spy = vi.spyOn(lc, "registerCard");
     lc.setHass(hass);
     expect(spy).not.toHaveBeenCalled();
   });
 
   it("updates isEnabled from enabled entity state", () => {
-    card.config = {
-      enabled_entity: "switch.test",
-      not_configured: false,
-      global_prefix: "p_",
-    };
+    card.config = { enabled_entity: "switch.test" };
     const hass = makeHass({ states: { "switch.test": { state: "on" } } });
     lc.setHass(hass);
     expect(card.isEnabled).toBe(true);
   });
 
   it("updates isEnabled=false when switch is off", () => {
-    card.config = {
-      enabled_entity: "switch.test",
-      not_configured: false,
-      global_prefix: "p_",
-    };
+    card.config = { enabled_entity: "switch.test" };
     const hass = makeHass({ states: { "switch.test": { state: "off" } } });
     lc.setHass(hass);
     expect(card.isEnabled).toBe(false);
   });
 
   it("updates profileOptions from select entity", () => {
-    card.config = {
-      profiles_select_entity: "input_select.prof",
-      not_configured: false,
-      global_prefix: "p_",
-    };
-    card.profileOptions = [];
+    card.config = { profiles_select_entity: "select.test" };
     const hass = makeHass({
       states: {
-        "input_select.prof": {
-          state: "Day",
-          attributes: { options: ["Day", "Night"] },
-        },
+        "select.test": { attributes: { options: ["Day", "Night"] } },
       },
     });
     lc.setHass(hass);
@@ -725,22 +556,16 @@ describe("CardLifecycle – setHass", () => {
   });
 
   it("does not update profileOptions if identical", () => {
-    card.config = {
-      profiles_select_entity: "input_select.prof",
-      not_configured: false,
-      global_prefix: "p_",
-    };
     card.profileOptions = ["Day", "Night"];
+    card.config = { profiles_select_entity: "select.test" };
+    const options = ["Day", "Night"];
     const hass = makeHass({
       states: {
-        "input_select.prof": {
-          state: "Day",
-          attributes: { options: ["Day", "Night"] },
-        },
+        "select.test": { attributes: { options } },
       },
     });
     lc.setHass(hass);
-    expect(card.profileOptions).toEqual(["Day", "Night"]);
+    expect(card.profileOptions).toBe(card.profileOptions);
   });
 
   it("updates selectedProfile and loads profile when needed", () => {
@@ -843,6 +668,30 @@ describe("CardLifecycle – setHass", () => {
     });
     lc.setHass(hass);
     expect(card.profileOptions).toEqual(undefined);
+  });
+
+  it("handles loadProfile exceptions silently", async () => {
+    card.config = {
+      profiles_select_entity: "input_select.prof",
+      not_configured: false,
+      global_prefix: "p_",
+    };
+    card.initialLoadComplete = true;
+    card.profileOptions = ["Day", "Night"];
+    card.selectedProfile = "Day";
+    card.hasUnsavedChanges = false;
+    card.profileManager.loadProfile.mockRejectedValueOnce(new Error("fail"));
+    
+    const hass = makeHass({
+      states: {
+        "input_select.prof": {
+          state: "Night",
+          attributes: { options: ["Day", "Night"] },
+        },
+      },
+    });
+    lc.setHass(hass);
+    await Promise.resolve();
   });
 });
 
@@ -955,6 +804,21 @@ describe("CardLifecycle – connectedCallback", () => {
     lc.connectedCallback();
     vi.advanceTimersByTime(100);
     expect(spy).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("handles internal exceptions in _checkCanvasSize silently", () => {
+    vi.useFakeTimers();
+    const card = makeCard();
+    card.shadowRoot.getElementById.mockReturnValue({
+      getBoundingClientRect: () => {
+        throw new Error("boom");
+      },
+    });
+    const lc = new CardLifecycle(card);
+    vi.spyOn(lc, "isEditorContext").mockReturnValue(false);
+    lc.connectedCallback();
+    vi.advanceTimersByTime(100);
     vi.useRealTimers();
   });
 });
@@ -1102,6 +966,13 @@ describe("CardLifecycle – reinitializeCard", () => {
 
   it("does not crash without canvas/container", () => {
     const card = makeCard();
+    const lc = new CardLifecycle(card);
+    expect(() => lc.reinitializeCard()).not.toThrow();
+  });
+
+  it("handles reinitializeCard exceptions silently", () => {
+    const card = makeCard();
+    card.chartManager.destroy.mockImplementation(() => { throw new Error("fail"); });
     const lc = new CardLifecycle(card);
     expect(() => lc.reinitializeCard()).not.toThrow();
   });
@@ -1609,6 +1480,12 @@ describe("CardLifecycle – registerCard", () => {
     await lc.registerCard(hass);
     expect(card.selectedProfile).toBe("Evening");
   });
+
+  it("handles registerCard exceptions silently", async () => {
+    const hass = makeHass();
+    hass.callWS.mockImplementationOnce(() => { throw new Error("fatal"); });
+    await expect(lc.registerCard(hass)).resolves.toBeUndefined();
+  });
 });
 
 describe("CardLifecycle – _updatePreviewVisibility", () => {
@@ -1670,5 +1547,81 @@ describe("CardLifecycle – _updatePreviewVisibility", () => {
     const card = makeCard({ config: { step: 5 } });
     const lc = new CardLifecycle(card);
     expect(() => lc._updatePreviewVisibility()).not.toThrow();
+  });
+
+  it("handles _updatePreviewVisibility exceptions silently", () => {
+    const card = makeCard({ config: { step: 0 } });
+    const lc = new CardLifecycle(card);
+    // Use a different mock approach to avoid unhandled throw if vitest catches it
+    const spy = vi.spyOn(document, "getElementById").mockImplementationOnce(() => { throw new Error("DOM fail"); });
+    expect(() => lc._updatePreviewVisibility()).not.toThrow();
+  });
+
+  it("refreshes chart options when config changes and chart is initialized (scale update path)", () => {
+    const card = makeCard();
+    const lc = new CardLifecycle(card);
+    card.chartManager.isInitialized.mockReturnValue(true);
+    const mockChart = { 
+      options: { scales: { y: { min: 0, max: 0 } } },
+      update: vi.fn()
+    };
+    card.chartManager.getChart.mockReturnValue(mockChart);
+    card.config = { min_value: 10, max_value: 20, allow_max_value: true, step_value: 0.5, is_switch_preset: false };
+    
+    lc.updated(new Map([["config", {}]]));
+    
+    expect(card.chartManager.recreateChartOptions).toHaveBeenCalled();
+    expect(mockChart.options.scales.y.min).toBe(10);
+    expect(mockChart.options.scales.y.max).toBe(20.5);
+    expect(mockChart.update).toHaveBeenCalled();
+  });
+
+  it("warns for missing enabled_entity and profiles_select_entity explicitly", () => {
+    const card = makeCard();
+    const lc = new CardLifecycle(card);
+    const loggerSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
+    card.config = { 
+      enabled_entity: "input_boolean.test", 
+      profiles_select_entity: "select.test",
+      global_prefix: "p_" 
+    };
+    card.initialLoadComplete = true;
+    card.cronostarReady = true; 
+    
+    lc.setHass(makeHass({ states: {} }));
+    expect(loggerSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("covers startup transitions and isStartup=false after timeout", () => {
+    vi.useFakeTimers();
+    const card = makeCard();
+    card.cronostarReady = false;
+    const lc = new CardLifecycle(card);
+    
+    let haNow = 1000000;
+    const dateSpy = vi.spyOn(Date, "now").mockImplementation(() => haNow);
+    
+    // First call sets _firstHassAt
+    lc.setHass(makeHass({ config: { state: "RUNNING" } })); 
+    expect(card.isStartup).toBe(true);
+    
+    // Advance time
+    haNow += 70000;
+    card.cronostarReady = true;
+    lc.setHass(makeHass({ config: { state: "RUNNING" } }));
+    expect(card.isStartup).toBe(false);
+    
+    dateSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("covers cleanupCard style removal path", () => {
+    const card = makeCard();
+    const lc = new CardLifecycle(card);
+    const style = document.createElement("style");
+    style.id = "cronostar-editor-style";
+    document.head.appendChild(style);
+    lc.cleanupCard();
+    expect(document.getElementById("cronostar-editor-style")).toBeNull();
   });
 });

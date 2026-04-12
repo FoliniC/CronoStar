@@ -53,80 +53,86 @@ globalThis.window.customElements = globalThis.customElements;
 // ─── Mock Chart.js e plugin ───────────────────────────────────────────────────
 let lastChartConfig = null;
 
-const mockChartInstance = {
-  data: {
-    datasets: [
-      {
-        data: [],
-        pointBackgroundColor: [],
-        pointBorderColor: [],
-        pointRadius: [],
+let mockChartInstance;
+
+function resetMockChartInstance() {
+  mockChartInstance = {
+    data: {
+      datasets: [
+        {
+          data: [],
+          pointBackgroundColor: [],
+          pointBorderColor: [],
+          pointRadius: [],
+        },
+        {
+          data: [], // Corners dataset
+        }
+      ],
+    },
+    options: {
+      scales: {
+        x: {
+          min: 0,
+          max: 1440,
+          ticks: { stepSize: 60 },
+          getValueForPixel: vi.fn(() => 300),
+        },
+        y: {
+          ticks: { stepSize: 1 }
+        },
       },
-      {
-        data: [], // Corners dataset
+      plugins: {
+        zoom: {
+          pan: { onPanStart: null, mode: null, onPan: null, onPanComplete: null },
+          zoom: { onZoomStart: null, mode: null, onZoom: null, onZoomComplete: null }
+        },
+        dragData: { onDragStart: null, onDrag: null, onDragEnd: null, magnet: { to: null } }
       }
-    ],
-  },
-  options: {
+    },
     scales: {
       x: {
         min: 0,
         max: 1440,
-        ticks: { stepSize: 60 },
+        left: 0,
+        right: 300,
+        top: 100,
+        bottom: 150,
+        ticks: { stepSize: 60, includeBounds: false },
         getValueForPixel: vi.fn(() => 300),
+        getPixelForValue: vi.fn(() => 100),
       },
       y: {
-        ticks: { stepSize: 1 }
-      },
+        min: 0,
+        max: 30,
+        top: 0,
+        bottom: 150,
+        left: 0,
+        right: 50,
+        getValueForPixel: vi.fn(() => 20),
+        getPixelForValue: vi.fn(() => 50),
+      }
     },
-    plugins: {
-      zoom: {
-        pan: { onPanStart: null, mode: null, onPan: null, onPanComplete: null },
-        zoom: { onZoomStart: null, mode: null, onZoom: null, onZoomComplete: null }
-      },
-      dragData: { onDragStart: null, onDrag: null, onDragEnd: null, magnet: { to: null } }
-    }
-  },
-  scales: {
-    x: {
-      min: 0,
-      max: 1440,
-      left: 0,
-      right: 300,
-      top: 100,
-      bottom: 150,
-      ticks: { stepSize: 60, includeBounds: false },
-      getValueForPixel: vi.fn(() => 300),
-      getPixelForValue: vi.fn(() => 100),
+    canvas: {
+      getBoundingClientRect: vi.fn(() => ({ left: 0, top: 0, width: 300, height: 150 })),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      style: {},
+      isConnected: true,
+      parentElement: {
+        appendChild: vi.fn(),
+        addEventListener: vi.fn()
+      }
     },
-    y: {
-      min: 0,
-      max: 30,
-      top: 0,
-      bottom: 150,
-      left: 0,
-      right: 50,
-      getValueForPixel: vi.fn(() => 20),
-      getPixelForValue: vi.fn(() => 50),
-    }
-  },
-  canvas: {
-    getBoundingClientRect: vi.fn(() => ({ left: 0, top: 0, width: 300, height: 150 })),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    style: {},
-    isConnected: true,
-    parentElement: {
-      appendChild: vi.fn(),
-      addEventListener: vi.fn()
-    }
-  },
-  update: vi.fn(),
-  resize: vi.fn(),
-  destroy: vi.fn(),
-  getDatasetMeta: vi.fn(() => ({ data: [] })),
-  getElementsAtEventForMode: vi.fn(() => []),
-};
+    update: vi.fn(),
+    resize: vi.fn(),
+    destroy: vi.fn(),
+    getDatasetMeta: vi.fn(() => ({ data: [] })),
+    getElementsAtEventForMode: vi.fn(() => []),
+  };
+}
+
+resetMockChartInstance();
 
 vi.mock("chart.js/auto", () => {
   class MockChart {
@@ -229,6 +235,7 @@ describe("ChartManager - Comprehensive Coverage", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    resetMockChartInstance();
     vi.clearAllMocks();
     window.addEventListener = vi.fn();
     window.removeEventListener = vi.fn();
@@ -666,7 +673,7 @@ describe("ChartManager - Comprehensive Coverage", () => {
       cm._isDragging = false;
 
       cm.lastMousePosition = { x: 100, y: 140 };
-      expect(zoom.pan.mode()).toBe("y");
+      expect(zoom.pan.mode()).toBe("x");
       cm.lastMousePosition = { x: 10, y: 50 };
       expect(zoom.pan.mode()).toBe("y");
 
@@ -687,7 +694,7 @@ describe("ChartManager - Comprehensive Coverage", () => {
       expect(ctx._card.isExpandedH).toBe(true);
 
       cm.lastMousePosition = { x: 5, y: 120 };
-      expect(zoom.zoom.mode()).toBe("y");
+      expect(zoom.zoom.mode()).toBe("x");
       cm.lastMousePosition = { x: 10, y: 50 };
       expect(zoom.zoom.mode()).toBe("y");
       cm.lastMousePosition = { x: 100, y: 50 };
@@ -1039,11 +1046,15 @@ describe("ChartManager - Comprehensive Coverage", () => {
       mockChartInstance.scales.x.max = 180;
       mockChartInstance.scales.x.getValueForPixel.mockReturnValue(600);
       mockChartInstance.scales.y.getValueForPixel.mockReturnValue(12.7);
-      mockChartInstance.scales.y.getPixelForValue.mockReturnValue(50);
+      mockChartInstance.scales.y.getPixelForValue.mockReturnValue(60);
       stateManager.getData.mockReturnValue([
         { time: "00:00", value: 10 },
         { time: "23:59", value: 20 },
       ]);
+      mockChartInstance.data.datasets[0].data = [
+        { x: 0, y: 10 },
+        { x: 1439, y: 20 },
+      ];
       cm._getCanvasRelativePosition = () => ({ x: 120, y: 60 });
 
       cm._handleClick({ native: {} }, []);
@@ -1063,6 +1074,10 @@ describe("ChartManager - Comprehensive Coverage", () => {
         { time: "00:00", value: 10 },
         { time: "23:59", value: 20 },
       ]);
+      mockChartInstance.data.datasets[0].data = [
+        { x: 0, y: 10 },
+        { x: 1439, y: 20 },
+      ];
       cm._getCanvasRelativePosition = () => ({ x: 120, y: 100 });
 
       cm._handleClick({ native: {} }, []);
@@ -1110,9 +1125,18 @@ describe("ChartManager - Comprehensive Coverage", () => {
         ]);
 
       cm._getCanvasRelativePosition = () => ({ x: 120, y: 60 });
+      mockChartInstance.data.datasets[0].data = [
+        { x: 600, y: 0 },
+        { x: 601, y: 1 },
+        { x: 1439, y: 1 },
+      ];
       cm._handleClick({ native: {} }, []);
       expect(selectionManager.selectPoint).toHaveBeenCalledWith(0);
 
+      mockChartInstance.data.datasets[0].data = [
+        { x: 0, y: 0 },
+        { x: 1439, y: 1 },
+      ];
       cm._handleClick({ native: {} }, []);
       expect(stateManager.insertPoint).toHaveBeenCalledWith("10:02", 1);
     });

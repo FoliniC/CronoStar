@@ -906,6 +906,7 @@ export class ChartManager {
 
   _handleClick(event, elements) {
     if (Date.now() < (this.context._card.suppressClickUntil || 0)) return;
+    if (!this.chart) return;
 
     const selectionManager = this.context.getManager("selection");
     const stateManager = this.context.getManager("state");

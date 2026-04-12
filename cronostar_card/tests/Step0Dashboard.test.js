@@ -104,6 +104,23 @@ describe("Step0Dashboard", () => {
     expect(res.toString()).toContain("Err1");
   });
 
+  it("renders validation issues in Italian", () => {
+    editor._language = "it";
+    editor._dashboardProfilesData = {
+      thermostat: {
+        files: [{
+          global_prefix: "p1_",
+          meta: { title: "T1", target_entity: "climate.1" },
+          profiles: ["Default"],
+          validation: { valid: false, errors: ["ERRORE_TEST"] }
+        }]
+      }
+    };
+    const res = step.render();
+    expect(res.toString()).toContain("ERRORE_TEST");
+    expect(res.toString()).toContain("⚠️ Problemi rilevati:");
+  });
+
   it("triggers reset config from new configuration button value function", () => {
     const res = step.render();
     const fn = res.values.find((v) => typeof v === "function");

@@ -495,6 +495,9 @@ export class CardLifecycle {
         this.card.keyboardHandler?.detachListeners?.(chartContainer);
 
       this.card.chartManager?.destroy?.();
+
+      const style = document.getElementById("cronostar-editor-style");
+      if (style) style.remove();
     } catch (e) {
       Logger.error("LIFECYCLE", "CronoStar Error in cleanupCard:", e);
     }

@@ -256,4 +256,19 @@ describe("cronostar_define_guard", () => {
     expect(window.nonRegistry.__cronostar_patched__).toBeUndefined();
     delete window.nonRegistry;
   });
+
+  it("patchRegistryInstance returns early if already patched", () => {
+    const fakeRegistry = {
+      define: vi.fn(),
+      get: vi.fn(),
+      __cronostar_patched__: true
+    };
+    // If it were not patched, it would be modified by the scanning logic if it was in window
+    // But we can't easily call private function patchRegistryInstance directly as it is not exported.
+    // However, the scanning logic will skip it.
+    window.alreadyPatched = fakeRegistry;
+    vi.advanceTimersByTime(500);
+    expect(fakeRegistry.define.mock.calls.length).toBe(0);
+    delete window.alreadyPatched;
+  });
 });

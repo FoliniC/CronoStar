@@ -608,7 +608,9 @@ export class CronoStarEditor extends LitElement {
   _updateSaveButtonVisibility() {
     try {
       const shouldHide = this._step >= 0 && this._step <= 3;
-      const root = document.head;
+      const root = document.head || document.body; // Robust fallback
+      if (!root) return;
+
       let styleEl = document.getElementById(
         "cronostar-editor-save-button-hide",
       );
@@ -659,22 +661,21 @@ export class CronoStarEditor extends LitElement {
       }
 
       // Inject both in local root and global document for maximum coverage
-      const targets = [root, document.head];
+      const targets = [root, document.head || document.body];
 
-      targets.forEach((t) => {
+      targets.forEach((t, idx) => {
         if (!t) return;
-        let styleEl =
-          t === document.head
-            ? document.getElementById("cronostar-editor-style-global")
-            : root.getElementById("cronostar-editor-style");
+        const isGlobal = idx === 1;
+        let styleEl = isGlobal
+          ? document.getElementById("cronostar-editor-style-global")
+          : root.getElementById("cronostar-editor-style");
 
         if (shouldHide) {
           if (!styleEl) {
             styleEl = document.createElement("style");
-            styleEl.id =
-              t === document.head
-                ? "cronostar-editor-style-global"
-                : "cronostar-editor-style";
+            styleEl.id = isGlobal
+              ? "cronostar-editor-style-global"
+              : "cronostar-editor-style";
             t.appendChild(styleEl);
           }
 
