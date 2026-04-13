@@ -42,11 +42,11 @@ def test_coordinator_logging_more(hass):
 
     # Set profile log
     coordinator.storage_manager.update_active_profile = AsyncMock(return_value=True)
+    coordinator.storage_manager.update_enabled_state = AsyncMock(return_value=True)
     run(coordinator.set_profile("Default"))
 
     # Set enabled log
     run(coordinator.set_enabled(True))
-
 def test_coordinator_logging_branches(hass):
     """Hit logging branches in coordinator."""
     entry = MagicMock()

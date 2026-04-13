@@ -52,6 +52,7 @@
       console.log("CRONOSTAR: CustomElementRegistry constructor intercepted");
     }
   } catch (e) {
+    // v8 ignore next 4
     console.warn(
       "CRONOSTAR: Impossibile intercettare CustomElementRegistry:",
       e,

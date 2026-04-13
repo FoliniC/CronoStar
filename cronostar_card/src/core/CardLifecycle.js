@@ -98,7 +98,7 @@ export class CardLifecycle {
           );
         }
       } catch (e) {
-        /* v8 ignore next 5 */
+        // v8 ignore next 5
         Logger.warn(
           "LANG",
           "CronoStar setConfig language application failed:",
@@ -138,7 +138,7 @@ export class CardLifecycle {
           this.card.chartManager.updateChartLabels?.();
         }
       } catch (e) {
-        /* v8 ignore next 5 */
+        // v8 ignore next 5
         Logger.warn(
           "UPDATE",
           "CronoStar updated(config) chart refresh failed:",
@@ -220,7 +220,7 @@ export class CardLifecycle {
           );
         }
       } catch (e) {
-        /* v8 ignore next 5 */
+        // v8 ignore next 5
         Logger.warn(
           "LANG",
           "CronoStar setHass meta language application failed:",
