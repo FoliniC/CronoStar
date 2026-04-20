@@ -1,4 +1,5 @@
 import { html } from "lit";
+import { classMap } from "lit/directives/class-map.js";
 import { CARD_CONFIG_PRESETS, TIMEOUTS, VERSION } from "../config.js";
 
 export class CardRenderer {
@@ -84,6 +85,17 @@ export class CardRenderer {
               outlined
               @click=${(e) => {
                 e.stopPropagation();
+                this.card.toggleChart();
+              }}
+              style="--mdc-theme-primary: var(--primary-color); min-width: 48px;"
+              title="${isIt ? "Toggle Grafico" : "Toggle Chart"}"
+            >
+              <ha-icon icon="mdi:chart-bell-curve" style="--mdc-icon-size: 18px;"></ha-icon>
+            </mwc-button>
+            <mwc-button
+              outlined
+              @click=${(e) => {
+                e.stopPropagation();
                 this.card.handleDeleteController();
               }}
               style="--mdc-theme-primary: #ef4444; min-width: 48px;"
@@ -151,11 +163,22 @@ export class CardRenderer {
                 >
               </div>
             `}
+<div class="card-content">
+  <div class="chart-container"
+       style="display: ${this.card._showChart ? 'block' : 'none'};"
+       tabindex="0"
+       @pointermove=${(e) => this.card.selectionManager.handlePointerMove(e)}
+       @pointerdown=${(e) => this.card.selectionManager.handlePointerDown(e)}
+       @pointerup=${(e) => this.card.selectionManager.handlePointerUp(e)}>
+          <canvas id="myChart"></canvas>
+        </div>
       </ha-card>
     `;
   }
 
   render() {
+    console.log("[CardRenderer] Rendering, config:", this.card.config);
+    console.log("[CardRenderer] Rendering, showChart:", this.card._showChart);
     if (!this.card.config) return html``;
 
     // ✅ FIX: Internal Editor Fallback (for panels where standard editor won't open)
@@ -178,10 +201,6 @@ export class CardRenderer {
                 ${this.card.language === "it"
                   ? "WIZARD CONFIGURAZIONE"
                   : "CONFIGURATION WIZARD"}
-                ${this.card.editorStep !== undefined &&
-                this.card.editorStep !== null
-                  ? ` (Step ${this.card.editorStep})`
-                  : ""}
               </span>
             </div>
             <ha-icon-button
@@ -537,10 +556,21 @@ export class CardRenderer {
             }
             ${!this.card.isEnabled ? html`<ha-icon icon="mdi:pause-circle" class="pause-indicator" title="Automation Disabled"></ha-icon>` : ""}
             <div class="menu-container">
+              ${
+                this.card.isEditorContext() 
+                  ? "" 
+                  : html`
+                    <button class="menu-button" @click=${(e) => {
+                        e.stopPropagation();
+                        this.card.toggleChart();
+                    }}>
+                      <ha-icon icon="mdi:chart-bell-curve"></ha-icon>
+                    </button>
+                  `
+              }
               <button class="menu-button" @click=${(e) => this.card.eventHandlers.toggleMenu(e)}>
                 <ha-icon icon="mdi:menu"></ha-icon>
-              </button>
-            </div>
+              </button>            </div>
           </div>
         </div>
 
@@ -670,15 +700,20 @@ export class CardRenderer {
         }
 
         <div class="card-content">
-          <div class="chart-container" 
-               tabindex="0"
-               @pointermove=${(e) => this.card.selectionManager.handlePointerMove(e)}
-               @pointerdown=${(e) => this.card.selectionManager.handlePointerDown(e)}
-               @pointerup=${(e) => this.card.selectionManager.handlePointerUp(e)}>
-            <canvas id="myChart"></canvas>
-            <div id="drag-value-display" class="chart-tooltip"></div>
-            <div id="hover-value-display" class="chart-tooltip hover-tooltip"></div>
-            <div id="selection-rect" class="selection-rect"></div>
+          ${this.card._showChart 
+            ? html`
+              <div class="chart-container"
+                   tabindex="0"
+                   @pointermove=${(e) => this.card.selectionManager.handlePointerMove(e)}
+                   @pointerdown=${(e) => this.card.selectionManager.handlePointerDown(e)}
+                   @pointerup=${(e) => this.card.selectionManager.handlePointerUp(e)}>
+                <canvas id="myChart"></canvas>
+                <div id="drag-value-display" class="chart-tooltip"></div>
+                <div id="hover-value-display" class="chart-tooltip hover-tooltip"></div>
+                <div id="selection-rect" class="selection-rect"></div>
+              </div>`
+            : html``
+          }
 
             ${
               this.card.contextMenu?.show

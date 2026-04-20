@@ -761,8 +761,8 @@ export class CardLifecycle {
           validation: response.validation,
         };
 
-        // ✅ FIX: If backend says it's valid, it's definitely configured
-        if (response.validation.valid) {
+        // ✅ FIX: If backend says it's valid OR we have profile data, it's configured
+        if (response.validation.valid || response.profile_data) {
           this.card.config.not_configured = false;
         }
 

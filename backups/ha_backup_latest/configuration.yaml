@@ -1,0 +1,734 @@
+# ============================================================================
+# HOME ASSISTANT CONFIGURATION
+# Versione: 2026.3
+# Ultimo aggiornamento: 2026-03-06
+# ============================================================================
+
+# Core Configuration
+default_config:
+
+# Frontend
+frontend:
+  themes: !include_dir_merge_named themes
+  extra_module_url:
+    - /hacsfiles/lovelace-card-mod/card-mod.js
+    #- /local/cronostar_card/cronostar-card.js
+# Automation & Scripts
+automation: !include_dir_merge_list automations
+script: !include_dir_merge_named yaml_generator/scripts
+shell_command: !include_dir_merge_named yaml_generator/shell_command/
+
+# Media
+ffmpeg:
+stream:
+
+# ============================================================================
+# HOMEASSISTANT CORE
+# ============================================================================
+homeassistant:
+  customize: !include customize.yaml
+  #allowlist_external_dirs:
+  #  - /config/cronostar
+  #  - /config/www/cronostar_profiles
+  packages: !include_dir_named packages
+
+# ============================================================================
+# TEMPLATE ENTITIES (CONSOLIDATO)
+# ============================================================================
+template:
+  # Sensors e Binary Sensors da file esterni
+  - sensor: !include_dir_merge_list yaml_generator/managed_sensors/
+  - !include yaml_generator/ev_charge_2025_triggers.yaml
+  - binary_sensor: !include_dir_merge_list yaml_generator/managed_binary_sensors/
+  - !include yaml_generator/managed_persistence/bagno_persistence.yaml
+  - !include yaml_generator/managed_persistence/camera_grande_persistence.yaml
+  - !include yaml_generator/managed_persistence/camera_persistence.yaml
+  - !include yaml_generator/managed_persistence/corridoio_persistence.yaml
+  - !include yaml_generator/managed_persistence/cucina_persistence.yaml
+  - !include yaml_generator/managed_persistence/sala_persistence.yaml
+  - !include yaml_generator/managed_persistence/th_persistence.yaml
+  - !include yaml_generator/managed_persistence/consumo_netto_pdc_persistence.yaml
+
+  # Template Sensor - Luce Scale Infos
+  - sensor:
+      - unique_id: luce_scale_switch_infos
+        name: Luce scale switch infos
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: "{{ ((states('sensor.sonoff_10024024c4_power_1') | float(0)) + (states('sensor.sonoff_10024024c4_power_2') | float(0))) | round(2) }}"
+        attributes:
+          power: "{{ ((states('sensor.sonoff_10024024c4_power_1') | float(0)) + (states('sensor.sonoff_10024024c4_power_2') | float(0))) }}"
+          current: "{{ ((states('sensor.sonoff_10024024c4_current_1') | float(0)) + (states('sensor.sonoff_10024024c4_current_2') | float(0))) }}"
+          switch_1_attributes: "{{ states.sensor.sonoff_10024024c4_power_1.attributes | default({}) }}"
+          switch_2_attributes: "{{ states.sensor.sonoff_10024024c4_power_2.attributes | default({}) }}"
+
+  # Template Light - Luce Scale
+  - light:
+      - unique_id: luce_scale_switch
+        name: Luce scale
+        state: >-
+          {% set p1 = states('sensor.sonoff_10024024c4_power_1') %}
+          {% set p2 = states('sensor.sonoff_10024024c4_power_2') %}
+          {% if has_value('sensor.sonoff_10024024c4_power_1') or has_value('sensor.sonoff_10024024c4_power_2') %}
+            {{ (p1 | float(0) + p2 | float(0)) > 7 }}
+          {% else %}
+            {{ states('light.luce_scale_switch') == 'on' }}
+          {% endif %}
+        availability: >-
+          {{ has_value('sensor.sonoff_10024024c4_power_1') or has_value('sensor.sonoff_10024024c4_power_2') }}
+        turn_on:
+          - choose:
+              - conditions:
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_1
+                    state: "off"
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_2
+                    state: "off"
+                sequence:
+                  - action: switch.turn_on
+                    target:
+                      entity_id: switch.sonoff_10024024c4_1
+
+              - conditions:
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_1
+                    state: "off"
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_2
+                    state: "on"
+                sequence:
+                  - action: switch.turn_off
+                    target:
+                      entity_id: switch.sonoff_10024024c4_2
+                  - delay: "0:00:00.300000"
+                  - action: switch.turn_on
+                    target:
+                      entity_id: switch.sonoff_10024024c4_1
+
+              - conditions:
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_1
+                    state: "on"
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_2
+                    state: "on"
+                sequence:
+                  - action: switch.turn_off
+                    target:
+                      entity_id: switch.sonoff_10024024c4_2
+
+              - conditions:
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_1
+                    state: "on"
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_2
+                    state: "off"
+                sequence:
+                  - action: switch.turn_off
+                    target:
+                      entity_id: switch.sonoff_10024024c4_1
+                  - delay: "0:00:00.300000"
+                  - action: switch.turn_on
+                    target:
+                      entity_id: switch.sonoff_10024024c4_2
+
+          - action: system_log.write
+            data:
+              level: info
+              message: "Luce scale Turn ON - Switch1: {{ states('switch.sonoff_10024024c4_1') }}, Switch2: {{ states('switch.sonoff_10024024c4_2') }}, Power: {{ (states('sensor.sonoff_10024024c4_power_1') | float(0)) + (states('sensor.sonoff_10024024c4_power_2') | float(0)) }}W"
+
+        turn_off:
+          - choose:
+              - conditions:
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_1
+                    state: "on"
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_2
+                    state: "off"
+                sequence:
+                  - action: switch.turn_off
+                    target:
+                      entity_id: switch.sonoff_10024024c4_1
+                  - delay: "0:00:00.300000"
+                  - action: switch.turn_on
+                    target:
+                      entity_id: switch.sonoff_10024024c4_2
+
+              - conditions:
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_1
+                    state: "off"
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_2
+                    state: "on"
+                sequence:
+                  - action: switch.turn_off
+                    target:
+                      entity_id: switch.sonoff_10024024c4_2
+                  - delay: "0:00:00.300000"
+                  - action: switch.turn_on
+                    target:
+                      entity_id: switch.sonoff_10024024c4_1
+
+              - conditions:
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_1
+                    state: "on"
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_2
+                    state: "on"
+                sequence:
+                  - action: switch.turn_off
+                    target:
+                      entity_id: switch.sonoff_10024024c4_1
+
+              - conditions:
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_1
+                    state: "off"
+                  - condition: state
+                    entity_id: switch.sonoff_10024024c4_2
+                    state: "off"
+                sequence:
+                  - action: switch.turn_on
+                    target:
+                      entity_id: switch.sonoff_10024024c4_1
+                  - delay: "0:00:00.300000"
+                  - action: switch.turn_off
+                    target:
+                      entity_id: switch.sonoff_10024024c4_1
+
+          - action: system_log.write
+            data:
+              level: info
+              message: "Luce scale Turn OFF - Switch1: {{ states('switch.sonoff_10024024c4_1') }}, Switch2: {{ states('switch.sonoff_10024024c4_2') }}, Power: {{ (states('sensor.sonoff_10024024c4_power_1') | float(0)) + (states('sensor.sonoff_10024024c4_power_2') | float(0)) }}W"
+
+# ============================================================================
+# CLIMATE
+# ============================================================================
+climate: !include_dir_merge_list yaml_generator/generated_climates/
+
+# ============================================================================
+# SENSORS (PLATFORM)
+# ============================================================================
+sensor:
+  # Reboot Service
+  # - platform: reboot_service
+  #- !include yaml_generator/managed_sensors/fix_duplicates_legacy.yaml
+
+  # Statistics Sensors
+  - platform: statistics
+    name: statistics_temperatura_bagno_variance
+    state_characteristic: variance
+    entity_id: sensor.temperatura_bagno
+    unique_id: sensor.temperatura_bagno_variance
+    max_age:
+      minutes: 4
+
+  - platform: statistics
+    name: statistics_temperatura_cucina_variance
+    state_characteristic: variance
+    entity_id: sensor.th1a_temperature
+    unique_id: sensor.temperatura_cucina_variance
+    max_age:
+      minutes: 5
+
+  - platform: statistics
+    name: statistics_temperatura_camera_grande_variance
+    state_characteristic: variance
+    entity_id: sensor.temperatura_camera_grande
+    unique_id: sensor.temperatura_camera_grande_variance
+    max_age:
+      minutes: 4
+
+  - platform: statistics
+    name: statistics_temperatura_camera_variance
+    state_characteristic: variance
+    entity_id: sensor.temperatura_camera
+    unique_id: sensor.temperatura_camera_variance
+    max_age:
+      minutes: 4
+
+  - platform: statistics
+    name: statistics_temperatura_sala_variance
+    state_characteristic: variance
+    entity_id: sensor.temperatura_sala
+    unique_id: sensor.temperatura_sala_variance
+    max_age:
+      minutes: 4
+
+  # InfluxDB
+  - platform: influxdb
+    api_version: 2
+    ssl: false
+    token: VwnOdiOeE5fGqtgj00OLReRCeRJfCklVZzcatPE0ncJkZ1m3tXEFwGGC659PK7bX2fPwUWCBJ-kKJM6C4gcSlw==
+    organization: ViaGrande50
+    bucket: HAData
+    host: 127.0.0.1
+    port: 8086
+    queries_flux:
+      - range_start: "-10d"
+        name: "How long have I been here"
+        query: >
+          filter(fn: (r) => r["_measurement"] == "climate.camera_grande" )
+          |> filter(fn: (r) => r["_field"] == "current_temperature")
+
+  # Media Mobile per Ricarica EV
+  - platform: filter
+    name: "EV Charge 2025 Solar Max Ampere Smoothed"
+    unique_id: ev_charge_2025_solar_max_ampere_smoothed
+    entity_id: sensor.ev_charge_2025_solar_max_ampere
+    filters:
+      - filter: time_simple_moving_average
+        window_size: "00:00:10"
+        precision: 1
+
+# ============================================================================
+# BINARY SENSORS
+# ============================================================================
+# binary_sensor:
+#   - platform: reboot_service
+
+#  - platform: ffmpeg_motion
+#    name: DroidCam Motion
+#    input: http://192.168.0.212:4747/video
+#    changes: 10
+#    reset: 5
+
+# ============================================================================
+# SQL SENSORS
+# ============================================================================
+sql: !include_dir_merge_list sql_sensors/
+
+# ============================================================================
+# INPUT HELPERS
+# ============================================================================
+input_boolean: !include_dir_merge_named yaml_generator/input_boolean
+input_button: !include_dir_merge_named yaml_generator/input_buttons
+input_select: !include_dir_merge_named yaml_generator/input_select
+input_number: !include_dir_merge_named yaml_generator/input_number
+input_text: !include_dir_merge_named yaml_generator/input_text
+input_datetime: !include_dir_merge_named yaml_generator/input_datetime
+
+timer:
+  delay_esecuzione_corto:
+    duration: "00:01:00"
+  delay_esecuzione_lungo:
+    duration: "00:10:00"
+
+# counter:
+#   reboot_router:
+#     name: Reboot Router Counter
+#     initial: 0
+#     step: 1
+#     icon: mdi:counter
+#     restore: false
+
+# ============================================================================
+# VOICE & CONVERSATION
+# ============================================================================
+python_script:
+
+conversation:
+  intents:
+    AccendiTV:
+      - "Accendi tv"
+      - "Accendi la tv"
+      - "Accendi televisione"
+    SpegniTV:
+      - "Spegni tv"
+      - "Spegni la tv"
+      - "Spegni televisione"
+    AccendiLuciCucina:
+      - "Accendi luci cucina"
+      - "Accendi luce cucina"
+      - "Accendi le luci della cucina"
+    SpegniLuciCucina:
+      - "Spegni luci cucina"
+      - "Spegni luce cucina"
+      - "Spegni le luci della cucina"
+    AccendiLuciScale:
+      - "Accendi luci scala"
+      - "Accendi luci scale"
+      - "Accendi le luci delle scale"
+    SpegniLuciScale:
+      - "Spegni luci scala"
+      - "Spegni luci scale"
+      - "Spegni le luci delle scale"
+    UscitaDaCasa:
+      - "Esco"
+    # Disabilita intenti predefiniti
+    HassTurnOn: []
+    HassTurnOff: []
+    HassToggle: []
+    HassOpenCover: []
+
+intent_script:
+  DefaultFallback:
+    speech:
+      text: "Comando non riconosciuto."
+    action: []
+
+  AccendiTV:
+    speech:
+      text: "Sto accendendo la TV"
+    action:
+      - action: media_player.turn_on
+        target:
+          device_id: e3135a5aaee16041b35148762ee53a4e
+
+  SpegniTV:
+    speech:
+      text: "Sto spegnendo la TV"
+    action:
+      - action: media_player.turn_off
+        target:
+          device_id: e3135a5aaee16041b35148762ee53a4e
+
+  AccendiLuciCucina:
+    speech:
+      text: "Sto accendendo le luci della cucina."
+    action:
+      - action: switch.turn_on
+        target:
+          entity_id:
+            - light.luci_cucina_switch_3
+            - light.luci_cucina_switch_2
+
+  AccendiLuciScale:
+    speech:
+      text: "Sto accendendo le luci delle scale."
+    action:
+      - action: light.turn_on
+        target:
+          entity_id: light.luce_scale_switch
+
+  SpegniLuciCucina:
+    speech:
+      text: "Sto spegnendo le luci della cucina."
+    action:
+      - action: switch.turn_off
+        target:
+          entity_id:
+            - light.luci_cucina_switch_3
+            - light.luci_cucina_switch_2
+
+  SpegniLuciScale:
+    speech:
+      text: "Sto spegnendo le luci delle scale."
+    action:
+      - action: light.turn_off
+        target:
+          entity_id: light.luce_scale_switch
+
+# ============================================================================
+# LOGGER
+# ============================================================================
+logger:
+  default: info
+  logs:
+    custom_components.localtuya: error
+    fancoil_system: debug
+    #homeassistant.components.shell_command: debug
+    #homeassistant.components.python_script: debug
+    homeassistant.components.script: error
+    system_log.external: error
+    custom_components.cronostar: debug
+    custom_components.azure_openai_sdk_conversation: error
+    homeassistant.core: error
+    homeassistant.components: error
+    homeassistant.bootstrap: error
+    homeassistant.loader: error
+    esphome: error
+    homeassistant.helpers.script: warning
+    #custom_components.sinapsi_alfa: debug
+    #homeassistant.components.http: debug
+    #homeassistant.components.frontend: debug
+    #homeassistant.components.automation: debug
+    xknx: debug             # Abilita tutti i log della libreria xknx
+# ============================================================================
+# LOGBOOK & RECORDER
+# ============================================================================
+logbook:
+  include:
+    entities:
+      - light.luce_scale_switch
+
+recorder:
+  db_url: mysql://homeassistant:mariaDb@127.0.0.1/homeassistant
+  exclude:
+    entities:
+      - automation.fancoil_bagno_fanmode_dinamica
+      - automation.fancoil_camera_grande_fanmode_dinamica
+      - automation.fancoil_cucina_fanmode_dinamica_2
+      - automation.fancoil_corridoio_fanmode_dinamica
+      - automation.fancoil_sala_fanmode_dinamica
+      - automation.fancoil_camera_fanmode_dinamica
+      - sensor.lavastoviglie_wifi_digital_meter_lavastoviglie_voltaggio
+    entity_globs:
+      - automation.fancoil_*sincronizza_switch_principale
+      - sensor.watchman_*
+      - sensor.statistics_*variance
+      - sensor.*_voltaggio
+      - sensor.*_voltage
+
+# ============================================================================
+# INFLUXDB
+# ============================================================================
+influxdb:
+  include:
+    domains:
+      - sensor
+  tags_attributes:
+    - area
+
+# ============================================================================
+# LOVELACE
+# ============================================================================
+lovelace:
+  resource_mode: yaml
+  resources:
+    # - url: /local/community/entity-duplicates-manager-card/entity-duplicates-manager-card.js
+    # type: module
+    #    - url: /local/cronostar_card/cronostar-card.js?v=3.10.5
+    #      type: module
+    - url: /local/power-wheel-card.js?v=2
+      type: module
+    - url: /hacsfiles/mini-graph-card/mini-graph-card-bundle.js
+      type: module
+    - url: /local/uptime-card.ko.js
+      type: module
+    - url: /hacsfiles/apexcharts-card/apexcharts-card.js
+      type: module
+    - url: /hacsfiles/power-flow-card-plus/power-flow-card-plus.js
+      type: module
+    - url: /hacsfiles/scheduler-card/scheduler-card.js
+      type: module
+    - url: /hacsfiles/ha-sankey-chart/ha-sankey-chart.js
+      type: module
+    - url: /hacsfiles/charger-card/charger-card.js
+      type: module
+    - url: /hacsfiles/lovelace-mushroom/mushroom.js
+      type: module
+    - url: /hacsfiles/numberbox-card/numberbox-card.js
+      type: module
+    - url: /hacsfiles/lovelace-auto-entities/auto-entities.js?v=1
+      type: module
+  dashboards:
+    lovelace:
+      mode: yaml
+      filename: ui-lovelace.yaml
+      title: Overview
+      icon: mdi:view-dashboard
+      show_in_sidebar: true
+    # ev-charging:
+    #   mode: yaml
+    #   title: EV Charging
+    #   icon: mdi:ev-station
+    #   show_in_sidebar: true
+    #   filename: ui/charge_control.yaml
+    # ev-charging-1:
+    #   mode: yaml
+    #   title: EV Charging new
+    #   icon: mdi:ev-station
+    #   show_in_sidebar: true
+    #   filename: ui/charge_control_new.yaml
+    # ev-charging-2:
+    #   mode: yaml
+    #   title: EV Charging claude
+    #   icon: mdi:ev-station
+    #   show_in_sidebar: true
+    #   filename: ui/charge_control_claude.yaml
+    ev-charging-3:
+      mode: yaml
+      title: EV Charging 2025
+      icon: mdi:ev-station
+      show_in_sidebar: true
+      filename: ui/ev_charge_control_2025.yaml
+    # riscaldamento-2026:
+    #   mode: yaml
+    #   title: Riscaldamento 2026 bbb
+    #   icon: mdi:hvac
+    #   show_in_sidebar: true
+    #   filename: ui/riscaldamento_2026.yaml
+    riscaldamento-1:
+      mode: yaml
+      title: Riscaldamento
+      icon: mdi:hvac
+      show_in_sidebar: true
+      filename: ui/riscaldamento.yaml
+    fix-entities:
+      mode: yaml
+      title: fix entities
+      icon: mdi:hvac
+      show_in_sidebar: true
+      filename: ui/fix_entities.yaml
+    developer-tools:
+      mode: yaml
+      title: Developer tools
+      icon: mdi:tools
+      show_in_sidebar: true
+      filename: config/developer-tools/dashboard.yaml
+    guacamole-remote:
+      mode: yaml
+      title: Guacamole
+      icon: mdi:remote-desktop
+      show_in_sidebar: true
+      filename: dashboards/guacamole.yaml
+    vscode-remote:
+      mode: yaml
+      title: VS Code
+      icon: mdi:microsoft-visual-studio-code
+      show_in_sidebar: true
+      filename: dashboards/vscode.yaml
+
+
+# ============================================================================
+# SCENES
+# ============================================================================
+scene: !include scenes.yaml
+
+# ============================================================================
+# PYSCRIPT
+# ============================================================================
+pyscript:
+  allow_all_imports: true
+  hass_is_global: true
+  config: pyscript.toml
+
+# ============================================================================
+# SAVER
+# ============================================================================
+
+# ============================================================================
+# HTTP & NETWORKING
+# ============================================================================
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.17.0.0/16
+    - 172.18.0.0/16
+    - 172.19.0.0/16
+    - 172.20.0.0/16
+    - 172.30.0.0/16
+    - 103.21.244.0/22
+    - 103.22.200.0/22
+    - 103.31.4.0/22
+    - 104.16.0.0/13
+    - 104.24.0.0/14
+    - 108.162.192.0/18
+    - 131.0.72.0/22
+    - 141.101.64.0/18
+    - 162.158.0.0/15
+    - 172.64.0.0/13
+    - 173.245.48.0/20
+    - 188.114.96.0/20
+    - 190.93.240.0/20
+    - 197.234.240.0/22
+    - 198.41.128.0/17
+    - 127.0.0.1
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+  server_port: 8124
+
+duckdns:
+  domain: !secret duckdns_domain
+  access_token: !secret duckdns_token
+
+
+# ============================================================================
+# KNX INTEGRATION
+# ============================================================================
+knx: !include knx_config.yaml
+
+# ============================================================================
+# MQTT INTEGRATION
+# ============================================================================
+mqtt: !include mqtt_config.yaml
+
+# ============================================================================
+# MODBUS INTEGRATION
+# ============================================================================
+# modbus: !include modbus_config.yaml
+
+# ============================================================================
+# SCHEDULER
+# ============================================================================
+scheduler:
+  schedules:
+    - name: Accendi Luci Natale Sera
+      weekdays: [mon, tue, wed, thu, fri, sat, sun]
+      time: "17:40"
+      actions:
+        - action: switch.turn_on
+          target:
+            entity_id: switch.presa_luci_natale
+
+    - name: Spegni Luci Natale Sera
+      weekdays: [mon, tue, wed, thu, fri, sat, sun]
+      time: "23:00"
+      actions:
+        - action: switch.turn_off
+          target:
+            entity_id: switch.presa_luci_natale
+
+    - name: Accendi Luci Natale Mattina
+      weekdays: [mon, tue, wed, thu, fri, sat, sun]
+      time: "06:30"
+      actions:
+        - action: switch.turn_on
+          target:
+            entity_id: switch.presa_luci_natale
+
+    - name: Spegni Luci Natale Mattina
+      weekdays: [mon, tue, wed, thu, fri, sat, sun]
+      time: "07:30"
+      actions:
+        - action: switch.turn_off
+          target:
+            entity_id: switch.presa_luci_natale
+
+# ============================================================================
+# REBOOT SERVICE
+# ============================================================================
+# reboot_service:
+#   password: !secret KuWfiAdmin
+#   server: "192.168.0.11"
+#   port: 88
+#   wifi_profiles:
+#     - ssid: "wifi domotica"
+#       password: !secret wifi_domotica_pass
+#       bssid: "c2:9d:1d:65:f0:f6"
+#     - ssid: "Redmi Note 13 Pro 5G"
+#       password: !secret redmi13pro_pass
+#       bssid: "9a:ea:f5:55:6a:ef"
+
+# ============================================================================
+# AZURE OPENAI
+# ============================================================================
+azure_openai_sdk_conversation:
+  stats_enable: true
+
+# ============================================================================
+# CUSTOM INTEGRATIONS
+# ============================================================================
+# entity_duplicates_manager:
+
+# ============================================================================
+# API
+# ============================================================================
+api:
+
+# ============================================================================
+# GOOGLE ASSISTANT
+# ============================================================================
+# Added By Homeway to enable Google Assistant support.
+google_assistant:
+  project_id: homewayio
+  service_account:
+    private_key: "nokey"
+    client_email: "support@homeway.io"

@@ -163,14 +163,14 @@ describe("validateConfig", () => {
     expect(r.hour_base).toEqual({ value: 1, determined: true });
   });
 
-  it("auto-generates global_prefix if missing", () => {
+  it("does not auto-generate global_prefix if missing", () => {
     const r = validateConfig({ preset_type: "generic_switch" });
-    expect(r.global_prefix).toBe("cronostar_generic_switch_");
+    expect(r.global_prefix).toBeUndefined();
   });
 
-  it("auto-generates global_prefix for unknown preset", () => {
+  it("does not auto-generate global_prefix for unknown preset", () => {
     const r = validateConfig({ preset_type: "custom_preset" });
-    expect(r.global_prefix).toBe("cronostar_custom_preset_");
+    expect(r.global_prefix).toBeUndefined();
   });
 
   it("preserves type from original config", () => {

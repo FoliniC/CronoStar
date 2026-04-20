@@ -85,8 +85,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # 2. Identify Entry Type
     if entry.data.get("component_installed"):
-        # Auto-update global component title with version tag
-        expected_title = f"CronoStar [v{current_version}]"
+        # Auto-update global component title
+        expected_title = "CronoStar"
         if entry.title != expected_title:
             _LOGGER.info("Updating global component title: %s -> %s", entry.title, expected_title)
             hass.config_entries.async_update_entry(entry, title=expected_title)
@@ -109,12 +109,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         new_data[CONF_PRESET] = new_data.pop("preset")
         hass.config_entries.async_update_entry(entry, data=new_data)
 
-    # Auto-update controller title with current version tag
-    if f"[v{current_version}]" not in entry.title:
-        clean_title = re.sub(r"\s*\[v\d+\.\d+\.\d+\]", "", entry.title)
-        new_title = f"{clean_title} [v{current_version}]"
-        _LOGGER.info("Updating controller title: %s -> %s", entry.title, new_title)
-        hass.config_entries.async_update_entry(entry, title=new_title)
+    # Auto-update controller title (clean any legacy version tags like [v6.3.0])
+    if "[" in entry.title:
+        new_title = re.sub(r"\s*\[v?\d+\.\d+\.\d+\]", "", entry.title)
+        if entry.title != new_title:
+            _LOGGER.info("Cleaning controller title: %s -> %s", entry.title, new_title)
+            hass.config_entries.async_update_entry(entry, title=new_title)
 
     # Validate controller entry required fields
     missing = [k for k in (CONF_NAME, CONF_PRESET, CONF_TARGET_ENTITY) if k not in entry.data]

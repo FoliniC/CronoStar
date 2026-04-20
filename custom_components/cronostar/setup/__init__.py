@@ -24,6 +24,7 @@ from ..const import DOMAIN
 from ..storage.settings_manager import SettingsManager
 from ..storage.storage_manager import StorageManager
 from .dashboard import DASHBOARD_YAML_FILENAME, setup_dashboard
+from .panel_websocket import async_setup as setup_websocket
 from .events import setup_event_handlers
 from .services import setup_services
 from .validators import validate_environment
@@ -58,6 +59,7 @@ async def async_setup_integration(hass: HomeAssistant, config: dict) -> bool:
     await _preload_profile_cache(hass, storage_manager)
     await setup_services(hass, storage_manager)
     await setup_event_handlers(hass, storage_manager)
+    setup_websocket(hass)
 
     # 🚀 Registrazione Dashboard Lovelace
     await setup_dashboard(hass)

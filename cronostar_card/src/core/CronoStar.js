@@ -53,6 +53,7 @@ export class CronoStarCard extends LitElement {
       editorStep: { type: Number },
       integrationVersion: { type: String },
       versionCheckEnabled: { type: Boolean },
+      _showChart: { type: Boolean },
     };
   }
 
@@ -148,6 +149,7 @@ export class CronoStarCard extends LitElement {
     this._startupOverlayState = false;
     this.selectedPoints = [];
     this.isPreview = false;
+    this._showChart = false;
     this.previewData = null;
     this.cardId = "";
     this.isExpandedV = false;
@@ -339,9 +341,67 @@ export class CronoStarCard extends LitElement {
     if (this.cardLifecycle) {
       this.cardLifecycle.firstUpdated();
     }
+    
+    this.updateComplete.then(() => {
+        if (this._showChart && this.chartManager && !this.chartManager.isInitialized()) {
+            console.log("[CronoStar] firstUpdated: Initializing chart...");
+            this.cardLifecycle.reinitializeCard();
+        }
+    });
   }
 
-  render() {
+  updated(changedProperties) {
+    super.updated(changedProperties);
+    
+    // Gestisce solo il ridimensionamento se la visibilità viene riattivata
+    if (changedProperties.has("_showChart") && this._showChart) {
+      this.updateComplete.then(() => {
+        if (this.chartManager?.isInitialized()) {
+            this.chartManager.resize?.();
+            this.chartManager.chart?.update('none');
+        }
+      });
+    }
+  }
+
+  _deepQuerySelector(selector, root = this.shadowRoot) {
+    if (!root) return null;
+    const found = root.querySelector(selector);
+    if (found) return found;
+
+    // Scansiona ricorsivamente i figli
+    const elements = root.querySelectorAll('*');
+    for (const el of elements) {
+      if (el.shadowRoot) {
+        const foundInShadow = this._deepQuerySelector(selector, el.shadowRoot);
+        if (foundInShadow) return foundInShadow;
+      }
+    }
+    return null;
+  }
+
+  async toggleChart() {
+    const container = this._deepQuerySelector(".chart-container");
+    const isHidden = container?.style.display === "none";
+    this._showChart = isHidden;
+    
+    console.log("[CronoStar] toggleChart: State forced to:", this._showChart);
+    
+    this.requestUpdate();
+    await this.updateComplete;
+    
+    // Ricalcola il container dopo l'update
+    const newContainer = this._deepQuerySelector(".chart-container");
+    if (newContainer) {
+        newContainer.style.display = this._showChart ? 'block' : 'none';
+        
+        if (this._showChart && this.chartManager?.isInitialized()) {
+            console.log("[CronoStar] Resizing chart...");
+            this.chartManager.resize?.();
+            this.chartManager.chart?.update('none');
+        }
+    }
+  }  render() {
     const isEditor = this.isEditorContext();
     const isPreview = this.isPreview;
     const isWaitingForData =

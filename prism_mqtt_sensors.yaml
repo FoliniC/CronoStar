@@ -1,0 +1,83 @@
+mqtt:
+  sensor:
+    - state_topic: "home/prism//hello"
+      name: "Prism Hello"
+      unique_id: prism_hello_sensor
+    - state_topic: "home/prism/1/state"
+      name: "Prism Stato"
+      unique_id: prism_state_sensor
+      value_template: >
+        {% set map = {'1': 'Unplugged', '2': 'Waiting', '3': 'Charging', '4': 'Pause'} %}
+        {{ map[value] if value in map else 'Error' }}
+    - state_topic: "home/prism/1/amp"
+      name: "Prism Corrente"
+      unique_id: prism_current_sensor
+      unit_of_measurement: "mA"
+      device_class: current
+      state_class: measurement
+    - state_topic: "home/prism/1/wh"
+      name: "Prism Energia Erogata Sessione"
+      unique_id: prism_session_wh
+      unit_of_measurement: "Wh"
+      device_class: energy
+      state_class: total_increasing
+    - state_topic: "home/prism/1/pilot"
+      name: "Prism Corrente Pilotata dall'Auto"
+      unique_id: prism_pilot_current
+      unit_of_measurement: "A"
+      device_class: current
+      state_class: measurement
+    - state_topic: "home/prism/1/user_amp"
+      name: "Prism Corrente Impostata dell'Utente"
+      unique_id: prism_user_current
+      unit_of_measurement: "A"
+      device_class: current
+      state_class: measurement
+    - state_topic: "home/prism/1/volt"
+      name: "Prism Tensione Attuale"
+      unique_id: prism_voltage
+      unit_of_measurement: "V"
+      device_class: voltage
+      state_class: measurement
+    - state_topic: "home/prism/1/w"
+      name: "Prism Potenza"
+      unique_id: prism_potenza
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+    - state_topic: "home/prism/1/wh_total"
+      name: "Prism Energia Totale"
+      unique_id: prism_energy_total
+      unit_of_measurement: "Wh"
+      device_class: energy
+      state_class: total_increasing
+    - state_topic: "home/prism/1/session_time"
+      name: "Prism Durata Sessione"
+      unique_id: prism_session_time
+      value_template: "{{ value | int | timestamp_custom('%H:%M:%S', 0) }}"
+    - state_topic: "home/prism/1/error"
+      name: "Prism Error"
+      unique_id: prism_error
+    - state_topic: "home/prism/commandresult/set_current_limit/success"
+      name: "Prism risultato set current ok"
+      unique_id: prism_cmd_set_ok
+    - state_topic: "home/prism/commandresult/set_current_limit/error"
+      name: "Prism risultato set current ko"
+      unique_id: prism_cmd_set_ko
+    - state_topic: "home/prism/1/mode"
+      name: "Prism Mode"
+      unique_id: prism_mode
+      value_template: >
+        {% set map = {'1': 'solar', '2': 'normal', '3': 'pause', '7': 'autolimit'} %}
+        {{ map[value] if value in map else 'error'}}
+    - state_topic: "home/prism/1/input/touch"
+      name: "Prism Touch"
+      unique_id: prism_touch
+      expire_after: 10
+    - state_topic: "home/prism/energy_data/power_grid"
+      name: "Prism Potenza Importata"
+      unique_id: prism_power_grid
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      expire_after: 5

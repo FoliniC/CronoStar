@@ -96,7 +96,7 @@ export class Step1Preset {
               >
                 <div class="preset-icon" aria-hidden="true">${preset.icon}</div>
                 <div class="preset-title">${preset.title}</div>
-                <div class="preset-description">${preset.desc}</div>
+                <div class="preset-hint">${preset.desc}</div>
               </button>
             `,
           )}
@@ -162,12 +162,10 @@ export class Step1Preset {
         ${minimalConfigComplete
           ? html`
               <div class="success-box">
-                <div
-                  style="font-weight: 800; font-size: 1.1rem; margin-bottom: 8px;"
-                >
+                <div style="font-weight: 800; font-size: 1.1rem; margin-bottom: 8px;">
                   ✅ ${this.editor.i18n._t("ui.minimal_config_complete")}
                 </div>
-                <div style="color: #cbd5e1; margin-bottom: 20px;">
+                <div style="margin-bottom: 20px;">
                   ${this.editor.i18n._t("ui.minimal_config_help")}
                 </div>
                 <div style="display: flex; gap: 12px; flex-wrap: wrap;">
@@ -185,9 +183,7 @@ export class Step1Preset {
             `
           : html`
               <div class="info-box">
-                <div
-                  style="font-weight: 800; font-size: 1.1rem; margin-bottom: 8px;"
-                >
+                <div style="font-weight: 800; font-size: 1.1rem; margin-bottom: 8px;">
                   ℹ️ ${this.editor.i18n._t("ui.minimal_config_needed")}
                 </div>
                 <p>${this.editor.i18n._t("ui.minimal_config_help")}</p>

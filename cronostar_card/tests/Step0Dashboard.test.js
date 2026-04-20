@@ -349,6 +349,7 @@ describe("Step0Dashboard", () => {
   });
 
   it("_renderProfilesList renders valid status branch", () => {
+    editor._language = "it";
     editor._dashboardProfilesData = {
       thermostat: {
         files: [{

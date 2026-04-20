@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "preset_type": "thermostat",
+    "global_prefix": "cronostar_",
+    "updated_at": "2026-01-02T22:37:50.945252",
+    "title": "CronoStar Thermostat",
+    "y_axis_label": "Temperature",
+    "unit_of_measurement": "°C",
+    "min_value": 15,
+    "max_value": 30,
+    "step_value": 0.5,
+    "allow_max_value": false,
+    "target_entity": "climate.climatizzazione_appartamento"
+  },
+  "profiles": {
+    "Default": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 23.0
+        },
+        {
+          "time": "23:59",
+          "value": 23.0
+        }
+      ],
+      "updated_at": "2026-01-02T22:37:50.945272"
+    }
+  }
+}

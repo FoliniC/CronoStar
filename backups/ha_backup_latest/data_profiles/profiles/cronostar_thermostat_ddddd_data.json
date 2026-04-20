@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "title": "cronostar thermostat ddddd",
+    "y_axis_label": "Temperature",
+    "unit_of_measurement": "°C",
+    "min_value": 15,
+    "max_value": 30,
+    "step_value": 0.5,
+    "allow_max_value": false,
+    "target_entity": "climate.climatizzazione_appartamento",
+    "enabled_entity": "switch.cronostar_thermostat_ddddd_enabled",
+    "profiles_select_entity": "select.cronostar_thermostat_ddddd_current_profile",
+    "preset_type": "thermostat",
+    "global_prefix": "cronostar_thermostat_ddddd_",
+    "updated_at": "2026-03-20T00:04:24.260126"
+  },
+  "profiles": {
+    "Default": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 15.0
+        },
+        {
+          "time": "23:59",
+          "value": 15.0
+        }
+      ],
+      "updated_at": "2026-03-20T00:04:24.260136",
+      "enabled_entity": "switch.cronostar_thermostat_ddddd_enabled",
+      "profiles_select_entity": "select.cronostar_thermostat_ddddd_current_profile",
+      "target_entity": "climate.climatizzazione_appartamento",
+      "entities": [
+        "climate.climatizzazione_appartamento",
+        "switch.cronostar_thermostat_ddddd_enabled",
+        "select.cronostar_thermostat_ddddd_current_profile"
+      ]
+    }
+  }
+}

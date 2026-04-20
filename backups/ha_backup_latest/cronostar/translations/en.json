@@ -1,0 +1,136 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "CronoStar Setup",
+        "menu_options": {
+          "controller": "Add a new Controller"
+        }
+      },
+      "install_component": {
+        "description": "This will install the CronoStar component and register the global services and Lovelace card resource.",
+        "title": "Install CronoStar"
+      },
+      "controller": {
+        "title": "Configure CronoStar Controller",
+        "description": "Set up a new controller for your time-based schedule.\n\nThe Global Prefix will be used to generate helper entities (profile select, pause switch).",
+        "data": {
+          "name": "Controller Name",
+          "preset_type": "Preset Type",
+          "target_entity": "Target Entity",
+          "global_prefix": "Global Prefix",
+          "logging_enabled": "Enable Debug Logging"
+        }
+      },
+      "card_config": {
+        "title": "CronoStar Card Configuration {tag}",
+        "description": "Configure the default appearance and limits for the Lovelace card associated with this controller.\n\nPreset: {preset}",
+        "data": {
+          "title": "Card Title",
+          "min_value": "Minimum Value",
+          "max_value": "Maximum Value",
+          "step_value": "Step Value",
+          "unit_of_measurement": "Unit of Measurement",
+          "y_axis_label": "Y-Axis Label",
+          "allow_max_value": "Allow Max Value",
+          "logging_enabled": "Enable Debug Logging",
+          "language": "UI Language"
+        }
+      },
+      "dashboard": {
+        "title": "Add to Dashboard",
+        "description": "{info}",
+        "data": {
+          "add_to_dashboard": "Add CronoStar card to a dashboard",
+          "dashboard_path": "Select Dashboard",
+          "dashboard_view": "View Index (Default: 0)"
+        }
+      },
+      "success": {
+        "title": "Configuration Complete {confirm_tag}",
+        "description": "The controller {name} has been successfully configured.\n\nYou can now add the CronoStar card to your dashboard using the prefix and target entity defined."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "The CronoStar global component is already installed."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "name": "Controller Name",
+          "preset_type": "Preset Type",
+          "target_entity": "Target Entity",
+          "global_prefix": "Global Prefix",
+          "logging_enabled": "Enable Debug Logging",
+          "language": "UI Language"
+        },
+        "description": "{info}",
+        "title": "CronoStar Options [v5.9.1]"
+      },
+      "card_config": {
+        "title": "CronoStar Card Configuration {tag} [v5.9.1]",
+        "description": "Update the default appearance and limits for the Lovelace card.\n\nPreset: {preset}",
+        "data": {
+          "title": "Card Title",
+          "min_value": "Minimum Value",
+          "max_value": "Maximum Value",
+          "step_value": "Step Value",
+          "unit_of_measurement": "Unit of Measurement",
+          "y_axis_label": "Y-Axis Label",
+          "allow_max_value": "Allow Max Value",
+          "logging_enabled": "Enable Debug Logging",
+          "language": "UI Language"
+        }
+      },
+      "success": {
+        "title": "Settings Updated {confirm_tag}",
+        "description": "The configuration has been successfully updated."
+      }
+    }
+  },
+  "selector": {
+    "language": {
+      "options": {
+        "default": "System Default",
+        "en": "English",
+        "it": "Italiano"
+      }
+    }
+  },
+  "exceptions": {
+    "profile_not_found": {
+      "message": "Profile {profile} not found for {preset} (Prefix: {prefix})."
+    },
+    "schedule_application_error": {
+      "message": "Failed to apply schedule to {entity}: {error}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "current_value": {
+        "name": "Scheduled Value"
+      },
+      "current_value_temp": {
+        "name": "Scheduled Temperature"
+      },
+      "current_value_power": {
+        "name": "Scheduled Power"
+      },
+      "current_value_cover": {
+        "name": "Scheduled Position"
+      }
+    },
+    "switch": {
+      "enabled": {
+        "name": "Automation Enabled"
+      }
+    },
+    "select": {
+      "profile": {
+        "name": "Active Profile"
+      }
+    }
+  }
+}

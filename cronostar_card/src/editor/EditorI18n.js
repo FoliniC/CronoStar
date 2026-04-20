@@ -111,6 +111,7 @@ export const I18N = {
         "No compatible entities found for the selected preset. Required types: {domains}",
       current_entity: "Current entity",
       not_set: "Not set",
+      custom_entity_id: "Custom Entity ID (Optional)",
       final_mod_title: "Final configuration review",
       final_mod_text:
         'The wizard has prepared the parameters below. When you click "Save", they will be applied to your Lovelace card.',
@@ -173,7 +174,10 @@ export const I18N = {
       package_desc:
         "Copia questo “Configuration package” in {path}. Se prosegui nel wizard, CronoStar proverà a creare/aggiornare automaticamente il file (quando il backend lo supporta).",
       enable_pause_label: "Abilita Interruttore",
+      enable_pause_desc: "Aggiunge un interruttore per abilitare o disabilitare l'automazione",
       enable_profiles_label: "Abilita Selettore Profilo Corrente",
+      enable_profiles_desc:
+        "Aggiunge un selettore di profilo per passare tra diverse programmazioni",
       keyboard_modifiers_title: "Modificatori Movimento Tastiera",
       keyboard_modifiers_desc:
         "Configura come i punti si spostano usando le frecce della tastiera con i tasti modificatori.",
@@ -227,6 +231,7 @@ export const I18N = {
         "Nessuna entità compatibile trovata per il preset selezionato. Tipi richiesti: {domains}",
       current_entity: "Entità attuale",
       not_set: "Non impostata",
+      custom_entity_id: "Entity ID personalizzato (Opzionale)",
       final_mod_title: "Riepilogo finale configurazione",
       final_mod_text:
         'Il wizard ha preparato i parametri seguenti. Cliccando su "Salva", verranno applicati alla card Lovelace.',

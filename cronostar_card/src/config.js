@@ -149,9 +149,10 @@ export function validateConfig(config, isLoggingEnabled = false) {
     CARD_CONFIG_PRESETS[presetName] || CARD_CONFIG_PRESETS.thermostat;
   const mergedConfig = { ...DEFAULT_CONFIG, ...presetConfig, ...normalized };
 
-  // ✅ FIX: If the card has a prefix and target entity, it's definitely configured.
-  // This prevents existing cards from showing the "Not Configured" UI after the v5.8.8 update.
-  if (normalized.global_prefix && normalized.target_entity) {
+  // ✅ FIX: If the card has a prefix, it's considered configured (even if entities are missing in YAML),
+  // UNLESS it's explicitly marked as not_configured.
+  // Registration will fetch actual metadata from backend.
+  if (normalized.global_prefix && normalized.not_configured !== true) {
     mergedConfig.not_configured = false;
   }
 
@@ -162,25 +163,6 @@ export function validateConfig(config, isLoggingEnabled = false) {
 
   // CRITICAL: Ensure card type is always correct and stable
   mergedConfig.type = sourceConfig.type || DEFAULT_CONFIG.type;
-
-  // Ensure global_prefix is present
-  if (!mergedConfig.global_prefix) {
-    const tags = {
-      thermostat: "thermostat",
-      ev_charging: "ev_charging",
-      generic_kwh: "generic_kwh",
-      generic_temperature: "generic_temperature",
-      generic_switch: "generic_switch",
-    };
-    const tag = tags[presetName] || presetName;
-    mergedConfig.global_prefix = `cronostar_${tag}_`;
-    log(
-      "info",
-      isLoggingEnabled,
-      "Configuration: missing global_prefix initialized to " +
-        mergedConfig.global_prefix,
-    );
-  }
 
   if (!sourceConfig.not_configured) {
     // Rely on backend registration to provide correct entity IDs.

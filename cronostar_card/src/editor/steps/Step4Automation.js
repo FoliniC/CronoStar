@@ -28,16 +28,14 @@ export class Step4Automation {
           ${this.editor.i18n._t("headers.step4")} (Step 4)
         </div>
 
-        <div class="success-box" style="margin-top: 0; margin-bottom: 32px;">
-          <div
-            style="display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 1.1rem;"
-          >
-            <ha-icon icon="mdi:check-circle" style="color: #4ade80;"></ha-icon>
+        <div class="success-box">
+          <div style="display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 1.1rem;">
+            <ha-icon icon="mdi:check-circle"></ha-icon>
             ${isIt
               ? "CronoStar applica automaticamente la pianificazione!"
               : "CronoStar automatically applies the schedule!"}
           </div>
-          <p style="margin: 8px 0 0 36px; color: #cbd5e1;">
+          <p style="margin: 8px 0 0 36px; opacity: 0.9;">
             ${isIt
               ? "Non è necessaria alcuna automazione per il funzionamento base."
               : "No automation is needed for basic operation."}
@@ -51,14 +49,10 @@ export class Step4Automation {
         </div>
 
         <div class="field-group">
-          <div
-            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;"
-          >
-            <span style="font-weight: 700; color: #ffffff;"
-              >${isIt
-                ? "Automazione Smart Presence"
-                : "Smart Presence Automation"}</span
-            >
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <span style="font-weight: 700; color: var(--primary-text-color);">
+              ${isIt ? "Automazione Smart Presence" : "Smart Presence Automation"}
+            </span>
             <mwc-button
               outlined
               @click=${() =>
@@ -74,16 +68,14 @@ export class Step4Automation {
 
           <textarea
             readonly
-            style="width: 100%; height: 280px; font-size: 13px; line-height: 1.5; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); color: #38bdf8; font-family: 'Fira Code', 'Roboto Mono', monospace;"
+            style="width: 100%; height: 280px; font-size: 12px; line-height: 1.5; background: var(--card-background-color); border: 1px solid var(--divider-color); color: var(--primary-color); font-family: var(--code-font-family, monospace); padding: 12px; border-radius: 8px;"
           >
 ${yaml}</textarea
           >
         </div>
 
-        <div
-          style="margin-top: 40px; text-align: center; padding: 24px; background: rgba(255,255,255,0.02); border-radius: 16px;"
-        >
-          <div style="margin-bottom: 16px; color: #cbd5e1; font-size: 1.1rem;">
+        <div class="field-group" style="text-align: center;">
+          <div style="margin-bottom: 16px; color: var(--secondary-text-color); font-size: 1rem;">
             ${isIt
               ? "Vuoi un'automazione più complessa?"
               : "Do you want a more complex automation?"}
@@ -130,7 +122,7 @@ Use 'choose' in the actions to handle these different scenarios in a single auto
             icon="mdi:robot-excited-outline"
             style="margin-right: 12px; color: #c084fc;"
           ></ha-icon>
-          ${isIt ? "Prompt per AI Assistant" : "AI Assistant Prompt"}
+          ${isIt ? "Prompt per AI Assistant" : "AI Assistant Prompt"} (Step 4)
         </div>
 
         <div class="step-description">
@@ -145,7 +137,7 @@ Use 'choose' in the actions to handle these different scenarios in a single auto
         >
           <textarea
             readonly
-            style="height: 300px; font-size: 13px; line-height: 1.5; background: rgba(0,0,0,0.3); color: #e9d5ff;"
+            style="display: block; width: 100%; height: 300px; box-sizing: border-box; font-size: 13px; line-height: 1.5; background: rgba(0,0,0,0.3); color: #e9d5ff; border: 1px solid rgba(192, 132, 252, 0.3); padding: 12px; border-radius: 8px; font-family: monospace;"
           >
 ${promptText}</textarea
           >

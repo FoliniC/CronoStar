@@ -1,0 +1,131 @@
+{
+  "meta": {
+    "preset_type": "thermostat",
+    "global_prefix": "cronostar_thermostat_appartamento_",
+    "updated_at": "2026-04-11T16:33:59.786706",
+    "title": "CronoStar Thermostat",
+    "y_axis_label": "Temperature",
+    "unit_of_measurement": "°C",
+    "min_value": "15",
+    "max_value": 30,
+    "step_value": 0.5,
+    "allow_max_value": false,
+    "target_entity": "climate.climatizzazione_appartamento",
+    "enabled_entity": "switch.appartamento",
+    "profiles_select_entity": "select.cronostar_thermostat_appartamento_current_profile",
+    "language": "en",
+    "last_active_profile": "Default",
+    "entities": [
+      "climate.climatizzazione_appartamento",
+      "switch.appartamento",
+      "select.cronostar_thermostat_appartamento_current_profile"
+    ]
+  },
+  "profiles": {
+    "Default": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 22.5
+        },
+        {
+          "time": "11:40",
+          "value": 22.5
+        },
+        {
+          "time": "11:41",
+          "value": 22.5
+        },
+        {
+          "time": "18:40",
+          "value": 22.5
+        },
+        {
+          "time": "19:15",
+          "value": 22.5
+        },
+        {
+          "time": "19:16",
+          "value": 22.5
+        },
+        {
+          "time": "23:59",
+          "value": 22.5
+        }
+      ],
+      "updated_at": "2026-04-11T16:33:59.786722",
+      "enabled_entity": "switch.appartamento",
+      "profiles_select_entity": "select.cronostar_thermostat_appartamento_current_profile",
+      "target_entity": "climate.climatizzazione_appartamento",
+      "entities": [
+        "climate.climatizzazione_appartamento",
+        "switch.appartamento",
+        "select.cronostar_thermostat_appartamento_current_profile"
+      ]
+    },
+    "Comfort": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 24.0
+        },
+        {
+          "time": "07:21",
+          "value": 24.0
+        },
+        {
+          "time": "09:25",
+          "value": 24.0
+        },
+        {
+          "time": "14:25",
+          "value": 24.0
+        },
+        {
+          "time": "17:25",
+          "value": 24.0
+        },
+        {
+          "time": "18:20",
+          "value": 24.0
+        },
+        {
+          "time": "20:05",
+          "value": 24.0
+        },
+        {
+          "time": "23:59",
+          "value": 24.0
+        }
+      ],
+      "updated_at": "2026-03-27T23:28:41.840535",
+      "entities": []
+    },
+    "unavailable": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 24.0
+        },
+        {
+          "time": "08:55",
+          "value": 24.0
+        },
+        {
+          "time": "08:56",
+          "value": 24.0
+        },
+        {
+          "time": "18:00",
+          "value": 24.0
+        },
+        {
+          "time": "23:59",
+          "value": 24.0
+        }
+      ],
+      "updated_at": "2026-03-18T15:28:12.724258",
+      "entities": []
+    }
+  }
+}

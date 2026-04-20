@@ -14,34 +14,6 @@ export class Step3Options {
     const effectiveTitle =
       this.editor._config.title || presetConfig.title || "CronoStar Schedule";
     return html`
-      <style>
-        .step-content {
-          color: #f8fafc;
-        }
-        .field-group {
-          background: #1e293b;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .field-label {
-          color: #38bdf8;
-          font-weight: 800;
-        }
-        ha-select,
-        ha-textfield {
-          --mdc-theme-primary: #38bdf8;
-          --mdc-select-idle-line-color: rgba(255, 255, 255, 0.3);
-          --mdc-select-hover-line-color: #38bdf8;
-          --mdc-select-label-ink-color: rgba(255, 255, 255, 0.7);
-          --mdc-select-ink-color: #ffffff;
-          --mdc-select-dropdown-icon-color: #38bdf8;
-          --mdc-theme-surface: #1e293b;
-          --mdc-theme-text-primary-on-background: #ffffff;
-        }
-        mwc-list-item {
-          --mdc-theme-text-primary-on-background: #ffffff;
-          color: #ffffff !important;
-        }
-      </style>
       <div class="step-content">
         <div class="step-header">
           ${this.editor.i18n._t("headers.step3")} (Step 3)
@@ -51,31 +23,56 @@ export class Step3Options {
         </div>
 
         <div class="field-group">
-          <label class="field-label"
-            >${this.editor.i18n._t("fields.title_label")}</label
-          >
-          ${this.editor.renderTextInput("title", effectiveTitle)}
+          <label class="field-label">${this.editor.i18n._t("fields.title_label")}</label>
+          <div style="margin-top: 8px;">
+            ${this.editor.renderTextInput("title", effectiveTitle)}
+          </div>
+        </div>
+
+        <div class="field-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div>
+            <label class="field-label">${this.editor.i18n._t("fields.min_label")}</label>
+            ${this.editor.renderTextInput("min_value", this.editor._config.min_value ?? 0)}
+          </div>
+          <div>
+            <label class="field-label">${this.editor.i18n._t("fields.max_label")}</label>
+            ${this.editor.renderTextInput("max_value", this.editor._config.max_value ?? 30)}
+          </div>
+        </div>
+
+        <div class="field-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div>
+            <label class="field-label">${this.editor.i18n._t("fields.step_label")}</label>
+            ${this.editor.renderTextInput("step_value", this.editor._config.step_value ?? 0.5)}
+          </div>
+          <div>
+             <label class="field-label">${this.editor.i18n._t("fields.unit_label")}</label>
+             ${this.editor.renderTextInput("unit_of_measurement", this.editor._config.unit_of_measurement || "")}
+          </div>
         </div>
 
         <div class="field-group">
-          <ha-formfield
-            .label=${this.editor.i18n._t("fields.enable_logging_label")}
-          >
-            <ha-switch
-              .checked=${!!this.editor._config.logging_enabled}
-              @change=${(e) =>
-                this.editor._handleLocalUpdate(
-                  "logging_enabled",
-                  e.target.checked,
-                )}
-            ></ha-switch>
-          </ha-formfield>
+            <label class="field-label">${this.editor.i18n._t("fields.y_axis_label")}</label>
+            ${this.editor.renderTextInput("y_axis_label", this.editor._config.y_axis_label || "")}
         </div>
 
-        <div class="field-group">
-          <label class="field-label"
-            >${this.editor.i18n._t("fields.language_label")} (Step 3)</label
-          >
+        <div class="field-row">
+          <div class="field-row-label">
+            ${this.editor.i18n._t("fields.enable_logging_label")}
+          </div>
+          <ha-switch
+            .checked=${!!this.editor._config.logging_enabled}
+            @change=${(e) =>
+              this.editor._handleLocalUpdate(
+                "logging_enabled",
+                e.target.checked,
+              )}
+          ></ha-switch>
+        </div>
+
+
+        <div class="field-group" style="margin-top: 16px;">
+          <label class="field-label">${this.editor.i18n._t("fields.language_label")}</label>
           <div class="field-description">
             ${this.editor.i18n._t("fields.language_desc")}
           </div>

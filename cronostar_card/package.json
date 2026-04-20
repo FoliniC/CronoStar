@@ -1,6 +1,6 @@
 {
   "name": "cronostar-card",
-  "version": "6.2.0",
+  "version": "6.3.2",
   "description": "Visual hourly schedule editor for Home Assistant",
   "main": "cronostar_card/cronostar-card.js",
   "type": "module",

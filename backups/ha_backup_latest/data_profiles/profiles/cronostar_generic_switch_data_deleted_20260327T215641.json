@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "title": "CronoStar Generic Switch",
+    "y_axis_label": "State",
+    "unit_of_measurement": "",
+    "min_value": 0,
+    "max_value": 1,
+    "step_value": 1,
+    "allow_max_value": false,
+    "target_entity": "switch.your_generic_switch",
+    "enabled_entity": "switch.cronostar_generic_switch_enabled",
+    "entities": [
+      "switch.your_generic_switch",
+      "switch.cronostar_generic_switch_enabled",
+      "select.cronostar_generic_switch_current_profile"
+    ],
+    "preset_type": "generic_switch",
+    "global_prefix": "cronostar_generic_switch_",
+    "updated_at": "2026-03-19T23:27:40.802894",
+    "profiles_select_entity": "select.cronostar_generic_switch_current_profile",
+    "_deleted_at": "2026-03-27T21:56:41.704758+00:00",
+    "_deleted_entry_title": "CronoStar: Controller cronostar_generic_switch_ [v5.9.0]",
+    "_deleted_global_prefix": "cronostar_generic_switch_",
+    "_deleted_preset_type": "generic_switch"
+  },
+  "profiles": {
+    "Default": {
+      "schedule": [],
+      "updated_at": "2026-03-19T23:27:40.802907",
+      "enabled_entity": "switch.cronostar_generic_switch_enabled",
+      "profiles_select_entity": "select.cronostar_generic_switch_current_profile",
+      "target_entity": "switch.your_generic_switch",
+      "entities": [
+        "switch.your_generic_switch",
+        "switch.cronostar_generic_switch_enabled",
+        "select.cronostar_generic_switch_current_profile"
+      ]
+    }
+  }
+}

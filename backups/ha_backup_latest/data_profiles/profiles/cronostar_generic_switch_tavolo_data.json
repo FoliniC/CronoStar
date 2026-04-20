@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "preset_type": "generic_switch",
+    "global_prefix": "cronostar_generic_switch_tavolo_",
+    "updated_at": "2026-01-12T18:04:08.854672",
+    "title": "CronoStar Generic Switch tavolo",
+    "y_axis_label": "State",
+    "unit_of_measurement": "",
+    "min_value": 0,
+    "max_value": 1,
+    "step_value": 1,
+    "allow_max_value": false,
+    "target_entity": "light.luci_cucina_switch_3",
+    "language": "it",
+    "enabled_entity": "switch.cronostar_generic_switch_tavolo_enabled",
+    "profiles_select_entity": "select.cronostar_generic_switch_current_profile"
+  },
+  "profiles": {
+    "Default": {
+      "schedule": [
+        {
+          "time": "00:00",
+          "value": 0.0
+        },
+        {
+          "time": "07:35",
+          "value": 0.0
+        },
+        {
+          "time": "17:44",
+          "value": 0.0
+        },
+        {
+          "time": "19:30",
+          "value": 0.0
+        },
+        {
+          "time": "23:59",
+          "value": 0.0
+        }
+      ],
+      "updated_at": "2026-01-12T18:04:08.854687",
+      "enabled_entity": "switch.cronostar_generic_switch_tavolo_enabled",
+      "profiles_select_entity": "select.cronostar_generic_switch_current_profile",
+      "target_entity": "light.luci_cucina_switch_3",
+      "entities": [
+        "light.luci_cucina_switch_3",
+        "switch.cronostar_generic_switch_tavolo_enabled",
+        "select.cronostar_generic_switch_current_profile"
+      ]
+    }
+  }
+}

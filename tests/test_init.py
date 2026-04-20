@@ -82,7 +82,7 @@ def test_async_setup_entry_global_title_update(hass):
     """Test che il titolo venga aggiornato se non contiene la versione corretta."""
     entry = MagicMock()
     entry.data = {"component_installed": True}
-    entry.title = "CronoStar"           # titolo senza versione
+    entry.title = "CronoStar [v6.3.0]"           # titolo con vecchia versione
     entry.options = {}
 
     with patch("custom_components.cronostar.async_setup_integration", return_value=True), \
@@ -174,7 +174,7 @@ def test_async_setup_entry_controller_success(hass):
 
 def test_async_setup_entry_controller_title_update(hass):
     """Test che il titolo controller venga aggiornato con la versione."""
-    entry = _controller_entry(title="Kitchen")   # nessuna versione nel titolo
+    entry = _controller_entry(title="Kitchen [v6.3.0]")   # vecchia versione nel titolo
     hass.data[DOMAIN] = {"_global_setup_done": True}
     hass.config_entries.async_forward_entry_setups = AsyncMock()
 

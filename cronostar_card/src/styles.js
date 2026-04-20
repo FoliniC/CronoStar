@@ -211,6 +211,7 @@ export const cardStyles = css`
     position: relative;
     flex-grow: 1;
     min-height: 300px;
+    display: block;
     user-select: none;
     outline: none;
     border-radius: 4px;
@@ -222,6 +223,20 @@ export const cardStyles = css`
       --ha-card-background,
       var(--card-background-color, transparent)
     );
+  }
+
+  .chart-hidden {
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: none !important;
+  }
+
+  .chart-hidden canvas {
+    display: none !important;
   }
 
   ha-card.expanded-v .chart-container {

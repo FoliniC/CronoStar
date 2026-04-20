@@ -38,6 +38,7 @@ export default {
     resolve({
       extensions: [".js", ".mjs"],
       browser: true,
+      exportConditions: [production ? "production" : "development", "browser", "import"],
     }),
     commonjs({ include: "node_modules/**" }),
     production &&

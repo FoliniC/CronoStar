@@ -1,0 +1,64 @@
+type: custom:sankey-chart
+show_states: true
+show_units: true
+show_names: true
+wide: true
+height: 400
+layout: auto
+direction: horizontal
+sections:
+  - entities:
+      - entity_id: sensor.envoy_122134037538_current_power_production
+        name: Solare
+        children:
+          - sensor.potenza_consumata_attuale
+      - entity_id: sensor.potenza_prelevata_attuale
+        name: Rete
+        children:
+          - sensor.potenza_consumata_attuale
+      - entity_id: sensor.solarnet_power_battery_discharge
+        name: Batteria
+        children:
+          - sensor.potenza_consumata_attuale
+  - entities:
+      - node_id: sensor.potenza_consumata_attuale
+        entity_id: sensor.potenza_consumata_attuale
+        name: Consumo
+        children:
+          - node_id: prism_consumo
+            entity_id: sensor.prism_potenza
+          - node_id: appartamento_consumo
+            entity_id: sensor.consumo_appartamento_template
+          - sensor.consumo_impianto_nuovo_template
+          - node_id: batteria_charge_consumo
+            entity_id: sensor.solarnet_power_battery_charge
+          - node_id: esportata_consumo
+            entity_id: sensor.potenza_esportata_attuale
+  - entities:
+      - node_id: prism_colonnina
+        entity_id: sensor.prism_potenza
+        name: Colonnina
+      - node_id: esportata_colonna
+        entity_id: sensor.potenza_esportata_attuale
+        name: Potenza esportata
+      - entity_id: sensor.consumo_impianto_nuovo_template
+        name: Impianto nuovo
+        children:
+          - sensor.lavastoviglie_wifi_digital_meter_lavastoviglie_potenza
+          - sensor.potenza_misuratore
+          - sensor.consumo_netto_pdc_template
+      - node_id: appartamento_colonna
+        entity_id: sensor.consumo_appartamento_template
+        name: Impianto vecchio
+      - node_id: batteria_charge_colonna
+        entity_id: sensor.solarnet_power_battery_charge
+        name: Batteria
+  - entities:
+      - entity_id: sensor.potenza_misuratore
+      - entity_id: sensor.lavastoviglie_wifi_digital_meter_lavastoviglie_potenza
+      - entity_id: sensor.consumo_netto_pdc_template
+        name: PDC
+      - node_id: esportata_finale
+        entity_id: sensor.potenza_esportata_attuale
+        type: entity
+        name: immessa in rete

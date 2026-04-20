@@ -1,0 +1,27 @@
+{
+  "domain": "cronostar",
+  "name": "CronoStar [v6.3.0]",
+  "codeowners": [
+    "@FoliniC"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "frontend",
+    "http",
+    "input_boolean",
+    "input_number",
+    "input_select",
+    "input_text",
+    "lovelace",
+    "panel_custom"
+  ],
+  "documentation": "https://github.com/FoliniC/CronoStar",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/FoliniC/CronoStar/issues",
+  "loggers": [
+    "custom_components.cronostar"
+  ],
+  "quality_scale": "gold",
+  "requirements": [],
+  "version": "6.3.0"
+  }

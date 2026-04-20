@@ -1,0 +1,193 @@
+# custom_components/cronostar/services.yaml
+# Service definitions for CronoStar
+
+save_profile:
+  name: Save Profile
+  description: Saves a CronoStar schedule profile to a JSON file.
+  fields:
+    profile_name:
+      name: Profile Name
+      description: "The name of the profile to save (e.g., Default)."
+      required: true
+      example: "Default"
+      selector:
+        text:
+    preset_type:
+      name: Preset Type
+      description: "The type of preset this profile belongs to."
+      required: true
+      default: "thermostat"
+      selector:
+        select:
+          options:
+            - "thermostat"
+            - "fan"
+            - "switch"
+            - "cover"
+            - "custom"
+    schedule:
+      name: Schedule
+      description: Schedule data (array of time/value pairs)
+      required: true
+      selector:
+        object:
+    global_prefix:
+      name: Global Prefix
+      description: "The global identification prefix."
+      required: false
+      selector:
+        text:
+    meta:
+      name: Metadata
+      description: Additional metadata
+      required: false
+      selector:
+        object:
+
+load_profile:
+  name: Load Profile
+  description: "Loads a CronoStar schedule profile."
+  fields:
+    profile_name:
+      name: Profile Name
+      required: true
+      selector:
+        text:
+    preset_type:
+      name: Preset Type
+      required: true
+      default: "thermostat"
+      selector:
+        select:
+          options:
+            - "thermostat"
+            - "fan"
+            - "switch"
+            - "cover"
+            - "custom"
+    global_prefix:
+      name: Global Prefix
+      required: false
+      selector:
+        text:
+
+add_profile:
+  name: Add Profile
+  description: "Creates a new profile."
+  fields:
+    profile_name:
+      name: Profile Name
+      required: true
+      selector:
+        text:
+    preset_type:
+      name: Preset Type
+      required: true
+      default: "thermostat"
+      selector:
+        select:
+          options:
+            - "thermostat"
+            - "fan"
+            - "switch"
+            - "cover"
+            - "custom"
+    global_prefix:
+      name: Global Prefix
+      required: false
+      selector:
+        text:
+
+delete_profile:
+  name: Delete Profile
+  description: "Deletes a CronoStar schedule profile."
+  fields:
+    profile_name:
+      name: Profile Name
+      required: true
+      selector:
+        text:
+    preset_type:
+      name: Preset Type
+      required: true
+      default: "thermostat"
+      selector:
+        select:
+          options:
+            - "thermostat"
+            - "fan"
+            - "switch"
+            - "cover"
+            - "custom"
+    global_prefix:
+      name: Global Prefix
+      required: false
+      selector:
+        text:
+
+delete_controller:
+  name: Delete Controller
+  description: "Deletes a CronoStar controller and all its profiles."
+  fields:
+    global_prefix:
+      name: Global Prefix
+      description: "The global prefix of the controller to delete."
+      required: true
+      selector:
+        text:
+    preset_type:
+      name: Preset Type
+      description: "The preset type of the controller."
+      required: false
+      default: "thermostat"
+      selector:
+        text:
+
+list_all_profiles:
+  name: List All Profiles
+  description: Lists all available CronoStar schedule profiles across all preset types.
+  fields:
+    force_reload:
+      name: Force Reload
+      description: Force reload profiles from disk, bypassing cache.
+      required: false
+      default: false
+      selector:
+        boolean:
+
+apply_now:
+  name: Apply current value
+  description: Force apply the current scheduled value to the target entity.
+  fields:
+    target_entity:
+      name: Target entity_id
+      description: Entity to control.
+      required: true
+      selector:
+        entity:
+    preset_type:
+      name: Preset type
+      description: Preset type.
+      required: false
+      selector:
+        text:
+    global_prefix:
+      name: Global Prefix
+      required: false
+      selector:
+        text:
+
+save_settings:
+  name: Save Global Settings
+  description: Saves global integration settings (keyboard modifiers, etc.) to settings.json.
+  fields:
+    settings:
+      name: Settings Object
+      description: The dictionary containing all global settings.
+      required: true
+      selector:
+        object:
+
+load_settings:
+  name: Load Global Settings
+  description: Loads and returns the global integration settings from settings.json.

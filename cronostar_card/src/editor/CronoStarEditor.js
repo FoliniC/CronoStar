@@ -62,249 +62,305 @@ export class CronoStarEditor extends LitElement {
   static get styles() {
     return css`
       :host {
-        --primary-text-color: #ffffff;
-        --secondary-text-color: #cbd5e1;
-        --paper-item-icon-color: #38bdf8;
-        --card-background-color: #1e293b;
-        --disabled-text-color: #64748b;
-        --divider-color: rgba(255, 255, 255, 0.1);
+        --primary-text-color: var(--primary-text-color, #ffffff);
+        --secondary-text-color: var(--secondary-text-color, #cbd5e1);
+        --tertiary-text-color: var(--secondary-text-color, #94a3b8);
+        --primary-color: var(--primary-color, #03a9f4);
+        --divider-color: var(--divider-color, rgba(255, 255, 255, 0.1));
+        --card-background-color: var(--card-background-color, #1e293b);
+        --paper-dialog-background-color: var(--card-background-color, #1e293b);
+        --background-color-secondary: var(--secondary-background-color, #1e293b);
+        
+        /* State colors from HA */
+        --state-info-color: var(--info-color, #03a9f4);
+        --state-success-color: var(--success-color, #4caf50);
+        --state-warning-color: var(--warning-color, #ff9800);
+        --state-danger-color: var(--error-color, #f44336);
       }
 
       .editor-container {
-        padding: 24px;
-        background: #0f172a;
-        border-radius: 12px;
-        color: #f8fafc;
-        font-family:
-          "Inter",
-          -apple-system,
-          sans-serif;
-        width: 100%; /* Explicitly ensure full width */
-        box-sizing: border-box; /* Include padding/border in width */
+        padding: 0;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        font-family: var(--paper-font-body1_-_font-family, inherit);
+        width: 100%;
+        max-width: 100% !important;
+        box-sizing: border-box;
       }
 
+      /* STEPPER REDESIGN */
       .wizard-steps {
         display: flex;
+        align-items: center;
         justify-content: space-between;
-        margin-bottom: 32px;
-        padding: 24px;
-        background: #1e293b;
-        border-radius: 16px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        margin-bottom: 24px;
+        padding: 16px;
+        background: var(--background-color-secondary);
+        border-radius: 12px;
+        border: 1px solid var(--divider-color);
+      }
+
+      .step-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        flex: 1;
+        position: relative;
       }
 
       .step-badge {
-        width: 44px;
-        height: 44px;
+        width: 32px;
+        height: 32px;
         border-radius: 50%;
-        background: #334155;
-        color: #94a3b8;
+        background: var(--card-background-color);
+        color: var(--secondary-text-color);
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: 600;
-        font-size: 1rem;
+        font-size: 0.9rem;
         cursor: pointer;
         transition: all 0.2s ease-in-out;
-        border: 2px solid transparent;
-      }
-
-      .step-badge:hover {
-        background: #475569;
-        color: #f1f5f9;
+        border: 1px solid var(--divider-color);
+        z-index: 2;
       }
 
       .step-badge.active {
-        background: #0ea5e9;
-        color: #ffffff;
-        box-shadow: 0 0 15px rgba(14, 165, 233, 0.4);
-        border-color: rgba(255, 255, 255, 0.2);
-        transform: scale(1.1);
+        background: var(--state-info-color);
+        color: white;
+        border-color: var(--state-info-color);
+        box-shadow: 0 0 10px rgba(var(--rgb-primary-color), 0.3);
       }
 
+      .step-badge.done {
+        background: var(--state-success-color);
+        color: white;
+        border-color: var(--state-success-color);
+      }
+
+      .step-label {
+        font-size: 10px;
+        color: var(--tertiary-text-color);
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .step-label.active {
+        color: var(--state-info-color);
+        font-weight: 700;
+      }
+
+      .step-connector {
+        flex: 1;
+        height: 1px;
+        background: var(--divider-color);
+        margin: 0 -10px;
+        margin-top: -18px;
+        z-index: 1;
+      }
+
+      /* PANEL & CONTENT */
       .step-content {
-        min-height: 350px;
-        padding: 32px;
-        background: #1e293b;
-        border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-      }
-
-      .wizard-actions {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 24px;
-        padding: 20px;
-        background: #1e293b;
-        border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-      }
-
-      mwc-button {
-        --mdc-theme-primary: #38bdf8;
-        --mdc-theme-on-primary: #ffffff;
-      }
-
-      .field-group {
-        margin-bottom: 24px;
+        min-height: 300px;
         padding: 24px;
-        background: #334155;
+        background: var(--card-background-color);
         border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid var(--divider-color);
+      }
+
+      .step-header {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+        color: var(--primary-text-color);
+      }
+
+      .step-description {
+        font-size: 0.95rem;
+        color: var(--secondary-text-color);
+        margin-bottom: 24px;
+        line-height: 1.5;
+      }
+
+      /* FIELD GROUPS */
+      .field-group {
+        margin-bottom: 20px;
+        padding: 16px;
+        background: var(--background-color-secondary);
+        border-radius: 8px;
+        border: 1px solid var(--divider-color);
       }
 
       .field-label {
         display: block;
         font-weight: 700;
-        margin-bottom: 8px;
-        color: #ffffff;
-        font-size: 1.1rem;
+        margin-bottom: 4px;
+        color: var(--primary-text-color);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
       }
 
       .field-description {
-        font-size: 0.95rem;
-        color: #cbd5e1;
-        margin-bottom: 16px;
-        line-height: 1.5;
-      }
-
-      .field-value-info {
         font-size: 0.9rem;
-        color: #94a3b8;
-        background: #0f172a;
-        padding: 8px 12px;
-        border-radius: 8px;
-        margin: 12px 0;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-      }
-
-      .field-value-info code {
-        color: #38bdf8;
-        font-family: "Fira Code", monospace;
-        font-weight: 500;
-      }
-
-      .hint {
-        font-size: 0.9rem;
-        color: #cbd5e1;
-        margin-top: 12px;
-        padding: 12px 16px;
-        background: rgba(56, 189, 248, 0.1);
-        border-radius: 8px;
-        border-left: 4px solid #38bdf8;
-      }
-
-      ha-textfield,
-      ha-select,
-      ha-entity-picker,
-      ha-selector {
-        width: 100%;
-        --mdc-theme-primary: #38bdf8;
-        --mdc-text-field-fill-color: #0f172a;
-        --mdc-text-field-ink-color: #ffffff;
-        --mdc-text-field-label-ink-color: #cbd5e1;
-        --mdc-text-field-outlined-idle-border-color: rgba(255, 255, 255, 0.2);
-        --mdc-text-field-outlined-hover-border-color: #38bdf8;
-        --primary-text-color: #ffffff;
-        --secondary-text-color: #cbd5e1;
-        --primary-color: #38bdf8;
-
-        /* CronoStar: Improved contrast for dropdowns/pickers */
-        --paper-listbox-background-color: #1e293b;
-        --paper-item-body-color: #ffffff;
-        --paper-item-body-secondary-color: #cbd5e1;
-        --paper-item-icon-color: #38bdf8;
-        --mdc-menu-item-graphic-color: #38bdf8;
-        --mdc-theme-text-primary-on-background: #ffffff;
-        --mdc-theme-text-secondary-on-background: #cbd5e1;
-
-        /* Standard CronoStar: Inputs have dark backgrounds with light text */
-        /* If specific components need to be white-on-black, we handle it via _applyShadowDomFix */
-      }
-
-      ha-formfield {
-        color: #ffffff !important;
-        display: block;
-        --mdc-theme-text-primary-on-background: #ffffff;
-        --mdc-theme-text-secondary-on-background: #cbd5e1;
-      }
-
-      ha-formfield span[slot="secondary"],
-      ha-formfield div[slot="secondary"] {
-        color: #cbd5e1 !important;
-        display: block;
-        margin-top: 4px;
-        font-size: 0.85rem;
-      }
-
-      textarea {
-        width: 100% !important;
-        box-sizing: border-box;
-        display: block;
-      }
-
-      .step-header {
-        font-size: 1.5rem;
-        font-weight: 800;
+        color: var(--secondary-text-color);
         margin-bottom: 12px;
-        color: #ffffff;
+        line-height: 1.4;
       }
 
-      .step-description {
-        font-size: 1rem;
-        color: #cbd5e1;
-        margin-bottom: 32px;
-        line-height: 1.6;
-      }
-
+      /* PRESET TILES */
       .preset-cards {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 16px;
-        margin: 24px 0;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+        margin: 20px 0;
       }
 
       .preset-card {
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: 20px;
-        background: #334155;
-        border-radius: 12px;
-        border: 2px solid transparent;
-        color: #ffffff;
+        padding: 16px;
+        background: var(--card-background-color);
+        border-radius: 8px;
+        border: 1px solid var(--divider-color);
+        color: var(--primary-text-color);
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.15s ease;
       }
 
       .preset-card:hover {
-        background: #475569;
-        border-color: rgba(255, 255, 255, 0.1);
+        background: var(--background-color-secondary);
+        border-color: var(--state-info-color);
       }
 
       .preset-card.selected {
-        background: #0ea5e9; /* Stronger blue */
-        color: #ffffff; /* White text */
-        box-shadow: 0 0 20px rgba(14, 165, 233, 0.7); /* Even more prominent shadow */
-        border-color: #0ea5e9;
-        transform: scale(1.03); /* Slightly larger */
-        font-weight: 800; /* Bolder text */
+        background: rgba(var(--rgb-primary-color), 0.1);
+        border: 2px solid var(--state-info-color);
+        font-weight: 700;
       }
 
       .preset-icon {
-        font-size: 2rem;
+        font-size: 1.5rem;
         margin-bottom: 8px;
       }
+
       .preset-title {
-        font-weight: 700;
-        font-size: 1.05rem;
-        margin-bottom: 4px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        margin-bottom: 2px;
       }
+
       .preset-description {
-        font-size: 0.85rem;
-        color: #94a3b8;
+        font-size: 0.8rem;
+        color: var(--tertiary-text-color);
         text-align: center;
+      }
+
+      /* ACTIONS */
+      .wizard-actions {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 20px;
+        padding: 16px;
+        background: var(--background-color-secondary);
+        border-radius: 12px;
+        border: 1px solid var(--divider-color);
+      }
+
+      mwc-button {
+        --mdc-theme-primary: var(--primary-color);
+      }
+
+      /* ALERTS & NOTICES */
+      .notice, .error-box, .success-box, .info-box {
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        margin-bottom: 16px;
+        line-height: 1.5;
+        border: 1px solid transparent;
+      }
+
+      .error-box {
+        background: rgba(var(--rgb-error-color, 244, 67, 54), 0.1);
+        color: var(--error-color, #f44336);
+        border-color: rgba(var(--rgb-error-color, 244, 67, 54), 0.2);
+      }
+
+      .success-box {
+        background: rgba(var(--rgb-success-color, 76, 175, 80), 0.1);
+        color: var(--success-color, #4caf50);
+        border-color: rgba(var(--rgb-success-color, 76, 175, 80), 0.2);
+      }
+
+      .info-box, .hint {
+        background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.1);
+        color: var(--primary-color, #03a9f4);
+        border-color: rgba(var(--rgb-primary-color, 3, 169, 244), 0.2);
+      }
+
+      /* SUMMARY TABLE */
+      .summary-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .summary-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--divider-color);
+      }
+
+      .summary-row:last-child {
+        border-bottom: none;
+      }
+
+      .summary-key {
+        color: var(--secondary-text-color);
+        font-size: 0.9rem;
+      }
+
+      .summary-val {
+        color: var(--primary-text-color);
+        font-family: var(--code-font-family, monospace);
+        font-size: 0.85rem;
+      }
+
+      /* FIELD ROWS & TOGGLES */
+      .field-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-radius: 8px;
+        border: 1px solid var(--divider-color);
+        margin-bottom: 8px;
+        background: var(--background-color-secondary);
+      }
+
+      .field-row-label {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--primary-text-color);
+      }
+
+      .field-row-sub {
+        font-size: 11px;
+        color: var(--tertiary-text-color);
+        margin-top: 2px;
+      }
+
+      /* CONTROLS OVERRIDES */
+      ha-textfield, ha-select, ha-entity-picker, ha-selector {
+        --mdc-theme-primary: var(--primary-color);
+        --mdc-text-field-fill-color: var(--card-background-color);
+        --mdc-text-field-ink-color: var(--primary-text-color);
+        --mdc-text-field-label-ink-color: var(--secondary-text-color);
+        --mdc-text-field-outlined-idle-border-color: var(--divider-color);
       }
     `;
   }
@@ -599,7 +655,30 @@ export class CronoStarEditor extends LitElement {
     }
   }
 
+  connectedCallback() {
+    super.connectedCallback();
+    // Dynamic width expansion for admin mode
+    if (this.config?.view_mode === 'admin') {
+      const updateWidth = () => {
+        const parent = this.closest('hui-card-element-editor') || this.getRootNode().host;
+        if (parent) {
+          const isWide = window.innerWidth > 800;
+          parent.style.setProperty('max-width', isWide ? '800px' : '100%', 'important');
+          parent.style.setProperty('width', '100%', 'important');
+          parent.style.setProperty('margin', '0 auto', 'important');
+        }
+      };
+      
+      updateWidth();
+      window.addEventListener('resize', updateWidth);
+      this._resizeListener = updateWidth;
+    }
+  }
+
   disconnectedCallback() {
+    if (this._resizeListener) {
+      window.removeEventListener('resize', this._resizeListener);
+    }
     if (this._contrastObserver) this._contrastObserver.disconnect();
     if (this._contrastInterval) clearInterval(this._contrastInterval);
     super.disconnectedCallback();
@@ -742,27 +821,34 @@ export class CronoStarEditor extends LitElement {
     if (this._step === 0) return html``;
     const steps = [0, 1, 2, 3, 4, 5];
     const canJump = this._canGoNext();
+    const labels = ["Dashboard", "Preset", "Entities", "Options", "Automation", "Summary"];
 
     return html`
       <div class="wizard-steps">
         ${steps.map(
-          (s) => html`
-            <div
-              class="step-badge ${this._step === s ? "active" : ""}"
-              @click=${() => {
-                if (
-                  s === 0 ||
-                  s <= this._step ||
-                  (canJump && this._step !== 0)
-                ) {
-                  this._step = s;
-                  this._dispatchConfigChanged(true); // Dispatch immediately on click
-                  this.requestUpdate();
-                }
-              }}
-            >
-              ${s === 0 ? "🏠" : s}
+          (s, idx) => html`
+            <div class="step-item">
+              <div
+                class="step-badge ${this._step === s ? "active" : ""} ${this._step > s ? "done" : ""}"
+                @click=${() => {
+                  if (
+                    s === 0 ||
+                    s <= this._step ||
+                    (canJump && this._step !== 0)
+                  ) {
+                    this._step = s;
+                    this._dispatchConfigChanged(true);
+                    this.requestUpdate();
+                  }
+                }}
+              >
+                ${this._step > s ? "✓" : (s === 0 ? "🏠" : s)}
+              </div>
+              <div class="step-label ${this._step === s ? "active" : ""}">
+                ${labels[idx]}
+              </div>
             </div>
+            ${idx < steps.length - 1 ? html`<div class="step-connector"></div>` : ""}
           `,
         )}
       </div>
@@ -1040,6 +1126,14 @@ export class CronoStarEditor extends LitElement {
       if (errorMsg.includes("not found") && target && errorMsg.includes(target)) {
         if (this.hass?.states[this._config.target_entity]) return false;
       }
+
+      // Suppress "not found" errors for CronoStar's own entities (select.cronostar_* and switch.cronostar_*)
+      // because they might be in the process of being created or within the grace period.
+      if (errorMsg.includes("not found")) {
+        if (errorMsg.includes("select.cronostar_") || errorMsg.includes("switch.cronostar_")) {
+          return false;
+        }
+      }
       return true;
     });
     
@@ -1112,6 +1206,14 @@ export class CronoStarEditor extends LitElement {
 
   renderEntityPicker(key, value, label = "Entity", includeDomains = null) {
     if (!this.hass) return html``;
+
+    // PROTECTION: If it's a CronoStar internal entity (identified by the prefix),
+    // do NOT use the standard HA entity picker/selector because it will complain
+    // "Unknown entity selected" until the backend has finished its sync.
+    // We use a simple text field for these cases to allow the user to proceed.
+    if (value && (value.includes(".cronostar_") || value.startsWith("cronostar_"))) {
+      return this._renderTextInput(key, value, label);
+    }
 
     const hasSelector = !!customElements.get("ha-selector");
     const hasPicker = !!customElements.get("ha-entity-picker");
@@ -1338,34 +1440,13 @@ export class CronoStarEditor extends LitElement {
       const valid = this._canGoNext();
       if (!valid) {
         return html` <div class="wizard-actions">
-          <mwc-button
-            outlined
-            @click=${() => {
-              this._step = 0;
-              this.requestUpdate();
-            }}
-          >
-            ${this.i18n._t("actions.back")}
-          </mwc-button>
           <div style="flex:1"></div>
           <div class="hint" style="color: var(--error-color);">
             ${this.i18n._t("ui.minimal_config_needed")}
           </div>
         </div>`;
       }
-      return html`
-        <div class="wizard-actions">
-          <mwc-button
-            outlined
-            @click=${() => {
-              this._step = 0;
-              this.requestUpdate();
-            }}
-          >
-            ${this.i18n._t("actions.back")}
-          </mwc-button>
-        </div>
-      `;
+      return html`<div class="wizard-actions"></div>`;
     }
 
     return html`

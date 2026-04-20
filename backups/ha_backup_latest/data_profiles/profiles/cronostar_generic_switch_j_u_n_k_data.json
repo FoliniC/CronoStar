@@ -1,0 +1,36 @@
+{
+  "meta": {
+    "title": "cronostar generic switch j u n k",
+    "y_axis_label": "State",
+    "min_value": 0,
+    "max_value": 1,
+    "step_value": 1,
+    "allow_max_value": false,
+    "target_entity": "light.luci_cucina_switch_3",
+    "enabled_entity": "switch.cronostar_generic_switch_j_u_n_k_enabled",
+    "profiles_select_entity": "select.cronostar_generic_switch_j_u_n_k_current_profile",
+    "preset_type": "generic_switch",
+    "global_prefix": "cronostar_generic_switch_j_u_n_k_",
+    "updated_at": "2026-03-19T23:29:11.994449",
+    "unit_of_measurement": "",
+    "entities": [
+      "light.luci_cucina_switch_3",
+      "switch.cronostar_generic_switch_j_u_n_k_enabled",
+      "select.cronostar_generic_switch_j_u_n_k_current_profile"
+    ]
+  },
+  "profiles": {
+    "Default": {
+      "schedule": [],
+      "updated_at": "2026-03-19T23:29:11.994463",
+      "enabled_entity": "switch.cronostar_generic_switch_j_u_n_k_enabled",
+      "profiles_select_entity": "select.cronostar_generic_switch_j_u_n_k_current_profile",
+      "target_entity": "light.luci_cucina_switch_3",
+      "entities": [
+        "light.luci_cucina_switch_3",
+        "switch.cronostar_generic_switch_j_u_n_k_enabled",
+        "select.cronostar_generic_switch_j_u_n_k_current_profile"
+      ]
+    }
+  }
+}

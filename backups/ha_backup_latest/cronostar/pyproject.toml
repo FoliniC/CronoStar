@@ -1,0 +1,13 @@
+[tool.ruff]
+target-version = "py312" # Matches latest HA requirements
+line-length = 160
+
+[tool.ruff.lint]
+select = [
+   "E",   # pycodestyle errors
+   "W",   # pycodestyle warnings
+   "F",   # pyflakes
+   "I",   # isort (import sorting)
+   "UP",  # pyupgrade (modern python syntax)
+   "B",   # flake8-bugbear
+]

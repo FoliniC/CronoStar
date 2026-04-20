@@ -110,101 +110,63 @@ export class Step5Summary {
             ${this.editor.i18n._t("descriptions.step5")}
           </div>
 
-          <!-- SUMMARY SECTION IN ADMIN STYLE -->
-          <div
-            class="field-group"
-            style="border: 1px solid ${configComplete
-              ? "#22c55e"
-              : "#ef4444"}; background: ${configComplete
-              ? "rgba(34, 197, 94, 0.05)"
-              : "rgba(239, 68, 68, 0.05)"}; padding: 20px; border-radius: 12px; margin-bottom: 24px;"
-          >
-            <div
-              style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;"
-            >
+          <!-- SUMMARY SECTION REDESIGN -->
+          <div class="field-group" style="padding: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
               <div style="display: flex; align-items: center; gap: 12px;">
                 <img
                   src="/cronostar_card/cronostar-logo.png"
                   style="width: 24px; height: auto;"
                   alt="CronoStar"
                 />
-                <div
-                  style="font-weight: 700; font-size: 1.1rem; color: #ffffff;"
-                >
+                <div style="font-weight: 700; font-size: 1.1rem; color: var(--primary-text-color);">
                   ${this.editor._config.title || "CronoStar Controller"}
                 </div>
               </div>
               ${configComplete
-                ? html`<span
-                    style="background: #22c55e; color: #ffffff; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800;"
-                    >VALID</span
-                  >`
-                : html`<span
-                    style="background: #ef4444; color: #ffffff; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800;"
-                    >INCOMPLETE</span
-                  >`}
+                ? html`<span class="badge-success" style="padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800;">VALID</span>`
+                : html`<span class="badge-danger" style="padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800;">INCOMPLETE</span>`}
             </div>
 
-            <div
-              style="font-size: 0.85rem; color: #94a3b8; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px;"
-            >
-              <div
-                style="background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 6px;"
-              >
-                <strong>Entity:</strong>
-                <span style="font-family: monospace; color: #ffffff;"
-                  >${this.editor._config.target_entity || "N/A"}</span
-                >
+            <div class="summary-table">
+              <div class="summary-row">
+                <span class="summary-key">Target Entity</span>
+                <span class="summary-val">${this.editor._config.target_entity || "—"}</span>
               </div>
-              <div
-                style="background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 6px;"
-              >
-                <strong>Prefix:</strong>
-                <span style="font-family: monospace; color: #ffffff;"
-                  >${effectivePrefix}</span
-                >
+              <div class="summary-row">
+                <span class="summary-key">Global Prefix</span>
+                <span class="summary-val">${effectivePrefix}</span>
+              </div>
+              <div class="summary-row">
+                <span class="summary-key">Preset Type</span>
+                <span class="summary-val">${this.editor._config.preset_type || "thermostat"}</span>
+              </div>
+              <div class="summary-row">
+                <span class="summary-key">Range</span>
+                <span class="summary-val">${this.editor._config.min_value} to ${this.editor._config.max_value} ${this.editor._config.unit_of_measurement}</span>
+              </div>
+              <div class="summary-row">
+                <span class="summary-key">Step</span>
+                <span class="summary-val">${this.editor._config.step_value}</span>
               </div>
             </div>
 
             ${!configComplete
               ? html`
-                  <div
-                    style="margin-top: 12px; padding: 12px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2); color: #fca5a5; font-size: 0.85rem;"
-                  >
-                    <div
-                      style="font-weight: 800; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;"
-                    >
-                      <ha-icon
-                        icon="mdi:alert-box"
-                        style="--mdc-icon-size: 18px;"
-                      ></ha-icon>
-                      ${isIt
-                        ? "CONFIGURAZIONE INCOMPLETA"
-                        : "INCOMPLETE CONFIGURATION"}
+                  <div class="error-box" style="margin-top: 24px;">
+                    <div style="font-weight: 800; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                      <ha-icon icon="mdi:alert-box" style="--mdc-icon-size: 18px;"></ha-icon>
+                      ${isIt ? "CONFIGURAZIONE INCOMPLETA" : "INCOMPLETE CONFIGURATION"}
                     </div>
                     <ul style="margin: 0; padding-left: 20px;">
-                      ${missingFields.map(
-                        (field) =>
-                          html`<li>
-                            Missing field: <strong>${field}</strong>
-                          </li>`,
-                      )}
+                      ${missingFields.map(field => html`<li>Missing field: <strong>${field}</strong></li>`)}
                     </ul>
                   </div>
                 `
               : html`
-                  <div
-                    style="margin-top: 12px; font-size: 0.8rem; color: #86efac; display: flex; align-items: center; gap: 6px; opacity: 0.8;"
-                  >
-                    <ha-icon
-                      icon="mdi:check-decagram"
-                      style="--mdc-icon-size: 16px;"
-                    ></ha-icon>
-                    <span
-                      >${isIt
-                        ? "Configurazione completata con successo"
-                        : "Configuration completed successfully"}</span
-                    >
+                  <div class="success-box" style="margin-top: 24px; display: flex; align-items: center; gap: 8px;">
+                    <ha-icon icon="mdi:check-decagram" style="--mdc-icon-size: 18px;"></ha-icon>
+                    <span>${isIt ? "Configurazione completata con successo" : "Configuration completed successfully"}</span>
                   </div>
                 `}
           </div>

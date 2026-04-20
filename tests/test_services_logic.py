@@ -31,8 +31,8 @@ def test_register_card_missing_profile(hass, profile_service, mock_storage_manag
     
     with patch.object(profile_service, 'get_profile_data', return_value={"error": "Not found"}):
         result = run(profile_service.register_card(call))
-        assert result["profile_data"] is None
         assert result["diagnostics"] == {"error": "Not found"}
+        assert result["success"] is False
 
 def test_ensure_controller_exists_custom_naming(hass, profile_service):
     """Test ensure_controller_exists with different prefix patterns."""

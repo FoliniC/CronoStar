@@ -99,4 +99,7 @@ def test_register_card_no_preset_missing_from_storage(hass, profile_service):
     with patch.object(profile_service, 'get_profile_data', return_value={"error": "not found"}):
         res = run(profile_service.register_card(call))
         assert res["success"] is False
+
+        assert res["diagnostics"]["error"] == "not found"
         assert "Preset type is required" in res["validation"]["errors"][0]
+

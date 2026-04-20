@@ -1,0 +1,136 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Configurazione CronoStar",
+                "menu_options": {
+                    "controller": "Aggiungi un nuovo Controller"
+                }
+            },
+            "install_component": {
+                "title": "Installa CronoStar",
+                "description": "⏰ **CronoStar** - Programmazione Oraria Avanzata per Home Assistant\n\n🚀 **Cosa verrà installato:**\n- Sistema di archiviazione profili globale\n- Servizi per la gestione dei profili (salva, carica, elimina)\n- Scheda Lovelace CronoStar per creare controller\n\n📝 **Dopo l'installazione:**\n- Aggiungi schede CronoStar alle tue dashboard\n- Ogni scheda crea un nuovo controller (Termostato, Interruttore, ecc.)\n- Configura le programmazioni direttamente nell'interfaccia della scheda\n\nClicca **Invia** per installare il componente."
+            },
+            "controller": {
+                "title": "Configura Controller CronoStar",
+                "description": "Configura un nuovo controller per gestire una programmazione oraria.\n\nIl **Prefisso Globale** verrà utilizzato per creare le entità ausiliarie (selettore profilo, interruttore abilitazione).",
+                "data": {
+                    "name": "Nome del Controller",
+                    "preset_type": "Tipo di Preset",
+                    "target_entity": "Entità di Destinazione",
+                    "global_prefix": "Prefisso Globale",
+                    "logging_enabled": "Abilita Log di Debug"
+                }
+            },
+            "card_config": {
+                "title": "Configurazione Card CronoStar {tag}",
+                "description": "Configura l'aspetto predefinito e i limiti per la card Lovelace associata a questo controller.\n\nPreset: **{preset}**",
+                "data": {
+                    "title": "Titolo della Card",
+                    "min_value": "Valore Minimo",
+                    "max_value": "Valore Massimo",
+                    "step_value": "Valore Step",
+                    "unit_of_measurement": "Unità di Misura",
+                    "y_axis_label": "Etichetta Asse Y",
+                    "allow_max_value": "Consenti valore 'Max'",
+                    "logging_enabled": "Abilita Log di Debug",
+                    "language": "Lingua Interfaccia"
+                }
+            },
+            "dashboard": {
+                "title": "Aggiungi alla Dashboard",
+                "description": "{info}",
+                "data": {
+                    "add_to_dashboard": "Aggiungi la card CronoStar a una dashboard",
+                    "dashboard_path": "Seleziona Dashboard",
+                    "dashboard_view": "Indice Vista (Default: 0)"
+                }
+            },
+            "success": {
+                "title": "Configurazione Completata {confirm_tag}",
+                "description": "Il controller '{name}' è stato configurato con successo.\n\nPuoi ora aggiungere la card CronoStar alla tua dashboard utilizzando il prefisso e l'entità target definiti."
+            }
+        },
+        "abort": {
+            "single_instance_allowed": "Il componente CronoStar è già installato. È consentita una sola istanza."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Opzioni CronoStar [v5.9.1]",
+                "description": "{info}",
+                "data": {
+                    "name": "Nome del Controller",
+                    "preset_type": "Tipo di Preset",
+                    "target_entity": "Entità di Destinazione",
+                    "global_prefix": "Prefisso Globale",
+                    "logging_enabled": "Abilita Log di Debug",
+                    "language": "Lingua Interfaccia"
+                }
+            },
+            "card_config": {
+                "title": "Configurazione Card CronoStar {tag} [v5.9.1]",
+                "description": "Aggiorna l'aspetto predefinito e i limiti per la card Lovelace.\n\nPreset: **{preset}**",
+                "data": {
+                    "title": "Titolo della Card",
+                    "min_value": "Valore Minimo",
+                    "max_value": "Valore Massimo",
+                    "step_value": "Valore Step",
+                    "unit_of_measurement": "Unità di Misura",
+                    "y_axis_label": "Etichetta Asse Y",
+                    "allow_max_value": "Consenti valore 'Max'",
+                    "logging_enabled": "Abilita Log di Debug",
+                    "language": "Lingua Interfaccia"
+                }
+            },
+            "success": {
+                "title": "Impostazioni Aggiornate {confirm_tag}",
+                "description": "La configurazione è stata aggiornata con successo."
+            }
+        }
+    },
+    "selector": {
+        "language": {
+            "options": {
+                "default": "Default di Sistema",
+                "en": "Inglese",
+                "it": "Italiano"
+            }
+        }
+    },
+    "exceptions": {
+        "profile_not_found": {
+            "message": "Profilo {profile} non trovato per {preset} (Prefisso: {prefix})."
+        },
+        "schedule_application_error": {
+            "message": "Impossibile applicare la programmazione a {entity}: {error}"
+        }
+    },
+    "entity": {
+        "sensor": {
+            "current_value": {
+                "name": "Valore Programmato"
+            },
+            "current_value_temp": {
+                "name": "Temperatura Programmata"
+            },
+            "current_value_power": {
+                "name": "Potenza Programmata"
+            },
+            "current_value_cover": {
+                "name": "Posizione Programmata"
+            }
+        },
+        "switch": {
+            "enabled": {
+                "name": "Automazione Abilitata"
+            }
+        },
+        "select": {
+            "profile": {
+                "name": "Profilo Attivo"
+            }
+        }
+    }
+}
