@@ -100,31 +100,29 @@ def normalize_preset_type(preset_type: str) -> str:
         preset_type: Raw preset type
 
     Returns:
-        Canonical preset type
-
-    Examples:
-        >>> normalize_preset_type("heating")
-        "thermostat"
-        >>> normalize_preset_type("LIGHT")
-        "switch"
+        Canonical preset type or original if not found but valid looking
     """
     if not preset_type:
         return "thermostat"
 
     normalized_input = str(preset_type).lower().strip()
-    canonical = _PRESET_REVERSE_MAP.get(normalized_input, "thermostat")
+    canonical = _PRESET_REVERSE_MAP.get(normalized_input)
 
-    # Enforce single canonical for switch family: use 'generic_switch'
-    if canonical == "switch":
-        # Log discrepancy once per process if requested variant isn't 'generic_switch'
-        if normalized_input not in ("generic_switch", "generic-switch", "switch_generic"):
-            _LOGGER.warning("Preset discrepancy detected: '%s' normalized to 'generic_switch'", preset_type)
-        return "generic_switch"
+    if canonical:
+        # Enforce single canonical for switch family: use 'generic_switch'
+        if canonical == "switch":
+            # Log discrepancy once per process if requested variant isn't 'generic_switch'
+            if normalized_input not in ("generic_switch", "generic-switch", "switch_generic"):
+                _LOGGER.warning("Preset discrepancy detected: '%s' normalized to 'generic_switch'", preset_type)
+            return "generic_switch"
+        return canonical
 
-    if normalized_input not in _PRESET_REVERSE_MAP:
-        _LOGGER.debug("Unknown preset type '%s', defaulting to '%s'", preset_type, canonical)
+    # If not in map, but it's one of our canonical keys (already canonical), return as is
+    if normalized_input in PRESETS_CONFIG:
+        return normalized_input
 
-    return canonical
+    _LOGGER.debug("Unknown preset type '%s', defaulting to 'thermostat'", preset_type)
+    return "thermostat"
 
 
 def get_effective_prefix(global_prefix: str | None, meta: dict | None = None) -> str:

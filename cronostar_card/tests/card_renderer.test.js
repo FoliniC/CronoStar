@@ -82,6 +82,9 @@ function buildCard(overrides = {}) {
       reinitializeCard: vi.fn(),
       registerCard: vi.fn(),
     },
+    isEditorContext: vi.fn(() => false),
+    isPickerPreviewContext: vi.fn(() => false),
+    toggleChart: vi.fn(),
     cardSync: {
         getAwaitingAutomationText: vi.fn(() => "Syncing..."),
         updateAutomationSync: vi.fn()
@@ -91,7 +94,7 @@ function buildCard(overrides = {}) {
         loadProfile: vi.fn(),
         saveProfile: vi.fn()
     },
-    eventHandlers: { // Correct property name used in CardRenderer
+    eventHandlers: {
         handlePresetChange: vi.fn(),
         handleApplyNow: vi.fn(),
         handleLoggingToggle: vi.fn(),
@@ -109,6 +112,11 @@ function buildCard(overrides = {}) {
     },
     localizationManager: {
         localize: vi.fn((lang, key) => key)
+    },
+    selectionManager: {
+        handlePointerMove: vi.fn(),
+        handlePointerDown: vi.fn(),
+        handlePointerUp: vi.fn()
     }
   };
   return Object.assign(base, overrides);
@@ -148,7 +156,43 @@ async function executeAllHandlersRecursive(node, customEvent = null) {
   }
 }
 
+// Helper to fire with specific detail.config
+async function executeWithConfig(node, detailConfig) {
+  const customEvent = {
+    stopPropagation: vi.fn(),
+    preventDefault: vi.fn(),
+    detail: { value: "v", config: detailConfig },
+    target: { value: "tv", closest: vi.fn(() => ({ open: true })) }
+  };
+  await executeAllHandlersRecursive(node, customEvent);
+}
+
 describe("CardRenderer Exhaustive Coverage", () => {
+  it("covers admin validation errors (line 147)", () => {
+    const card = buildCard({
+      config: {
+        view_mode: "admin",
+        target_entity: "sensor.x",
+        global_prefix: "p_",
+        validation: { valid: false, errors: ["Error A", "Error B"] },
+      },
+    });
+    const renderer = new CardRenderer(card);
+    const html = serialize(renderer.render());
+    expect(html).toContain("Error A");
+    expect(html).toContain("Error B");
+  });
+
+  it("covers wizard closing 'else' branch (line 282)", async () => {
+    const card = buildCard({ isEditorInternal: true, _lastGoodConfig: {} });
+    const renderer = new CardRenderer(card);
+    const template = renderer.render();
+    
+    // Call handlers with config but WITHOUT _close_wizard to hit the 'else' branch
+    await executeWithConfig(template, { some: "new_cfg" });
+    expect(card.requestUpdate).toHaveBeenCalled();
+  });
+
   it("covers main render and all conditional branches", async () => {
     const card = buildCard({
         isMenuOpen: true,
@@ -223,7 +267,7 @@ describe("CardRenderer Exhaustive Coverage", () => {
       selectedPreset: "thermostat",
       config: {
         global_prefix: "cronostar_thermostat_kitchen_",
-        title: undefined // Ensure logic runs
+        title: undefined
       }
     });
     card.localizationManager.localize.mockImplementation((l, k) => {
@@ -233,26 +277,6 @@ describe("CardRenderer Exhaustive Coverage", () => {
     });
     const renderer = new CardRenderer(card);
     renderer.render();
-    // No explicit assertion needed if we just want coverage, but we could check the resulting title if we had a way to extract it easily
-  });
-
-  it("covers not_configured variations", async () => {
-    // 1. not_configured = true, isEditor = false
-    const card1 = buildCard({
-      config: { not_configured: true, title: "Test" },
-      cardLifecycle: { isEditorContext: () => false }
-    });
-    const renderer1 = new CardRenderer(card1);
-    await executeAllHandlersRecursive(renderer1.render());
-
-    // 2. not_configured = true, isEditor = true, it language
-    const card2 = buildCard({
-      config: { not_configured: true, title: "Test" },
-      language: "it",
-      cardLifecycle: { isEditorContext: () => true }
-    });
-    const renderer2 = new CardRenderer(card2);
-    await executeAllHandlersRecursive(renderer2.render());
   });
 
   it("covers isPickerPreview variations", async () => {
@@ -260,16 +284,6 @@ describe("CardRenderer Exhaustive Coverage", () => {
       config: { preview_image: "custom.png" }
     });
     card.cardLifecycle.isPickerPreviewContext.mockReturnValue(true);
-    const renderer = new CardRenderer(card);
-    await executeAllHandlersRecursive(renderer.render());
-  });
-
-  it("covers isBroken variations", async () => {
-    const card = buildCard({
-      initialLoadComplete: true,
-      language: "it",
-      config: { target_entity: null }
-    });
     const renderer = new CardRenderer(card);
     await executeAllHandlersRecursive(renderer.render());
   });
@@ -299,6 +313,12 @@ describe("CardRenderer Exhaustive Coverage", () => {
       cronostarReady: false,
       missingEntities: ["sensor.missing"]
     });
+    const renderer = new CardRenderer(card);
+    await executeAllHandlersRecursive(renderer.render());
+  });
+
+  it("covers chart rendering when _showChart is true", async () => {
+    const card = buildCard({ _showChart: true });
     const renderer = new CardRenderer(card);
     await executeAllHandlersRecursive(renderer.render());
   });

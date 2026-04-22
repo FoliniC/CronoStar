@@ -1136,23 +1136,21 @@ describe("CronoStarEditor – 100% coverage", () => {
     expect(res.values.length).toBe(0);
   });
 
-  it("_renderWizardActions: step=1 valid – back click sets step=0", () => {
+  it("_renderWizardActions: step=1 valid – returns empty div, no handlers", () => {
     editor._step = 1;
     vi.spyOn(editor, "_canGoNext").mockReturnValue(true);
     const tpl = editor._renderWizardActions();
     const handlers = collectFunctions(tpl);
-    handlers[0]();
-    expect(editor._step).toBe(0);
+    expect(handlers.length).toBe(0);
   });
 
-  it("_renderWizardActions: step=1 invalid – shows hint, back click sets step=0", () => {
+  it("_renderWizardActions: step=1 invalid – shows hint, no handlers", () => {
     editor._step = 1;
     vi.spyOn(editor, "_canGoNext").mockReturnValue(false);
     const tpl = editor._renderWizardActions();
     expect(tpl.toString()).toContain("minimal_config_needed");
     const handlers = collectFunctions(tpl);
-    handlers[0]();
-    expect(editor._step).toBe(0);
+    expect(handlers.length).toBe(0);
   });
 
   it("_renderWizardActions: step=2 – back calls _prevStep, next calls _handleNextClick", () => {
@@ -1282,6 +1280,7 @@ describe("CronoStarEditor – 100% coverage", () => {
   // ══════════════════════════════════════════════════════════════════════════
   // render()
   // ══════════════════════════════════════════════════════════════════════════
+
   it("render: returns a Lit template containing the keydown handler", () => {
     const tpl = editor.render();
     expect(tpl.__litHtml).toBe(true);
@@ -1295,5 +1294,45 @@ describe("CronoStarEditor – 100% coverage", () => {
       preventDefault: vi.fn(),
       stopPropagation: vi.fn(),
     });
+  });
+
+  it("connectedCallback: non-admin mode skips resize logic", () => {
+    editor.config = { view_mode: 'normal' };
+    editor.connectedCallback();
+    expect(editor._resizeListener).toBeUndefined();
+  });
+
+  it("connectedCallback: admin mode attaches resize listener", () => {
+    const parent = document.createElement('div');
+    vi.spyOn(editor, 'closest').mockReturnValue(parent);
+    editor.config = { view_mode: 'admin' };
+    const spy = vi.spyOn(window, 'addEventListener');
+    editor.connectedCallback();
+    expect(spy).toHaveBeenCalledWith('resize', expect.any(Function));
+  });
+
+  it("setConfig: guards 'it' language from being overwritten to 'en'", () => {
+    editor._language = 'it';
+    editor.hass = { language: 'en-US' };
+    editor.setConfig({ meta: {} });
+    expect(editor._language).toBe('it');
+  });
+
+  it("_renderStepContent: suppresses cronostar-prefixed validation errors", () => {
+    editor._step = 1;
+    editor._config.validation = { 
+        valid: false, 
+        errors: ['select.cronostar_test not found', 'General error'] 
+    };
+    const tpl = editor._renderStepContent();
+    const str = tpl.toString();
+    expect(str).not.toContain('select.cronostar_test not found');
+    expect(str).toContain('General error');
+  });
+
+  it("renderEntityPicker: delegates to _renderTextInput for cronostar entities", () => {
+    const spy = vi.spyOn(editor, '_renderTextInput');
+    editor.renderEntityPicker('testKey', 'select.cronostar_x');
+    expect(spy).toHaveBeenCalled();
   });
 });

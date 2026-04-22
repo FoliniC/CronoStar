@@ -132,51 +132,63 @@ class CronoStarCoordinator(DataUpdateCoordinator):
 
     async def async_initialize(self):
         """Initialize controller - load profiles and set initial state."""
+        _LOGGER.info("🔧 [COORDINATOR] [%s] Initializing with prefix: %s", self.name, self.prefix)
         try:
             # List profile files matching this controller's prefix/preset_type
             files = await self.storage_manager.list_profiles(preset_type=self.preset_type, prefix=self.prefix)
+            _LOGGER.debug("🔍 [COORDINATOR] [%s] Found %d matching profile files", self.name, len(files))
 
             if files:
                 # Load first matching container
+                _LOGGER.info("📂 [COORDINATOR] [%s] Loading profile container: %s", self.name, files[0])
                 container = await self.storage_manager.load_profile_cached(files[0])
 
                 if container and "profiles" in container:
+                    # ✅ SYNC target_entity if missing in entry or coordinator but present in profile meta
+                    profile_target = container.get("meta", {}).get("target_entity")
+                    if profile_target and (not self.target_entity or self.target_entity == ""):
+                        _LOGGER.info("🎯 [COORDINATOR] [%s] Recovered missing target_entity from profile: %s", self.name, profile_target)
+                        self.target_entity = profile_target
+                        
+                        # Also update entry data so it persists and disappears from "problematic" list
+                        new_data = {**self.entry.data, CONF_TARGET_ENTITY: profile_target}
+                        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+
                     self.available_profiles = list(container["profiles"].keys())
+                    _LOGGER.debug("📋 [COORDINATOR] [%s] Available profiles: %s", self.name, self.available_profiles)
 
                     # Restore last active profile if available
                     last_active = container.get("meta", {}).get("last_active_profile")
                     if last_active and last_active in self.available_profiles:
                         self.selected_profile = last_active
-                        if self.logging_enabled:
-                            _LOGGER.info("Restored last active profile '%s' for '%s'", last_active, self.name)
+                        _LOGGER.info("✅ [COORDINATOR] [%s] Restored active profile: %s", self.name, last_active)
 
                     # Restore enabled state if available
                     is_enabled = container.get("meta", {}).get("is_enabled")
                     if is_enabled is not None:
                         self.is_enabled = bool(is_enabled)
-                        if self.logging_enabled:
-                            _LOGGER.info("Restored enabled state '%s' for '%s'", self.is_enabled, self.name)
+                        _LOGGER.info("✅ [COORDINATOR] [%s] Restored enabled state: %s", self.name, self.is_enabled)
 
                     # Set initial profile selection (fallback)
                     if self.selected_profile not in self.available_profiles:
-                        # Prefer "Default", then first available
                         if "Default" in self.available_profiles:
                             self.selected_profile = "Default"
                         elif self.available_profiles:
                             self.selected_profile = self.available_profiles[0]
+                        _LOGGER.info("⚠️ [COORDINATOR] [%s] Active profile not found; fallback to: %s", self.name, self.selected_profile)
 
-                    if self.logging_enabled:
-                        _LOGGER.info(
-                            "[COORDINATOR] '%s' initialized with %d profiles (active: %s)", self.name, len(self.available_profiles), self.selected_profile
-                        )
+                    _LOGGER.info(
+                        "✅ [COORDINATOR] [%s] Initialization complete (%d profiles, active: %s)", 
+                        self.name, len(self.available_profiles), self.selected_profile
+                    )
             else:
-                if self.logging_enabled:
-                    _LOGGER.info("[COORDINATOR] '%s' initialized (no profiles found)", self.name)
+                _LOGGER.info("ℹ️ [COORDINATOR] [%s] Initialized with no profiles found", self.name)
 
         except Exception as e:  # noqa: BLE001
-            _LOGGER.error("Error initializing controller '%s': %s", self.name, e)
+            _LOGGER.error("❌ [COORDINATOR] [%s] Error during initialization: %s", self.name, e, exc_info=True)
 
         # Apply initial schedule
+        _LOGGER.debug("📡 [COORDINATOR] [%s] Triggering initial schedule application", self.name)
         await self.apply_schedule()
 
     async def async_refresh_profiles(self):
@@ -204,11 +216,11 @@ class CronoStarCoordinator(DataUpdateCoordinator):
                     if self.logging_enabled:
                         _LOGGER.info("Refreshed profiles for '%s': %s", self.name, self.available_profiles)
 
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.warning("Error refreshing profiles for '%s': %s", self.name, e)
+            # Trigger first update immediately to populate state for entities
+            await self.async_refresh()
 
-        # Trigger entity updates
-        await self.async_refresh()
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.warning("Error during initialization of '%s': %s", self.name, e)
 
     async def set_profile(self, profile_name: str):
         """Set the active profile and apply immediately."""

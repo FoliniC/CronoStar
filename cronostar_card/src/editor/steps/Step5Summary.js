@@ -191,8 +191,8 @@ ${cardYaml}</pre
           <div class="success-box" style="text-align: center;">
             <p style="font-weight: 700; font-size: 1.1rem; margin: 0;">
               ${isIt
-                ? 'Tutto pronto! Clicca il pulsante "SALVA" in basso a destra per confermare.'
-                : 'All set! Click the "SAVE" button at the bottom right to finalize.'}
+                ? "Configurazione completata! Clicca 'Salva & Chiudi' sopra per terminare."
+                : "Configuration complete! Click 'Save & Close' above to finish."}
             </p>
           </div>
         </div>

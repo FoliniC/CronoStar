@@ -150,6 +150,7 @@ export class CronoStarCard extends LitElement {
     this.selectedPoints = [];
     this.isPreview = false;
     this._showChart = false;
+    this._manualToggleDone = false;
     this.previewData = null;
     this.cardId = "";
     this.isExpandedV = false;
@@ -198,6 +199,16 @@ export class CronoStarCard extends LitElement {
       this.eventHandlers = new CardEventHandlers(this);
       this.cardSync = new CardSync(this);
 
+      // ✅ GLOBAL LISTENER: Catch wizard done from anywhere
+      this._handleWizardDoneGlobal = (ev) => {
+        if (this.isEditorInternal) {
+          console.info("[CronoStar Card] Received global finish signal. Closing editor.");
+          this.isEditorInternal = false;
+          this.requestUpdate();
+        }
+      };
+      window.addEventListener("cronostar-wizard-done", this._handleWizardDoneGlobal);
+
       Logger.setEnabled(true);
       Logger.log(
         "INIT",
@@ -231,6 +242,17 @@ export class CronoStarCard extends LitElement {
         return;
       }
       this.cardLifecycle.setConfig(config);
+      
+      // ✅ INITIAL COLLAPSE LOGIC: 
+      // If initially_collapsed is true, force hide.
+      // Otherwise, default to visible (standard card behavior) unless already manually toggled.
+      if (config && config.initially_collapsed === true) {
+          this._showChart = false;
+          Logger.log("INIT", "[CronoStar] setConfig: initially_collapsed detected, forcing chart hidden");
+      } else if (!this._manualToggleDone) {
+          this._showChart = true;
+          Logger.log("INIT", "[CronoStar] setConfig: standard mode, defaulting chart to visible");
+      }
     } catch (e) {
       Logger.error(
         "CONFIG",
@@ -308,6 +330,27 @@ export class CronoStarCard extends LitElement {
         this.chartManager.recreateChartOptions();
       }
     }
+
+    // Gestisce inizializzazione o ridimensionamento se la visibilità viene attivata
+    if (changed.has("_showChart") && this._showChart) {
+      this.updateComplete.then(() => {
+        const isInit = this.chartManager?.isInitialized();
+        if (isInit) {
+          Logger.log("UI", "Chart already initialized and connected, resizing...");
+          if (typeof this.chartManager.resize === 'function') {
+            this.chartManager.resize();
+          } else if (this.chartManager.chart && typeof this.chartManager.chart.resize === 'function') {
+            this.chartManager.chart.resize();
+          }
+          this.chartManager.chart?.update("none");
+        } else {
+          Logger.log("UI", "Chart not initialized or canvas detached, triggering reinitializeCard...");
+          if (this.cardLifecycle) {
+            this.cardLifecycle.reinitializeCard();
+          }
+        }
+      });
+    }
   }
 
   // ✅ FIX: Setter now only delegates to CardLifecycle
@@ -330,6 +373,9 @@ export class CronoStarCard extends LitElement {
   }
 
   disconnectedCallback() {
+    if (this._handleWizardDoneGlobal) {
+      window.removeEventListener("cronostar-wizard-done", this._handleWizardDoneGlobal);
+    }
     super.disconnectedCallback();
     if (this.cardLifecycle) {
       this.cardLifecycle.disconnectedCallback();
@@ -341,27 +387,17 @@ export class CronoStarCard extends LitElement {
     if (this.cardLifecycle) {
       this.cardLifecycle.firstUpdated();
     }
-    
-    this.updateComplete.then(() => {
-        if (this._showChart && this.chartManager && !this.chartManager.isInitialized()) {
-            console.log("[CronoStar] firstUpdated: Initializing chart...");
-            this.cardLifecycle.reinitializeCard();
-        }
-    });
-  }
 
-  updated(changedProperties) {
-    super.updated(changedProperties);
-    
-    // Gestisce solo il ridimensionamento se la visibilità viene riattivata
-    if (changedProperties.has("_showChart") && this._showChart) {
-      this.updateComplete.then(() => {
-        if (this.chartManager?.isInitialized()) {
-            this.chartManager.resize?.();
-            this.chartManager.chart?.update('none');
-        }
-      });
-    }
+    this.updateComplete.then(() => {
+      if (
+        this._showChart &&
+        this.chartManager &&
+        !this.chartManager.isInitialized()
+      ) {
+        Logger.log("INIT", "firstUpdated: Initializing chart...");
+        this.cardLifecycle.reinitializeCard();
+      }
+    });
   }
 
   _deepQuerySelector(selector, root = this.shadowRoot) {
@@ -381,39 +417,55 @@ export class CronoStarCard extends LitElement {
   }
 
   async toggleChart() {
-    const container = this._deepQuerySelector(".chart-container");
-    const isHidden = container?.style.display === "none";
-    this._showChart = isHidden;
-    
-    console.log("[CronoStar] toggleChart: State forced to:", this._showChart);
-    
+    // Toggle state directly (avoids issues if container is not in DOM yet)
+    this._showChart = !this._showChart;
+    this._manualToggleDone = true;
+
+    // Synchronize with Home Assistant if a corresponding visibility entity exists
+    if (this.hass && this.config?.global_prefix) {
+      const showChartId = this.config.show_chart_entity || `input_boolean.${this.config.global_prefix}show_chart`;
+      if (this.hass.states[showChartId]) {
+        const domain = showChartId.split('.')[0] || 'input_boolean';
+        this.hass.callService(domain, this._showChart ? "turn_on" : "turn_off", {
+          entity_id: showChartId
+        });
+      }
+    }
+
+    Logger.log("UI", "toggleChart: State forced to:", this._showChart);
+
     this.requestUpdate();
     await this.updateComplete;
-    
-    // Ricalcola il container dopo l'update
+
+    // Ricalcola il container dopo l'update per forzare display e resize
     const newContainer = this._deepQuerySelector(".chart-container");
     if (newContainer) {
         newContainer.style.display = this._showChart ? 'block' : 'none';
-        
+
         if (this._showChart && this.chartManager?.isInitialized()) {
-            console.log("[CronoStar] Resizing chart...");
-            this.chartManager.resize?.();
+            Logger.log("UI", "Resizing chart...");
+            if (typeof this.chartManager.resize === 'function') {
+                this.chartManager.resize();
+            } else if (this.chartManager.chart && typeof this.chartManager.chart.resize === 'function') {
+                this.chartManager.chart.resize();
+            }
             this.chartManager.chart?.update('none');
         }
     }
-  }  render() {
+  }
+  render() {
     const isEditor = this.isEditorContext();
     const isPreview = this.isPreview;
     const isWaitingForData =
       !isEditor && !isPreview && !this.initialLoadComplete;
 
     if (isWaitingForData && !this._loggedWait) {
-      console.info("[CronoStar] Render: Waiting for data overlay active", {
+      Logger.info("UI", "Render: Waiting for data overlay active", {
         initialLoadComplete: this.initialLoadComplete,
       });
       this._loggedWait = true;
     } else if (!isWaitingForData && this._loggedWait) {
-      console.info("[CronoStar] Render: Data loaded, hiding overlay", {
+      Logger.info("UI", "Render: Data loaded, hiding overlay", {
         initialLoadComplete: this.initialLoadComplete,
       });
       this._loggedWait = false;
@@ -444,14 +496,84 @@ export class CronoStarCard extends LitElement {
   }
 
   handleEditConfig(step = 0) {
-    console.info("[CronoStar] Opening internal wizard. Saving config backup.");
+    Logger.info("UI", "Opening internal wizard. Saving config backup.");
     this._lastGoodConfig = this.config
       ? JSON.parse(JSON.stringify(this.config))
       : null;
     this.isMenuOpen = false;
     this.editorStep = step;
     this.isEditorInternal = true;
+    
+    // Measure actual HA chrome bounds so the wizard sits flush with the
+    // content area regardless of sidebar state (collapsed / hidden / wide).
+    this._wizardInsets = this._calcContentAreaInsets();
+
+    // Auto-expand for full area usage
+    this.isExpandedV = true;
+    this.isExpandedH = true;
+    
     this.requestUpdate();
+  }
+
+  /**
+   * Traverse the HA Shadow DOM to measure the real pixel offsets of the
+   * content area (header height + sidebar width).  Falls back to sensible
+   * defaults if any element is not yet available.
+   * @returns {{ sidebarWidth: number, headerHeight: number }}
+   */
+  _calcContentAreaInsets() {
+    try {
+      const haRoot = document.querySelector("home-assistant");
+      const haMain = haRoot?.shadowRoot?.querySelector("home-assistant-main");
+      const haMainShadow = haMain?.shadowRoot;
+
+      // ── Header height ──────────────────────────────────────────────────
+      const appBar =
+        haMainShadow?.querySelector("ha-top-app-bar-fixed") ||
+        haMainShadow?.querySelector("app-header") ||
+        haMainShadow?.querySelector(".header");
+      const headerHeight = appBar
+        ? Math.round(appBar.getBoundingClientRect().height)
+        : 56;
+
+      // ── Sidebar width ──────────────────────────────────────────────────
+      const drawer =
+        haMainShadow?.querySelector("ha-drawer") ||
+        haMainShadow?.querySelector("mwc-drawer");
+      let sidebarWidth = 0;
+      if (drawer) {
+        const sidebar =
+          drawer.shadowRoot?.querySelector("ha-sidebar") ||
+          drawer.querySelector("ha-sidebar");
+        const measuredEl = sidebar || drawer;
+        const rect = measuredEl.getBoundingClientRect();
+        // Only count as visible if it occupies horizontal space on the left
+        if (rect.width > 0 && rect.left === 0) {
+          sidebarWidth = Math.round(rect.width);
+        }
+      }
+
+      Logger.log(
+        "UI",
+        `[CronoStar] Wizard insets – header: ${headerHeight}px, sidebar: ${sidebarWidth}px`,
+      );
+      return { sidebarWidth, headerHeight };
+    } catch (e) {
+      Logger.warn("UI", "[CronoStar] _calcContentAreaInsets failed, using defaults:", e);
+      return { sidebarWidth: 0, headerHeight: 56 };
+    }
+  }
+
+  handleCreateController() {
+    Logger.info("UI", "Triggering Home Assistant config flow for domain: cronostar");
+    const event = new CustomEvent("show-config-flow", {
+      bubbles: true,
+      composed: true,
+      detail: {
+        domain: "cronostar",
+      },
+    });
+    this.dispatchEvent(event);
   }
 
   async handleDeleteController() {
@@ -487,7 +609,7 @@ export class CronoStarCard extends LitElement {
         window.location.reload();
       }, 1500);
     } catch (e) {
-      console.error("Failed to delete controller:", e);
+      Logger.error("UI", "Failed to delete controller:", e);
       if (this.eventHandlers) {
         this.eventHandlers.showNotification(
           (isIt ? "Errore eliminazione: " : "Delete failed: ") + e.message,

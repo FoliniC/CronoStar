@@ -213,17 +213,21 @@ class StorageManager:
             _LOGGER.error("Error deleting profile %s: %s", profile_name, e, exc_info=True)
             return False
 
-    async def list_profiles(self, preset_type: str | None = None, prefix: str | None = None) -> list[str]:
+    async def list_profiles(self, preset_type: str | None = None, prefix: str | None = None, force_reload: bool = False) -> list[str]:
         """
         List profile files
 
         Args:
             preset_type: Filter by preset type
             prefix: Filter by prefix
+            force_reload: Clear cache before listing
 
         Returns:
             List of filenames
         """
+        if force_reload:
+            await self.clear_cache()
+
         try:
             matches: list[str] = []
 
@@ -278,7 +282,13 @@ class StorageManager:
                             if base_noext.startswith("cronostar_"):
                                 rest = base_noext[len("cronostar_") :]
                                 base_part, sep, _suffix = rest.rpartition("_")
-                                wanted_base = norm_prefix_meta.rstrip("_")
+                                
+                                # Compare base parts without 'cronostar_' prefix
+                                wanted_base = norm_prefix_meta
+                                if wanted_base.startswith("cronostar_"):
+                                    wanted_base = wanted_base[len("cronostar_") :]
+                                wanted_base = wanted_base.rstrip("_")
+                                
                                 if base_part != wanted_base:
                                     continue
                             else:
@@ -341,8 +351,13 @@ class StorageManager:
             List of (filename, container) tuples from cache matching the filters.
         """
         norm_prefix = None
+        wanted_base = None
         if global_prefix:
             norm_prefix = global_prefix if global_prefix.endswith("_") else f"{global_prefix}_"
+            wanted_base = norm_prefix
+            if wanted_base.startswith("cronostar_"):
+                wanted_base = wanted_base[len("cronostar_") :]
+            wanted_base = wanted_base.rstrip("_")
 
         async with self._cache_lock:
             results: list[tuple[str, dict]] = []
@@ -350,10 +365,35 @@ class StorageManager:
                 if not isinstance(container, dict):
                     continue
                 meta = container.get("meta", {}) if isinstance(container, dict) else {}
-                if preset_type and meta.get("preset_type") != preset_type:
-                    continue
-                if norm_prefix and meta.get("global_prefix") != norm_prefix:
-                    continue
+                
+                # Filter by preset_type if provided
+                if preset_type:
+                    # Normalize preset types for comparison
+                    file_preset = meta.get("preset_type") or container.get("preset_type")
+                    if file_preset != preset_type:
+                        # Fallback normalization check
+                        try:
+                            from ..utils.prefix_normalizer import normalize_preset_type
+                            if normalize_preset_type(str(file_preset or "")) != normalize_preset_type(str(preset_type)):
+                                continue
+                        except Exception:
+                            continue
+
+                # Filter by global_prefix if provided
+                if norm_prefix:
+                    file_prefix = meta.get("global_prefix")
+                    if file_prefix != norm_prefix:
+                        # Fallback to filename-based match if meta prefix is missing or different
+                        # (Handles legacy files or prefix changes)
+                        base_noext = fname[:-5] if fname.endswith(".json") else fname
+                        if base_noext.startswith("cronostar_"):
+                            rest = base_noext[len("cronostar_") :]
+                            base_part, _sep, _suffix = rest.rpartition("_")
+                            if base_part != wanted_base:
+                                continue
+                        else:
+                            continue
+
                 results.append((fname, container))
 
             return results

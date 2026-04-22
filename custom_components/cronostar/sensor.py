@@ -23,6 +23,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     """Set up CronoStar sensor entities from config entry."""
     # Use runtime_data per quality scale guidance
     coordinator = entry.runtime_data
+    _LOGGER.info("[SENSOR] Setting up current value sensor for controller '%s' (prefix: %s)", coordinator.name, coordinator.prefix)
     async_add_entities([CronoStarCurrentSensor(coordinator)])
 
 
@@ -42,6 +43,7 @@ class CronoStarCurrentSensor(CoordinatorEntity, SensorEntity):
 
         # Explicit entity_id to ensure consistency
         self.entity_id = f"sensor.{coordinator.prefix}current"
+        _LOGGER.info("[SENSOR] Entity initialized: %s (unique_id: %s)", self.entity_id, self._attr_unique_id)
 
         # Determine device class, unit, and translation key based on preset type
         preset = getattr(coordinator, "preset_type", None) or "thermostat"
@@ -74,7 +76,7 @@ class CronoStarCurrentSensor(CoordinatorEntity, SensorEntity):
             "name": coordinator.name,
             "manufacturer": "CronoStar",
             "model": model_name,
-            "sw_version": coordinator.hass.data[DOMAIN].get("version", "unknown"),
+            "sw_version": str(coordinator.hass.data[DOMAIN].get("version", "unknown")),
         }
 
     @property
@@ -92,12 +94,14 @@ class CronoStarCurrentSensor(CoordinatorEntity, SensorEntity):
                 "active_profile": "Default",
                 "is_enabled": True,
                 "target_entity": self.coordinator.target_entity,
+                "all_profiles": [],
             }
 
         attrs = {
             "active_profile": self.coordinator.data.get("selected_profile"),
             "is_enabled": self.coordinator.data.get("is_enabled", True),
             "target_entity": self.coordinator.target_entity,
+            "all_profiles": self.coordinator.data.get("available_profiles", []),
         }
 
         # Merge card configuration into attributes
@@ -110,6 +114,9 @@ class CronoStarCurrentSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def available(self) -> bool:
-        """Entity availability based on target entity presence."""
-        state = self.coordinator.hass.states.get(self.coordinator.target_entity)
-        return state is not None and state.state not in ("unknown", "unavailable")
+        """Entity availability - always true if coordinator is initialized.
+        
+        This allows the entity to be visible even if target_entity is not yet set,
+        letting the user see it's active.
+        """
+        return self.coordinator.last_update_success

@@ -167,7 +167,6 @@ export class CronoStarEditor extends LitElement {
         padding: 24px;
         background: var(--card-background-color);
         border-radius: 12px;
-        border: 1px solid var(--divider-color);
       }
 
       .step-header {
@@ -214,7 +213,7 @@ export class CronoStarEditor extends LitElement {
       .preset-cards {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 12px;
+        gap: 16px;
         margin: 20px 0;
       }
 
@@ -222,33 +221,84 @@ export class CronoStarEditor extends LitElement {
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: 16px;
-        background: var(--card-background-color);
-        border-radius: 8px;
-        border: 1px solid var(--divider-color);
-        color: var(--primary-text-color);
+        justify-content: center;
+        padding: 16px 12px;
+        background: var(--card-background-color, #2c2c2c);
+        border-radius: 12px;
+        border: none;
+        color: var(--primary-text-color, white);
         cursor: pointer;
-        transition: all 0.15s ease;
+        transition: all 0.1s ease;
+        box-shadow: 0 4px 0 0 rgba(0,0,0,0.3);
+        min-height: 120px;
+        position: relative;
       }
 
       .preset-card:hover {
-        background: var(--background-color-secondary);
-        border-color: var(--state-info-color);
+        background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.15);
+        transform: translateY(-1px);
+        box-shadow: 0 5px 0 0 rgba(0,0,0,0.3);
+        color: var(--primary-color, #03a9f4);
+      }
+
+      .preset-card:hover .preset-hint {
+        color: var(--primary-color, #03a9f4);
+        opacity: 0.9;
       }
 
       .preset-card.selected {
-        background: rgba(var(--rgb-primary-color), 0.1);
-        border: 2px solid var(--state-info-color);
-        font-weight: 700;
+        background: var(--primary-color, #03a9f4);
+        color: white;
+        box-shadow: 0 4px 0 0 #0288d1;
+        outline: 2px solid white;
+        outline-offset: -4px;
+      }
+
+      .preset-card.selected .preset-hint {
+        color: white;
+        opacity: 0.9;
+      }
+
+      .preset-card.selected:hover {
+        background: #0288d1;
+        color: white;
+        box-shadow: 0 5px 0 0 #01579b;
+      }
+
+      .preset-card.selected:hover .preset-hint {
+        color: white;
+        opacity: 1;
+      }
+
+      .preset-card:active {
+        transform: translateY(3px);
+        box-shadow: 0 1px 0 0 rgba(0,0,0,0.3);
+      }
+
+      .preset-card.selected:active {
+        box-shadow: 0 1px 0 0 #0288d1;
       }
 
       .preset-icon {
-        font-size: 1.5rem;
+        font-size: 2rem;
         margin-bottom: 8px;
+        filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
       }
 
       .preset-title {
-        font-weight: 600;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.9rem;
+        letter-spacing: 0.5px;
+      }
+
+      .preset-hint {
+        font-size: 0.7rem;
+        color: rgba(255,255,255,0.8);
+        text-align: center;
+        margin-top: 4px;
+        line-height: 1.2;
+      }
         font-size: 0.95rem;
         margin-bottom: 2px;
       }
@@ -267,7 +317,6 @@ export class CronoStarEditor extends LitElement {
         padding: 16px;
         background: var(--background-color-secondary);
         border-radius: 12px;
-        border: 1px solid var(--divider-color);
       }
 
       mwc-button {
@@ -362,6 +411,128 @@ export class CronoStarEditor extends LitElement {
         --mdc-text-field-label-ink-color: var(--secondary-text-color);
         --mdc-text-field-outlined-idle-border-color: var(--divider-color);
       }
+
+      /* DASHBOARD (STEP 0) STYLES */
+      .controllers-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+        margin-top: 16px;
+      }
+
+      .controller-card {
+        background: rgba(var(--rgb-primary-text-color, 255, 255, 255), 0.05);
+        border: 1px solid var(--divider-color);
+        border-radius: 12px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+      }
+
+      .controller-card:hover {
+        transform: translateY(-2px);
+        border-color: var(--primary-color);
+      }
+
+      .controller-card.error {
+        border-left: 4px solid #ef4444;
+      }
+
+      .cc-title {
+        font-weight: 700;
+        font-size: 1rem;
+        color: var(--primary-text-color);
+      }
+
+      .cc-meta {
+        font-size: 0.8rem;
+        color: var(--secondary-text-color);
+        line-height: 1.4;
+      }
+
+      .cc-meta code {
+        background: rgba(0,0,0,0.2);
+        padding: 2px 4px;
+        border-radius: 4px;
+        color: var(--primary-color);
+      }
+
+      .cc-footer {
+        margin-top: auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-top: 12px;
+        border-top: 1px solid var(--divider-color);
+      }
+
+      .badge {
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        text-transform: uppercase;
+        font-weight: 800;
+      }
+
+      .badge-success {
+        background: rgba(74, 222, 128, 0.2);
+        color: #4ade80;
+      }
+
+      .badge-danger {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+      }
+
+      .validation-errors {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        border-radius: 8px;
+        padding: 8px;
+        color: #f87171;
+        font-size: 0.75rem;
+      }
+
+      .btn-sm {
+        --mdc-typography-button-font-size: 0.75rem;
+        --mdc-button-horizontal-padding: 8px;
+        height: 28px;
+      }
+
+      .btn-danger {
+        --mdc-theme-primary: #ef4444;
+      }
+
+      .divider {
+        height: 1px;
+        background: var(--divider-color);
+        margin: 24px 0;
+      }
+
+      .new-btn {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 20px;
+        background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.1);
+        border: 2px dashed var(--primary-color);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .new-btn:hover {
+        background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.15);
+        transform: scale(1.01);
+      }
+
+      .new-btn-icon {
+        font-size: 2rem;
+        color: var(--primary-color);
+        font-weight: 300;
+      }
     `;
   }
 
@@ -400,6 +571,8 @@ export class CronoStarEditor extends LitElement {
       this.dispatchEvent(
         new CustomEvent("config-changed", {
           detail: { config: { ...this._config, step: this._step } },
+          bubbles: true,
+          composed: true,
         }),
       );
     }, 500);
@@ -478,17 +651,17 @@ export class CronoStarEditor extends LitElement {
     const lang = this._language || "en";
   }
 
-  connectedCallback() {
-    super.connectedCallback();
-  }
-
   updated(changedProps) {
     super.updated(changedProps);
 
     // Sync step property to internal _step
     if (changedProps.has("step") && this.step !== undefined) {
-      console.log(`[CronoStar Editor] Step property changed to: ${this.step}`);
+      console.log(`[CronoStar Editor] Step property changed to: ${this.step}. Internal _step was: ${this._step}`);
       this._step = this.step;
+    }
+
+    if (changedProps.has("config")) {
+      console.log("[CronoStar Editor] Incoming config property updated:", this.config);
     }
 
     if (changedProps.has("hass")) {
@@ -528,8 +701,8 @@ export class CronoStarEditor extends LitElement {
     }
 
     if (changedProps.has("_step")) {
-      // ✅ FIX: Dispatch immediately on step change so preview is updated
-      if (this._step !== 0) {
+      // ✅ FIX: Only dispatch if we are really changing state to avoid loops
+      if (this._step !== 0 && this._step !== changedProps.get("_step")) {
         this._dispatchConfigChanged(true);
       }
     }
@@ -686,8 +859,9 @@ export class CronoStarEditor extends LitElement {
 
   _updateSaveButtonVisibility() {
     try {
-      const shouldHide = this._step >= 0 && this._step <= 3;
-      const root = document.head || document.body; // Robust fallback
+      // HIDE FOR ALL WIZARD STEPS (0 to 5)
+      const shouldHide = this._step >= 0 && this._step <= 5;
+      const root = document.head || document.body;
       if (!root) return;
 
       let styleEl = document.getElementById(
@@ -701,7 +875,7 @@ export class CronoStarEditor extends LitElement {
           root.appendChild(styleEl);
         }
         styleEl.textContent = `
-          /* CronoStar: Aggressively hide standard HA Save button in wizard steps 0-3 */
+          /* CronoStar: Aggressively hide standard HA Save button in wizard steps 0-5 */
           mwc-button[slot="primaryAction"],
           ha-button[slot="primaryAction"],
           ha-dialog mwc-button[slot="primaryAction"],
@@ -728,6 +902,60 @@ export class CronoStarEditor extends LitElement {
         e,
       );
     }
+  }
+
+  _clickHASaveButton() {
+    console.info("[CronoStar Editor] Scheduling HA Save button click...");
+    
+    // Crucial: Wait for HA to process config-changed and enable the Save button
+    setTimeout(() => {
+      let found = false;
+      let el = this;
+      
+      // 1. Traverse up the DOM to find the containing dialog and its action button
+      while (el && !found) {
+        const btn = el.querySelector("mwc-button[slot='primaryAction']") || 
+                    el.querySelector("ha-button[slot='primaryAction']") ||
+                    el.querySelector(".primary-action");
+                    
+        if (btn) {
+          console.info("[CronoStar Editor] Found HA Save button by climbing DOM. Clicking.");
+          btn.click();
+          found = true;
+          break;
+        }
+        el = el.parentElement || el.parentNode || el.host;
+      }
+      
+      // 2. Fallback: Search globally across all shadow roots if climbing failed
+      if (!found) {
+         console.info("[CronoStar Editor] Climbing failed. Attempting global deep search for Save button...");
+         const btn = this._deepQuerySelector("mwc-button[slot='primaryAction']") || 
+                     this._deepQuerySelector("ha-button[slot='primaryAction']");
+         if (btn) {
+           console.info("[CronoStar Editor] Found HA Save button via global deep search. Clicking.");
+           btn.click();
+           found = true;
+         }
+      }
+      
+      if (!found) console.warn("[CronoStar Editor] HA Save button not found. User must use standard SAVE if visible.");
+    }, 300);
+  }
+
+  _deepQuerySelector(selector, root = document) {
+    if (!root) return null;
+    const found = root.querySelector(selector);
+    if (found) return found;
+
+    const elements = root.querySelectorAll('*');
+    for (const el of elements) {
+      if (el.shadowRoot) {
+        const res = this._deepQuerySelector(selector, el.shadowRoot);
+        if (res) return res;
+      }
+    }
+    return null;
   }
 
   _updatePreviewVisibility() {
@@ -875,14 +1103,24 @@ export class CronoStarEditor extends LitElement {
       const validated = validateConfig(config, config.logging_enabled);
 
       // 2. Resolve initialization logic
-      if (!this._config || this._config.not_configured) {
+      const incomingHasCore = !!validated.target_entity && !!validated.global_prefix;
+      const localHasCore = !!this._config?.target_entity && !!this._config?.global_prefix;
+
+      if (!this._config || (this._config.not_configured && !localHasCore)) {
         console.info("Adopting incoming config as primary source (Initial Load)");
         this._config = { ...validated };
       } else {
-        // PROTECTION DURING WIZARD:
-        // If we are currently in the wizard (Step > 0), DO NOT allow HA to overwrite 
-        // critical fields like target_entity or global_prefix.
-        if (this._step > 0) {
+        // PROTECTION: If we have local core fields, and incoming doesn't, HA might be pushing a default config.
+        // We only adopt incoming if it's NOT a step backward to unconfigured.
+        if (localHasCore && !incomingHasCore && validated.not_configured) {
+          console.info("[CronoStar Editor] Ignoring incoming unconfigured config; keeping local valid config.");
+          // Merge only meta/language if provided
+          if (validated.meta) {
+            this._config = { ...this._config, meta: { ...(this._config.meta || {}), ...validated.meta } };
+          }
+          // Re-force configured status
+          this._config.not_configured = false;
+        } else if (this._step > 0) {
           console.info("[CronoStar Editor] Wizard active: Protecting local core fields from HA overwrite");
           const protectedFields = {
             target_entity: this._config.target_entity,
@@ -896,6 +1134,26 @@ export class CronoStarEditor extends LitElement {
           console.info("Syncing incoming config with current state (prioritizing local)");
           this._config = { ...validated, ...this._config };
         }
+      }
+
+      // ✅ FIX: Logic for initial step
+      // 1. If the config explicitly has a step, use it
+      if (validated.step !== undefined) {
+        this._step = validated.step;
+      } 
+      // 2. If no step is defined and we are at step 0 OR during an active wizard session:
+      else if (this._step === 0) {
+        const hasCore = !!this._config.target_entity && !!this._config.global_prefix;
+        console.info(`[CronoStar Editor] Step logic check: hasCore=${hasCore}, not_configured=${this._config.not_configured}`);
+        if (hasCore) {
+          console.info("[CronoStar Editor] Card has core fields. Defaulting to Step 1.");
+          this._step = 1;
+        } else {
+          console.info("[CronoStar Editor] Card lacks core fields. Defaulting to Step 0 (Dashboard).");
+          this._step = 0;
+        }
+      } else {
+        console.info(`[CronoStar Editor] Persisting current wizard step: ${this._step}`);
       }
 
       // 3. Mark as editing if we have core fields
@@ -969,11 +1227,14 @@ export class CronoStarEditor extends LitElement {
     if (!out.type) out.type = "custom:cronostar-card";
 
     // IMPROVED: Logic for not_configured flag
-    if (cfg.not_configured === true) {
+    // If we have a target entity and prefix, we are definitely configured
+    const hasCore = !!out.target_entity && !!out.global_prefix;
+    
+    if (hasCore) {
+      out.not_configured = false;
+    } else if (cfg.not_configured === true) {
       out.not_configured = true;
     } else {
-      // If we have a target entity and prefix, we are definitely configured
-      const hasCore = !!out.target_entity && !!out.global_prefix;
       out.not_configured = !hasCore;
     }
 
@@ -1369,6 +1630,7 @@ export class CronoStarEditor extends LitElement {
       // EXTREME PROTECTION: Block all inbound setConfig for 10 seconds or until finished
       this._ignoreInboundUntil = Date.now() + 10000;
 
+      console.info("[CronoStar Editor] Dispatching final config-changed with _close_wizard: true");
       this.dispatchEvent(
         new CustomEvent("config-changed", {
           detail: { config: { ...finalConfig, step: 5, _close_wizard: true } },
@@ -1377,8 +1639,22 @@ export class CronoStarEditor extends LitElement {
         }),
       );
 
+      // ✅ FIX: Dispatch closure event IMMEDIATELY
+      console.info("[CronoStar Editor] Dispatching UI closure signals.");
+      const doneEvent = new CustomEvent("cronostar-wizard-done", {
+        bubbles: true,
+        composed: true,
+        detail: { config: finalConfig }
+      });
+      this.dispatchEvent(doneEvent);
+      window.dispatchEvent(doneEvent);
+
+      // ✅ FIX: Trigger HA Save button if we are in a dialog
+      this._clickHASaveButton();
+
       try {
         // 2. Perform backend operations (data analysis/initialization)
+        console.info("[CronoStar Editor] Calling backend initialization...");
         const result = await handleInitializeData(
           this.hass,
           finalConfig,
@@ -1386,8 +1662,10 @@ export class CronoStarEditor extends LitElement {
         );
         this.showToast(result.message);
 
-        // 3. Update local state to show 'Finished' state if needed,
-        // but let the user click the HA "SAVE" button to close the dialog.
+        // 3. FINAL ACTION: If we are in the standard HA Editor (not internal), 
+        // we might want to trigger the standard Save logic if it hasn't happened.
+        // But since we already dispatched config-changed, HA should have the data.
+        
         if (isFinalStep) {
           this._step = 5;
           this.requestUpdate();
@@ -1446,7 +1724,7 @@ export class CronoStarEditor extends LitElement {
           </div>
         </div>`;
       }
-      return html`<div class="wizard-actions"></div>`;
+      return html``;
     }
 
     return html`
@@ -1455,7 +1733,8 @@ export class CronoStarEditor extends LitElement {
           ${this._step > 1
             ? html`<mwc-button
                 outlined
-                @click=${() => {
+                @click=${(e) => {
+                  e.stopPropagation();
                   this._dispatchConfigChanged(true);
                   this.wizard._prevStep();
                 }}
@@ -1465,13 +1744,19 @@ export class CronoStarEditor extends LitElement {
         </div>
         <div>
           ${this._step > 0 && this._step < 5
-            ? html`<mwc-button raised @click=${() => this._handleNextClick()}
+            ? html`<mwc-button raised @click=${(e) => {
+                e.stopPropagation();
+                this._handleNextClick();
+              }}
                 >${this.i18n._t("actions.next")}</mwc-button
               >`
             : this._step === 5
               ? html`<mwc-button
                   raised
-                  @click=${() => this._handleFinishClick({ force: true })}
+                  @click=${(e) => {
+                    e.stopPropagation();
+                    this._handleFinishClick({ force: true });
+                  }}
                   >💾
                   ${this.i18n._t("actions.save_and_close") ||
                   "Save & Close"}</mwc-button

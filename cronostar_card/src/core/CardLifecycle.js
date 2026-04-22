@@ -249,6 +249,53 @@ export class CardLifecycle {
         (hass.services.cronostar.register_card ||
           hass.services.cronostar.registercard);
 
+      // ✅ SYNC CHART VISIBILITY: Control card._showChart via input_boolean in HASS
+      if (card.config?.global_prefix && hass.states) {
+          // If NOT in admin mode, the chart MUST be always visible.
+          if (card.config.view_mode !== "admin") {
+              if (card._showChart !== true) {
+                  Logger.log("HASS", "[SYNC] Custom dashboard detected: forcing chart visibility to true.");
+                  card._showChart = true;
+                  if (card.chartManager?.isInitialized()) {
+                      setTimeout(() => {
+                          if (typeof card.chartManager.resize === 'function') {
+                              card.chartManager.resize();
+                          }
+                          card.requestUpdate();
+                      }, 50);
+                  }
+              }
+          } else {
+              // Standard Admin mode logic
+              const showChartId = card.config.show_chart_entity || `input_boolean.${card.config.global_prefix}show_chart`;
+              const showChartState = hass.states[showChartId];
+              if (showChartState) {
+                  const shouldShow = showChartState.state === 'on';
+                  
+                  let skipSync = false;
+                  if (shouldShow && card.config.initially_collapsed && !card._manualToggleDone) {
+                      skipSync = true;
+                  }
+
+                  if (!skipSync && card._showChart !== shouldShow) {
+                      Logger.log("HASS", `[SYNC] Chart visibility toggled via ${showChartId} -> ${shouldShow}`);
+                      card._showChart = shouldShow;
+                      // If chart is becoming visible, schedule a resize
+                      if (shouldShow && card.chartManager?.isInitialized()) {
+                          setTimeout(() => {
+                              if (typeof card.chartManager.resize === 'function') {
+                                  card.chartManager.resize();
+                              } else if (card.chartManager.chart && typeof card.chartManager.chart.resize === 'function') {
+                                  card.chartManager.chart.resize();
+                              }
+                              card.requestUpdate();
+                          }, 50);
+                      }
+                  }
+              }
+          }
+      }
+
       if (
         !this.hasRegistered &&
         !this._isRegistering &&
@@ -275,40 +322,61 @@ export class CardLifecycle {
           });
       }
 
+      // Reset missing entities list
+      const missing = [];
+
       if (card.config?.enabled_entity && !card.config.not_configured) {
-        const enabledId = card.config.enabled_entity;
+        const enabledId = card.config.enabled_entity.trim();
         const enabledStateObj = hass.states[enabledId];
+        
+        // Find if backend found this entity UID
+        const backendHasId = !!(card.entityStates?.enabled && card.entityStates.enabled !== "unknown");
+        const backendKnowsEntity = card.entityStates && "enabled" in card.entityStates;
+
         if (enabledStateObj) {
           card.isEnabled = enabledStateObj.state === "on";
           this.loggedPauseEntityMissing = false;
-        } else if (card.initialLoadComplete && enabledId && !isStartup) {
-          let alreadyWarnedGlobally = false;
-          if (
-            typeof window !== "undefined" &&
-            window.cronostarpausewarned instanceof Set
-          ) {
-            alreadyWarnedGlobally = window.cronostarpausewarned.has(enabledId);
+        } else {
+          // Fallback to backend-provided state if HA states doesn't have it yet
+          if (backendHasId) {
+            card.isEnabled = card.entityStates.enabled === "on";
           }
-          if (!this.loggedPauseEntityMissing && !alreadyWarnedGlobally) {
-            Logger.warn(
-              "HASS",
-              "CronoStar Enabled entity not found:",
-              enabledId,
-            );
+          
+          // Mark as missing ONLY if entity is truly not found by backend registry either
+          if (card.initialLoadComplete && enabledId && !isStartup && !backendKnowsEntity) {
+            missing.push(enabledId);
+            let alreadyWarnedGlobally = false;
             if (
               typeof window !== "undefined" &&
               window.cronostarpausewarned instanceof Set
             ) {
-              window.cronostarpausewarned.add(enabledId);
+              alreadyWarnedGlobally = window.cronostarpausewarned.has(enabledId);
             }
-            this.loggedPauseEntityMissing = true;
+            if (!this.loggedPauseEntityMissing && !alreadyWarnedGlobally) {
+              Logger.warn(
+                "HASS",
+                "CronoStar Enabled entity not found:",
+                enabledId,
+              );
+              if (
+                typeof window !== "undefined" &&
+                window.cronostarpausewarned instanceof Set
+              ) {
+                window.cronostarpausewarned.add(enabledId);
+              }
+              this.loggedPauseEntityMissing = true;
+            }
           }
         }
       }
 
       if (card.config?.profiles_select_entity && !card.config.not_configured) {
-        const selId = card.config.profiles_select_entity;
+        const selId = card.config.profiles_select_entity.trim();
         const selObj = hass.states[selId];
+        
+        const backendHasId = !!(card.entityStates?.selector && card.entityStates.selector !== "unknown");
+        const backendKnowsEntity = card.entityStates && "selector" in card.entityStates;
+
         if (selObj) {
           this.loggedProfileSelectEntityMissing = false;
           const newProfile = selObj.state;
@@ -346,20 +414,51 @@ export class CardLifecycle {
               });
             }
           }
-        } else if (
-          card.initialLoadComplete &&
-          selId &&
-          !this.loggedProfileSelectEntityMissing &&
-          !isStartup
-        ) {
-          Logger.warn(
-            "HASS",
-            "CronoStar Profile select entity not found:",
-            selId,
-          );
-          this.loggedProfileSelectEntityMissing = true;
+        } else {
+          // Fallback to backend selector info
+          if (backendHasId) {
+            if (card.selectedProfile !== card.entityStates.selector) {
+              card.selectedProfile = card.entityStates.selector;
+            }
+          }
+          
+          if (
+            card.initialLoadComplete &&
+            selId &&
+            !isStartup &&
+            !backendKnowsEntity
+          ) {
+             if (!this.loggedProfileSelectEntityMissing) {
+                missing.push(selId);
+                Logger.warn(
+                  "HASS",
+                  "CronoStar Profile select entity not found:",
+                  selId,
+                );
+                this.loggedProfileSelectEntityMissing = true;
+             }
+          }
         }
       }
+
+      // Check target entity for missing overlay
+      if (card.config?.target_entity && !card.config.not_configured) {
+        const targetId = card.config.target_entity.trim();
+        const backendHasTarget = !!(card.entityStates?.target && card.entityStates.target !== "unknown");
+        const backendKnowsTarget = card.entityStates && "target" in card.entityStates;
+
+        if (
+          !hass.states[targetId] &&
+          !backendHasTarget &&
+          !backendKnowsTarget
+        ) {
+          if (card.initialLoadComplete && !isStartup) {
+            missing.push(targetId);
+          }
+        }
+      }
+
+      card.missingEntities = missing;
 
       if (!inEditor) {
         card.cardSync?.updateAutomationSync?.(hass);
@@ -588,46 +687,46 @@ export class CardLifecycle {
 
   reinitializeCard() {
     try {
+      const canvas = this.card.shadowRoot?.getElementById("myChart");
+      
+      if (!canvas) {
+          Logger.log("LIFECYCLE", "reinitializeCard: canvas not found in DOM, skipping.");
+          return;
+      }
+
       Logger.log("LIFECYCLE", "CronoStar reinitializeCard starting");
 
-      const canvas = this.card.shadowRoot?.getElementById("myChart");
-      if (canvas) {
-        try {
-          this.card.chartManager?.destroy?.();
-        } catch (e) {
-          /* v8 ignore next 2 */
-          /* ignore */
-        }
-        if (typeof this.card.chartManager?.initChart === "function") {
-          this.card.chartManager.initChart(canvas);
-        }
+      if (this.card.chartManager) {
+          try {
+              this.card.chartManager.destroy?.();
+          } catch (e) {
+              /* ignore */
+          }
+          
+          // Re-init with current canvas
+          if (typeof this.card.chartManager.initChart === "function") {
+              this.card.chartManager.initChart(canvas);
+          }
       }
 
       const container = this.card.shadowRoot?.querySelector(".chart-container");
-      if (container) {
-        try {
-          this.card.keyboardHandler?.detachListeners?.(container);
-        } catch (e) {
-          /* v8 ignore next 2 */
-          /* ignore */
-        }
-        this.card.keyboardHandler?.attachListeners?.(container);
+      if (container && this.card.keyboardHandler) {
+          try {
+            this.card.keyboardHandler.detachListeners?.(container);
+          } catch (e) { /* ignore */ }
+          this.card.keyboardHandler.attachListeners?.(container);
       }
 
-      if (canvas) {
-        try {
-          this.card.pointerHandler?.detachListeners?.(canvas);
-        } catch (e) {
-          /* v8 ignore next 2 */
-          /* ignore */
-        }
-        this.card.pointerHandler?.attachListeners?.(canvas);
+      if (this.card.pointerHandler) {
+          try {
+            this.card.pointerHandler.detachListeners?.(canvas);
+          } catch (e) { /* ignore */ }
+          this.card.pointerHandler.attachListeners?.(canvas);
       }
 
       this.card.requestUpdate();
       Logger.log("LIFECYCLE", "CronoStar reinitializeCard done");
     } catch (e) {
-      /* v8 ignore next 2 */
       Logger.error("LIFECYCLE", "CronoStar Error in reinitializeCard:", e);
     }
   }
@@ -923,11 +1022,35 @@ export class CardLifecycle {
       );
       Logger.load("[CronoStar] === LOAD PROFILE END ===");
 
+      // ✅ OPERATIONAL CHECK: Respect hidden state by default.
+      // We no longer force showChart to true here to avoid flickering and respect initially_collapsed.
+      if (this.card.config?.target_entity && this.card.config?.global_prefix) {
+          if (this.card.config.initially_collapsed) {
+              console.info("[CronoStar Lifecycle] Card operational: initially_collapsed is true, keeping chart hidden.");
+          } else {
+              console.info("[CronoStar Lifecycle] Card operational: Waiting for HASS sync or user toggle for visibility.");
+          }
+      }
+
       this.card.initialLoadComplete = true;
       this.card.cronostarReady = true;
 
       if (response?.entity_states) {
         this.card.entityStates = response.entity_states;
+      }
+
+      if (
+        response?.available_profiles &&
+        Array.isArray(response.available_profiles)
+      ) {
+        // Fallback for profileOptions if helper is not ready
+        if (!this.card.profileOptions || this.card.profileOptions.length === 0) {
+          this.card.profileOptions = response.available_profiles;
+          Logger.log(
+            "LOAD",
+            `[CronoStar] Profile options populated from backend: ${this.card.profileOptions.length} profiles`,
+          );
+        }
       }
 
       this.card.requestUpdate();

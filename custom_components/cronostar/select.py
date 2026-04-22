@@ -14,6 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up CronoStar select entities from config entry."""
     coordinator = entry.runtime_data
+    _LOGGER.info("[SELECT] Setting up profile selector for controller '%s' (prefix: %s)", coordinator.name, coordinator.prefix)
     async_add_entities([CronoStarProfileSelect(coordinator)])
 
 
@@ -33,6 +34,7 @@ class CronoStarProfileSelect(CoordinatorEntity, SelectEntity):
 
         # Explicit entity_id to ensure consistency
         self.entity_id = f"select.{coordinator.prefix}current_profile"
+        _LOGGER.info("[SELECT] Entity initialized: %s (unique_id: %s)", self.entity_id, self._attr_unique_id)
 
         # Device info for grouping
         try:
@@ -45,7 +47,7 @@ class CronoStarProfileSelect(CoordinatorEntity, SelectEntity):
             "name": coordinator.name,
             "manufacturer": "CronoStar",
             "model": model_name,
-            "sw_version": coordinator.hass.data[DOMAIN].get("version", "unknown"),
+            "sw_version": str(coordinator.hass.data[DOMAIN].get("version", "unknown")),
         }
 
     @property
@@ -71,6 +73,5 @@ class CronoStarProfileSelect(CoordinatorEntity, SelectEntity):
 
     @property
     def available(self) -> bool:
-        """Entity availability based on target entity presence."""
-        state = self.coordinator.hass.states.get(self.coordinator.target_entity)
-        return state is not None and state.state not in ("unknown", "unavailable")
+        """Entity availability - always true if coordinator is initialized."""
+        return self.coordinator.last_update_success

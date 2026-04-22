@@ -117,6 +117,11 @@ entry.add_to_hass(hass) # Necessary for the registry to "see" it
 ### Stubs
 Common HA modules like `voluptuous` and `homeassistant.helpers.selector` are stubbed in `tests/conftest.py`.
 
+## 5. Home Assistant Logs
+The Home Assistant logs are stored in a non-standard location:
+- **Directory**: `/home/carlo/docker/homeassistant/config/logs/ha/`
+- **Active Log**: Use `ls -t /home/carlo/docker/homeassistant/config/logs/ha/home-assistant_*.log | head -n 1` to find the most recent file.
+
 Instructions:
 Do not make up entities or states you don't know about.
 If you don't have enough context, ask for a brief clarification.

@@ -1,0 +1,156 @@
+"""Ultimate coverage boost for missing branches in setup, coordinator, storage and init."""
+import asyncio
+import json
+import logging
+import os
+import importlib
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, patch, mock_open, AsyncMock
+
+import pytest
+from custom_components.cronostar.storage.storage_manager import StorageManager
+from custom_components.cronostar.coordinator import CronoStarCoordinator
+import custom_components.cronostar.setup as cronostar_setup
+
+def run(coro):
+    return asyncio.run(coro)
+
+# ---------------------------------------------------------------------------
+# Setup / Init Coverage
+# ---------------------------------------------------------------------------
+
+def test_setup_import_fallback():
+    """Cover lines 17-18 in setup/__init__.py (ImportError fallback)."""
+    with patch.dict("sys.modules", {"homeassistant.components.http": MagicMock()}):
+        if "homeassistant.components.http" in sys.modules:
+            del sys.modules["homeassistant.components.http"]
+        
+        mock_http = MagicMock()
+        if hasattr(mock_http, "StaticPathConfig"):
+            del mock_http.StaticPathConfig
+        
+        with patch.dict("sys.modules", {"homeassistant.components.http": mock_http}):
+            importlib.reload(cronostar_setup)
+            assert cronostar_setup.HAS_STATIC_PATH_CONFIG is False
+    
+    importlib.reload(cronostar_setup)
+
+@pytest.mark.asyncio
+async def test_setup_integration_branches(hass, tmp_path):
+    """Cover setup/__init__.py branches 40, 45-68, 78-97, 102-112."""
+    from custom_components.cronostar.setup import async_setup_integration
+    
+    www_path = tmp_path / "custom_components" / "cronostar" / "www" / "cronostar_card"
+    www_path.mkdir(parents=True)
+    card_file = www_path / "cronostar-card.js"
+    card_file.write_text("console.log('card');")
+    
+    hass.config.path.side_effect = lambda p: str(tmp_path / p)
+    
+    with patch("custom_components.cronostar.setup.dashboard.setup_dashboard"), \
+         patch("custom_components.cronostar.setup.services.setup_services"), \
+         patch("custom_components.cronostar.setup.events.setup_event_handlers"), \
+         patch("custom_components.cronostar.setup.async_get_integration") as mock_get, \
+         patch("homeassistant.components.frontend.add_extra_js_url"):
+        
+        mock_get.return_value.version = "1.0.0"
+        
+        with patch("custom_components.cronostar.setup.HAS_STATIC_PATH_CONFIG", True), \
+             patch("homeassistant.components.http.StaticPathConfig") as mock_static:
+            await async_setup_integration(hass, {"version": "1.0.0"})
+            
+        with patch("custom_components.cronostar.setup.HAS_STATIC_PATH_CONFIG", False):
+            await async_setup_integration(hass, {"version": "1.0.0"})
+
+# ---------------------------------------------------------------------------
+# Storage Manager Coverage
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_storage_manager_misc_fixed(hass, tmp_path):
+    """Cover all remaining missing branches in StorageManager."""
+    sm = StorageManager(hass, tmp_path)
+    
+    # 1. update_active_profile OSError (line 384-385)
+    async def fail_mtime(fn, *args):
+        if fn == os.path.getmtime:
+            raise OSError("mtime fail")
+        return fn(*args) if args else fn()
+    
+    hass.async_add_executor_job = fail_mtime
+    with patch.object(sm, "_load_container", return_value={"meta":{}}), \
+         patch.object(sm, "_write_json", AsyncMock()):
+        await sm.update_active_profile("t", "p", "prof")
+        # Covered line 385
+
+    # 2. _load_container Exception (line 487-489)
+    async def selective_executor(fn, *args):
+        if fn == Path.exists: return True
+        if fn == Path.read_text: raise Exception("read crash")
+        return fn(*args) if args else fn()
+    
+    hass.async_add_executor_job = selective_executor
+    res = await sm._load_container(tmp_path / "test.json")
+    assert res == {}
+
+    # 3. list_profiles gaps (252, 265, 287)
+    hass.async_add_executor_job = lambda fn, *args: fn(*args) if args else fn() # reset
+    
+    # 252: load_profile_cached returns None
+    (tmp_path / "cronostar_none_data.json").write_text("{}")
+    with patch.object(sm, "load_profile_cached", return_value=None):
+        res = await sm.list_profiles()
+        assert "cronostar_none_data.json" not in res
+    
+    # 265: Exception in normalize_preset_type
+    (tmp_path / "cronostar_t_p_data.json").write_text(json.dumps({"meta": {"preset_type": "t"}}))
+    with patch("custom_components.cronostar.utils.prefix_normalizer.normalize_preset_type", side_effect=Exception):
+        # We need to ensure load_profile_cached is NOT mocked to None here
+        res = await sm.list_profiles(preset_type="t")
+        assert "cronostar_t_p_data.json" in res
+
+    # 287: prefix mismatch fallback in filename
+    (tmp_path / "cronostar_p_data.json").write_text(json.dumps({"meta": {}}))
+    res = await sm.list_profiles(prefix="p")
+    assert "cronostar_p_data.json" in res
+
+    # 4. generic exceptions
+    with patch("os.listdir", side_effect=Exception):
+        assert await sm.list_profiles() == []
+        
+    with patch.object(sm, "load_profile_cached", side_effect=Exception):
+        assert await sm.get_profile_list("t", "p") == []
+        
+    with patch.object(sm, "_load_container", side_effect=Exception):
+        assert await sm.update_enabled_state("t", "p", True) is False
+
+    # 5. delete_controller_files (456-458)
+    with patch.object(sm, "list_profiles", side_effect=Exception):
+        assert await sm.delete_controller_files("p") is False
+
+@pytest.mark.asyncio
+async def test_storage_manager_save_exception_fixed(hass):
+    sm = StorageManager(hass, Path("/tmp"))
+    with patch.object(sm, "_write_json", side_effect=Exception):
+        assert await sm.save_profile("n", {}, "t", "p") is False
+
+@pytest.mark.asyncio
+async def test_coordinator_refresh_exception_fixed(hass):
+    entry = MagicMock()
+    entry.data = {"name": "T", "preset_type": "t", "target_entity": "c.t", "global_prefix": "p_"}
+    coordinator = CronoStarCoordinator(hass, entry)
+    with patch.object(coordinator.storage_manager, "list_profiles", side_effect=Exception):
+        await coordinator.async_refresh_profiles()
+        # Covered blocco except
+
+@pytest.mark.asyncio
+async def test_coordinator_update_data_exception_fixed(hass, caplog):
+    """Cover lines 156-158 in coordinator.py (Exception in update_data)."""
+    entry = MagicMock()
+    entry.data = {"name": "T", "preset_type": "t", "target_entity": "c.t", "global_prefix": "p_"}
+    coordinator = CronoStarCoordinator(hass, entry)
+    with patch.object(hass.states, "get", side_effect=Exception("State fail")), \
+         caplog.at_level(logging.ERROR):
+        await coordinator._async_update_data()
+        assert "Error fetching state" in caplog.text

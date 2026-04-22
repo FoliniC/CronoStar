@@ -386,6 +386,7 @@ export class ChartManager {
     if (this.chart) {
       this.chart.destroy();
     }
+    this.canvas = canvas;
     this.chart = new Chart(canvas, config);
     this._initialized = true;
 
@@ -1193,7 +1194,7 @@ export class ChartManager {
   }
 
   isInitialized() {
-    return this._initialized && !!this.chart;
+    return this._initialized && !!this.chart && this.canvas?.isConnected;
   }
   getChart() {
     return this.chart;

@@ -6,11 +6,7 @@ from homeassistant.const import Platform
 DOMAIN = "cronostar"
 
 # Platforms to set up (entities must be created by the component, not YAML)
-PLATFORMS: list[Platform] = [
-    Platform.SENSOR,
-    Platform.SWITCH,
-    Platform.SELECT,
-]
+PLATFORMS = ["sensor", "switch", "select"]
 
 PARALLEL_UPDATES = 0
 

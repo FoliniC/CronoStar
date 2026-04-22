@@ -74,3 +74,33 @@ class TestOrphanRemoval:
             # Should have triggered removal because TypeError sets is_within_grace=False
             mock_remove.assert_awaited_once()
 
+class TestDashboardContent:
+    def test_dashboard_yaml_content(self, hass, tmp_path):
+        hass.config.path = MagicMock(side_effect=lambda x: str(tmp_path / x))
+        
+        entry = MagicMock()
+        entry.title = "Test Controller"
+        entry.data = {"preset_type": "thermostat", "global_prefix": "p1_"}
+        hass.config_entries.async_entries = MagicMock(return_value=[entry])
+        
+        with patch("custom_components.cronostar.setup.dashboard.build_profile_filename", return_value="test.json"), \
+             patch("pathlib.Path.exists", return_value=True):
+            run(write_dashboard_yaml(hass, "test.yaml"))
+            
+        yaml_path = tmp_path / "test.yaml"
+        assert yaml_path.exists()
+        
+        import yaml
+        with open(yaml_path, encoding="utf-8") as f:
+            content = yaml.safe_load(f)
+            
+        cards = content["views"][0]["cards"]
+        # Index 0: Header
+        # Index 1: Box #1 Inizio blocco
+        # Index 2: Box #1 (The one we added/modified)
+        # Index 3: custom:cronostar-card
+        
+        assert cards[1]["content"] == "--- \n ### Box #1 - Inizio blocco per: **Test Controller**"
+        assert cards[2]["content"] == "### Box #1"
+        assert cards[3]["type"] == "custom:cronostar-card"
+

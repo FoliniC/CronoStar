@@ -7,25 +7,25 @@ import pytest
 pytestmark = pytest.mark.skip(reason="Replaced by test_coverage_fixed.py")
 
 
-def test_save_profile_cache_mtime_error():
+def test_setup_import_fallback():
     pass
 
 
-def test_load_profile_cached_mtime_error():
+async def test_setup_integration_branches():
     pass
 
 
-def test_load_profile_cached_update_mtime_error():
+async def test_storage_manager_misc_fixed():
     pass
 
 
-def test_delete_profile_cache_mtime_error():
+async def test_storage_manager_save_exception_fixed():
     pass
 
 
-def test_list_profiles_normalize_error():
+async def test_coordinator_refresh_exception_fixed():
     pass
 
 
-def test_update_active_profile_mtime_error():
+async def test_coordinator_update_data_exception_fixed():
     pass

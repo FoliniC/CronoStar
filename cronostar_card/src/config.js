@@ -149,10 +149,12 @@ export function validateConfig(config, isLoggingEnabled = false) {
     CARD_CONFIG_PRESETS[presetName] || CARD_CONFIG_PRESETS.thermostat;
   const mergedConfig = { ...DEFAULT_CONFIG, ...presetConfig, ...normalized };
 
-  // ✅ FIX: If the card has a prefix, it's considered configured (even if entities are missing in YAML),
-  // UNLESS it's explicitly marked as not_configured.
-  // Registration will fetch actual metadata from backend.
-  if (normalized.global_prefix && normalized.not_configured !== true) {
+  // ✅ FIX: Force configured status if core fields are present, even if previously marked as not_configured
+  const hasCore = normalized.global_prefix && normalized.target_entity;
+  if (hasCore) {
+    mergedConfig.not_configured = false;
+  } else if (normalized.global_prefix && normalized.not_configured !== true) {
+    // Legacy behavior for prefix-only
     mergedConfig.not_configured = false;
   }
 
@@ -233,6 +235,7 @@ export function extractCardConfig(src = {}) {
     "kb_def_h",
     "kb_def_v",
     "not_configured",
+    "meta",
   ];
   const out = {};
   for (const key of validKeys) {

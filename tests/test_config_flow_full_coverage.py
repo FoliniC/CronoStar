@@ -78,7 +78,7 @@ def test_async_step_success_with_dashboard_calls_add_card(hass):
 
     mock_add.assert_awaited_once()
     assert result["type"] == "create_entry"
-    assert "[v5.9.1]" in result["title"]
+    assert "CronoStar:" in result["title"]
 
 
 def test_async_step_success_without_dashboard_skips_add_card(hass):

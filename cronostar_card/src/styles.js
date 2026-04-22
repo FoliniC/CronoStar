@@ -15,6 +15,7 @@ export const cardStyles = css`
     will-change: transform, width, height, top, left;
     overflow: hidden;
     border: 1px solid var(--divider-color, rgba(128, 128, 128, 0.15)) !important;
+    user-select: text !important;
   }
 
   ha-card.expanded-v.expanded-h {
@@ -157,6 +158,101 @@ export const cardStyles = css`
     gap: 4px;
   }
 
+  /* ── Admin box action buttons ──────────────────────────────────────────
+   * Native <button> elements with a 3D skeuomorphic effect.
+   * ─────────────────────────────────────────────────────────────────── */
+  .cs-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 16px;
+    height: 38px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.1s;
+    background: var(--primary-color, #03a9f4) !important;
+    color: white !important;
+    box-shadow: 0 4px 0 0 #0288d1 !important;
+    letter-spacing: 0.5px;
+  }
+
+  .cs-btn:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 5px 0 0 #0288d1 !important;
+    transform: translateY(-1px);
+  }
+
+  .cs-btn:active {
+    box-shadow: 0 1px 0 0 #0288d1 !important;
+    transform: translateY(3px);
+  }
+
+  .cs-btn ha-icon {
+    --mdc-icon-size: 18px;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));
+    color: white !important;
+  }
+
+  .cs-btn-secondary {
+    background: var(--secondary-background-color, #eeeeee) !important;
+    color: var(--primary-text-color) !important;
+    box-shadow: 0 4px 0 0 var(--divider-color, #cccccc) !important;
+  }
+
+  .cs-btn-secondary:hover {
+    box-shadow: 0 5px 0 0 var(--divider-color, #cccccc) !important;
+  }
+
+  .cs-btn-secondary:active {
+    box-shadow: 0 1px 0 0 var(--divider-color, #cccccc) !important;
+  }
+
+  .cs-btn-secondary ha-icon {
+    color: var(--primary-text-color) !important;
+  }
+
+  .cs-btn-danger {
+    background: #ef4444 !important;
+    color: white !important;
+    box-shadow: 0 4px 0 0 #b91c1c !important;
+  }
+
+  .cs-btn-danger:hover {
+    box-shadow: 0 5px 0 0 #b91c1c !important;
+  }
+
+  .cs-btn-danger:active {
+    box-shadow: 0 1px 0 0 #b91c1c !important;
+  }
+
+  .wizard-fullscreen-admin {
+    /* NOTE: top/left/right/bottom/z-index are applied via inline style in
+     * handleEditConfig() by measuring the actual HA chrome at runtime.
+     * This avoids the flaky --ha-sidebar-width / --header-height CSS variables. */
+    position: fixed !important;
+    margin: 0 !important;
+    border-radius: 12px !important;
+    border: 1px solid var(--divider-color, rgba(255,255,255,0.1)) !important;
+    background: var(--ha-card-background, var(--card-background-color, #1c1c1c)) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+    overflow: hidden !important;
+  }
+
+  .wizard-fullscreen-admin .card-header {
+    padding: 12px 16px !important;
+    background: rgba(255,255,255,0.03) !important;
+    border-bottom: 1px solid var(--divider-color) !important;
+  }
+
   .lang-btn {
     background: none;
     border: 1px solid var(--divider-color);
@@ -212,7 +308,6 @@ export const cardStyles = css`
     flex-grow: 1;
     min-height: 300px;
     display: block;
-    user-select: none;
     outline: none;
     border-radius: 4px;
     overflow: hidden;
@@ -290,12 +385,13 @@ export const cardStyles = css`
     box-shadow: 0 0 0 2px var(--primary-color, #03a9f4);
   }
 
-  /* Preset card grid and 3D outlined style for editor presets */
+  /* Preset card grid - modernized 3D look */
   .preset-cards {
     display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 12px !important;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+    gap: 16px !important;
     margin-top: 16px !important;
+    margin-bottom: 24px !important;
     width: 100% !important;
     box-sizing: border-box !important;
   }
@@ -308,58 +404,73 @@ export const cardStyles = css`
     align-items: center !important;
     justify-content: center !important;
     text-align: center !important;
-    padding: 12px !important;
-    gap: 4px !important;
-    background: var(
-      --ha-card-background,
-      var(--card-background-color, #3c3c3c)
-    ) !important;
-    border-radius: 8px !important;
-    border: 1px solid var(--divider-color, #555) !important;
-    transition: all 0.2s ease !important;
+    padding: 16px 12px !important;
+    gap: 8px !important;
+    background: var(--card-background-color, #2c2c2c) !important;
+    border-radius: 12px !important;
+    border: none !important;
+    transition: all 0.1s ease !important;
     cursor: pointer !important;
     color: var(--primary-text-color, #ffffff) !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    min-height: 100px !important;
+    min-height: 120px !important;
     margin: 0 !important;
+    box-shadow: 0 4px 0 0 rgba(0,0,0,0.3) !important;
+    position: relative !important;
   }
 
   .preset-card .preset-icon {
-    font-size: 1.8rem !important;
-    margin-bottom: 2px !important;
+    font-size: 2rem !important;
+    margin-bottom: 4px !important;
     display: block !important;
-    color: var(--primary-color) !important;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2)) !important;
   }
 
   .preset-card .preset-title {
-    font-weight: 600 !important;
-    font-size: 0.95rem !important;
+    font-weight: 700 !important;
+    font-size: 0.9rem !important;
     margin: 0 !important;
     display: block !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
   }
 
-  .preset-card .preset-description {
-    font-size: 0.75rem !important;
+  .preset-card .preset-hint {
+    font-size: 0.7rem !important;
     color: var(--secondary-text-color, #b0b0b0) !important;
-    line-height: 1.2 !important;
+    line-height: 1.3 !important;
     display: block !important;
+    opacity: 0.8 !important;
   }
 
   .preset-card:hover {
-    background: var(--secondary-background-color, #4a4a4a) !important;
-    border-color: var(--primary-color) !important;
+    background: var(--secondary-background-color, #3a3a3a) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 5px 0 0 rgba(0,0,0,0.3) !important;
   }
 
   .preset-card.selected {
-    border: 2px solid var(--primary-color, #00b0ff) !important;
-    background: var(--ha-card-background, #3c3c3c) !important;
-    box-shadow: 0 0 10px var(--primary-color, rgba(0, 176, 255, 0.5)) !important;
+    background: var(--primary-color, #03a9f4) !important;
+    color: white !important;
+    box-shadow: 0 4px 0 0 #0288d1 !important;
+  }
+
+  .preset-card.selected .preset-hint {
+    color: rgba(255,255,255,0.9) !important;
+  }
+
+  .preset-card:active {
+    transform: translateY(3px) !important;
+    box-shadow: 0 1px 0 0 rgba(0,0,0,0.3) !important;
+  }
+
+  .preset-card.selected:active {
+    box-shadow: 0 1px 0 0 #0288d1 !important;
   }
 
   .preset-card:focus-visible {
-    outline: 3px solid
-      color-mix(in srgb, var(--primary-color, #03a9f4) 18%, transparent 82%);
+    outline: 3px solid var(--primary-color, #03a9f4);
     outline-offset: 2px;
   }
 
@@ -424,7 +535,6 @@ export const cardStyles = css`
     font-size: 2em;
     color: rgba(128, 128, 128, 0.1);
     pointer-events: none;
-    user-select: none;
     z-index: 1;
     white-space: nowrap;
     text-shadow: none;
@@ -438,7 +548,6 @@ export const cardStyles = css`
     font-size: 1.8em;
     color: rgba(0, 128, 255, 0.1);
     pointer-events: none;
-    user-select: none;
     z-index: 1;
     white-space: nowrap;
     text-shadow: none;

@@ -169,12 +169,18 @@ export class Step1Preset {
                   ${this.editor.i18n._t("ui.minimal_config_help")}
                 </div>
                 <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                  <mwc-button raised @click=${() => this._handleSaveAndClose()}>
+                  <mwc-button raised @click=${(e) => {
+                    e.stopPropagation();
+                    this._handleSaveAndClose();
+                  }}>
                     💾 ${this.editor.i18n._t("actions.save_and_close")}
                   </mwc-button>
                   <mwc-button
                     outlined
-                    @click=${() => this._handleAdvancedConfig()}
+                    @click=${(e) => {
+                      e.stopPropagation();
+                      this._handleAdvancedConfig();
+                    }}
                   >
                     ⚙️ ${this.editor.i18n._t("actions.advanced_config")}
                   </mwc-button>

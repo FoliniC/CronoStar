@@ -20,6 +20,7 @@ from ..const import (
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_STEP_VALUE,
+    CONF_TARGET_ENTITY,
     CONF_TITLE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_Y_AXIS_LABEL,
@@ -226,7 +227,7 @@ class ProfileService:
         name = prefix
         base_marker = f"cronostar_{preset}_"
         if name.startswith(base_marker):
-            name = name[len(base_marker) :]
+            name = name[len(base_marker):]
 
         name = name.rstrip("_").replace("_", " ").strip().title()
         if not name:
@@ -319,7 +320,7 @@ class ProfileService:
         )
 
         # Optimization: If we are using a generic prefix and we found multiple containers,
-        # prioritize the one that actually matches the generic prefix (if any) 
+        # prioritize the one that actually matches the generic prefix (if any)
         # to avoid returning a "random" first profile.
         if is_generic_prefix and len(cached) > 1:
             matching_generic = [c for c in cached if c[1].get("meta", {}).get("global_prefix") == prefix_with_underscore]
@@ -532,6 +533,19 @@ class ProfileService:
 
         _LOGGER.debug("[REGISTER] Lovelace Card Connected: ID=%s, Preset=%s, Prefix=%s", card_id, preset, global_prefix)
 
+        # PRESET AUTO-DETECTION: If preset is default "thermostat" but prefix is specific,
+        # try to find the actual preset from storage metadata.
+        if preset == "thermostat" and global_prefix and not global_prefix.startswith("cronostar_thermostat_"):
+            try:
+                all_cached = await self.storage.get_cached_containers(global_prefix=global_prefix)
+                if all_cached:
+                    actual_preset = all_cached[0][1].get("meta", {}).get("preset_type")
+                    if actual_preset and actual_preset != preset:
+                        _LOGGER.info("[REGISTER] Auto-detected actual preset '%s' for prefix '%s' (was '%s')", actual_preset, global_prefix, preset)
+                        preset = actual_preset
+            except Exception as e:
+                _LOGGER.debug("[REGISTER] Preset auto-detection failed: %s", e)
+
         # 1. Load global settings
         global_settings = await self.settings.load_settings()
 
@@ -605,32 +619,72 @@ class ProfileService:
                     entry_data = entry.data
                     break
 
+            # Fetch matching containers for this preset and prefix
+            canonical_preset = normalize_preset_type(preset)
+            prefix_with_underscore = global_prefix if global_prefix.endswith("_") else f"{global_prefix}_"
+
+            # Check if the prefix is a generic default
+            is_generic_prefix = global_prefix in [
+                "cronostar_thermostat_",
+                "cronostar_ev_charging_",
+                "cronostar_generic_switch_",
+                "cronostar_generic_kwh_",
+                "cronostar_generic_temperature_",
+                "cronostar_",
+                "_",
+                "",
+                None,
+            ]
+            lookup_prefix = prefix_with_underscore if not is_generic_prefix else None
+
+            cached = await self.storage.get_cached_containers(
+                preset_type=canonical_preset,
+                global_prefix=lookup_prefix,
+            )
+
             data = await self.get_profile_data(profile_to_load or "Default", preset, global_prefix)
+
+            # Get available profiles for this prefix to help frontend if selector entity is missing/unknown
+            available_profiles = set()
+            for _fname, container in cached:
+                profiles_dict = container.get("profiles", {})
+                if isinstance(profiles_dict, dict):
+                    available_profiles.update(profiles_dict.keys())
+
+            response["available_profiles"] = sorted(list(available_profiles))
 
             if "error" not in data:
                 # OPTIMIZATION: Instead of blindly overwriting data["meta"] with entry_data,
-                # we only fill in MISSING fields. This prevents race conditions where 
+                # we only fill in MISSING fields. This prevents race conditions where
                 # HA hasn't finished updating the ConfigEntry but the JSON file is already correct.
                 if "meta" in data:
                     from ..utils.prefix_normalizer import PRESETS_CONFIG
-                    presets_defaults = PRESETS_CONFIG.get(preset, {})
+                    presets_defaults_internal = PRESETS_CONFIG.get(preset, {})
 
-                    for key in [CONF_TITLE, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_STEP_VALUE, CONF_UNIT_OF_MEASUREMENT, CONF_Y_AXIS_LABEL, CONF_ALLOW_MAX_VALUE]:
+                    # If title is missing or default "Cronostar" (generic), use the preset specific title
+                    if not data["meta"].get(CONF_TITLE) or data["meta"].get(CONF_TITLE) == "CronoStar":
+                        data["meta"][CONF_TITLE] = presets_defaults_internal.get("title", f"CronoStar {preset}")
+
+                    # Sync target_entity if missing in meta but present in entry
+                    if not data["meta"].get("target_entity") and entry_data.get("target_entity"):
+                        data["meta"]["target_entity"] = entry_data.get("target_entity")
+
+                    for key in [CONF_TITLE, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_STEP_VALUE, CONF_UNIT_OF_MEASUREMENT, CONF_Y_AXIS_LABEL, CONF_ALLOW_MAX_VALUE, "target_entity"]:
                         val = entry_data.get(key)
                         if val is not None:
                             # If profile already has a value, only override if the ConfigEntry value
                             # is NOT a default/generic value (meaning it was specifically set in UI)
                             profile_val = data["meta"].get(key)
-                            
+
                             if profile_val is not None:
                                 # Case A: max_value is 100.0 (generic config_flow default)
-                                if key == CONF_MAX_VALUE and val == 100.0 and presets_defaults.get(CONF_MAX_VALUE) != 100.0:
+                                if key == CONF_MAX_VALUE and val == 100.0 and presets_defaults_internal.get(CONF_MAX_VALUE) != 100.0:
                                     continue
                                 # Case A2: min_value is 0.0 (common generic default)
-                                if key == CONF_MIN_VALUE and val == 0.0 and presets_defaults.get(CONF_MIN_VALUE) != 0.0:
+                                if key == CONF_MIN_VALUE and val == 0.0 and presets_defaults_internal.get(CONF_MIN_VALUE) != 0.0:
                                     continue
                                 # Case B: matches preset default (skip override)
-                                preset_def = presets_defaults.get(key if key != CONF_UNIT_OF_MEASUREMENT else "unit")
+                                preset_def = presets_defaults_internal.get(key if key != CONF_UNIT_OF_MEASUREMENT else "unit")
                                 if val == preset_def:
                                     continue
 
@@ -655,6 +709,14 @@ class ProfileService:
         target_ent_check = None
         if response.get("profile_data") and "meta" in response["profile_data"]:
             target_ent_check = response["profile_data"]["meta"].get("target_entity")
+
+        # ROBUST FALLBACK: If profile didn't load or meta is empty, check the ConfigEntry directly
+        if not target_ent_check and global_prefix:
+             for entry in self.hass.config_entries.async_entries(DOMAIN):
+                if entry.data.get("global_prefix") == global_prefix:
+                    target_ent_check = entry.data.get("target_entity")
+                    _LOGGER.info("[REGISTER] Validation fallback: using target_entity '%s' from ConfigEntry", target_ent_check)
+                    break
 
         if not target_ent_check:
             validation_errors.append("Target entity not configured")
@@ -747,14 +809,17 @@ class ProfileService:
             if response.get("profile_data") and "meta" in response["profile_data"]:
                 meta = response["profile_data"]["meta"]
 
-                # Propagate IDs to frontend even if state is missing (registry match is sufficient)
                 if e_id:
-                    _LOGGER.info("[REGISTER] Updating frontend meta: enabled_entity = %s", e_id)
+                    _LOGGER.debug("[REGISTER] Syncing enabled_entity: %s", e_id)
                     meta["enabled_entity"] = e_id
-
                 if sel_id:
-                    _LOGGER.info("[REGISTER] Updating frontend meta: profiles_select_entity = %s", sel_id)
+                    _LOGGER.debug("[REGISTER] Syncing profiles_select_entity: %s", sel_id)
                     meta["profiles_select_entity"] = sel_id
+                if h_id:
+                    _LOGGER.debug("[REGISTER] Syncing current_value_entity: %s", h_id)
+                    meta["current_value_entity"] = h_id
+                    # Backward compatibility for card
+                    meta["sensor_entity"] = h_id
 
         except Exception as e:
             _LOGGER.debug("[REGISTER] Failed to populate entity_states: %s", e)

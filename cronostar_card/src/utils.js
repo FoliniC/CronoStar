@@ -183,23 +183,41 @@ let loggingEnabled = false;
 
 export const Logger = {
   setEnabled: (enabled) => {
+    const wasEnabled = loggingEnabled;
     loggingEnabled = !!enabled;
-    console.log(
-      "[CRONOSTAR] [SYSTEM] Logger.setEnabled called, loggingEnabled is now",
-      loggingEnabled,
-    );
+    if (loggingEnabled) {
+      console.log(
+        "[CRONOSTAR] [SYSTEM] Logger enabled",
+      );
+    } else if (wasEnabled) {
+      console.log(
+        "[CRONOSTAR] [SYSTEM] Logger disabled",
+      );
+    }
   },
   log: (tag, ...args) => {
     if (loggingEnabled) {
       console.log(`[CRONOSTAR] [${tag}]`, ...args);
     }
   },
-  warn: (tag, ...args) => {
+  info: (tag, ...args) => {
     if (loggingEnabled) {
-      console.warn(`[CRONOSTAR] [${tag}]`, ...args);
+      console.info(`[CRONOSTAR] [${tag}]`, ...args);
     }
   },
-  error: (tag, ...args) => console.error(`[CRONOSTAR] [${tag}]`, ...args),
+  debug: (tag, ...args) => {
+    if (loggingEnabled) {
+      console.debug(`[CRONOSTAR] [${tag}]`, ...args);
+    }
+  },
+  warn: (tag, ...args) => {
+    // Warnings are always shown for better troubleshooting
+    console.warn(`[CRONOSTAR] [${tag}]`, ...args);
+  },
+  error: (tag, ...args) => {
+    // Errors are always shown
+    console.error(`[CRONOSTAR] [${tag}]`, ...args);
+  },
 
   state: (...args) => Logger.log("STATE", ...args),
   load: (...args) => Logger.log("LOAD", ...args),

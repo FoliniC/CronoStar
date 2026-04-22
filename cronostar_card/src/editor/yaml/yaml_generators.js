@@ -2,9 +2,10 @@
  * YAML template generation for CronoStar manual setup
  */
 import { getEffectivePrefix } from "../../utils/prefix_utils.js";
+import { Logger } from "../../utils.js";
 
 export function buildAutomationTemplate(config) {
-  console.log("[yaml_generators] buildAutomationTemplate config:", config);
+  Logger.log("UI", "buildAutomationTemplate config:", config);
   const prefix = getEffectivePrefix(config);
   const preset = config.preset_type || config.preset || "thermostat";
   const target = config.target_entity || "your_entity_id";
@@ -53,6 +54,6 @@ actions:
             data:
               option: "Default"
 `.trim();
-  console.log("[yaml_generators] Generated YAML:", yaml_string);
+  Logger.log("UI", "Generated YAML:", yaml_string);
   return yaml_string;
 }
