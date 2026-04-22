@@ -91,3 +91,10 @@ github_ssh_key.pub
 *.txt
 *.csv
 junk/
+backups/
+very_final_*.md
+commit_*.md
+git_*.md
+frontend_test_output*.md
+test_output*.md
+coverage_summary.md

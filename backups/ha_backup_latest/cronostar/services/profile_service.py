@@ -179,19 +179,19 @@ class ProfileService:
 #                        new_data["target_entity"] = meta["target_entity"]
 #                        changed = True
 
-                    # Update card configuration fields if present in meta
-                    for field in [
-                        CONF_TITLE,
-                        CONF_MIN_VALUE,
-                        CONF_MAX_VALUE,
-                        CONF_STEP_VALUE,
-                        CONF_UNIT_OF_MEASUREMENT,
-                        CONF_Y_AXIS_LABEL,
-                        CONF_ALLOW_MAX_VALUE,
-                    ]:
-                        if field in meta and entry.data.get(field) != meta[field]:
-                            new_data[field] = meta[field]
-                            changed = True
+                # Update card configuration fields if present in meta
+                for field in [
+                    CONF_TITLE,
+                    CONF_MIN_VALUE,
+                    CONF_MAX_VALUE,
+                    CONF_STEP_VALUE,
+                    CONF_UNIT_OF_MEASUREMENT,
+                    CONF_Y_AXIS_LABEL,
+                    CONF_ALLOW_MAX_VALUE,
+                ]:
+                    if field in meta and entry.data.get(field) != meta[field]:
+                        new_data[field] = meta[field]
+                        changed = True
 
                     if changed:
                         _LOGGER.info("Updating Config Entry for '%s' with new metadata", effective_prefix)
