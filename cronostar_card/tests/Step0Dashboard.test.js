@@ -80,13 +80,13 @@ describe("Step0Dashboard", () => {
   it("renders loading state", () => {
     editor._dashboardLoading = true;
     const res = step.render();
-    expect(res.toString()).toContain("Loading controllers");
+    expect(res.toString()).toContain("ui.dashboard_loading");
   });
 
   it("renders empty state", () => {
     editor._dashboardProfilesData = {};
     const res = step.render();
-    expect(res.toString()).toContain("No controllers found");
+    expect(res.toString()).toContain("ui.dashboard_no_controllers");
   });
 
   it("renders profiles list with validation issues", () => {
@@ -107,18 +107,18 @@ describe("Step0Dashboard", () => {
   it("renders validation issues in Italian", () => {
     editor._language = "it";
     editor._dashboardProfilesData = {
-      thermostat: {
+      p1: {
         files: [{
           global_prefix: "p1_",
           meta: { title: "T1", target_entity: "climate.1" },
-          profiles: ["Default"],
+          profiles: [{}],
           validation: { valid: false, errors: ["ERRORE_TEST"] }
         }]
       }
     };
     const res = step.render();
     expect(res.toString()).toContain("ERRORE_TEST");
-    expect(res.toString()).toContain("⚠️ Problemi rilevati:");
+    expect(res.toString()).toContain("ui.dashboard_issues");
   });
 
   it("triggers reset config from new configuration button value function", () => {
@@ -235,7 +235,7 @@ describe("Step0Dashboard", () => {
         meta: {},
       });
       expect(editor.showToast).toHaveBeenCalledWith(
-        expect.stringContaining("fail"),
+        expect.stringContaining("ui.dashboard_delete_error"),
         true,
       );
       expect(editor._dashboardLoading).toBe(false);
@@ -248,7 +248,7 @@ describe("Step0Dashboard", () => {
         global_prefix: "p_",
         meta: {},
       });
-      expect(editor.showToast).toHaveBeenCalledWith("Controller eliminato", false);
+      expect(editor.showToast).toHaveBeenCalledWith("ui.dashboard_deleted", false);
     });
 
     it("covers delayed reload callback after delete success", async () => {
@@ -361,7 +361,7 @@ describe("Step0Dashboard", () => {
       },
     };
     const res = step._renderProfilesList();
-    expect(res.toString()).toContain("Configurazione Attiva");
+    expect(res.toString()).toContain("ui.dashboard_active");
   });
 
   it("constructor scheduled loadAllProfiles callback safely runs even if it throws", () => {

@@ -36,6 +36,7 @@ def mock_coordinator(hass):
 
 def test_select_entity(hass, mock_coordinator):
     """Test profile select entity."""
+    mock_coordinator.last_update_success = True
     entity = CronoStarProfileSelect(mock_coordinator)
     
     assert entity.options == ["Default", "Comfort"]
@@ -51,6 +52,7 @@ def test_select_entity(hass, mock_coordinator):
     assert entity.available is True
     
     hass.states.async_set("climate.test", STATE_UNAVAILABLE)
+    mock_coordinator.last_update_success = False
     assert entity.available is False
 
 def test_sensor_entity(hass, mock_coordinator):
@@ -63,6 +65,7 @@ def test_sensor_entity(hass, mock_coordinator):
     
     # Test availability
     hass.states.async_set("climate.test", "heat")
+    mock_coordinator.last_update_success = True
     assert entity.available is True
     
     # Test different presets

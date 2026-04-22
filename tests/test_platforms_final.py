@@ -22,11 +22,13 @@ def mock_coordinator(hass, mock_entry):
     coordinator.hass = hass
     coordinator.entry = mock_entry
     coordinator.prefix = "p1_"
+    coordinator.last_update_success = True
     coordinator.name = "Test"
     coordinator.preset_type = "thermostat"
     coordinator.target_entity = "climate.target"
     coordinator.logging_enabled = True
-    coordinator.data = {
+    coordinator.last_update_success = True
+    mock_coordinator.data = {
         "current_value": 21.5,
         "selected_profile": "Summer",
         "is_enabled": True,
@@ -91,12 +93,15 @@ def test_sensor_full(mock_coordinator, hass, mock_entry):
     assert sensor_none._attr_translation_key == "current_value_temp" # Defaults to thermostat
     
     # native_value
+    mock_coordinator.last_update_success = True
     mock_coordinator.data = {"current_value": 10.5}
     assert sensor.native_value == 10.5
+    mock_coordinator.last_update_success = True
     mock_coordinator.data = None
     assert sensor.native_value == 0.0
     
     # extra_state_attributes
+    mock_coordinator.last_update_success = True
     mock_coordinator.data = {
         "selected_profile": "P1",
         "is_enabled": False,
@@ -107,6 +112,7 @@ def test_sensor_full(mock_coordinator, hass, mock_entry):
     assert attrs["is_enabled"] is False
     assert attrs[CONF_TITLE] == "T"
     
+    mock_coordinator.last_update_success = True
     mock_coordinator.data = None
     assert sensor.extra_state_attributes["active_profile"] == "Default"
     
@@ -114,6 +120,7 @@ def test_sensor_full(mock_coordinator, hass, mock_entry):
     hass.states.get = MagicMock(return_value=MagicMock(state="heat"))
     assert sensor.available is True
     hass.states.get = MagicMock(return_value=None)
+    mock_coordinator.last_update_success = False
     assert sensor.available is False
 
 # --- SELECT TESTS ---
@@ -121,6 +128,7 @@ def test_sensor_full(mock_coordinator, hass, mock_entry):
 def test_select_full(mock_coordinator, hass, mock_entry):
     """Test select properties and branches."""
     mock_entry.runtime_data = mock_coordinator
+    mock_coordinator.data = {"available_profiles": ["Summer"], "selected_profile": "Summer"}
     async_add_entities = MagicMock()
     run(async_setup_select(hass, mock_entry, async_add_entities))
     select = async_add_entities.call_args[0][0][0]
@@ -129,6 +137,7 @@ def test_select_full(mock_coordinator, hass, mock_entry):
     assert "Summer" in select.options
     assert select.current_option == "Summer"
     
+    mock_coordinator.last_update_success = True
     mock_coordinator.data = None
     assert select.options == ["Default"]
     assert select.current_option == "Default"

@@ -1,10 +1,10 @@
 import { html } from "lit";
-import { CARD_CONFIG_PRESETS } from "../../config.js";
 import {
   getEffectivePrefix,
   isValidPrefix,
   normalizePrefix,
 } from "../../utils/prefix_utils.js";
+import { CARD_CONFIG_PRESETS } from "../../config.js";
 
 export class Step1Preset {
   constructor(editor) {
@@ -12,39 +12,10 @@ export class Step1Preset {
   }
 
   render() {
-    const list = [
-      {
-        id: "thermostat",
-        icon: "🌡️",
-        title: "Thermostat",
-        desc: "Schedule hourly temperatures for heating/cooling",
-      },
-      {
-        id: "ev_charging",
-        icon: "🔌",
-        title: "EV Charging",
-        desc: "Schedule EV charging power",
-      },
-      {
-        id: "generic_kwh",
-        icon: "⚡",
-        title: "Generic kWh",
-        desc: "Schedule hourly energy limits (0-7 kWh)",
-      },
-      {
-        id: "generic_temperature",
-        icon: "🌡️",
-        title: "Generic Temperature",
-        desc: "Schedule generic temperatures (0-40°C)",
-      },
-      {
-        id: "generic_switch",
-        icon: "💡",
-        title: "Generic switch",
-        desc: "Schedule device on/off",
-      },
-    ];
-
+    const list = Object.entries(CARD_CONFIG_PRESETS).map(([id, cfg]) => ({
+      id,
+      ...cfg,
+    }));
     const currentPrefix =
       this.editor._config.global_prefix ||
       getEffectivePrefix(this.editor._config);
@@ -147,26 +118,16 @@ export class Step1Preset {
             @input=${(e) => this._handlePrefixChange(e.target.value, e)}
             @change=${() => this.editor._dispatchConfigChanged(true)}
           ></ha-textfield>
-
-          <div style="margin-top: 12px;">
-            ${prefixValid
-              ? html`<div style="color: #4ade80; font-weight: 500;">
-                  ✅ ${this.editor.i18n._t("ui.prefix_ok")}
-                </div>`
-              : html`<div style="color: #ef4444; font-weight: 500;">
-                  ❌ ${this.editor.i18n._t("ui.prefix_bad")}
-                </div>`}
-          </div>
         </div>
 
         ${minimalConfigComplete
           ? html`
-              <div class="success-box">
+              <div class="info-box success" style="margin-top: 24px;">
                 <div style="font-weight: 800; font-size: 1.1rem; margin-bottom: 8px;">
-                  ✅ ${this.editor.i18n._t("ui.minimal_config_complete")}
+                  ✅ ${this.editor.i18n._t("ui.minimal_config_ok")}
                 </div>
-                <div style="margin-bottom: 20px;">
-                  ${this.editor.i18n._t("ui.minimal_config_help")}
+                <div style="margin-bottom: 16px;">
+                  ${this.editor.i18n._t("ui.minimal_config_next")}
                 </div>
                 <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                   <mwc-button raised @click=${(e) => {
@@ -209,13 +170,17 @@ export class Step1Preset {
       generic_temperature: "generic_temperature",
       generic_switch: "generic_switch",
     };
+
     const tag = tags[presetId] || presetId;
     const newPrefix = `cronostar_${tag}_`;
 
     this.editor._updateConfig("preset_type", presetId);
-    
-    // Only update prefix if it's currently generic or empty
-    if (!config.global_prefix || config.global_prefix.startsWith("cronostar_")) {
+
+    // Update prefix and entities if they are standard/default
+    const currentPrefix =
+      config.global_prefix || getEffectivePrefix(config) || "";
+
+    if (!currentPrefix || currentPrefix.startsWith("cronostar_")) {
       this.editor._updateConfig("global_prefix", newPrefix);
     }
 
@@ -227,9 +192,14 @@ export class Step1Preset {
       );
     };
 
-    // Only apply default entities if they are CURRENTLY EMPTY or standard defaults
-    if (!config.enabled_entity || isStandard(config.enabled_entity, "enabled")) {
-      this.editor._updateConfig("enabled_entity", `switch.${newPrefix}enabled`);
+    if (
+      !config.enabled_entity ||
+      isStandard(config.enabled_entity, "enabled")
+    ) {
+      this.editor._updateConfig(
+        "enabled_entity",
+        `switch.${newPrefix || "cronostar_"}enabled`,
+      );
     }
     if (
       !config.profiles_select_entity ||
@@ -238,7 +208,24 @@ export class Step1Preset {
     ) {
       this.editor._updateConfig(
         "profiles_select_entity",
-        `select.${newPrefix}current_profile`,
+        `select.${newPrefix || "cronostar_"}current_profile`,
+      );
+    }
+
+    if (presetId === "generic_switch") {
+      this.editor._updateConfig("is_switch_preset", true);
+      this.editor._updateConfig("y_axis_label", "State");
+    } else if (presetId === "generic_temperature" || presetId === "thermostat") {
+      this.editor._updateConfig("is_switch_preset", false);
+      this.editor._updateConfig("y_axis_label", "Temperature");
+    }
+
+    // Update title based on prefix if it's new
+    let titleBase = (newPrefix || "").replace(/_+$/, "").replace(/_/g, " ").trim();
+    if (titleBase) {
+      this.editor._updateConfig(
+        "title",
+        titleBase.charAt(0).toUpperCase() + titleBase.slice(1),
       );
     }
 
@@ -277,7 +264,6 @@ export class Step1Preset {
 
     const presetId = editor._selectedPreset || "thermostat";
     const presetConfig = CARD_CONFIG_PRESETS[presetId];
-    const baseTitle = presetConfig ? presetConfig.title : "CronoStar Schedule";
 
     let titleBase = normalized.replace(/_+$/, "").replace(/_/g, " ").trim();
     if (titleBase) {

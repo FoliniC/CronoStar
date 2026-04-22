@@ -11,12 +11,33 @@ Easily add time-based schedules to any entity.
 
 ![CronoStar](custom_components/cronostar/www/cronostar_card/cronostar-logo.png)
 
+## 📊 Administration & Dashboard
+
+CronoStar now features a centralized **Admin Dashboard** designed for easy management of all your schedules.
+
+![CronoStar Dashboard](docs/images/admin_dashboard.png)
+
+### 🛠️ Creating a Controller
+There are three ways to add a new CronoStar Controller to your system:
+
+1.  **Centralized Dashboard**: Open the editor on any existing CronoStar card and navigate to the **Dashboard (Step 0)**. From here, you can click "New Configuration" to start the wizard for a brand new controller.
+2.  **Lovelace Card Wizard**: Add a new `custom:cronostar-card` to any Lovelace view. If the card is empty, it will automatically launch the **Visual Wizard** to help you create a new configuration.
+
+![CronoStar Wizard](docs/images/wizard_setup.png)
+
+3.  **Config Flow**: Go to **Settings** → **Devices & Services** → **Add Integration** and search for **CronoStar**. This will initiate the standard Home Assistant configuration flow to set up a new instance.
+    *   *Note: Use the **Options Flow** (Configure button on an existing entry) to modify parameters of an already created controller.*
+
 ## 🎯 What's New in v6.1.1
+
+### 📊 Enhanced Admin Hub
+- **Unified Management**: The new Dashboard (Step 0) allows you to monitor all active controllers, their status, and their target entities from a single view.
+- **Improved Setup Flow**: Refined the distinction between the Initial Setup (**Config Flow**) and subsequent adjustments (**Options Flow**), ensuring a seamless experience regardless of where you start.
+- **Translation Boost**: Full English and Italian support for all new dashboard components and wizard steps.
 
 ### 🧪 Internationalized Test Suite
 - **English Test Descriptions**: Translated all Italian test descriptions and comments to English across the entire frontend test suite (Vitest).
 - **Standardized Terminology**: Unified testing language to follow industry standards ("should return...", "renders...").
-- **Improved Maintainability**: Better accessibility for international contributors and improved clarity in CI/CD reports.
 
 ## 🎯 What's New in v6.1.0
 
@@ -24,27 +45,6 @@ Easily add time-based schedules to any entity.
 - **Conditional Chart Loading**: Added a toggle button for each controller to show/hide the programming chart. This prevents browser overload by loading heavy graphical components only when needed.
 - **Permanent Admin View**: The compact textual information (Admin Mode) remains always visible for quick status checks.
 - **Automatic Helper Integration**: The dashboard now automatically manages visibility states via dedicated `input_boolean` entities.
-
-## 🎯 What's New in v6.0.2
-
-### 🧪 Improved Test Coverage & Reliability
-- **Robust Lifecycle Testing**: Fixed edge cases in component startup and entity missing warnings.
-- **Enhanced Event Handlers**: Expanded test suite for profile management and manual apply actions.
-- **New Editor Tests**: Added unit tests for the visual configuration wizard.
-- **Continuous Integration**: Optimized vitest configuration for better reliability in CI environments.
-
-## 🎯 What's New in v5.3
-
-### 🪄 Refactored Architecture
-- **Native Entity Integration**: Now uses standard Config Entries and Data Update Coordinators.
-- **No More YAML Generation**: Automatic management of schedules without external packages or automations.
-- **Component Dashboard**: View and manage all existing profiles and presets from a central hub in the card editor.
-
-### 🔧 Dynamic Point Management & History
-- **Undo/Redo Support**: Easily revert or re-apply changes (Ctrl+Z / Ctrl+Y).
-- **Time-based points**: Points can be at any time (HH:MM), not limited to hourly slots.
-- **Sparse Storage**: Only saves points where values change, optimizing storage and performance.
-- **Interpolation**: Automatically calculates smooth transitions between scheduled points.
 
 ## ✨ Features
 

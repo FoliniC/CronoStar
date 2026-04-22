@@ -119,7 +119,10 @@ def test_save_profile_with_backup(tmp_path):
     with patch(
         "custom_components.cronostar.storage.storage_manager.build_profile_filename",
         return_value=filename,
-    ):
+    ), patch(
+        "custom_components.cronostar.storage.storage_manager.dt_util.now"
+    ) as mock_now:
+        mock_now.return_value.strftime.return_value = "20240101_120000"
         ok = run(storage.save_profile(
             profile_name="Comfort",
             preset_type="thermostat",
@@ -701,8 +704,11 @@ def test_write_json_exception_propagates(tmp_path):
 # _create_backup e _cleanup_old_backups
 # ---------------------------------------------------------------------------
 
-def test_create_backup_creates_file(tmp_path):
+@patch("custom_components.cronostar.storage.storage_manager.dt_util.now")
+def test_create_backup_creates_file(mock_now, tmp_path):
     """Test che _create_backup crei il file di backup."""
+    from datetime import datetime
+    mock_now.return_value = datetime(2023, 1, 1, 12, 0, 0)
     hass = _make_hass(tmp_path)
     storage = _make_storage(hass, tmp_path, enable_backups=True)
 

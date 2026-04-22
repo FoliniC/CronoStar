@@ -18,10 +18,12 @@ def mock_coordinator(hass, mock_entry):
     coordinator.hass = hass
     coordinator.entry = mock_entry
     coordinator.prefix = "p1_"
+    coordinator.last_update_success = True
     coordinator.name = "Test Controller"
     coordinator.preset_type = "thermostat"
     coordinator.target_entity = "climate.target"
     coordinator.logging_enabled = True
+    coordinator.last_update_success = True
     coordinator.data = {"is_enabled": True}
     coordinator.set_enabled = AsyncMock()
     return coordinator
@@ -49,8 +51,10 @@ def test_switch_entity_properties(mock_coordinator):
     
     # is_on
     assert switch.is_on is True
+    mock_coordinator.last_update_success = True
     mock_coordinator.data = {"is_enabled": False}
     assert switch.is_on is False
+    mock_coordinator.last_update_success = True
     mock_coordinator.data = None
     assert switch.is_on is True # Default True when no data
     
@@ -92,14 +96,17 @@ def test_switch_availability(mock_coordinator, hass):
     # But we can set it to a different entity or use a new one.
     
     mock_coordinator.target_entity = "climate.missing"
+    mock_coordinator.last_update_success = False
     assert switch.available is False
     
     # Target entity unknown
     mock_coordinator.target_entity = "climate.unknown"
     hass.states.async_set("climate.unknown", "unknown")
+    mock_coordinator.last_update_success = False
     assert switch.available is False
     
     # Target entity unavailable
     mock_coordinator.target_entity = "climate.unavailable"
     hass.states.async_set("climate.unavailable", "unavailable")
+    mock_coordinator.last_update_success = False
     assert switch.available is False

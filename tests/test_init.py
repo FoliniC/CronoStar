@@ -176,6 +176,7 @@ def test_async_setup_entry_controller_success(hass):
     ), patch("custom_components.cronostar.CronoStarCoordinator") as mock_cls:
         mock_coord = mock_cls.return_value
         mock_coord.async_initialize = AsyncMock()
+        mock_coord.async_config_entry_first_refresh = AsyncMock()
 
         success = run(async_setup_entry(hass, entry))
         assert success is True
@@ -194,6 +195,7 @@ def test_async_setup_entry_controller_title_cleaning(hass):
         return_value=_make_integration_mock("2.0.0"),
     ), patch("custom_components.cronostar.CronoStarCoordinator") as mock_cls:
         mock_cls.return_value.async_initialize = AsyncMock()
+        mock_cls.return_value.async_config_entry_first_refresh = AsyncMock()
         run(async_setup_entry(hass, entry))
         hass.config_entries.async_update_entry.assert_called_with(entry, title="Kitchen")
 
@@ -222,6 +224,7 @@ def test_async_setup_entry_controller_legacy_preset_migration(hass):
         return_value=_make_integration_mock("1.0.0"),
     ), patch("custom_components.cronostar.CronoStarCoordinator") as mock_cls:
         mock_cls.return_value.async_initialize = AsyncMock()
+        mock_cls.return_value.async_config_entry_first_refresh = AsyncMock()
         success = run(async_setup_entry(hass, entry))
 
     hass.config_entries.async_update_entry.assert_called()
@@ -259,6 +262,7 @@ def test_async_setup_entry_controller_lazy_global_init(hass):
         return_value=True,
     ), patch("custom_components.cronostar.CronoStarCoordinator") as mock_cls:
         mock_cls.return_value.async_initialize = AsyncMock()
+        mock_cls.return_value.async_config_entry_first_refresh = AsyncMock()
         success = run(async_setup_entry(hass, entry))
         assert success is True
         assert hass.data[DOMAIN].get("_global_setup_done") is True
@@ -569,8 +573,8 @@ async def test_repair_skips_non_matching_files(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_repair_skips_file_without_prefix(tmp_path):
-    """Files whose meta lacks global_prefix are skipped."""
+async def test_repair_creates_entry_from_filename_when_prefix_missing(tmp_path):
+    """Files whose meta lacks global_prefix use fallback prefix from filename."""
     profiles_dir = tmp_path / "cronostar"
     profiles_dir.mkdir(parents=True)
 
@@ -582,7 +586,7 @@ async def test_repair_skips_file_without_prefix(tmp_path):
 
     hass = _make_hass_for_repair(profiles_dir)
     await _async_repair_entries(hass)
-    hass.config_entries.flow.async_init.assert_not_called()
+    hass.config_entries.flow.async_init.assert_called_once()
 
 
 @pytest.mark.asyncio

@@ -85,13 +85,8 @@ export class Step0Dashboard {
     const meta = fileInfo.meta || {};
     const prefix = fileInfo.global_prefix || meta.global_prefix;
     const preset = meta.preset_type || meta.preset || "thermostat";
-    const isIt = this.editor._language === "it";
 
-    const confirmMsg = isIt
-      ? "Sei sicuro di voler eliminare questo controller? Questa azione non può essere annullata."
-      : "Are you sure you want to delete this controller? This cannot be undone.";
-
-    if (!confirm(confirmMsg)) {
+    if (!confirm(this.editor.i18n._t("ui.dashboard_delete_confirm"))) {
       return;
     }
 
@@ -104,10 +99,7 @@ export class Step0Dashboard {
         preset_type: preset,
       });
 
-      this.editor.showToast(
-        isIt ? "Controller eliminato" : "Controller deleted",
-        false,
-      );
+      this.editor.showToast(this.editor.i18n._t("ui.dashboard_deleted"), false);
 
       // Reload list
       setTimeout(() => {
@@ -116,8 +108,7 @@ export class Step0Dashboard {
     } catch (e) {
       console.error("Failed to delete controller:", e);
       this.editor.showToast(
-        (isIt ? "Errore eliminazione: " : "Failed to delete controller: ") +
-          e.message,
+        this.editor.i18n._t("ui.dashboard_delete_error") + e.message,
         true,
       );
       this.editor._dashboardLoading = false;
@@ -170,13 +161,11 @@ export class Step0Dashboard {
       if (pData.files) allFiles.push(...pData.files);
     });
 
-    const isIt = this.editor._language === "it";
-
     if (allFiles.length === 0) {
       return html`
         <div class="info-box">
           <p>
-            ℹ️ ${isIt ? "Nessun controller trovato. Clicca 'Nuova configurazione' sotto per iniziare." : "No controllers found. Click 'New Configuration' below to start."}
+            ℹ️ ${this.editor.i18n._t("ui.dashboard_no_controllers")}
           </p>
         </div>
       `;
@@ -202,24 +191,39 @@ export class Step0Dashboard {
                 Profiles: ${fileInfo.profiles?.length || 0}
               </div>
 
-              ${!validInfo.valid && validInfo.errors && validInfo.errors.length > 0 ? html`
-                <div class="validation-errors">
-                  <strong>${isIt ? "⚠️ Problemi rilevati:" : "⚠️ Validation issues:"}</strong>
-                  <ul style="margin: 4px 0; padding-left: 18px; font-size: 11px;">
-                    ${validInfo.errors.map(err => html`<li>${err}</li>`)}
-                  </ul>
-                </div>
-              ` : ""}
+              ${!validInfo.valid &&
+              validInfo.errors &&
+              validInfo.errors.length > 0
+                ? html`
+                    <div class="validation-errors">
+                      <strong>${this.editor.i18n._t("ui.dashboard_issues")}</strong>
+                      <ul style="margin: 4px 0; padding-left: 18px; font-size: 11px;">
+                        ${validInfo.errors.map((err) => html`<li>${err}</li>`)}
+                      </ul>
+                    </div>
+                  `
+                : ""}
 
               <div class="cc-footer">
-                ${validInfo.valid 
-                  ? html`<span class="badge badge-success">${isIt ? "Configurazione Attiva" : "Active"}</span>`
-                  : html`<span class="badge badge-danger">${isIt ? "Incompleto" : "Incomplete"}</span>`}
-                <mwc-button class="btn btn-sm" style="margin-left:auto" @click=${() => this._handleEditControllerConfig(fileInfo)}>
-                  ${isIt ? "Configura" : "Configure"}
+                ${validInfo.valid
+                  ? html`<span class="badge badge-success"
+                      >${this.editor.i18n._t("ui.dashboard_active")}</span
+                    >`
+                  : html`<span class="badge badge-danger"
+                      >${this.editor.i18n._t("ui.dashboard_incomplete")}</span
+                    >`}
+                <mwc-button
+                  class="btn btn-sm"
+                  style="margin-left:auto"
+                  @click=${() => this._handleEditControllerConfig(fileInfo)}
+                >
+                  ${this.editor.i18n._t("actions.edit_config")}
                 </mwc-button>
-                <mwc-button class="btn btn-sm btn-danger" @click=${() => this._handleDeleteController(fileInfo)}>
-                  ${isIt ? "Elimina" : "Delete"}
+                <mwc-button
+                  class="btn btn-sm btn-danger"
+                  @click=${() => this._handleDeleteController(fileInfo)}
+                >
+                  ${this.editor.i18n._t("actions.delete_profile")}
                 </mwc-button>
               </div>
             </div>
@@ -230,14 +234,17 @@ export class Step0Dashboard {
   }
 
   render() {
-    const isIt = this.editor._language === "it";
     return html`
       <div class="step-content">
         <div class="step-header">${this.editor.i18n._t("headers.step0")}</div>
-        <div class="step-description">${isIt ? "Gestisci i controller esistenti o creane uno nuovo." : "Manage existing controllers or create a new one."}</div>
+        <div class="step-description">
+          ${this.editor.i18n._t("ui.dashboard_manage")}
+        </div>
 
         ${this.editor._dashboardLoading
-          ? html`<div class="info-box">${isIt ? "Caricamento controller..." : "Loading controllers..."}</div>`
+          ? html`<div class="info-box">
+              ${this.editor.i18n._t("ui.dashboard_loading")}
+            </div>`
           : this._renderProfilesList()}
 
         <div class="divider"></div>
@@ -245,8 +252,12 @@ export class Step0Dashboard {
         <div class="new-btn" @click=${() => this.editor._handleResetConfig()}>
           <div class="new-btn-icon">+</div>
           <div>
-            <div style="font-weight: 500; color: var(--primary-text-color);">${isIt ? "Nuova configurazione" : "New configuration"}</div>
-            <div style="font-size: 11px; margin-top: 2px;">${isIt ? "Crea un controller da zero" : "Create a controller from scratch"}</div>
+            <div style="font-weight: 500; color: var(--primary-text-color);">
+              ${this.editor.i18n._t("ui.new_config_title")}
+            </div>
+            <div style="font-size: 11px; margin-top: 2px;">
+              ${this.editor.i18n._t("ui.new_config_desc")}
+            </div>
           </div>
         </div>
       </div>

@@ -608,6 +608,9 @@ describe("CronoStarEditor – 100% coverage", () => {
     expect(style?.textContent).toContain("display: none");
     editor._step = 4;
     editor._updateSaveButtonVisibility();
+    expect(style?.textContent).toContain("display: none"); // It hides for 0-5
+    editor._step = 6;
+    editor._updateSaveButtonVisibility();
     expect(style?.textContent).toBe("");
   });
 
@@ -1158,9 +1161,10 @@ describe("CronoStarEditor – 100% coverage", () => {
     editor._initialized = true;
     const tpl = editor._renderWizardActions();
     const handlers = collectFunctions(tpl);
-    handlers[0](); // back → _prevStep
+    const mockEv = { stopPropagation: vi.fn() };
+    handlers[0](mockEv); // back → _prevStep
     expect(editor.wizard._prevStep).toHaveBeenCalled();
-    handlers[1](); // next → _handleNextClick → _nextStep (canGoNext=true by default for step>1)
+    handlers[1](mockEv); // next → _handleNextClick → _nextStep (canGoNext=true by default for step>1)
   });
 
   it("_renderWizardActions: step=5 – finish button calls _handleFinishClick({force:true})", async () => {
@@ -1168,8 +1172,9 @@ describe("CronoStarEditor – 100% coverage", () => {
     const finishSpy = vi.spyOn(editor, "_handleFinishClick").mockResolvedValue();
     const tpl = editor._renderWizardActions();
     const handlers = collectFunctions(tpl);
+    const mockEv = { stopPropagation: vi.fn() };
     // back + finish
-    handlers[1]?.(); // finish handler
+    handlers[1]?.(mockEv); // finish handler
     expect(finishSpy).toHaveBeenCalledWith({ force: true });
   });
 

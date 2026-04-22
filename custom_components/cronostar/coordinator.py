@@ -216,11 +216,11 @@ class CronoStarCoordinator(DataUpdateCoordinator):
                     if self.logging_enabled:
                         _LOGGER.info("Refreshed profiles for '%s': %s", self.name, self.available_profiles)
 
-            # Trigger first update immediately to populate state for entities
-            await self.async_refresh()
-
         except Exception as e:  # noqa: BLE001
             _LOGGER.warning("Error during initialization of '%s': %s", self.name, e)
+
+        # Trigger first update immediately to populate state for entities
+        await self.async_refresh()
 
     async def set_profile(self, profile_name: str):
         """Set the active profile and apply immediately."""

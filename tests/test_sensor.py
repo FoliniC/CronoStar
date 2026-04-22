@@ -11,12 +11,14 @@ def run(coro):
 
 def test_sensor_entity(hass, mock_coordinator):
     """Test sensor entity properties."""
+    mock_coordinator.last_update_success = True
     mock_coordinator.data = {
         "current_value": 21.5,
         "selected_profile": "Default",
         "is_enabled": True
     }
     mock_coordinator.preset_type = "thermostat"
+    mock_coordinator.last_update_success = True
     mock_coordinator.prefix = "cronostar_thermostat_test_"
     mock_coordinator.target_entity = "climate.test_thermostat"
 
@@ -43,6 +45,7 @@ def test_sensor_availability(hass, mock_coordinator):
 
     # Target missing
     hass.states.get.side_effect = lambda eid: None
+    mock_coordinator.last_update_success = False
     assert sensor.available is False
 
 def test_sensor_types(hass, mock_coordinator):

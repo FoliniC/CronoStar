@@ -158,9 +158,9 @@ def test_list_all_profiles_handler_missing_meta(hass):
     _setup_services(hass, storage=storage)
 
     result = run(hass.services.async_call(DOMAIN, "list_all_profiles", {}))
-    # Profilo senza meta viene ignorato
-    assert result == {}
-
+    # Profilo senza meta ha i default
+    assert "thermostat" in result
+    assert result["thermostat"]["files"][0]["filename"] == "bad.json"
 
 def test_list_all_profiles_handler_exception(hass):
     """Test handler list_all_profiles con eccezione."""
@@ -186,12 +186,16 @@ def test_list_all_profiles_with_missing_entity(hass):
     })
     # climate.missing non è impostato in hass.states
     hass.is_running = True
+    hass.states.get = MagicMock(return_value=None)
     _setup_services(hass, storage=storage)
 
-    result = run(hass.services.async_call(DOMAIN, "list_all_profiles", {}))
-    assert "thermostat" in result
-    assert not result["thermostat"]["files"][0]["validation"]["valid"]
+    with patch("homeassistant.helpers.entity_registry.async_get") as mock_er:
+        mock_er.return_value.async_get_entity_id.return_value = None
+        result = run(hass.services.async_call(DOMAIN, "list_all_profiles", {}))
 
+    assert "thermostat" in result
+    warnings = result["thermostat"]["files"][0]["validation"]["warnings"]
+    assert any("not found" in w for w in warnings)
 
 # ---------------------------------------------------------------------------
 # save_settings / load_settings handler

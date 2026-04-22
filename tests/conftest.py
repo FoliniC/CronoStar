@@ -39,6 +39,7 @@ class DataUpdateCoordinator:
         self.name = name
         self.update_interval = update_interval
         self.data = None
+        self.last_update_success = True
 
     async def async_refresh(self):
         pass

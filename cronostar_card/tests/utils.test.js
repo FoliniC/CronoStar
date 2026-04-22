@@ -278,18 +278,16 @@ describe("Logger", () => {
     expect(logSpy).toHaveBeenCalledWith("[CRONOSTAR] [TAG]", "msg");
   });
 
-  it("warn is silent when disabled", () => {
+  it("warn always logs regardless of enabled state", () => {
     Logger.setEnabled(false);
     warnSpy.mockClear();
-    Logger.warn("TAG", "warn");
-    expect(warnSpy).not.toHaveBeenCalled();
-  });
+    Logger.warn("TAG", "warn1");
+    expect(warnSpy).toHaveBeenCalledWith("[CRONOSTAR] [TAG]", "warn1");
 
-  it("warn logs when enabled", () => {
     Logger.setEnabled(true);
     warnSpy.mockClear();
-    Logger.warn("TAG", "warn");
-    expect(warnSpy).toHaveBeenCalledWith("[CRONOSTAR] [TAG]", "warn");
+    Logger.warn("TAG", "warn2");
+    expect(warnSpy).toHaveBeenCalledWith("[CRONOSTAR] [TAG]", "warn2");
   });
 
   it("error always logs regardless of state", () => {

@@ -91,7 +91,7 @@ async def test_setup_integration_with_static_path_config(hass, tmp_path):
          patch("custom_components.cronostar.setup.async_get_integration") as mock_get, \
          patch("homeassistant.components.frontend.add_extra_js_url"), \
          patch("custom_components.cronostar.setup.HAS_STATIC_PATH_CONFIG", True), \
-         patch("homeassistant.components.http.StaticPathConfig"):
+         patch("custom_components.cronostar.setup.__init__.StaticPathConfig", create=True):
         mock_get.return_value.version = "1.0.0"
         await async_setup_integration(hass, {"version": "1.0.0"})
 

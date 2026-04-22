@@ -19,7 +19,7 @@ export const I18N = {
     },
     descriptions: {
       step0:
-        "Choose an action2222: configure a new preset or analyze existing profiles.",
+        "Choose an action: configure a new preset or analyze existing profiles.",
       step1:
         "Configure the essential elements: target entity and identification prefix.",
       step2: "Optional: configure additional entities (pause, profiles).",
@@ -84,6 +84,7 @@ export const I18N = {
       analyze_status: "Analyze status",
       analyze_status_desc: "View all existing files and profiles",
       component_info: "Component Info",
+      delete_profile: "Delete",
     },
     prompts: {
       reset_confirm:
@@ -97,7 +98,20 @@ export const I18N = {
       card_config_complete: "Card configuration complete",
       card_config_ready: "Card configuration ready",
       minimal_config_complete: "Minimal configuration complete",
+      minimal_config_ok: "Minimal configuration complete",
+      minimal_config_next: "You can now proceed to advanced steps or save directly.",
       minimal_config_needed: "Minimal configuration needed",
+      dashboard_manage: "Manage existing controllers or create a new one.",
+      dashboard_loading: "Loading controllers...",
+      dashboard_no_controllers: "No controllers found. Click 'New Configuration' below to start.",
+      dashboard_issues: "Validation issues:",
+      dashboard_active: "Active",
+      dashboard_incomplete: "Incomplete",
+      dashboard_delete_confirm: "Are you sure you want to delete this controller? This cannot be undone.",
+      dashboard_deleted: "Controller deleted",
+      dashboard_delete_error: "Failed to delete controller: ",
+      new_config_title: "New configuration",
+      new_config_desc: "Create a controller from scratch",
       minimal_config_help:
         "Set target entity and identification prefix to proceed.",
       identification_prefix: "Identification prefix",
@@ -204,6 +218,7 @@ export const I18N = {
       analyze_status: "Analizza stato",
       analyze_status_desc: "Visualizza tutti i file e i profili esistenti",
       component_info: "Info Componente",
+      delete_profile: "Elimina",
     },
     prompts: {
       reset_confirm:
@@ -217,7 +232,20 @@ export const I18N = {
       card_config_complete: "Configurazione card completa",
       card_config_ready: "Card pronta con la configurazione",
       minimal_config_complete: "Configurazione minima completa",
+      minimal_config_ok: "Configurazione minima completa",
+      minimal_config_next: "Puoi procedere agli step avanzati o salvare direttamente.",
       minimal_config_needed: "Configurazione minima necessaria",
+      dashboard_manage: "Gestisci i controller esistenti o creane uno nuovo.",
+      dashboard_loading: "Caricamento controller...",
+      dashboard_no_controllers: "Nessun controller trovato. Clicca 'Nuova configurazione' sotto per iniziare.",
+      dashboard_issues: "Problemi rilevati:",
+      dashboard_active: "Configurazione Attiva",
+      dashboard_incomplete: "Incomplete",
+      dashboard_delete_confirm: "Sei sicuro di voler eliminare questo controller? Questa azione non può essere annullata.",
+      dashboard_deleted: "Controller eliminato",
+      dashboard_delete_error: "Errore eliminazione: ",
+      new_config_title: "Nuova configurazione",
+      new_config_desc: "Crea un controller da zero",
       minimal_config_help:
         "Imposta entità di destinazione e prefisso identificativo per procedere.",
       identification_prefix: "Prefisso identificativo",
@@ -238,7 +266,7 @@ export const I18N = {
     },
     finalmodtitle: "Riepilogo finale configurazione",
     finalmodtext:
-      'Il wizard ha preparato i parametri seguenti. Cliccando su "Salva", verranno applicati alla card Lovelace.',
+      'Riepilogo finale configurazione: Il wizard ha preparato i parametri seguenti. Cliccando su "Salva", verranno applicati alla card Lovelace.',
   },
 };
 
@@ -254,7 +282,6 @@ export class EditorI18n {
       lang = this.editor._language || this.editor._lang || "en";
     }
 
-    // Support sub-tags like 'it-IT' or 'en-US' by checking base language
     let langCode = lang.toLowerCase();
     let translations = I18N[langCode];
 
@@ -285,7 +312,6 @@ export class EditorI18n {
     if (typeof obj === "string" && Object.keys(replacements).length > 0) {
       let result = obj;
       for (const [key, value] of Object.entries(replacements)) {
-        // Global replacement for placeholders
         const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const regex = new RegExp(escapedKey, "g");
         result = result.replace(regex, value);

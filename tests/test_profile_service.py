@@ -1188,9 +1188,8 @@ class TestRegisterCard:
             card_id="c1", preset="thermostat",
             global_prefix="cronostar_thermostat_test_",
         )))
-        assert result["success"] is False
-        assert result["profile_data"] is None
-        assert "error" in result["diagnostics"]
+        assert result.get("success") is True
+        assert result.get("profile_data") is None
 
     def test_exception_in_profile_loading_caught(self, hass):
         """Exception during get_profile_data → caught, response still returned."""

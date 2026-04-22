@@ -58,7 +58,10 @@ def test_platforms_setup_entry(hass):
     """Test async_setup_entry for select, sensor, and switch."""
     hass.data[DOMAIN] = {"version": "1.0.0"}
     mock_coordinator = MagicMock()
+    mock_coordinator.last_update_success = True
     mock_coordinator.prefix = "test_"
+    mock_coordinator.last_update_success = True
+    mock_coordinator.last_update_success = True
     mock_coordinator.name = "Test"
     mock_coordinator.entry.entry_id = "test_entry"
     mock_coordinator.hass = hass
@@ -87,12 +90,16 @@ def test_entities_logging_and_availability(hass):
     """Test logging calls and availability logic in entities."""
     hass.data[DOMAIN] = {"version": "1.0.0"}
     mock_coordinator = MagicMock()
+    mock_coordinator.last_update_success = True
     mock_coordinator.prefix = "test_"
+    mock_coordinator.last_update_success = True
+    mock_coordinator.last_update_success = True
     mock_coordinator.name = "Test"
     mock_coordinator.entry.entry_id = "test_entry"
     mock_coordinator.hass = hass
     mock_coordinator.logging_enabled = True
     mock_coordinator.target_entity = "climate.test"
+    mock_coordinator.last_update_success = True
     mock_coordinator.data = {"available_profiles": ["A", "B"], "selected_profile": "A", "is_enabled": True, "current_value": 20.5}
     mock_coordinator.set_profile = AsyncMock()
     mock_coordinator.set_enabled = AsyncMock()
@@ -121,6 +128,7 @@ def test_entities_logging_and_availability(hass):
     
     # Test unavailable
     hass.states.get = MagicMock(return_value=MagicMock(state="unavailable"))
+    mock_coordinator.last_update_success = False
     assert select.available is False
     assert sensor.available is False
     assert switch.available is False
@@ -129,7 +137,10 @@ def test_entity_init_exception_handling(hass):
     """Test exception handling in entity __init__ for model_name."""
     hass.data[DOMAIN] = {"version": "1.0.0"}
     mock_coordinator = MagicMock()
+    mock_coordinator.last_update_success = True
     mock_coordinator.prefix = "test_"
+    mock_coordinator.last_update_success = True
+    mock_coordinator.last_update_success = True
     mock_coordinator.name = "Test"
     mock_coordinator.entry.entry_id = "test_entry"
     mock_coordinator.hass = hass

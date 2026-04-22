@@ -1382,6 +1382,7 @@ describe("ChartManager - Comprehensive Coverage", () => {
     it("exercises other small methods", () => {
       cm._initialized = true;
       cm.chart = { update: vi.fn() };
+      cm.canvas = { isConnected: true };
       expect(cm.isInitialized()).toBe(true);
       expect(cm.getChart()).toBe(cm.chart);
       cm.updateChartLabels();

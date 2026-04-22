@@ -30,7 +30,7 @@ class TestOrphanRemoval:
         entry.data = {"preset_type": "thermostat", "global_prefix": "p1_"}
         entry.created_at = fixed_now
         hass.config_entries.async_entries = MagicMock(return_value=[entry])
-        
+        hass.config_entries.async_get_entry = MagicMock(return_value=entry)        
         with patch("custom_components.cronostar.setup.dashboard.dt_util") as mock_dt, \
              patch("custom_components.cronostar.setup.dashboard.build_profile_filename", return_value="test.json"), \
              patch("pathlib.Path.exists", return_value=False):
@@ -95,12 +95,14 @@ class TestDashboardContent:
             content = yaml.safe_load(f)
             
         cards = content["views"][0]["cards"]
-        # Index 0: Header
-        # Index 1: Box #1 Inizio blocco
-        # Index 2: Box #1 (The one we added/modified)
-        # Index 3: custom:cronostar-card
-        
-        assert cards[1]["content"] == "--- \n ### Box #1 - Inizio blocco per: **Test Controller**"
-        assert cards[2]["content"] == "### Box #1"
-        assert cards[3]["type"] == "custom:cronostar-card"
+        # Index 0: Header (markdown)
+        # Index 1: Entry card (custom:cronostar-card)
+        # Index 2: Footer card (custom:cronostar-card)
 
+        assert cards[0]["type"] == "markdown"
+        assert "CronoStar Admin" in cards[0]["content"]
+        assert cards[1]["type"] == "custom:cronostar-card"
+        assert cards[1]["global_prefix"] == "p1_"
+        assert "Test Controller" in cards[1]["title"]
+        assert cards[2]["type"] == "custom:cronostar-card"
+        assert cards[2]["card_id"] == "admin-footer-add-new"

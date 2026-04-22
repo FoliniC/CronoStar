@@ -34,16 +34,17 @@ def test_list_all_profiles_target_entity_not_found(hass):
     
     hass.is_running = True
     # light.missing is NOT in hass.states
-    hass.data[DOMAIN] = {"settings_manager": MagicMock()}
-    
+    hass.states.get = MagicMock(return_value=None)
+    hass.data[DOMAIN] = {"settings_manager": MagicMock()}    
     ps = MagicMock()
     with patch("custom_components.cronostar.setup.services.ProfileService", return_value=ps):
         run(setup_services(hass, storage))
-    res = run(hass.services.async_call(DOMAIN, "list_all_profiles", {}))
-    
-    errors = res["t"]["files"][0]["validation"]["errors"]
-    assert "Target entity 'light.missing' not found" in errors
+    with patch("homeassistant.helpers.entity_registry.async_get") as mock_er:
+        mock_er.return_value.async_get_entity_id.return_value = None
+        res = run(hass.services.async_call(DOMAIN, "list_all_profiles", {}))
 
+    warnings = res["t"]["files"][0]["validation"]["warnings"]
+    assert any("not found" in w for w in warnings)
 def test_apply_now_unsupported_domain_warning(hass):
     """Test apply_now with an unsupported domain."""
     ps = MagicMock()

@@ -9,6 +9,7 @@ Questo documento descrive gli script e le utilità di sviluppo che sono stati or
 ## Analisi della Test Coverage
 * **`analyze-coverage.sh`**: Script bash per l'esecuzione e l'analisi dei report di test coverage. Esegue i test e raccoglie le metriche sul codice sorgente testato.
 * **`analyze-coverage.ps1`**: L'equivalente PowerShell dello script di coverage, permettendo agli sviluppatori di eseguire l'analisi nativamente su ambienti Windows.
+* **`analyze-coverage-backend.ps1`**: Script PowerShell ottimizzato per Windows che gestisce l'attivazione automatica del virtual environment (`.venv`) ed esegue i test pytest con report di copertura.
 * **`analyze-coverage-param.sh`**: Variante dello script bash che accetta dei parametri esterni, in modo da filtrare, aggiustare o mirare l'analisi della coverage solo su specifici moduli o metriche.
 * **`list_coverage.sh`**: Script di utilità per mostrare o elencare un resoconto rapido dei risultati e delle percentuali di copertura dei file testati.
 * **`parse-coverage.js`**: Script/utility di sviluppo Node.js dedicato al parsing, alla formattazione o all'elaborazione dei file di output grezzi della test coverage, probabilmente per trasformarli in formati leggibili per altre pipeline o riepiloghi.

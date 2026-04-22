@@ -81,7 +81,7 @@ describe("Editor Steps Rendering", () => {
     editor._dashboardLoading = true;
     const step = new Step0Dashboard(editor);
     const html = step.render();
-    expect(html).toContain("Loading controllers");
+    expect(html.toString()).toContain("ui.dashboard_loading");
   });
 
   it("Step0Dashboard should render profiles list when data is available", () => {

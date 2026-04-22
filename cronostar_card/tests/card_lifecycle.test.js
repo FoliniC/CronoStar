@@ -959,6 +959,11 @@ describe("CardLifecycle – reinitializeCard", () => {
 
   it("calls requestUpdate", () => {
     const card = makeCard();
+    const canvas = document.createElement("canvas");
+    card.shadowRoot = {
+      getElementById: vi.fn((id) => id === "myChart" ? canvas : null),
+      querySelector: vi.fn(() => null),
+    };
     const lc = new CardLifecycle(card);
     lc.reinitializeCard();
     expect(card.requestUpdate).toHaveBeenCalled();

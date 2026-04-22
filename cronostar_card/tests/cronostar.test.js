@@ -71,16 +71,19 @@ vi.mock("../src/core/CardContext.js", () => ({
   CardContext: vi.fn().mockImplementation(() => ({ registerManager: vi.fn() })),
 }));
 
-vi.mock("../src/utils.js", () => ({
-  Logger: {
-    log: vi.fn(), chart: vi.fn(), error: vi.fn(),
-    warn: vi.fn(), setEnabled: vi.fn(), load: vi.fn(),
-  },
-  checkIsEditorContext: vi.fn(() => false),
-}));
-
+// We use the real Logger because we want to test its console integration
+import { Logger } from "../src/utils.js";
 import { CronoStarCard } from "../src/core/CronoStar.js";
 import { CardContext } from "../src/core/CardContext.js";
+import { checkIsEditorContext } from "../src/utils.js";
+
+vi.mock("../src/utils.js", async () => {
+    const actual = await vi.importActual("../src/utils.js");
+    return {
+        ...actual,
+        checkIsEditorContext: vi.fn(() => false),
+    };
+});
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 let _tagCounter = 0;
@@ -316,6 +319,10 @@ describe("CronoStarCard – updated()", () => {
 // render() overlay logging
 // ─────────────────────────────────────────────────────────────────────────────
 describe("CronoStarCard – render() overlay logging", () => {
+  beforeEach(() => {
+    Logger.setEnabled(true);
+  });
+
   it("logs 'Waiting' on first call when data not loaded", () => {
     const { card } = makeCard();
     card.isPreview = false;
@@ -327,6 +334,7 @@ describe("CronoStarCard – render() overlay logging", () => {
 
     expect(card._loggedWait).toBe(true);
     expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("[CRONOSTAR] [UI]"),
       expect.stringContaining("Waiting for data"),
       expect.anything()
     );
@@ -344,6 +352,7 @@ describe("CronoStarCard – render() overlay logging", () => {
 
     expect(card._loggedWait).toBe(false);
     expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("[CRONOSTAR] [UI]"),
       expect.stringContaining("Data loaded"),
       expect.anything()
     );
@@ -531,7 +540,7 @@ describe("CronoStarCard – Controller management", () => {
 
   it("handleDeleteController shows notification on service error", async () => {
     const { card, hass } = makeCard();
-    card.config = { global_prefix: "p_" };
+    card.config = { global_prefix: "p_", preset_type: "thermostat" };
     vi.stubGlobal("confirm", () => true);
     hass.callService.mockRejectedValueOnce(new Error("Service Failure"));
     

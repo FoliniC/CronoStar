@@ -31,6 +31,7 @@ async def test_entry_within_grace_period_hidden_not_removed(hass, tmp_path):
     entry.data = {"preset_type": "thermostat", "global_prefix": "p1_"}
     entry.created_at = fixed_now
     hass.config_entries.async_entries = MagicMock(return_value=[entry])
+    hass.config_entries.async_get_entry = MagicMock(return_value=entry)
     
     with patch("custom_components.cronostar.setup.dashboard.dt_util") as mock_dt, \
          patch("custom_components.cronostar.setup.dashboard.build_profile_filename", return_value="test.json"), \
