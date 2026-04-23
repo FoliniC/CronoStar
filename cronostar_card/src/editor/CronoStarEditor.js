@@ -746,15 +746,15 @@ export class CronoStarEditor extends LitElement {
         -webkit-text-fill-color: #000000 !important;
       }
       
-      /* PROTECT LABELS: They must stay light even if * is black */
+      /* PROTECT LABELS: Ensure high contrast for labels inside shadow roots */
       .mdc-floating-label, 
       .mdc-floating-label--float-above,
       label,
       .field-label,
       ha-label,
       [slot="label"] {
-        color: #cbd5e1 !important;
-        -webkit-text-fill-color: #cbd5e1 !important;
+        color: var(--primary-text-color) !important;
+        -webkit-text-fill-color: var(--primary-text-color) !important;
       }
 
       /* Force white background for the containers of these black elements */
