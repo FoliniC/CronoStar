@@ -572,6 +572,7 @@ export class CronoStarCard extends LitElement {
       composed: true,
       detail: {
         domain: "cronostar",
+        modal: true
       },
     });
     this.dispatchEvent(event);
