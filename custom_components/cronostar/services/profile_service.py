@@ -299,6 +299,7 @@ class ProfileService:
         is_generic_prefix = global_prefix in [
             "cronostar_thermostat_",
             "cronostar_ev_charging_",
+            "cronostar_ev_",
             "cronostar_generic_switch_",
             "cronostar_generic_kwh_",
             "cronostar_generic_temperature_",

@@ -137,7 +137,10 @@ export function validateConfig(config, isLoggingEnabled = false) {
   if (!normalized.preset_type && normalized.global_prefix) {
     const prefix = normalized.global_prefix;
     for (const key of Object.keys(CARD_CONFIG_PRESETS)) {
-      if (prefix.startsWith(`cronostar_${key}_`)) {
+      if (
+        prefix.startsWith(`cronostar_${key}_`) ||
+        (key === "ev_charging" && prefix.startsWith("cronostar_ev_"))
+      ) {
         normalized.preset_type = key;
         break;
       }

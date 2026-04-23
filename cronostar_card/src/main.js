@@ -1,6 +1,4 @@
-// main.js – clean version with scoped logs
-
-console.log("[CronoStar] main.js file loaded by browser");
+// main.js – clean version
 
 import { CronoStarCard } from "./core/CronoStar.js";
 import { CronoStarEditor } from "./editor/CronoStarEditor.js";
@@ -13,35 +11,18 @@ globalThis.PRESETS = CARD_CONFIG_PRESETS;
 window.CronoStarCard = CronoStarCard;
 window.CronoStarEditor = CronoStarEditor;
 
-console.log(`CRONOSTAR: main.js started (v${VERSION})`);
-console.log(
-  "CRONOSTAR: window.CronoStarCard assigned:",
-  !!window.CronoStarCard,
-);
-console.log(
-  "CRONOSTAR: window.CronoStarEditor assigned:",
-  !!window.CronoStarEditor,
-);
-
 // Safe helper to register in a registry (global or scoped)
 function registerInRegistry(registry, name, constructor, context = "global") {
-  if (!registry) {
-    console.warn(`CRONOSTAR: registry nullo per "${name}" in ${context}`);
-    return false;
-  }
+  if (!registry) return false;
 
   try {
-    if (registry.get && registry.get(name)) {
-      console.log(`CRONOSTAR: "${name}" già registrato in ${context}`);
-      return false;
-    }
+    if (registry.get && registry.get(name)) return false;
   } catch {
     // If get doesn't exist/fails, still try to define
   }
 
   try {
     registry.define(name, constructor);
-    console.log(`CRONOSTAR: ✅ "${name}" registrato in ${context}`);
     return true;
   } catch (e) {
     const msg = String(e);
@@ -53,15 +34,12 @@ function registerInRegistry(registry, name, constructor, context = "global") {
         `CRONOSTAR: ❌ Errore registrazione "${name}" in ${context}:`,
         e,
       );
-    } else {
-      console.log(`CRONOSTAR: "${name}" risulta già definito in ${context}`);
     }
     return false;
   }
 }
 
 // 1) Global registry registration
-console.log("CRONOSTAR: Inizio registrazione globale...");
 registerInRegistry(customElements, "cronostar-card", CronoStarCard, "global");
 registerInRegistry(
   customElements,
@@ -72,10 +50,6 @@ registerInRegistry(
 
 // 2) Support for Scoped CustomElementRegistry (used by the card picker)
 if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
-  console.log(
-    "CRONOSTAR: ScopedRegistryHost rilevato, patch connectedCallback",
-  );
-
   const origConnected = window.ScopedRegistryHost.prototype.connectedCallback;
 
   window.ScopedRegistryHost.prototype.connectedCallback = function () {
@@ -91,9 +65,6 @@ if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
         : "scoped(unknown-host)";
 
       if (registry && registry !== customElements) {
-        console.log(
-          `CRONOSTAR: Scoped host connesso: ${ctx}, registrazione elementi...`,
-        );
         registerInRegistry(
           registry,
           "cronostar-card",
@@ -127,33 +98,27 @@ if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
         });
       }
     } catch (e) {
-      console.error("CRONOSTAR: errore registrazione in scoped registry:", e);
+      // Silently fail for scoped registry
     }
 
     if (origConnected) {
       return origConnected.apply(this, arguments);
     }
   };
-} else {
-  console.log(
-    "CRONOSTAR: ScopedRegistryHost non rilevato – niente patch scoped",
-  );
 }
 
 // 3) Register in window.customCards to appear in the card picker
 window.customCards = window.customCards || [];
-const cardType = "cronostar-card"; // ✅ Without "custom:" prefix
+const cardType = "cronostar-card";
 const existingCardIndex = window.customCards.findIndex(
   (c) => c.type === cardType || c.type === "custom:cronostar-card",
 );
 
 const cardMetadata = {
-  type: "cronostar-card", // ✅ Standard tag name
+  type: "cronostar-card",
   name: "🌟 CronoStar Card",
   description: "Visual hourly schedule editor with drag-and-drop control",
-  // Enable live preview so CardRenderer can show the image or live chart
   preview: true,
-  // Use the project logo as thumbnail and screenshot for preview in the picker
   preview_image: "/cronostar_card/cronostar-preview.png",
   thumbnail: "/cronostar_card/cronostar-logo.png",
   documentationURL: "https://github.com/FoliniC/cronostar_card",
@@ -161,19 +126,15 @@ const cardMetadata = {
 
 if (existingCardIndex === -1) {
   window.customCards.push(cardMetadata);
-  console.log("CRONOSTAR: ✅ Aggiunto a window.customCards");
 } else {
-  // Update existing registration to ensure image is included
   window.customCards[existingCardIndex] = cardMetadata;
-  console.log("CRONOSTAR: ✅ Aggiornata registrazione in window.customCards");
 }
 
-// Final banner
+// Final banner - keep only this one
 console.log(
   `%c CRONOSTAR %c v${VERSION} LOADED `,
   "color: white; background: #03a9f4; font-weight: 700;",
   "color: #03a9f4; background: white; font-weight: 700;",
 );
-console.log("CRONOSTAR: Inizializzazione main.js completata ✅");
 
 export { CronoStarCard, CronoStarEditor };

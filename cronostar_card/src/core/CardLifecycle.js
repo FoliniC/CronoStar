@@ -400,6 +400,14 @@ export class CardLifecycle {
             newProfile !== "unavailable" &&
             newProfile !== "unknown"
           ) {
+            // PROTECTION: If we just manually selected a profile, ignore HASS state for 3 seconds
+            // to allow the service call to propagate and avoid "bouncing" back to the old value.
+            const now = Date.now();
+            if (card.lastEditAt && now - card.lastEditAt < 3000) {
+              Logger.log("HASS", `[SYNC] Ignoring profile update to '${newProfile}' from HASS (manual selection grace period active)`);
+              return;
+            }
+
             card.selectedProfile = newProfile;
             Logger.log(
               "HASS",
@@ -1024,13 +1032,6 @@ export class CardLifecycle {
 
       // ✅ OPERATIONAL CHECK: Respect hidden state by default.
       // We no longer force showChart to true here to avoid flickering and respect initially_collapsed.
-      if (this.card.config?.target_entity && this.card.config?.global_prefix) {
-          if (this.card.config.initially_collapsed) {
-              console.info("[CronoStar Lifecycle] Card operational: initially_collapsed is true, keeping chart hidden.");
-          } else {
-              console.info("[CronoStar Lifecycle] Card operational: Waiting for HASS sync or user toggle for visibility.");
-          }
-      }
 
       this.card.initialLoadComplete = true;
       this.card.cronostarReady = true;

@@ -217,6 +217,11 @@ export class ProfileManager {
 
     // Load new profile
     this.context.selectedProfile = newProfile;
+    
+    // Protection: inform the card that we just made a manual change
+    if (this.context._card) {
+      this.context._card.lastEditAt = Date.now();
+    }
 
     // Update input_select entity
     this._updateProfileSelector(newProfile);
@@ -397,6 +402,8 @@ export class ProfileManager {
     // Extract only card config keys
     const cardKeys = [
       "title",
+      "preset_type",
+      "global_prefix",
       "y_axis_label",
       "unit_of_measurement",
       "min_value",
@@ -417,7 +424,12 @@ export class ProfileManager {
     });
 
     if (Object.keys(updates).length > 0) {
-      this.context._card.config = { ...this.context._card.config, ...updates };
+      const newConfig = { ...this.context._card.config, ...updates };
+      if (typeof this.context._card.setConfig === "function") {
+        this.context._card.setConfig(newConfig);
+      } else {
+        this.context._card.config = newConfig;
+      }
     }
 
     // Apply language from meta to card and config

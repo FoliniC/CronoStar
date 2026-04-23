@@ -373,10 +373,11 @@ export class CardRenderer {
                               });
                             }
                           }}
+                          @closed=${(e) => e.stopPropagation()}
                           style="width: 100%;"
                         >
                           ${this.card.profileOptions.map(
-                            (opt) => html`<mwc-list-item .value=${opt}>${opt}</mwc-list-item>`
+                            (opt) => html`<mwc-list-item value="${opt}" .value=${opt}>${opt}</mwc-list-item>`
                           )}
                         </ha-select>
                       </div>
@@ -411,9 +412,6 @@ export class CardRenderer {
   }
 
   render() {
-    if (this.card._showChart) {
-      console.info(`[CronoStar] [UI] [${this.card.config?.global_prefix || "no-prefix"}] Chart is VISIBLE (_showChart: true)`);
-    }
     if (!this.card.config) return html``;
 
     const localize = (key, search, replace) =>
@@ -490,10 +488,6 @@ export class CardRenderer {
             </div>
             <ha-icon-button
               @click=${async () => {
-                console.info(
-                  "[CronoStar] Wizard closed via X. Restoring previous state...",
-                );
-
                 // 1. Reset editor and expansion flags
                 this.card.isEditorInternal = false;
                 this.card.isExpandedV = false;
@@ -510,9 +504,6 @@ export class CardRenderer {
 
                 // 4. Now that the canvas is back in DOM, reinitialize the chart
                 if (this.card.cardLifecycle) {
-                  console.info(
-                    "[CronoStar] DOM ready, reinitializing chart...",
-                  );
                   this.card.cardLifecycle.reinitializeCard();
 
                   // 5. Force a backend sync to ensure data is fresh
@@ -527,19 +518,12 @@ export class CardRenderer {
             </ha-icon-button>
           </div>
           <div style="padding: 16px; width: 100%; box-sizing: border-box; overflow-y: auto; flex: 1; min-height: 0;">
-            ${console.info(
-              `[CronoStar] Rendering Editor with language: ${this.card.language}`,
-            )}
             <cronostar-card-editor
               .hass=${this.card.hass}
               .config=${this.card.config}
               .step=${this.card.editorStep || 0}
               .language=${this.card.language}
               @cronostar-wizard-done=${async (ev) => {
-                console.info(
-                  "[CronoStar CardRenderer] cronostar-wizard-done event received. Closing editor...",
-                );
-                
                 // 1. Force closure and collapse
                 this.card.isEditorInternal = false;
                 this.card.isExpandedV = false;
@@ -565,7 +549,6 @@ export class CardRenderer {
               @config-changed=${async (ev) => {
                 const newConfig = { ...ev.detail.config };
                 const shouldClose = !!newConfig._close_wizard;
-                console.info(`[CronoStar CardRenderer] config-changed event received. shouldClose=${shouldClose}`);
                 
                 if (shouldClose) delete newConfig._close_wizard;
 
@@ -573,13 +556,11 @@ export class CardRenderer {
                 if (
                   JSON.stringify(this.card.config) !== JSON.stringify(newConfig)
                 ) {
-                  console.info("[CronoStar CardRenderer] Applying new config to card");
                   this.card.setConfig(newConfig);
                 }
 
                 // BACKUP: Force closure if flag is present and still in editor
                 if (shouldClose && this.card.isEditorInternal) {
-                  console.info("[CronoStar CardRenderer] Closing via _close_wizard backup");
                   this.card.isEditorInternal = false;
                   this.card.isExpandedV = false;
                   this.card.isExpandedH = false;

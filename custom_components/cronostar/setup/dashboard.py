@@ -161,12 +161,13 @@ async def write_dashboard_yaml(hass: HomeAssistant, filename: str):
     })
 
     # Add footer card at the end
+    is_it = hass.config.language == "it"
     cards.append({
         "type": "custom:cronostar-card",
         "view_mode": "admin",
         "not_configured": True,
         "global_prefix": None,
-        "title": "Aggiungi Controller",
+        "title": "Aggiungi Controller" if is_it else "Add Controller",
         "card_id": "admin-footer-add-new"
     })
 

@@ -11,7 +11,6 @@
 
     if (OriginalRegistry) {
       window.CustomElementRegistry = function (...args) {
-        console.log("CRONOSTAR: Nuovo CustomElementRegistry creato!");
         const instance = new OriginalRegistry(...args);
 
         // Immediately patch this instance
@@ -23,18 +22,12 @@
             try {
               if (!instance.get(CARD_NAME)) {
                 instance.define(CARD_NAME, window.CronoStarCard);
-                console.log(
-                  "CRONOSTAR: Auto-registrato card in nuovo registry",
-                );
               }
               if (!instance.get(EDITOR_NAME)) {
                 instance.define(EDITOR_NAME, window.CronoStarEditor);
-                console.log(
-                  "CRONOSTAR: Auto-registrato editor in nuovo registry",
-                );
               }
             } catch (e) {
-              console.warn("CRONOSTAR: Errore auto-registrazione:", e);
+              // Silently fail auto-registration
             }
           }
         }, 0);
@@ -48,15 +41,9 @@
         window.CustomElementRegistry.prototype,
         OriginalRegistry.prototype,
       );
-
-      console.log("CRONOSTAR: CustomElementRegistry constructor intercepted");
     }
   } catch (e) {
-    // v8 ignore next 4
-    console.warn(
-      "CRONOSTAR: Impossibile intercettare CustomElementRegistry:",
-      e,
-    );
+    // Silently fail interception
   }
 
   function patchRegistryInstance(registry, name) {
@@ -102,7 +89,6 @@
           return; // Already registered with the same constructor
         }
         if (existing) {
-          console.warn(`CRONOSTAR: ${elementName} already defined in ${name}`);
           return;
         }
 
@@ -123,8 +109,6 @@
       value: true,
       configurable: false,
     });
-
-    console.log(`CRONOSTAR: Registry patchato: ${name}`);
   }
 
   // Patch global registry
@@ -178,9 +162,6 @@
     scanCount++;
     if (scanCount >= 30) {
       clearInterval(scanInterval);
-      console.log("CRONOSTAR: Scansione registry completata");
     }
   }, 500);
-
-  console.log("CRONOSTAR: Guard ultra-aggressivo inizializzato");
 })();

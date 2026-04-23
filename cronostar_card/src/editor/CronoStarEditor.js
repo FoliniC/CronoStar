@@ -429,6 +429,7 @@ export class CronoStarEditor extends LitElement {
         flex-direction: column;
         gap: 12px;
         transition: transform 0.2s ease, border-color 0.2s ease;
+        user-select: text !important;
       }
 
       .controller-card:hover {
@@ -444,12 +445,14 @@ export class CronoStarEditor extends LitElement {
         font-weight: 700;
         font-size: 1rem;
         color: var(--primary-text-color);
+        word-break: break-word !important;
       }
 
       .cc-meta {
         font-size: 0.8rem;
         color: var(--secondary-text-color);
         line-height: 1.4;
+        word-break: break-all !important;
       }
 
       .cc-meta code {
@@ -656,12 +659,7 @@ export class CronoStarEditor extends LitElement {
 
     // Sync step property to internal _step
     if (changedProps.has("step") && this.step !== undefined) {
-      console.log(`[CronoStar Editor] Step property changed to: ${this.step}. Internal _step was: ${this._step}`);
       this._step = this.step;
-    }
-
-    if (changedProps.has("config")) {
-      console.log("[CronoStar Editor] Incoming config property updated:", this.config);
     }
 
     if (changedProps.has("hass")) {
@@ -676,7 +674,6 @@ export class CronoStarEditor extends LitElement {
           if (cardLang && this._language !== cardLang) {
             this._language = cardLang;
             this.i18n = new EditorI18n(this);
-            console.log(`[DASHBOARD] Adopted language from card: ${cardLang}`);
           } else if (!cardLang) {
             const currentLang = this.hass.language
               ? this.hass.language.split("-")[0]
@@ -708,11 +705,6 @@ export class CronoStarEditor extends LitElement {
     }
 
     if (changedProps.has("config") || changedProps.has("language")) {
-      console.log("[CronoStar Editor] Component updated with properties:", {
-        configChanged: changedProps.has("config"),
-        langChanged: changedProps.has("language"),
-        passedLang: this.language,
-      });
       this.setConfig(this.config || this._config);
     }
 
@@ -1089,14 +1081,8 @@ export class CronoStarEditor extends LitElement {
     // PROTECTION: If we recently made a local change, ignore incoming config updates
     // for a short window to allow HA state to synchronize without "bouncing" values back.
     if (this._ignoreInboundUntil && Date.now() < this._ignoreInboundUntil) {
-      console.info("[CronoStar Editor] setConfig ignored due to recent local interaction (debouncing synchronization)");
       return;
     }
-
-    // Detailed F12 debug log to trace the incoming configuration
-    console.group("[CronoStar Editor] setConfig Trace");
-    console.info("Target config object:", config);
-    console.info("Editor property .language:", this.language);
 
     try {
       // 1. Validate the incoming config
@@ -1107,13 +1093,11 @@ export class CronoStarEditor extends LitElement {
       const localHasCore = !!this._config?.target_entity && !!this._config?.global_prefix;
 
       if (!this._config || (this._config.not_configured && !localHasCore)) {
-        console.info("Adopting incoming config as primary source (Initial Load)");
         this._config = { ...validated };
       } else {
         // PROTECTION: If we have local core fields, and incoming doesn't, HA might be pushing a default config.
         // We only adopt incoming if it's NOT a step backward to unconfigured.
         if (localHasCore && !incomingHasCore && validated.not_configured) {
-          console.info("[CronoStar Editor] Ignoring incoming unconfigured config; keeping local valid config.");
           // Merge only meta/language if provided
           if (validated.meta) {
             this._config = { ...this._config, meta: { ...(this._config.meta || {}), ...validated.meta } };
@@ -1121,7 +1105,6 @@ export class CronoStarEditor extends LitElement {
           // Re-force configured status
           this._config.not_configured = false;
         } else if (this._step > 0) {
-          console.info("[CronoStar Editor] Wizard active: Protecting local core fields from HA overwrite");
           const protectedFields = {
             target_entity: this._config.target_entity,
             global_prefix: this._config.global_prefix,
@@ -1131,7 +1114,6 @@ export class CronoStarEditor extends LitElement {
           };
           this._config = { ...validated, ...this._config, ...protectedFields };
         } else {
-          console.info("Syncing incoming config with current state (prioritizing local)");
           this._config = { ...validated, ...this._config };
         }
       }
@@ -1144,16 +1126,11 @@ export class CronoStarEditor extends LitElement {
       // 2. If no step is defined and we are at step 0 OR during an active wizard session:
       else if (this._step === 0) {
         const hasCore = !!this._config.target_entity && !!this._config.global_prefix;
-        console.info(`[CronoStar Editor] Step logic check: hasCore=${hasCore}, not_configured=${this._config.not_configured}`);
         if (hasCore) {
-          console.info("[CronoStar Editor] Card has core fields. Defaulting to Step 1.");
           this._step = 1;
         } else {
-          console.info("[CronoStar Editor] Card lacks core fields. Defaulting to Step 0 (Dashboard).");
           this._step = 0;
         }
-      } else {
-        console.info(`[CronoStar Editor] Persisting current wizard step: ${this._step}`);
       }
 
       // 3. Mark as editing if we have core fields
@@ -1181,17 +1158,12 @@ export class CronoStarEditor extends LitElement {
         ) {
           this._language = "it";
         } else {
-          console.info(`Language changed from ${oldLang} to ${this._language}`);
           this.i18n = new EditorI18n(this);
         }
       }
 
       this._initialized = true;
-      console.info(`Final resolved language: ${this._language}`);
-      console.groupEnd();
     } catch (e) {
-      console.warn("[CronoStar Editor] setConfig error:", e);
-      console.groupEnd();
       this._config = { ...DEFAULT_CONFIG, ...config };
     }
 
