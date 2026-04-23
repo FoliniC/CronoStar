@@ -42,6 +42,7 @@ export class ProfileManager {
     Logger.load(
       `=== LOAD PROFILE START === Profile: '${profileName}', Prefix: '${effectivePrefix}'`,
     );
+    console.log("[CRONOSTAR] [PROFILE] loadProfile started:", profileName);
 
     try {
       const presetType = this.context.selectedPreset || "thermostat";
@@ -59,6 +60,7 @@ export class ProfileManager {
       });
 
       const responseData = result?.response;
+      console.log("[CRONOSTAR] [PROFILE] load_profile response:", responseData);
 
       if (!responseData || responseData.error) {
         Logger.warn(
@@ -161,7 +163,7 @@ export class ProfileManager {
    */
   async handleProfileSelection(event) {
     // Try different ways to get the value from the event
-    // 1. event.detail.value (standard for ha-select)
+    // 1. event.detail.value (standard for ha-select @selected)
     // 2. event.target.value (fallback)
     // 3. event.detail.item.value (MDC internal)
     const newProfile =
@@ -170,38 +172,13 @@ export class ProfileManager {
       event?.detail?.item?.value ||
       "";
 
-    console.log("[CRONOSTAR] [PROFILE] handleProfileSelection triggered:", {
-      type: event?.type,
-      value: newProfile,
-      current: this.context.selectedProfile,
-    });
-
-    Logger.log(
-      "PROFILE",
-      `handleProfileSelection triggered. Event type: ${event?.type}, Value: '${newProfile}', Current: '${this.context.selectedProfile}'`,
-    );
-
-    if (!newProfile) {
-      Logger.warn(
-        "PROFILE",
-        "Profile selection event received but value is empty",
-      );
-      return;
-    }
-
-    if (newProfile === this.context.selectedProfile) {
-      Logger.log(
-        "PROFILE",
-        `Profile '${newProfile}' is already selected, ignoring.`,
-      );
-      return;
-    }
+    if (!newProfile || newProfile === "undefined") return;
 
     const previousProfile =
       this.lastLoadedProfile || this.context.selectedProfile;
 
     // Check for unsaved changes
-    if (this.context.hasUnsavedChanges && previousProfile) {
+    if (this.context.hasUnsavedChanges && previousProfile && previousProfile !== newProfile) {
       Logger.log(
         "PROFILE",
         `Unsaved changes in '${previousProfile}', showing confirmation for switch to '${newProfile}'`,
@@ -210,19 +187,25 @@ export class ProfileManager {
       return;
     }
 
+    if (newProfile === previousProfile) {
+      Logger.log("PROFILE", `Profile '${newProfile}' already selected, skipping.`);
+      return;
+    }
+
     Logger.log("PROFILE", `Proceeding with profile switch to: '${newProfile}'`);
 
     // Close menu if open
-    this.context.isMenuOpen = false;
-
-    // Load new profile
-    this.context.selectedProfile = newProfile;
-    
-    // Protection: inform the card that we just made a manual change
     if (this.context._card) {
+      this.context._card.isMenuOpen = false;
       this.context._card.lastEditAt = Date.now();
+      
+      // Also ensure keyboard handler is re-enabled if it was disabled by menu
+      this.context._card.keyboardHandler?.enable();
     }
 
+    // Update internal state
+    this.context.selectedProfile = newProfile;
+    
     // Update input_select entity
     this._updateProfileSelector(newProfile);
 
@@ -230,13 +213,6 @@ export class ProfileManager {
     const selectionManager = this.context.getManager("selection");
     if (selectionManager) {
       selectionManager.snapshotSelection();
-    }
-
-    // Close menu if open
-    if (this.context._card.isMenuOpen) {
-      Logger.log("PROFILE", "Closing card menu");
-      this.context._card.isMenuOpen = false;
-      this.context._card.keyboardHandler?.enable();
     }
 
     try {

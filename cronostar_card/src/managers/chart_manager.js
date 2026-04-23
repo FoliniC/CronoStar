@@ -183,6 +183,10 @@ export class ChartManager {
     this.context.events.on(Events.SCHEDULE_UPDATED, (data) => {
       this._scheduleChartUpdate();
     });
+    this.context.events.on(Events.PROFILE_LOADED, () => {
+      Logger.chart("Profile loaded, updating chart");
+      this._scheduleChartUpdate();
+    });
     this.context.events.on(Events.SELECTION_CHANGED, (data) => {
       this._updatePointStyles();
     });
@@ -1070,10 +1074,14 @@ export class ChartManager {
   }
 
   _updateChartData() {
-    if (!this.chart) return;
+    if (!this.chart) {
+      Logger.chart("Skipping _updateChartData: chart not initialized");
+      return;
+    }
     const stateManager = this.context.getManager("state");
     if (!stateManager) return;
     const schedule = stateManager.getData();
+    console.log("[CRONOSTAR] [CHART] _updateChartData triggered, points:", schedule.length);
     const config = this.context.config || {};
     const points = schedule.map((point) => ({
       x: Math.max(0, Math.min(1439, timeToMinutes(point.time))),

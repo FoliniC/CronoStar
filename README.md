@@ -212,6 +212,19 @@ type: custom:cronostar-card
    - You can manually delete the storage folder if you want to remove all saved profiles:
      `/config/cronostar/`
 
+## 🚀 Deployment Architecture
+
+To prevent cache confusion and version mismatch, the following deployment rules are strictly enforced for the production environment:
+
+- **Single Source of Truth (Frontend):** All .js files must be deployed EXCLUSIVELY to /config/www/cronostar_card/.
+- **Public URL:** The card is served from http://homeassistant.local:8123/local/cronostar_card/cronostar-card.js.
+- **Backend Separation:** No .js files should reside within the custom_components/cronostar/www/ folder on the production server. This ensures Home Assistant doesn't serve old/duplicated versions of the frontend.
+- **Workflow:** 
+  1. Build frontend in cronostar_card/ (npm run build).
+  2. Copy output to /config/www/cronostar_card/.
+  3. Restart Home Assistant.
+  4. Perform **Hard Refresh (Ctrl+F5)** in the browser.
+
 ## 💬 Support
 
 - 🐛 [Report Issues](https://github.com/FoliniC/cronostar/issues)

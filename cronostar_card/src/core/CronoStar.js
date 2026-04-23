@@ -112,6 +112,7 @@ export class CronoStarCard extends LitElement {
 
   constructor() {
     super();
+    console.log("[CRONOSTAR] [INIT] Card constructor started");
     this.config = null;
     this.hourBase = 0;
     this.hourBaseDetermined = false;
