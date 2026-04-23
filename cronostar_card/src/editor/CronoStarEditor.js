@@ -313,7 +313,7 @@ export class CronoStarEditor extends LitElement {
         width: 100%;
         --mdc-text-field-fill-color: var(--background-color-secondary);
         --mdc-text-field-ink-color: var(--primary-text-color);
-        --mdc-text-field-label-ink-color: var(--secondary-text-color);
+        --mdc-text-field-label-ink-color: var(--primary-text-color);
         --mdc-theme-primary: var(--primary-color);
       }
 
