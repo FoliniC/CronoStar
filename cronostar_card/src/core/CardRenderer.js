@@ -1169,37 +1169,62 @@ export class CardRenderer {
                   `
                 : this.card.profileOptions?.length > 0 && !isPreview
                   ? html`
-                    <div class="control-group" style="position: relative; z-index: 1000;">
-                        <ha-button-menu 
-                          @action=${(e) => {
-                            const options = (this.card.profileOptions || []).filter(
-                              (opt) => opt && !["undefined", "unavailable", "unknown"].includes(opt)
-                            );
-                            const val = options[e.detail.index];
-                            console.log("[CRONOSTAR] [PROFILE] Full view @action selection:", val);
-                            if (val) {
+                    <div class="control-group" style="flex: 1; position: relative; z-index: 1000;">
+                        <ha-select
+                          label="${localize("ui.select_profile") || (isIt ? "Seleziona Profilo" : "Select Profile")}"
+                          .value=${this.card.selectedProfile}
+                          fixedMenuPosition
+                          naturalMenuWidth
+                          @change=${(e) => {
+                            const val = e.target.value;
+                            if (val && val !== "undefined") {
                               this.card.profileManager.handleProfileSelection({
-                                target: { value: val }
+                                target: { value: val },
                               });
                             }
                           }}
-                          @click=${(e) => e.stopPropagation()}
+                          @closed=${(e) => {
+                            e.stopPropagation();
+                          }}
+                          style="width: 100%;"
                         >
-                          <mwc-button slot="trigger" outlined style="width: 100%; --mdc-theme-primary: var(--primary-text-color);">
-                            <ha-icon icon="mdi:account-clock-outline" slot="icon"></ha-icon>
-                            ${this.card.selectedProfile || localize("ui.select_profile")}
-                            <ha-icon icon="mdi:chevron-down" slot="trailingIcon"></ha-icon>
-                          </mwc-button>
                           ${(this.card.profileOptions || [])
                             .filter((opt) => opt && !["undefined", "unavailable", "unknown"].includes(opt))
                             .map((opt) => html`
                                 <mwc-list-item
                                   value="${opt}"
                                   .value=${opt}
-                                  ?activated=${opt === this.card.selectedProfile}
+                                  ?selected=${opt === this.card.selectedProfile}
+                                  @click=${(e) => {
+                                    this.card.profileManager.handleProfileSelection({
+                                      target: { value: opt },
+                                    });
+                                    
+                                    const selectEl = e.target.closest("ha-select");
+                                    if (selectEl) {
+                                      selectEl.open = false;
+                                      if (selectEl.menuOpen !== undefined) selectEl.menuOpen = false;
+                                      
+                                      const shadow = selectEl.shadowRoot;
+                                      if (shadow) {
+                                        const pickerField = shadow.querySelector("ha-picker-field");
+                                        if (pickerField) {
+                                          pickerField.classList.remove("opened");
+                                        }
+                                        
+                                        const dropdown = shadow.querySelector("ha-dropdown") || shadow.querySelector("mwc-menu");
+                                        if (dropdown) {
+                                          dropdown.open = false;
+                                          dropdown.removeAttribute("open");
+                                        }
+                                      }
+                                      
+                                      selectEl.blur();
+                                    }
+                                  }}
                                 >${opt}</mwc-list-item>`
                             )}
-                        </ha-button-menu>
+                        </ha-select>
                     </div>
                   `
                 : ""
