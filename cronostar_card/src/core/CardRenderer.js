@@ -369,7 +369,6 @@ export class CardRenderer {
                           naturalMenuWidth
                           @change=${(e) => {
                             const val = e.target.value;
-                            console.log("[CRONOSTAR] [DEBUG] ha-select @change triggered. Value:", val);
                             if (val && val !== "undefined") {
                               this.card.profileManager.handleProfileSelection({
                                 target: { value: val },
@@ -387,11 +386,32 @@ export class CardRenderer {
                                 value="${opt}" 
                                 .value=${opt}
                                 ?selected=${opt === this.card.selectedProfile}
-                                @click=${() => {
-                                  console.log("[CRONOSTAR] [DEBUG] mwc-list-item @click fallback. Value:", opt);
+                                @click=${(e) => {
                                   this.card.profileManager.handleProfileSelection({
                                     target: { value: opt },
                                   });
+                                  
+                                  const selectEl = e.target.closest("ha-select");
+                                  if (selectEl) {
+                                    selectEl.open = false;
+                                    if (selectEl.menuOpen !== undefined) selectEl.menuOpen = false;
+                                    
+                                    const shadow = selectEl.shadowRoot;
+                                    if (shadow) {
+                                      const pickerField = shadow.querySelector("ha-picker-field");
+                                      if (pickerField) {
+                                        pickerField.classList.remove("opened");
+                                      }
+                                      
+                                      const dropdown = shadow.querySelector("ha-dropdown") || shadow.querySelector("mwc-menu");
+                                      if (dropdown) {
+                                        dropdown.open = false;
+                                        dropdown.removeAttribute("open");
+                                      }
+                                    }
+                                    
+                                    selectEl.blur();
+                                  }
                                 }}
                               >${opt}</mwc-list-item>`
                           )}
