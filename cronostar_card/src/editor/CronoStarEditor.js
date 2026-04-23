@@ -309,6 +309,20 @@ export class CronoStarEditor extends LitElement {
         text-align: center;
       }
 
+      ha-textfield {
+        width: 100%;
+        --mdc-text-field-fill-color: var(--background-color-secondary);
+        --mdc-text-field-ink-color: var(--primary-text-color);
+        --mdc-text-field-label-ink-color: var(--secondary-text-color);
+        --mdc-theme-primary: var(--primary-color);
+      }
+
+      /* High contrast for textfield values */
+      ha-textfield input {
+        color: var(--primary-text-color) !important;
+        font-weight: 500;
+      }
+
       /* ACTIONS */
       .wizard-actions {
         display: flex;
