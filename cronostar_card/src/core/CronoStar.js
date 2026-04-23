@@ -566,16 +566,43 @@ export class CronoStarCard extends LitElement {
   }
 
   handleCreateController() {
-    Logger.info("UI", "Triggering Home Assistant config flow for domain: cronostar");
-    const event = new CustomEvent("show-config-flow", {
-      bubbles: true,
-      composed: true,
-      detail: {
-        domain: "cronostar",
-        modal: true
-      },
-    });
-    this.dispatchEvent(event);
+    // We use console.error to BE ABSOLUTELY SURE it appears in the console regardless of filters
+    console.error("[CRONOSTAR] [FORCE-LOG] Triggering config flow v6.8.6");
+    
+    const eventData = { 
+      domain: "cronostar",
+      modal: true
+    };
+    
+    console.error("[CRONOSTAR] [FORCE-LOG] Event Data:", eventData);
+    
+    try {
+      const event = new CustomEvent("show-config-flow", {
+        bubbles: true,
+        composed: true,
+        detail: eventData
+      });
+      
+      console.error("[CRONOSTAR] [FORCE-LOG] Dispatching to window, document, card and home-assistant...");
+      window.dispatchEvent(event);
+      document.dispatchEvent(event);
+      this.dispatchEvent(event);
+      
+      const ha = document.querySelector("home-assistant");
+      if (ha) {
+        ha.dispatchEvent(event);
+      }
+
+      // Standard HA fireEvent pattern if available on this
+      if (this.hass && typeof this.hass.fireEvent === 'function') {
+         console.error("[CRONOSTAR] [FORCE-LOG] Using hass.fireEvent...");
+         this.hass.fireEvent("show-config-flow", eventData);
+      }
+
+      console.error("[CRONOSTAR] [FORCE-LOG] All events dispatched.");
+    } catch (e) {
+      console.error("[CRONOSTAR] [FORCE-LOG] CRITICAL ERROR:", e);
+    }
   }
 
   async handleDeleteController() {

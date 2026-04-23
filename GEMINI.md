@@ -45,26 +45,47 @@ There are two Home Assistant instances:
 ### Deployment to Main Instance
 - **Configuration Directory**: `/home/carlo/docker/homeassistant/config`
 - **Command**: This copies the compiled backend and frontend code to your main Home Assistant instance.
-Ensure you are in the root of the repo
+
+Ensure you are in the root of the repo:
+```bash
 cd /home/carlo/cronostar_git
+```
 
-Copy component files
+1. **Deploy Component**: Copy all files to the custom_components folder.
+```bash
 cp -r custom_components/cronostar/* /home/carlo/docker/homeassistant/config/custom_components/cronostar/
+```
 
-Restart Home Assistant
+2. **Deploy Frontend Alias (CRITICAL)**: Copy the compiled JS also to the global `www` directory to support `/local/` URL access.
+```bash
+mkdir -p /home/carlo/docker/homeassistant/config/www/cronostar_card/
+cp -rf custom_components/cronostar/www/cronostar_card/* /home/carlo/docker/homeassistant/config/www/cronostar_card/
+```
+
+3. **Restart**:
+```bash
 docker restart homeassistant
+```
 
 ### Deployment to Test Instance
 - **Configuration Directory**: `/home/carlo/docker/homeassistant_test/config`
-- **Command**: This copies the compiled backend and frontend code to your test Home Assistant instance.
-Ensure you are in the root of the repo
-cd /home/carlo/cronostar_git
+- **Command**: 
 
-Copy component files
+1. **Deploy Component**:
+```bash
 cp -r custom_components/cronostar/* /home/carlo/docker/homeassistant_test/config/custom_components/cronostar/
+```
 
-Restart the test container
+2. **Deploy Frontend Alias**:
+```bash
+mkdir -p /home/carlo/docker/homeassistant_test/config/www/cronostar_card/
+cp -rf custom_components/cronostar/www/cronostar_card/* /home/carlo/docker/homeassistant_test/config/www/cronostar_card/
+```
+
+3. **Restart**:
+```bash
 docker restart homeassistant_test_cronostar
+```
 
 ## Full Workflow Example (Frontend Change)
 

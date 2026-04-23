@@ -115,7 +115,7 @@ export class CardRenderer {
       return html`
         <ha-card
           style="padding: 16px; border: 2px dashed var(--primary-color); background: rgba(var(--rgb-primary-color), 0.05); cursor: pointer;"
-          @click=${() => this.card.handleCreateController()}
+          @click=${() => this.card.handleEditConfig(1)}
         >
           <div
             style="display: flex; justify-content: center; align-items: center; height: 60px; gap: 12px; color: var(--primary-color);"
@@ -651,16 +651,16 @@ export class CardRenderer {
             </p>
             ${!isEditor
               ? html`
-                  <mwc-button
-                    class="btn-3d"
-                    unelevated
-                    @click=${() => this.card.handleCreateController()}
+                  <button
+                    class="cs-btn"
+                    style="margin-top: 8px;"
+                    @click=${() => this.card.handleEditConfig(1)}
                   >
-                    <ha-icon icon="mdi:plus" slot="icon"></ha-icon>
+                    <ha-icon icon="mdi:cog" style="margin-right: 8px;"></ha-icon>
                     ${this.card.language === "it"
                       ? "Configura Ora"
                       : "Configure Now"}
-                  </mwc-button>
+                  </button>
                 `
               : html`
                   <div
