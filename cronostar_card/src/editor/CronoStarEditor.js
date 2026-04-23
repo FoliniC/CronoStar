@@ -313,8 +313,13 @@ export class CronoStarEditor extends LitElement {
         width: 100%;
         --mdc-text-field-fill-color: var(--background-color-secondary);
         --mdc-text-field-ink-color: var(--primary-text-color);
-        --mdc-text-field-label-ink-color: var(--primary-text-color);
+        --mdc-text-field-label-ink-color: var(--primary-text-color) !important;
         --mdc-theme-primary: var(--primary-color);
+      }
+
+      /* Force label color even when floating or focused */
+      ha-textfield .mdc-floating-label {
+        color: var(--primary-text-color) !important;
       }
 
       /* High contrast for textfield values */
