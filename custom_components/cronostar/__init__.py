@@ -236,41 +236,43 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         filepath = profiles_dir / filename
 
         # ── Mark the profile file as deleted (preserving data for future import) ──
-        if filepath.exists():
-            try:
+        try:
+            def _mark_as_deleted() -> str | None:
+                """Read, annotate and rename the profile file."""
+                if not filepath.exists():
+                    return None
 
-                def _mark_as_deleted() -> str:
-                    """Read, annotate and rename the profile file."""
-                    with open(filepath, encoding="utf-8") as f:
-                        data = json.load(f)
+                with open(filepath, encoding="utf-8") as f:
+                    data = json.load(f)
 
-                    # Inject deletion metadata so the config flow can recognise
-                    # this file and offer the user an import option
-                    data.setdefault("meta", {})
-                    data["meta"]["_deleted_at"] = datetime.now(UTC).isoformat()
-                    data["meta"]["_deleted_entry_title"] = entry.title
-                    data["meta"]["_deleted_global_prefix"] = global_prefix
-                    data["meta"]["_deleted_preset_type"] = preset_type
+                # Inject deletion metadata so the config flow can recognise
+                # this file and offer the user an import option
+                data.setdefault("meta", {})
+                data["meta"]["_deleted_at"] = datetime.now(UTC).isoformat()
+                data["meta"]["_deleted_entry_title"] = entry.title
+                data["meta"]["_deleted_global_prefix"] = global_prefix
+                data["meta"]["_deleted_preset_type"] = preset_type
 
-                    # Rename to <stem>_deleted_<timestamp>.json to prevent
-                    # automatic re-loading while keeping it discoverable
-                    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
-                    deleted_path = filepath.parent / f"{filepath.stem}_deleted_{timestamp}.json"
+                # Rename to <stem>_deleted_<timestamp>.json to prevent
+                # automatic re-loading while keeping it discoverable
+                timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+                deleted_path = filepath.parent / f"{filepath.stem}_deleted_{timestamp}.json"
 
-                    with open(deleted_path, "w", encoding="utf-8") as f:
-                        json.dump(data, f, indent=2, ensure_ascii=False)
+                with open(deleted_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
 
-                    filepath.unlink()
-                    return deleted_path.name
+                filepath.unlink()
+                return deleted_path.name
 
-                deleted_name = await hass.async_add_executor_job(_mark_as_deleted)
+            deleted_name = await hass.async_add_executor_job(_mark_as_deleted)
+            if deleted_name:
                 _LOGGER.info("✅ CronoStar: Profile marked as deleted and preserved as: %s", deleted_name)
-            except Exception as e:
-                _LOGGER.error("❌ CronoStar: Failed to mark profile '%s' as deleted: %s", filename, e)
+        except Exception as e:
+            _LOGGER.error("❌ CronoStar: Failed to mark profile '%s' as deleted: %s", filename, e)
 
         # ── Backup files are intentionally preserved for manual recovery ──
         backups_dir = profiles_dir / "backups"
-        if backups_dir.exists():
+        if await hass.async_add_executor_job(backups_dir.exists):
             _LOGGER.info("ℹ️ CronoStar: Backup files for '%s' preserved in: %s", filename, backups_dir)
 
 
@@ -281,7 +283,7 @@ async def _async_repair_entries(hass: HomeAssistant) -> None:
 
     _LOGGER.info("🔍 [REPAIR] Starting CronoStar profile repair task...")
     profiles_dir = Path(hass.config.path(STORAGE_DIR))
-    if not profiles_dir.exists():
+    if not await hass.async_add_executor_job(profiles_dir.exists):
         _LOGGER.info("🔍 [REPAIR] Profiles directory not found: %s", profiles_dir)
         return
 

@@ -560,10 +560,11 @@ class ProfileService:
         preset_defaults = {}
         try:
             presets_dir = Path(self.hass.config.path("cronostar/presets"))
-            presets_dir.mkdir(parents=True, exist_ok=True)
+            if not await self.hass.async_add_executor_job(presets_dir.exists):
+                await self.hass.async_add_executor_job(presets_dir.mkdir, True, True)
 
             preset_file = presets_dir / f"{preset}_defaults.json"
-            if preset_file.exists():
+            if await self.hass.async_add_executor_job(preset_file.exists):
                 content = await self.hass.async_add_executor_job(preset_file.read_text, "utf-8")
                 preset_defaults = json.loads(content)
                 _LOGGER.debug("[REGISTER] Loaded preset defaults for '%s': %s", preset, preset_defaults)

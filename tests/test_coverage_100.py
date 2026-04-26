@@ -43,21 +43,29 @@ async def test_entry_within_grace_period_hidden_not_removed(hass, tmp_path):
 @pytest.mark.asyncio
 async def test_entry_outside_grace_period_removed(hass, tmp_path):
     hass.config.path = MagicMock(side_effect=lambda x: str(tmp_path / x))
-    hass.async_add_executor_job = AsyncMock()
+    
+    async def side_effect(func, *args):
+        if callable(func):
+            return func(*args)
+        return func
+    hass.async_add_executor_job = AsyncMock(side_effect=side_effect)
     
     fixed_now = datetime(2025, 6, 1, 12, 20, 0, tzinfo=timezone.utc)
     entry = MagicMock()
+    entry.entry_id = "test_id"
+    entry.title = "Test"
     entry.data = {"preset_type": "thermostat", "global_prefix": "p1_"}
     entry.created_at = fixed_now - timedelta(minutes=20)
     hass.config_entries.async_entries = MagicMock(return_value=[entry])
+    hass.config_entries.async_get_entry = MagicMock(return_value=entry)
     
     with patch("custom_components.cronostar.setup.dashboard.dt_util") as mock_dt, \
          patch("custom_components.cronostar.setup.dashboard.build_profile_filename", return_value="test.json"), \
          patch("pathlib.Path.exists", return_value=False), \
-         patch.object(hass.config_entries, "async_remove", new_callable=AsyncMock):
+         patch.object(hass.config_entries, "async_remove", new_callable=AsyncMock) as mock_remove:
         mock_dt.utcnow.return_value = fixed_now
         await write_dashboard_yaml(hass, "test.yaml")
-        hass.config_entries.async_remove.assert_called()
+        mock_remove.assert_called_with("test_id")
 
 # --- Coordinator/Integration Tests ---
 

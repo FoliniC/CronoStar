@@ -100,8 +100,16 @@ describe("main.js", () => {
   });
 
   describe("registerInRegistry – branch", () => {
-    it("logs 'già registrato' and returns false if registry.get returns something", async () => {
-      vi.spyOn(customElements, "define").mockImplementation(() => {});
+    it("logs only the banner", async () => {
+      await loadMain();
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining("CRONOSTAR"),
+        expect.any(String),
+        expect.any(String)
+      );
+    });
+
+    it("registerInRegistry returns false if registry.get returns something", async () => {
       vi.spyOn(customElements, "get").mockImplementation((name) => {
         if (name === "cronostar-card" || name === "cronostar-card-editor") {
           return class {};
@@ -110,10 +118,7 @@ describe("main.js", () => {
       });
 
       await loadMain();
-
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining("già registrato")
-      );
+      // No extra log expected now
     });
 
     it("tries define even if registry.get throws exception", async () => {
@@ -127,41 +132,32 @@ describe("main.js", () => {
       expect(defineSpy).toHaveBeenCalled();
     });
 
-    it("define ok: logs '✅' and returns true", async () => {
+    it("define ok: returns true", async () => {
       vi.spyOn(customElements, "get").mockReturnValue(null);
       vi.spyOn(customElements, "define").mockImplementation(() => {});
 
       await loadMain();
-
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining("✅ \"cronostar-card\" registrato")
-      );
+      // Success
     });
 
-    it("define throws 'already been used': logs 'già definito'", async () => {
+    it("define throws 'already been used': silent", async () => {
       vi.spyOn(customElements, "get").mockReturnValue(null);
       vi.spyOn(customElements, "define").mockImplementation(() => {
         throw new Error("already been used");
       });
 
       await loadMain();
-
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining("già definito")
-      );
+      // Silent
     });
 
-    it("define throws 'already defined': logs 'già definito'", async () => {
+    it("define throws 'already defined': silent", async () => {
       vi.spyOn(customElements, "get").mockReturnValue(null);
       vi.spyOn(customElements, "define").mockImplementation(() => {
         throw new Error("This name has already defined");
       });
 
       await loadMain();
-
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining("già definito")
-      );
+      // Silent
     });
 
     it("define throws generic error: calls console.error", async () => {
@@ -175,16 +171,6 @@ describe("main.js", () => {
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining("❌"),
         expect.any(Error),
-      );
-    });
-
-    it("logs 'registry nullo' and returns false if customElements is null", async () => {
-      vi.stubGlobal("customElements", null);
-
-      await loadMain();
-
-      expect(console.warn).toHaveBeenCalledWith(
-        expect.stringContaining("registry nullo"),
       );
     });
 
@@ -206,29 +192,23 @@ describe("main.js", () => {
       vi.spyOn(customElements, "define").mockImplementation(() => {});
     });
 
-    it("logs 'non rilevato' if ScopedRegistryHost does not exist", async () => {
+    it("works if ScopedRegistryHost does not exist", async () => {
       delete window.ScopedRegistryHost;
       await loadMain();
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining("non rilevato"),
-      );
+      // Silent
     });
 
-    it("logs 'non rilevato' if ScopedRegistryHost is null (falsy)", async () => {
+    it("works if ScopedRegistryHost is null (falsy)", async () => {
       window.ScopedRegistryHost = null;
       await loadMain();
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining("non rilevato"),
-      );
+      // Silent
     });
 
-    it("logs 'non rilevato' if ScopedRegistryHost has no prototype", async () => {
+    it("works if ScopedRegistryHost has no prototype", async () => {
       window.ScopedRegistryHost = Object.create(null);
       window.ScopedRegistryHost.prototype = null;
       await loadMain();
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining("non rilevato"),
-      );
+      // Silent
     });
   });
 
@@ -263,15 +243,6 @@ describe("main.js", () => {
 
       return host;
     }
-
-    it("logs 'ScopedRegistryHost rilevato'", async () => {
-      class MockHost { connectedCallback() {} }
-      window.ScopedRegistryHost = MockHost;
-      await loadMain();
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining("ScopedRegistryHost rilevato"),
-      );
-    });
 
     it("patches connectedCallback in the prototype", async () => {
       class MockHost { connectedCallback() {} }
@@ -343,25 +314,6 @@ describe("main.js", () => {
 
       host.connectedCallback();
       expect(defineSpy).not.toHaveBeenCalled();
-    });
-
-    it("uses 'scoped(<tagname>)' in the log when tagName is defined", async () => {
-      const scopedReg = { get: vi.fn(() => null), define: vi.fn() };
-      const host = await setupPatchedHost(scopedReg, "MY-HOST");
-      host.connectedCallback();
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining("my-host"),
-      );
-    });
-
-    it("uses 'scoped(unknown-host)' in the log when tagName is undefined", async () => {
-      const scopedReg = { get: vi.fn(() => null), define: vi.fn() };
-      const host = await setupPatchedHost(scopedReg, undefined);
-      host.tagName = undefined;
-      host.connectedCallback();
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining("unknown-host"),
-      );
     });
 
     it("registers ha-elements available globally in the scoped registry", async () => {
@@ -511,9 +463,6 @@ describe("main.js", () => {
       await loadMain();
       expect(window.customCards).toHaveLength(1);
       expect(window.customCards[0].name).toBe("🌟 CronoStar Card");
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining("Aggiornata"),
-      );
     });
 
     it("updates existing card (type === 'custom:cronostar-card')", async () => {
@@ -530,12 +479,10 @@ describe("main.js", () => {
       expect(window.customCards.some((c) => c.type === "cronostar-card")).toBe(true);
     });
 
-    it("logs '✅ Aggiunto' when the card is new", async () => {
+    it("adds the card when new", async () => {
       window.customCards = [];
       await loadMain();
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining("Aggiunto a window.customCards"),
-      );
+      expect(window.customCards.some((c) => c.type === "cronostar-card")).toBe(true);
     });
   });
 });

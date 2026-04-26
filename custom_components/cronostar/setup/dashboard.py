@@ -19,6 +19,46 @@ def _is_real_datetime(obj) -> bool:
     """Strict check for datetime to avoid MagicMock interference."""
     return isinstance(obj, datetime)
 
+def _get_orphaned_profiles(profiles_dir: Path, seen_prefixes: set):
+    """Scan for orphaned profile files in the executor."""
+    orphaned_info = []
+    if not profiles_dir.exists():
+        return orphaned_info
+
+    try:
+        for f in profiles_dir.glob("cronostar_*_data.json"):
+            if "_deleted_" in f.name or "_j_u_n_k_" in f.name:
+                continue
+
+            try:
+                with open(f, encoding="utf-8") as file:
+                    data = json.load(file)
+                    meta = data.get("meta", {})
+                    prefix = meta.get("global_prefix")
+                    target = meta.get("target_entity")
+
+                    if not prefix:
+                        prefix = f.name.replace("_data.json", "_")
+
+                    if prefix in seen_prefixes:
+                        continue
+
+                    orphaned_info.append({
+                        "type": "file",
+                        "title": meta.get("name") or meta.get("title") or f.name,
+                        "prefix": prefix,
+                        "target": target,
+                        "preset": meta.get("preset_type")
+                    })
+                    # Add to seen_prefixes to avoid duplicates within the file scan itself
+                    seen_prefixes.add(prefix)
+            except Exception:
+                continue
+    except Exception as e:
+        _LOGGER.error("Error scanning orphaned profiles for dashboard: %s", e)
+    
+    return orphaned_info
+
 async def write_dashboard_yaml(hass: HomeAssistant, filename: str):
     yaml_path = hass.config.path(filename)
     profiles_dir = Path(hass.config.path(STORAGE_DIR))
@@ -49,43 +89,18 @@ async def write_dashboard_yaml(hass: HomeAssistant, filename: str):
             if target:
                 target_counts[target] = target_counts.get(target, 0) + 1
 
-    # Get data from Orphaned JSON files
-    if profiles_dir.exists():
-        try:
-            for f in profiles_dir.glob("cronostar_*_data.json"):
-                if "_deleted_" in f.name or "_j_u_n_k_" in f.name:
-                    continue
-
-                # Check if this file prefix is already covered by an entry
-                # We need to guess the prefix from filename if not loaded,
-                # but let's try a quick load to be sure
-                try:
-                    with open(f, encoding="utf-8") as file:
-                        data = json.load(file)
-                        meta = data.get("meta", {})
-                        prefix = meta.get("global_prefix")
-                        target = meta.get("target_entity")
-
-                        if not prefix:
-                            prefix = f.name.replace("_data.json", "_")
-
-                        if prefix in seen_prefixes:
-                            continue
-
-                        controllers_info.append({
-                            "type": "file",
-                            "title": meta.get("name") or meta.get("title") or f.name,
-                            "prefix": prefix,
-                            "target": target,
-                            "preset": meta.get("preset_type")
-                        })
-                        seen_prefixes.add(prefix)
-                        if target:
-                            target_counts[target] = target_counts.get(target, 0) + 1
-                except Exception:
-                    continue
-        except Exception as e:
-            _LOGGER.error("Error scanning orphaned profiles for dashboard: %s", e)
+    # Get data from Orphaned JSON files (offload to executor)
+    orphaned_profiles = await hass.async_add_executor_job(
+        _get_orphaned_profiles, profiles_dir, set(seen_prefixes)
+    )
+    
+    for info in orphaned_profiles:
+        controllers_info.append(info)
+        prefix = info["prefix"]
+        target = info["target"]
+        seen_prefixes.add(prefix)
+        if target:
+            target_counts[target] = target_counts.get(target, 0) + 1
 
     # 1.5 Sort controllers alphabetically by target_entity
     # Controllers without a target are sorted to the end
@@ -115,7 +130,7 @@ async def write_dashboard_yaml(hass: HomeAssistant, filename: str):
         if not is_orphaned:
             json_filename = build_profile_filename(preset, prefix)
             json_path = profiles_dir / json_filename
-            if not json_path.exists():
+            if not await hass.async_add_executor_job(json_path.exists):
                 # Grace period logic
                 entry = hass.config_entries.async_get_entry(info["entry_id"])
                 created_at = getattr(entry, "created_at", now)
@@ -199,7 +214,7 @@ async def write_dashboard_yaml(hass: HomeAssistant, filename: str):
     await hass.async_add_executor_job(_write_file)
 
 async def setup_dashboard(hass):
-    _LOGGER.error("CRONOSTAR_SYSTEM: Starting setup_dashboard task")
+    _LOGGER.info("CRONOSTAR_SYSTEM: Starting setup_dashboard task")
     try:
         await write_dashboard_yaml(hass, DASHBOARD_YAML_FILENAME)
     except Exception as e:

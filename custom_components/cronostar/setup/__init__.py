@@ -72,7 +72,7 @@ async def _setup_static_resources(hass: HomeAssistant) -> bool:
     """Register static resources."""
     try:
         www_path = Path(hass.config.path("custom_components/cronostar/www/cronostar_card"))
-        if not www_path.exists():
+        if not await hass.async_add_executor_job(www_path.exists):
             return False
 
         if "http" in hass.config.components:

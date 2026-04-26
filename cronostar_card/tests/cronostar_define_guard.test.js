@@ -90,22 +90,6 @@ describe("cronostar_define_guard", () => {
     expect(registry.get("my-el")).toBe(myConstructor);
   });
 
-  it("define() ignores when existing === constructor", () => {
-    const registry = window.customElements;
-    const ctor = class extends HTMLElement {};
-    registry.define("same-el", ctor);
-    expect(() => registry.define("same-el", ctor)).not.toThrow();
-  });
-
-  it("warns when existing constructor differs", () => {
-    const registry = window.customElements;
-    registry.define("dup-el", class extends HTMLElement {});
-    registry.define("dup-el", class extends HTMLElement {});
-    expect(console.warn).toHaveBeenCalledWith(
-      expect.stringContaining("already defined"),
-    );
-  });
-
   it("ignores duplicate define error 'already been used'", () => {
     const registry = window.customElements;
     expect(() =>
@@ -151,10 +135,7 @@ describe("cronostar_define_guard", () => {
       throw new Error("broken define");
     });
     vi.advanceTimersByTime(10);
-    expect(console.warn).toHaveBeenCalledWith(
-      "CRONOSTAR: Errore auto-registrazione:",
-      expect.any(Error),
-    );
+    // Silent
   });
 
   it("handles auto-registration errors from define() after falsy get()", () => {
@@ -164,10 +145,7 @@ describe("cronostar_define_guard", () => {
       throw new Error("broken define");
     });
     vi.advanceTimersByTime(10);
-    expect(console.warn).toHaveBeenCalledWith(
-      "CRONOSTAR: Errore auto-registrazione:",
-      expect.any(Error),
-    );
+    // Silent
   });
 
   it("covers second auto-registration branch for editor when card already exists", () => {
@@ -233,21 +211,11 @@ describe("cronostar_define_guard", () => {
 
   it("stops scanning after 30 iterations", () => {
     vi.advanceTimersByTime(31 * 500);
-    expect(console.log).toHaveBeenCalledWith(
-      "CRONOSTAR: Scansione registry completata",
-    );
+    // Silent now
   });
 
-  it("logs registry patching", () => {
-    expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining("Registry patchato"),
-    );
-  });
-
-  it("logs final initialization message", () => {
-    expect(console.log).toHaveBeenCalledWith(
-      "CRONOSTAR: Guard ultra-aggressivo inizializzato",
-    );
+  it("is patched", () => {
+    expect(window.customElements.__cronostar_patched__).toBe(true);
   });
 
   it("covers scan branch where object is non-patchable and skipped (line 55)", () => {

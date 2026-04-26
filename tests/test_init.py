@@ -492,6 +492,11 @@ async def test_async_remove_entry_marks_file_as_deleted_boost():
 async def test_async_remove_entry_logs_backup_preservation(caplog):
     """Line 242: log message fires when backup directory exists."""
     hass = MagicMock()
+    # async_add_executor_job must be an AsyncMock to be awaitable
+    async def side_effect(func, *args):
+        return func(*args)
+    hass.async_add_executor_job = AsyncMock(side_effect=side_effect)
+    
     entry = MagicMock()
     entry.data = {
         "component_installed": False,

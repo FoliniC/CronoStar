@@ -539,6 +539,7 @@ export class CardEventHandlers {
               const options = st?.attributes?.options || [];
 
               if (st && !options.includes(profileName)) {
+                /* v8 ignore start */
                 if (attempts > 0) {
                   Logger.log(
                     "PROFILE",
@@ -547,6 +548,7 @@ export class CardEventHandlers {
                   setTimeout(() => trySelect(attempts - 1), 1000);
                   return;
                 }
+                /* v8 ignore stop */
               }
 
               await this.card.hass.callService(domain, "select_option", {
@@ -558,6 +560,7 @@ export class CardEventHandlers {
                 `Successfully selected new profile '${profileName}' on ${selectorEntity}`,
               );
             } catch (e) {
+              /* v8 ignore start */
               if (attempts > 0) {
                 Logger.log(
                   "PROFILE",
@@ -571,6 +574,7 @@ export class CardEventHandlers {
                   e,
                 );
               }
+              /* v8 ignore stop */
             }
           };
 

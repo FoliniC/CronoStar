@@ -29,13 +29,14 @@ class SettingsManager:
         self._settings = {}
         self._lock = asyncio.Lock()
 
-        # Ensure directory exists
-        self.settings_dir.mkdir(parents=True, exist_ok=True)
-
     async def load_settings(self) -> dict:
         """Load settings from disk"""
         async with self._lock:
-            if not self.settings_file.exists():
+            # Ensure directory exists (offload to executor)
+            if not await self.hass.async_add_executor_job(self.settings_dir.exists):
+                await self.hass.async_add_executor_job(self.settings_dir.mkdir, True, True)
+
+            if not await self.hass.async_add_executor_job(self.settings_file.exists):
                 self._settings = DEFAULT_SETTINGS.copy()
                 await self._save_settings_locked()
                 return self._settings

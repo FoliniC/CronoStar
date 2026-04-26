@@ -264,7 +264,7 @@ describe("ChartManager - Comprehensive Coverage", () => {
   describe("Constructor and Init", () => {
     it("constructor sets up state", () => {
         expect(cm.isInitialized()).toBe(false);
-        expect(ctx.events.on).toHaveBeenCalledTimes(2);
+        expect(ctx.events.on).toHaveBeenCalledTimes(3);
     });
 
     it("registered event listeners invoke chart updates and style refresh", () => {

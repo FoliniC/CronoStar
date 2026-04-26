@@ -20,9 +20,9 @@ import {
 // ─── VERSION ─────────────────────────────────────────────────────────────────
 describe("VERSION", () => {
   it("is a string", () => expect(typeof VERSION).toBe("string"));
-  it('falls back to "0.0.0" if window.CRONOSTAR_CARD_VERSION is not defined', () => {
-    // window.CRONOSTAR_CARD_VERSION is undefined in jsdom → "0.0.0"
-    expect(VERSION).toBe("0.0.0");
+  it('falls back to "6.8.6" if window.CRONOSTAR_CARD_VERSION is not defined', () => {
+    // window.CRONOSTAR_CARD_VERSION is undefined in jsdom → "6.8.6"
+    expect(VERSION).toBe("6.8.6");
   });
 });
 

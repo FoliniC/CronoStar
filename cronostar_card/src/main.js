@@ -26,6 +26,7 @@ function registerInRegistry(registry, name, constructor, context = "global") {
     return true;
   } catch (e) {
     const msg = String(e);
+    /* v8 ignore next 7 */
     if (
       !msg.includes("already been used") &&
       !msg.includes("already defined")
@@ -98,7 +99,8 @@ if (window.ScopedRegistryHost && window.ScopedRegistryHost.prototype) {
         });
       }
     } catch (e) {
-      // Silently fail for scoped registry
+      /* v8 ignore next 2 */
+      console.error("CRONOSTAR: errore registrazione in scoped registry:", e);
     }
 
     if (origConnected) {

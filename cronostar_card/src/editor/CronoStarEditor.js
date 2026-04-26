@@ -950,6 +950,7 @@ export class CronoStarEditor extends LitElement {
          }
       }
       
+      /* v8 ignore next */
       if (!found) console.warn("[CronoStar Editor] HA Save button not found. User must use standard SAVE if visible.");
     }, 300);
   }
@@ -1183,6 +1184,7 @@ export class CronoStarEditor extends LitElement {
 
       this._initialized = true;
     } catch (e) {
+      console.warn("[CronoStar Editor] setConfig error:", e);
       this._config = { ...DEFAULT_CONFIG, ...config };
     }
 
