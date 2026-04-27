@@ -13,7 +13,7 @@ from homeassistant.util import dt as dt_util
 _LOGGER = logging.getLogger(__name__)
 PANEL_URL_PATH = "cronostar-admin"
 DASHBOARD_YAML_FILENAME = "cronostar_dashboard_v600.yaml"
-CURRENT_VERSION = "v6.5.8"
+CURRENT_VERSION = "v6.8.7"
 
 def _is_real_datetime(obj) -> bool:
     """Strict check for datetime to avoid MagicMock interference."""
@@ -217,5 +217,17 @@ async def setup_dashboard(hass):
     _LOGGER.info("CRONOSTAR_SYSTEM: Starting setup_dashboard task")
     try:
         await write_dashboard_yaml(hass, DASHBOARD_YAML_FILENAME)
+
+        # 🚀 Registrazione Sidebar Panel
+        async_register_built_in_panel(
+            hass,
+            component_name="lovelace",
+            sidebar_title="CronoStar",
+            sidebar_icon="mdi:calendar-star",
+            url_path=PANEL_URL_PATH,
+            config={"mode": "yaml", "title": "CronoStar", "show_in_sidebar": True, "filename": DASHBOARD_YAML_FILENAME},
+            require_admin=True
+        )
+        _LOGGER.info("✅ CronoStar: Sidebar panel registered at /%s", PANEL_URL_PATH)
     except Exception as e:
-        _LOGGER.error("Failed to write dashboard file: %s", e)
+        _LOGGER.error("Failed to setup dashboard panel: %s", e)

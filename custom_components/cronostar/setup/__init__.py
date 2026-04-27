@@ -89,8 +89,8 @@ async def _setup_static_resources(hass: HomeAssistant) -> bool:
 
         if "frontend" in hass.config.components:
             url_params = f"v={version}&b={boot_id}"
-            # add_extra_js_url(hass, f"/cronostar_card/cronostar-card-v663.js?{url_params}")
-            # add_extra_js_url(hass, f"/cronostar_card/card-picker-metadata.js?{url_params}")
+            add_extra_js_url(hass, f"/cronostar_card/cronostar-card.js?{url_params}")
+            add_extra_js_url(hass, f"/cronostar_card/card-picker-metadata.js?{url_params}")
         return True
     except Exception as e:
         _LOGGER.error("Failed static resources: %s", e)

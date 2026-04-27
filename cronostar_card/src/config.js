@@ -1,6 +1,6 @@
 /** Configuration management for CronoStar Card */
 import { log } from "./utils/logger_utils.js";
-export const VERSION = (globalThis.window && globalThis.window.CRONOSTAR_CARD_VERSION) || "6.8.6";
+export const VERSION = (globalThis.window && globalThis.window.CRONOSTAR_CARD_VERSION) || "6.8.7";
 
 export const COLORS = {
   primary: "#03a9f4",
