@@ -2,6 +2,15 @@
 
 All notable changes to CronoStar will be documented in this file.
 
+## [6.8.8] - 2026-05-12
+
+### Added
+- **Backward Compatibility**: Support for older Home Assistant versions (pre-2024.4) by implementing fallbacks for `runtime_data` and newer config flow methods.
+- **Modal Configuration**: Added `modal: true` to config flow trigger for improved user experience.
+
+### Fixed
+- Fixed backend setup fallbacks to ensure stability on Home Assistant versions without `runtime_data` support.
+
 ## [6.1.2] - 2026-04-08
 
 ### Fixed

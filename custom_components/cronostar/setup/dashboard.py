@@ -13,7 +13,7 @@ from homeassistant.util import dt as dt_util
 _LOGGER = logging.getLogger(__name__)
 PANEL_URL_PATH = "cronostar-admin"
 DASHBOARD_YAML_FILENAME = "cronostar_dashboard_v600.yaml"
-CURRENT_VERSION = "v6.8.7"
+CURRENT_VERSION = "v6.8.8"
 
 def _is_real_datetime(obj) -> bool:
     """Strict check for datetime to avoid MagicMock interference."""

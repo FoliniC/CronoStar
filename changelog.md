@@ -1,5 +1,12 @@
 # Changelog
 
+## v6.8.8 - 2026-05-12
+
+### 🚀 Compatibility & Deployment
+- **Backward Compatibility**: Support for older Home Assistant versions (pre-2024.4) by implementing fallbacks for `runtime_data` and newer config flow methods.
+- **Improved Registration**: Enhanced `show-config-flow` event with modal support for better UI consistency.
+- **Deployment**: Unified deployment workflow for backend and compiled frontend.
+
 ## v6.1.2
 
 ### 🔧 Fixes
