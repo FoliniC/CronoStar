@@ -154,8 +154,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_config_entry_first_refresh()
         _LOGGER.info("✅ [ENTRY_SETUP] [%s] First refresh completed successfully", entry.title)
 
-        # Store coordinator in ConfigEntry.runtime_data
-        entry.runtime_data = coordinator
+        # Store coordinator in ConfigEntry.runtime_data (HA 2024.4+) or fallback to hass.data
+        if hasattr(entry, "runtime_data"):
+            entry.runtime_data = coordinator
+        else:
+            hass.data[DOMAIN][entry.entry_id] = coordinator
 
         # Forward platforms
         _LOGGER.info("🔌 [ENTRY_SETUP] [%s] Forwarding platforms to: %s", entry.title, PLATFORMS)
@@ -195,6 +198,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         _LOGGER.info("✅ CronoStar: Component unloaded")
         return True
+
+    if unloaded and not entry.data.get("component_installed"):
+        if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
+            hass.data[DOMAIN].pop(entry.entry_id)
 
     _LOGGER.info("✅ CronoStar: Entry unload %s", "succeeded" if unloaded else "failed")
     return unloaded

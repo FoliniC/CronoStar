@@ -67,7 +67,13 @@ class CronoStarConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Update the entry
             new_data = {**entry.data, **user_input}
-            return await self.async_update_reload_and_abort(entry, data=new_data)
+            if hasattr(self, "async_update_reload_and_abort"):
+                return await self.async_update_reload_and_abort(entry, data=new_data)
+            
+            # Fallback for HA < 2024.1
+            self.hass.config_entries.async_update_entry(entry, data=new_data)
+            await self.hass.config_entries.async_reload(entry.entry_id)
+            return self.async_abort(reason="reconfigure_successful")
 
         # Pre-fill with current values
         if entry.data.get("component_installed"):

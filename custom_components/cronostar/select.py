@@ -13,7 +13,11 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up CronoStar select entities from config entry."""
-    coordinator = entry.runtime_data
+    # Use runtime_data (HA 2024.4+) with fallback to hass.data
+    if hasattr(entry, "runtime_data"):
+        coordinator = entry.runtime_data
+    else:
+        coordinator = hass.data[DOMAIN][entry.entry_id]
     _LOGGER.info("[SELECT] Setting up profile selector for controller '%s' (prefix: %s)", coordinator.name, coordinator.prefix)
     async_add_entities([CronoStarProfileSelect(coordinator)])
 

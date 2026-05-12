@@ -49,6 +49,12 @@ class ProfileService:
         self.storage = storage_manager
         self.settings = settings_manager
 
+    def _get_coordinator(self, entry):
+        """Get coordinator from entry (runtime_data) or hass.data (fallback)."""
+        if hasattr(entry, "runtime_data"):
+            return entry.runtime_data
+        return self.hass.data.get(DOMAIN, {}).get(entry.entry_id)
+
     async def add_profile(self, call: ServiceCall) -> None:
         """
         Add a new profile
@@ -83,8 +89,9 @@ class ProfileService:
             # Notify coordinators to refresh available_profiles
             for entry in self.hass.config_entries.async_entries("cronostar"):
                 if entry.data.get("global_prefix") == effective_prefix:
-                    if hasattr(entry, "runtime_data") and entry.runtime_data:
-                        await entry.runtime_data.async_refresh_profiles()
+                    coord = self._get_coordinator(entry)
+                    if coord:
+                        await coord.async_refresh_profiles()
 
             log_operation("Add profile", True, profile=profile_name, preset=canonical_preset)
 
@@ -190,9 +197,10 @@ class ProfileService:
                         self.hass.config_entries.async_update_entry(entry, data=new_data)
 
                     # Notify coordinator to refresh
-                    if hasattr(entry, "runtime_data") and entry.runtime_data:
+                    coord = self._get_coordinator(entry)
+                    if coord:
                         _LOGGER.debug("Notifying coordinator for '%s' to refresh profiles", effective_prefix)
-                        await entry.runtime_data.async_refresh_profiles()
+                        await coord.async_refresh_profiles()
 
             # 4. Update profile selectors (input_select entities)
             await self.async_update_profile_selectors()
@@ -446,8 +454,9 @@ class ProfileService:
                 # Notify coordinators to refresh available_profiles
                 for entry in self.hass.config_entries.async_entries("cronostar"):
                     if entry.data.get("global_prefix") == effective_prefix:
-                        if hasattr(entry, "runtime_data") and entry.runtime_data:
-                            await entry.runtime_data.async_refresh_profiles()
+                        coord = self._get_coordinator(entry)
+                        if coord:
+                            await coord.async_refresh_profiles()
 
                 log_operation("Delete profile", True, profile=profile_name, preset=canonical_preset)
             else:

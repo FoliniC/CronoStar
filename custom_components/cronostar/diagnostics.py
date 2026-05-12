@@ -26,8 +26,13 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
     }
 
     # If this is a controller entry, dump its state
-    if entry.runtime_data:
+    coordinator = None
+    if hasattr(entry, "runtime_data"):
         coordinator = entry.runtime_data
+    elif DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
+        coordinator = hass.data[DOMAIN][entry.entry_id]
+
+    if coordinator:
         data["controller_state"] = {
             "name": coordinator.name,
             "preset": coordinator.preset,
