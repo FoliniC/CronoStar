@@ -7,6 +7,23 @@ export default defineConfig({
     globals: true,
     include: ["tests/**/*.test.js"],
     exclude: ["node_modules/**", "dist/**", "coverage/**"],
+    printConsoleTrace: false,
+    onConsoleLog(log) {
+      const expectedNoise = [
+        "[CRONOSTAR]",
+        "[CronoStar]",
+        "[CronoStarEditor]",
+        "[CronoStar Editor]",
+        "[Step5Summary]",
+        "[DASHBOARD]",
+        "Lit is in dev mode.",
+        "HA Save button not found",
+      ];
+
+      if (expectedNoise.some((text) => log.includes(text))) {
+        return false;
+      }
+    },
 
     coverage: {
       provider: "v8",
