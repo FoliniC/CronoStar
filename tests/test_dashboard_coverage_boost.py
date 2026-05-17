@@ -45,12 +45,12 @@ async def test_write_dashboard_yaml_json_fallback_fails(hass, caplog):
 
 @pytest.mark.asyncio
 async def test_setup_dashboard_exception(hass, caplog):
-    """Line 131-132: Test exception logging in setup_dashboard."""
+    """Test exception logging in setup_dashboard."""
     with patch("custom_components.cronostar.setup.dashboard.write_dashboard_yaml", 
                side_effect=Exception("Uncaught error")), \
          caplog.at_level(logging.ERROR, logger="custom_components.cronostar.setup.dashboard"):
         
         await setup_dashboard(hass)
         
-        assert "Failed to write dashboard file" in caplog.text
+        assert "Failed to setup dashboard panel" in caplog.text
         assert "Uncaught error" in caplog.text
