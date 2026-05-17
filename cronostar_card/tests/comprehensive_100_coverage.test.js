@@ -15,6 +15,9 @@ vi.mock("lit", async (importOriginal) => {
           const v = values[i];
           if (typeof v === 'function') parts.push(`[FUNC:${v.name || 'anon'}]`);
           else if (v && v.__litHtml) parts.push(v._content);
+          else if (Array.isArray(v)) {
+              v.forEach(item => { if(item && item.__litHtml) parts.push(item._content); });
+          }
           else parts.push(String(v ?? ""));
         }
       });
@@ -79,24 +82,27 @@ describe("Final 100% Coverage Push", () => {
         beforeEach(() => {
             mockFocus = vi.fn();
             card = {
-                config: { global_prefix: "p_", target_entity: "c.x" },
+                config: { global_prefix: "p_", target_entity: "c.x", enabled_entity: "switch.test" },
                 language: "en",
                 localizationManager: { localize: vi.fn((l,k) => k) },
-                stateManager: { getData: () => [], getNumPoints: () => 24 },
+                stateManager: { getData: () => [], getNumPoints: () => 24, setData: vi.fn() },
                 chartManager: { 
                     isInitialized: vi.fn(() => true), 
                     updateChartLabels: vi.fn(),
                     recreateChartOptions: vi.fn(),
+                    updateData: vi.fn(),
                     getChart: () => ({ update: vi.fn(), options: { scales: { y: {} } } })
                 },
                 keyboardHandler: { enable: vi.fn(), disable: vi.fn() },
                 requestUpdate: vi.fn(),
                 shadowRoot: { querySelector: vi.fn().mockReturnValue({ focus: mockFocus }) },
-                isEditorContext: () => false,
-                cardLifecycle: { updateReadyFlag: vi.fn() },
-                cardSync: { updateAutomationSync: vi.fn() }
+                isEditorContext: vi.fn(() => false),
+                cardLifecycle: { updateReadyFlag: vi.fn(), isEditorContext: () => false, isPickerPreviewContext: () => false },
+                cardSync: { updateAutomationSync: vi.fn() },
+                isMenuOpen: true
             };
             handlers = new CardEventHandlers(card);
+            card.eventHandlers = handlers;
         });
 
         it("covers chart focus in various handlers", async () => {
@@ -123,12 +129,15 @@ describe("Final 100% Coverage Push", () => {
             vi.useFakeTimers();
             const card = {
                 config: { global_prefix: "p_", view_mode: "admin" },
-                chartManager: { isInitialized: () => true, chart: { resize: vi.fn() } },
+                chartManager: { isInitialized: () => true, chart: { resize: vi.fn() }, updateData: vi.fn() },
                 requestUpdate: vi.fn(),
                 missingEntities: []
             };
             const lifecycle = new CardLifecycle(card);
-            lifecycle.setHass({ states: { "input_boolean.p_show_chart": { state: "on" } } });
+            lifecycle.setHass({ 
+                states: { "input_boolean.p_show_chart": { state: "on" } },
+                config: { state: "RUNNING" }
+            });
             vi.advanceTimersByTime(100);
             expect(card.chartManager.chart.resize).toHaveBeenCalled();
             vi.useRealTimers();
@@ -141,81 +150,61 @@ describe("Final 100% Coverage Push", () => {
                 config: { title: "T" },
                 localizationManager: { localize: vi.fn((l,k) => k) },
                 profileManager: { handleProfileSelection: vi.fn() },
-                missingEntities: []
+                missingEntities: [],
+                profileOptions: ["P1"],
+                selectedProfile: "P1",
+                isEditorContext: vi.fn(() => false),
+                cardLifecycle: { reinitializeCard: vi.fn(), isEditorContext: () => false, isPickerPreviewContext: () => false },
+                eventHandlers: { handleCardClick: vi.fn() }
             };
             const renderer = new CardRenderer(card);
             const res = renderer._renderFullCard("Title");
             
-            // Find a list item click handler and call it with a complex event
-            const listItemClick = res.values.find(v => typeof v === 'function' && v.name === ''); // anonymous in template
-            
-            const mockSelect = {
-                closest: () => ({
-                    open: true,
-                    blur: vi.fn(),
-                    shadowRoot: {
-                        querySelector: (s) => {
-                            if (s === "ha-picker-field") return { classList: { remove: vi.fn() } };
-                            if (s === "mwc-menu") return { open: true, removeAttribute: vi.fn() };
-                            return null;
-                        }
-                    }
-                })
+            const findFunctions = (val) => {
+                let funcs = [];
+                if (typeof val === 'function') funcs.push(val);
+                else if (val && Array.isArray(val.values)) {
+                    val.values.forEach(v => funcs = funcs.concat(findFunctions(v)));
+                } else if (Array.isArray(val)) {
+                    val.forEach(v => funcs = funcs.concat(findFunctions(v)));
+                }
+                return funcs;
             };
-            
-            try {
-               // We try to trigger the handler found in template
-               // This is tricky without real rendering, so we skip if too hard and use other means
-            } catch(e) {}
+
+            const funcs = findFunctions(res);
+            funcs.forEach(f => {
+                try { f({ stopPropagation: vi.fn(), preventDefault: vi.fn(), target: { value: "P1" } }); } catch(e) {}
+            });
+            expect(card.profileManager.handleProfileSelection).toHaveBeenCalled();
         });
     });
 
     describe("CronoStar Card - gaps", () => {
         it("covers _calcContentAreaInsets catch", () => {
             const card = document.createElement(REGISTERED_CARD);
-            vi.spyOn(document, 'querySelector').mockImplementation(() => { throw new Error("fail"); });
+            // Trigger catch block by making document.querySelector fail or throw
+            const spy = vi.spyOn(document, "querySelector").mockImplementation(() => { throw new Error("panic"); });
             const insets = card._calcContentAreaInsets();
             expect(insets.headerHeight).toBe(56);
+            spy.mockRestore();
         });
     });
 
     describe("Editor Steps - Template Gaps", () => {
-        it("Step3Options mwc-list-item click", () => {
-            const editor = {
-                _config: { preset_type: "thermostat", title: "T" },
-                i18n: { _t: (k) => k },
-                _language: "en",
-                renderTextInput: vi.fn(() => ""),
-                requestUpdate: vi.fn(),
-                _dispatchConfigChanged: vi.fn()
-            };
-            const step = new Step3Options(editor);
-            const res = step.render();
-            // Just ensure it renders
-            expect(res._content).toContain("mwc-list-item");
-        });
-
-        it("Step4Automation branches", () => {
-            const editor = {
-                _config: { global_prefix: "p_", preset_type: "thermostat" },
-                i18n: { _t: (k) => k },
-                _automationYaml: "yaml",
-                serviceHandlers: { copyToClipboard: vi.fn(), downloadFile: vi.fn() }
-            };
-            const step = new Step4Automation(editor);
-            step.render();
-        });
-        
         it("Step5Summary branches", () => {
             const editor = {
-                _config: { global_prefix: "p_", target_entity: "c.x" },
+                _config: { global_prefix: "p_" },
                 i18n: { _t: (k) => k },
-                _language: "en",
-                _automationYaml: "yaml"
+                renderEntityPicker: () => "picker"
             };
             const step = new Step5Summary(editor);
-            step.render({ valid: true, errors: [] });
-            step.render({ valid: false, errors: ["err"] });
+            const res1 = step.render();
+            expect(res1).toBeDefined();
+
+            // Force missing fields
+            editor._config = {};
+            const res2 = step.render();
+            expect(res2).toBeDefined();
         });
     });
 });

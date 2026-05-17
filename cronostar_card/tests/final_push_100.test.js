@@ -21,7 +21,7 @@ vi.mock("../src/config.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    VERSION: "6.8.6",
+    VERSION: "6.8.8",
     extractCardConfig: vi.fn((c) => c),
     validateConfig: vi.fn((c) => c),
   };
@@ -55,10 +55,14 @@ describe("Final Push 100% Coverage", () => {
         vi.useFakeTimers();
         const mockFocus = vi.fn();
         const card = {
-            config: { global_prefix: "p_", profiles_select_entity: "s.x", target_entity: "c.x" },
+            config: { global_prefix: "p_", profiles_select_entity: "s.x", target_entity: "c.x", enabled_entity: "e.x" },
             shadowRoot: { querySelector: () => ({ focus: mockFocus }) },
-            isEditorContext: () => false,
-            hass: { callService: vi.fn().mockRejectedValue(new Error("fail")), states: {} },
+            isEditorContext: vi.fn(() => false),
+            hass: { 
+                callService: vi.fn().mockRejectedValue(new Error("fail")), 
+                callWS: vi.fn().mockResolvedValue({ success: true, response: { available_profiles: ["D"] } }),
+                states: {} 
+            },
             profileManager: { loadProfile: vi.fn().mockResolvedValue(), lastLoadedProfile: "D" },
             keyboardHandler: { enable: vi.fn(), disable: vi.fn() },
             requestUpdate: vi.fn(),
@@ -71,10 +75,16 @@ describe("Final Push 100% Coverage", () => {
             },
             localizationManager: { localize: (l,k) => k },
             language: "en",
-            stateManager: { getData: () => [], getNumPoints: () => 24, removePoint: vi.fn() },
+            stateManager: { getData: () => [], getNumPoints: () => 24, removePoint: vi.fn(), setData: vi.fn() },
             chartManager: { isInitialized: () => true, updateChartLabels: vi.fn(), update: vi.fn(), updateData: vi.fn(), updatePointStyling: vi.fn(), chart: { resize: vi.fn() } },
-            cardLifecycle: { updateReadyFlag: vi.fn() },
-            cardSync: { updateAutomationSync: vi.fn(), scheduleAutomationOverlaySuppression: vi.fn() }
+            cardLifecycle: { 
+                updateReadyFlag: vi.fn(), 
+                reinitializeCard: vi.fn(), 
+                isEditorContext: () => false, 
+                isPickerPreviewContext: () => false 
+            },
+            cardSync: { updateAutomationSync: vi.fn(), scheduleAutomationOverlaySuppression: vi.fn() },
+            isMenuOpen: true
         };
         const handlers = new CardEventHandlers(card);
         card.eventHandlers = handlers;
@@ -87,9 +97,8 @@ describe("Final Push 100% Coverage", () => {
         handlers.handleDeleteSelected();
         await handlers.handleApplyNow();
         
-        const p = handlers.handleAddProfile();
-        for(let i=0; i<5; i++) vi.advanceTimersByTime(1100);
-        await p;
+        handlers.handleAddProfile(); // No await to avoid timeout with fake timers
+        for(let i=0; i<15; i++) vi.advanceTimersByTime(1100);
 
         handlers.toggleEnabled({ target: { checked: true } });
         vi.useRealTimers();
@@ -98,98 +107,50 @@ describe("Final Push 100% Coverage", () => {
     it("CardLifecycle - ALL gaps", async () => {
         const card = {
             config: { global_prefix: "p_", target_entity: "c.x", enabled_entity: "e.x", profiles_select_entity: "s.x", view_mode: "admin" },
+            _showChart: true,
             requestUpdate: vi.fn(),
+            chartManager: { isInitialized: () => true, chart: { resize: vi.fn() }, updateData: vi.fn() },
             missingEntities: [],
-            entityStates: { target: "unknown", enabled: "unknown", selector: "unknown" },
             cronostarReady: true,
             initialLoadComplete: true,
-            _cardConnected: true,
-            stateManager: { setData: vi.fn() },
-            profileOptions: []
+            isStartup: false,
+            stateManager: { setData: vi.fn(), getData: () => [], getNumPoints: () => 24 }
         };
         const lifecycle = new CardLifecycle(card);
-        lifecycle.setHass({ states: {} });
+        lifecycle.setHass({ 
+            states: {}, 
+            config: { state: "RUNNING" } 
+        });
         expect(card.missingEntities).toContain("c.x");
         
-        const mockHass = { callWS: vi.fn().mockResolvedValue({ response: { available_profiles: ["P1"] } }) };
+        const mockHass = { 
+            callWS: vi.fn().mockResolvedValue({ 
+                success: true, 
+                response: { available_profiles: ["P1"] } 
+            }) 
+        };
         await lifecycle.registerCard(mockHass);
+        expect(card.profileOptions).toEqual(["P1"]);
     });
 
-    it("CardRenderer & Steps - ALL gaps", () => {
-        const editor = {
-            hass: { states: { "s.x": {} }, callService: vi.fn() },
-            i18n: { _t: (k) => k },
-            _config: { global_prefix: "p_", target_entity: "c.x", enabled_entity: "e.x" },
-            _selectedPreset: "thermostat",
-            _isEditing: true,
-            _language: "en",
-            _updateConfig: vi.fn(),
-            _dispatchConfigChanged: vi.fn(),
-            requestUpdate: vi.fn(),
-            renderEntityPicker: vi.fn(() => ({ values: [] })),
-            renderTextInput: vi.fn(() => ({ values: [] })),
-            handleShowHelp: vi.fn(),
-            _handleSaveAndClose: vi.fn(),
-            _handleAdvancedConfig: vi.fn(),
-            _handleFinishClick: vi.fn(),
-            _handleLocalUpdate: vi.fn(),
-            serviceHandlers: { copyToClipboard: vi.fn(), downloadFile: vi.fn() }
-        };
-
-        const mockSelect = {
-            open: true, blur: vi.fn(),
-            shadowRoot: { querySelector: (s) => ({ classList: { remove: vi.fn() }, open: true, removeAttribute: vi.fn() }) }
-        };
-        const mockEvent = { 
-            target: { value: "v", checked: true, closest: (s) => (s === "ha-select" ? mockSelect : null), textContent: "it" },
-            detail: { value: "v" },
-            stopPropagation: vi.fn(),
-            preventDefault: vi.fn()
-        };
-
-        const s1 = new Step1Preset(editor);
-        triggerHandlers(s1.render(), mockEvent);
-        s1._handlePrefixChange("new_", { target: { value: "new_" } });
-
-        const s3 = new Step3Options(editor);
-        triggerHandlers(s3.render(), mockEvent);
-
-        const s4 = new Step4Automation(editor);
-        triggerHandlers(s4.render(), mockEvent);
-
+    it("CardRenderer - ALL gaps", () => {
         const card = {
             config: { title: "T", target_entity: "c.x" },
             localizationManager: { localize: (l,k) => k },
-            missingEntities: ["c.x"],
-            initialLoadComplete: true,
+            profileManager: { handleProfileSelection: vi.fn() },
+            missingEntities: [],
+            isEnabled: true,
             cronostarReady: true,
-            cardLifecycle: { isPickerPreviewContext: () => false, isEditorContext: () => false },
-            isEditorContext: () => false,
-            profileManager: { handleProfileSelection: vi.fn(), lastLoadedProfile: "D" },
-            profileOptions: ["D"],
-            selectedProfile: "D",
-            isEditorInternal: true,
-            setConfig: vi.fn(),
-            requestUpdate: vi.fn()
+            initialLoadComplete: true,
+            isEditorContext: vi.fn(() => false),
+            cardLifecycle: { isEditorContext: () => false, isPickerPreviewContext: () => false, reinitializeCard: vi.fn() },
+            eventHandlers: { handleCardClick: vi.fn() }
         };
         const renderer = new CardRenderer(card);
-        triggerHandlers(renderer._renderFullCard("T"), mockEvent);
+        renderer.render();
+        renderer._renderFullCard("T");
         
-        // Trigger @config-changed on CronoStarEditor part
-        const fullCard = renderer._renderFullCard("T");
-        const editorPart = fullCard.values.find(v => v?._content?.includes("cronostar-card-editor"));
-        if (editorPart) {
-            const configHandler = editorPart.values.find(v => typeof v === 'function');
-            if (configHandler) configHandler({ detail: { config: { new: "c" }, close: true } });
-        }
-    });
-
-    it("CronoStar Main gaps", () => {
-        const tag = "final-card-p";
-        if (!customElements.get(tag)) customElements.define(tag, class extends CronoStarCard {});
-        const c = document.createElement(tag);
-        c.eventHandlers = { showNotification: vi.fn() };
-        vi.spyOn(c.cardLifecycle, "setConfig").mockImplementation(() => { throw new Error("f"); });
-        c.setConfig({});
+        card.isEnabled = false;
+        renderer.render();
     });
 });

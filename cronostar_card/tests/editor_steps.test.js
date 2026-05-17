@@ -46,6 +46,7 @@ describe("Editor Steps Rendering", () => {
           "climate.test": { attributes: { friendly_name: "Test" } },
         },
         localize: (k) => k,
+        callWS: vi.fn().mockResolvedValue({ success: true, response: {} }),
       },
       _i18n: {
         localize: (l, k) => k,

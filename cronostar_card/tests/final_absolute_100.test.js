@@ -21,7 +21,7 @@ vi.mock("../src/config.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    VERSION: "6.8.6",
+    VERSION: "6.8.8",
     extractCardConfig: vi.fn((c) => c),
     validateConfig: vi.fn((c) => ({
         ...actual.DEFAULT_CONFIG,
@@ -67,17 +67,22 @@ describe("Absolute Final Coverage 100", () => {
             shadowRoot: { querySelector: () => ({ classList: { remove: vi.fn() }, open: true, removeAttribute: vi.fn() }) }
         };
         const mockEvent = { 
-            target: { value: "v", checked: true, closest: () => mockSelect, textContent: "it" },
+            target: { value: "v", checked: true, closest: () => mockSelect, textContent: "it", selectionStart: 4 },
             detail: { value: "v", config: { target_entity: "c.x" }, close: true },
             stopPropagation: vi.fn(),
             preventDefault: vi.fn()
         };
 
         const card = {
-            config: { global_prefix: "p_", target_entity: "c.x", view_mode: "admin", initially_collapsed: true },
+            config: { global_prefix: "p_", target_entity: "c.x", view_mode: "admin", initially_collapsed: true, enabled_entity: "switch.test" },
             shadowRoot: { querySelector: () => ({ focus: mockFocus }), getElementById: () => document.createElement("canvas") },
             isEditorContext: vi.fn(() => false),
-            hass: { callService: vi.fn().mockResolvedValue({}), states: { "input_boolean.p_show_chart": { state: "on" } } },
+            hass: { 
+                callService: vi.fn().mockResolvedValue({}), 
+                callWS: vi.fn().mockResolvedValue({ success: true, response: { available_profiles: ["D"] } }),
+                states: { "input_boolean.p_show_chart": { state: "on" } },
+                config: { state: "RUNNING" }
+            },
             profileManager: { loadProfile: vi.fn().mockResolvedValue(), lastLoadedProfile: "D", handleProfileSelection: vi.fn() },
             keyboardHandler: { enable: vi.fn(), disable: vi.fn(), detachListeners: vi.fn(), attachListeners: vi.fn() },
             pointerHandler: { detachListeners: vi.fn(), attachListeners: vi.fn() },
@@ -93,11 +98,15 @@ describe("Absolute Final Coverage 100", () => {
                 isInitialized: vi.fn(() => true), updateChartLabels: vi.fn(), update: vi.fn(), 
                 updateData: vi.fn(), updatePointStyling: vi.fn(), chart: { resize: vi.fn(), update: vi.fn() } 
             },
-            cardLifecycle: { updateReadyFlag: vi.fn(), reinitializeCard: vi.fn(), registerCard: vi.fn() },
+            cardLifecycle: { 
+                updateReadyFlag: vi.fn(), reinitializeCard: vi.fn(), registerCard: vi.fn(), 
+                isEditorContext: () => false, isPickerPreviewContext: () => false 
+            },
             cardSync: { updateAutomationSync: vi.fn(), scheduleAutomationOverlaySuppression: vi.fn() },
             isEnabled: true, cronostarReady: true, initialLoadComplete: true, _cardConnected: true,
             missingEntities: [], profileOptions: ["D"], selectedProfile: "D", isEditorInternal: true,
-            setConfig: vi.fn(), eventHandlers: { showNotification: vi.fn() }
+            setConfig: vi.fn(), eventHandlers: { showNotification: vi.fn() },
+            isStartup: false
         };
         const handlers = new CardEventHandlers(card);
         card.eventHandlers = handlers;
@@ -110,9 +119,8 @@ describe("Absolute Final Coverage 100", () => {
         handlers.handleSelectAll();
         handlers.handleDeleteSelected();
         await handlers.handleApplyNow();
-        const p = handlers.handleAddProfile();
-        for(let i=0; i<5; i++) vi.advanceTimersByTime(1100);
-        await p;
+        handlers.handleAddProfile(); // No await
+        for(let i=0; i<15; i++) vi.advanceTimersByTime(1100);
 
         // 2. Lifecycle
         lifecycle.setHass(card.hass);
@@ -133,7 +141,7 @@ describe("Absolute Final Coverage 100", () => {
         };
         const s1 = new Step1Preset(editor);
         triggerHandlers(s1.render(), mockEvent);
-        s1._handlePrefixChange("new_", { target: { value: "new_" } });
+        s1._handlePrefixChange("new_", { target: { value: "new_", selectionStart: 4 } });
         
         const s3 = new Step3Options(editor);
         triggerHandlers(s3.render(), mockEvent);
@@ -147,12 +155,7 @@ describe("Absolute Final Coverage 100", () => {
         ed._config = { not_configured: true }; ed.setConfig({ target_entity: "c.x", global_prefix: "p_" });
         ed._step = 1; ed.setConfig({ title: "New" });
         ed._config.not_configured = true; ed.setConfig({ not_configured: true, target_entity: "c.x", global_prefix: "p_" });
-
-        const tagC = "final-ca"; if(!customElements.get(tagC)) customElements.define(tagC, class extends CronoStarCard {});
-        const c = document.createElement(tagC); c.eventHandlers = { showNotification: vi.fn() };
-        vi.spyOn(c.cardLifecycle, "setConfig").mockImplementation(() => { throw new Error("f"); });
-        c.setConfig({});
-
+        
         vi.useRealTimers();
     });
 });

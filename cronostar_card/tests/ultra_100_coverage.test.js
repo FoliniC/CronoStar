@@ -46,7 +46,8 @@ describe("Surgical 100% Coverage", () => {
             _config: { 
                 enabled_entity: "switch.cronostar_enabled",
                 profiles_select_entity: "select.cronostar_current_profile",
-                target_entity: "sensor.cronostar_current"
+                target_entity: "sensor.cronostar_current",
+                global_prefix: "old_"
             },
             _updateConfig: vi.fn(),
             _dispatchConfigChanged: vi.fn(),
@@ -54,12 +55,13 @@ describe("Surgical 100% Coverage", () => {
         };
         const step = new Step1Preset(editor);
         // Standard prefix change
-        step._handlePrefixChange("new_", { target: { value: "new_" } });
-        expect(editor._updateConfig).toHaveBeenCalled();
+        step._handlePrefixChange("new_", { target: { value: "new_", selectionStart: 4 } });
+        expect(editor._config.global_prefix).toBe("new_");
         
         // Non-standard prefix change
         editor._config.enabled_entity = "switch.custom";
-        step._handlePrefixChange("other_", { target: { value: "other_" } });
+        step._handlePrefixChange("other_", { target: { value: "other_", selectionStart: 6 } });
+        expect(editor._config.global_prefix).toBe("other_");
     });
 
     it("CardEventHandlers - retry logic and focus", async () => {
@@ -73,7 +75,9 @@ describe("Surgical 100% Coverage", () => {
             profileManager: { loadProfile: vi.fn().mockResolvedValue() },
             keyboardHandler: { enable: vi.fn() },
             requestUpdate: vi.fn(),
-            selectionManager: { clearSelection: vi.fn() }
+            selectionManager: { clearSelection: vi.fn() },
+            localizationManager: { localize: (l,k) => k },
+            language: "en"
         };
         const handlers = new CardEventHandlers(card);
         vi.spyOn(handlers, "_openAddProfileDialog").mockResolvedValue("NewP");
