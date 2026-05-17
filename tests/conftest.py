@@ -462,6 +462,7 @@ def hass(tmp_path):
     hass = MagicMock()
     hass.config.path = lambda *parts: str(tmp_path.joinpath(*parts))
     hass.is_running = True
+    created_tasks = []
 
     async def _exec(func, *args):
         return func(*args)
@@ -529,10 +530,20 @@ def hass(tmp_path):
     hass.services.async_remove = AsyncMock()
     hass.services.async_register = MagicMock(side_effect=_register_service)
 
+    def _create_task(coro, *args, **kwargs):
+        created_tasks.append(coro)
+        return coro
+
+    hass.async_create_task = MagicMock(side_effect=_create_task)
+
     # hass.data
     hass.data = {}
 
-    return hass
+    yield hass
+
+    for task in created_tasks:
+        if asyncio.iscoroutine(task):
+            task.close()
 
 @pytest.fixture
 def mock_entry():
