@@ -120,6 +120,7 @@ describe("Step5Summary", () => {
   });
 
   it("render handles errors and returns fallback error template", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     Object.defineProperty(editor, "_config", {
       get() {
         throw new Error("boom");
@@ -129,6 +130,11 @@ describe("Step5Summary", () => {
 
     const res = step.render();
     expect(res.toString()).toContain("Error rendering Step 5: boom");
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[Step5Summary] Render error:",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
   });
 
   it("handleSaveAll shows success toast", async () => {

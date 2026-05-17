@@ -5,6 +5,7 @@ import { EditorWizard } from "../src/editor/EditorWizard.js";
 import { CardEventHandlers } from "../src/core/CardEventHandlers.js";
 import { CronoStarCard } from "../src/core/CronoStar.js";
 import { KeyboardHandler } from "../src/handlers/keyboard_handler.js";
+import { Logger } from "../src/utils.js";
 
 // Ensure custom elements are defined
 if (!customElements.get("cronostar-card")) {
@@ -93,6 +94,7 @@ describe("Coverage Boost - CronoStar", () => {
 
   it("handleDeleteController covers catch branch", async () => {
     const card = document.createElement("cronostar-card");
+    const errorSpy = vi.spyOn(Logger, "error").mockImplementation(() => {});
     card.hass = { callService: vi.fn().mockRejectedValue(new Error("Delete Fail")) };
     card.eventHandlers = { showNotification: vi.fn() };
     
@@ -102,6 +104,12 @@ describe("Coverage Boost - CronoStar", () => {
     
     await card.handleDeleteController();
     expect(card.eventHandlers.showNotification).toHaveBeenCalledWith(expect.stringContaining("Delete Fail"), "error");
+    expect(errorSpy).toHaveBeenCalledWith(
+      "UI",
+      "Failed to delete controller:",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
     confirmSpy.mockRestore();
   });
 });

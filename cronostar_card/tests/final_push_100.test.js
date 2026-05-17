@@ -53,6 +53,8 @@ describe("Final Push 100% Coverage", () => {
     
     it("CardEventHandlers - ALL gaps", async () => {
         vi.useFakeTimers();
+        const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
+        const errorSpy = vi.spyOn(Logger, "error").mockImplementation(() => {});
         const mockFocus = vi.fn();
         const card = {
             config: { global_prefix: "p_", profiles_select_entity: "s.x", target_entity: "c.x", enabled_entity: "e.x" },
@@ -97,14 +99,19 @@ describe("Final Push 100% Coverage", () => {
         handlers.handleDeleteSelected();
         await handlers.handleApplyNow();
         
-        handlers.handleAddProfile(); // No await to avoid timeout with fake timers
+        await handlers.handleAddProfile();
         for(let i=0; i<15; i++) vi.advanceTimersByTime(1100);
 
-        handlers.toggleEnabled({ target: { checked: true } });
+        await handlers.toggleEnabled({ target: { checked: true } });
+        expect(warnSpy).toHaveBeenCalled();
+        expect(errorSpy).toHaveBeenCalled();
+        warnSpy.mockRestore();
+        errorSpy.mockRestore();
         vi.useRealTimers();
     });
 
     it("CardLifecycle - ALL gaps", async () => {
+        const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
         const card = {
             config: { global_prefix: "p_", target_entity: "c.x", enabled_entity: "e.x", profiles_select_entity: "s.x", view_mode: "admin" },
             _showChart: true,
@@ -122,6 +129,8 @@ describe("Final Push 100% Coverage", () => {
             config: { state: "RUNNING" } 
         });
         expect(card.missingEntities).toContain("c.x");
+        expect(warnSpy).toHaveBeenCalled();
+        warnSpy.mockRestore();
         
         const mockHass = { 
             callWS: vi.fn().mockResolvedValue({ 

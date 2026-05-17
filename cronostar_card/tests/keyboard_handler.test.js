@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { KeyboardHandler } from "../src/handlers/keyboard_handler.js";
+import { Logger } from "../src/utils.js";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -160,8 +161,15 @@ describe("focusContainer", () => {
 
   it("handles exceptions inside focus() without propagating them", () => {
     const { kh } = makeKH();
+    const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
     kh.containerEl.focus = vi.fn(() => { throw new Error("focus error"); });
     expect(() => kh.focusContainer()).not.toThrow();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "KEYBOARD",
+      "Error focusing container:",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
   });
 });
 

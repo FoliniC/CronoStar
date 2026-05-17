@@ -689,9 +689,15 @@ describe("CronoStarEditor – 100% coverage", () => {
 
   it("L847-850: setConfig catch block falls back to DEFAULT_CONFIG on validateConfig error", async () => {
     const { validateConfig } = await import("../src/config.js");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     validateConfig.mockImplementationOnce(() => { throw new Error("invalid"); });
     expect(() => editor.setConfig({ type: "custom:cronostar-card" })).not.toThrow();
     expect(editor._config.type).toBe("custom:cronostar-card");
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[CronoStar Editor] setConfig error:",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
   });
 
   // ══════════════════════════════════════════════════════════════════════════

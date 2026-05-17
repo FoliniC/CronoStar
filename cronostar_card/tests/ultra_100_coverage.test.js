@@ -66,6 +66,7 @@ describe("Surgical 100% Coverage", () => {
 
     it("CardEventHandlers - retry logic and focus", async () => {
         vi.useFakeTimers();
+        const errorSpy = vi.spyOn(Logger, "error").mockImplementation(() => {});
         const mockFocus = vi.fn();
         const card = {
             config: { global_prefix: "p_", profiles_select_entity: "s.x" },
@@ -90,6 +91,12 @@ describe("Surgical 100% Coverage", () => {
         await promise;
         
         expect(card.hass.callService).toHaveBeenCalled();
+        expect(errorSpy).toHaveBeenCalledWith(
+            "PROFILE",
+            "[CronoStar] Error adding profile:",
+            expect.any(Error),
+        );
+        errorSpy.mockRestore();
         vi.useRealTimers();
     });
 
@@ -143,6 +150,8 @@ describe("Surgical 100% Coverage", () => {
     });
 
     it("CronoStarEditor - helper branches", () => {
+        const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
         const tag = "surgical-editor";
         if (!customElements.get(tag)) customElements.define(tag, class extends CronoStarEditor {});
         const editor = document.createElement(tag);
@@ -155,5 +164,10 @@ describe("Surgical 100% Coverage", () => {
         editor._clickHASaveButton();
         vi.advanceTimersByTime(500);
         vi.useRealTimers();
+        expect(warnSpy).toHaveBeenCalledWith(
+            "[CronoStar Editor] HA Save button not found. User must use standard SAVE if visible.",
+        );
+        infoSpy.mockRestore();
+        warnSpy.mockRestore();
     });
 });

@@ -386,11 +386,18 @@ describe("CardLifecycle – updated", () => {
   it("handles chart refresh exceptions", () => {
     const card = makeCard();
     const lc = new CardLifecycle(card);
+    const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
     card.chartManager.isInitialized.mockReturnValue(true);
     card.chartManager.recreateChartOptions.mockImplementation(() => {
       throw new Error("fail");
     });
     expect(() => lc.updated(new Map([["config", {}]]))).not.toThrow();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "UPDATE",
+      "CronoStar updated(config) chart refresh failed:",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
   });
 
   it("calls _updatePreviewVisibility", () => {
@@ -418,8 +425,14 @@ describe("CardLifecycle – setHass", () => {
   });
 
   it("ignores null hass", () => {
+    const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
     lc.setHass(null);
     expect(lc._hass).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "HASS",
+      "CronoStar Received null hass object",
+    );
+    warnSpy.mockRestore();
   });
 
   it("stores hass in _hass", () => {
@@ -635,6 +648,7 @@ describe("CardLifecycle – setHass", () => {
   });
 
   it("handles internal exceptions without propagating", () => {
+    const errorSpy = vi.spyOn(Logger, "error").mockImplementation(() => {});
     const hass = makeHass();
     Object.defineProperty(hass, "config", {
       get() {
@@ -643,6 +657,12 @@ describe("CardLifecycle – setHass", () => {
       configurable: true,
     });
     expect(() => lc.setHass(hass)).not.toThrow();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "HASS",
+      "CronoStar Error in setHass:",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
   });
 
   it("does not set sync timer twice", () => {
@@ -671,6 +691,7 @@ describe("CardLifecycle – setHass", () => {
   });
 
   it("handles loadProfile exceptions silently", async () => {
+    const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
     card.config = {
       profiles_select_entity: "input_select.prof",
       not_configured: false,
@@ -692,6 +713,12 @@ describe("CardLifecycle – setHass", () => {
     });
     lc.setHass(hass);
     await Promise.resolve();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "LOAD",
+      "Profile load failed:",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
   });
 });
 
@@ -772,10 +799,24 @@ describe("CardLifecycle – connectedCallback", () => {
   it("does not crash on internal exceptions", () => {
     const card = makeCard();
     const lc = new CardLifecycle(card);
+    const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(Logger, "error").mockImplementation(() => {});
     vi.spyOn(lc, "isPickerPreviewContext").mockImplementation(() => {
       throw new Error("oops");
     });
     expect(() => lc.connectedCallback()).not.toThrow();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "LIFECYCLE",
+      "CronoStar _refreshContextFlags error:",
+      expect.any(Error),
+    );
+    expect(errorSpy).toHaveBeenCalledWith(
+      "LIFECYCLE",
+      "CronoStar Error in connectedCallback:",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 
   it("skips canvas check when in editor context", () => {
@@ -810,6 +851,7 @@ describe("CardLifecycle – connectedCallback", () => {
   it("handles internal exceptions in _checkCanvasSize silently", () => {
     vi.useFakeTimers();
     const card = makeCard();
+    const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
     card.shadowRoot.getElementById.mockReturnValue({
       getBoundingClientRect: () => {
         throw new Error("boom");
@@ -819,6 +861,12 @@ describe("CardLifecycle – connectedCallback", () => {
     vi.spyOn(lc, "isEditorContext").mockReturnValue(false);
     lc.connectedCallback();
     vi.advanceTimersByTime(100);
+    expect(warnSpy).toHaveBeenCalledWith(
+      "LIFECYCLE",
+      "Canvas check error:",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
     vi.useRealTimers();
   });
 });
@@ -843,10 +891,17 @@ describe("CardLifecycle – disconnectedCallback", () => {
   it("does not crash on internal exceptions", () => {
     const card = makeCard();
     const lc = new CardLifecycle(card);
+    const errorSpy = vi.spyOn(Logger, "error").mockImplementation(() => {});
     vi.spyOn(lc, "cleanupCard").mockImplementation(() => {
       throw new Error("oops");
     });
     expect(() => lc.disconnectedCallback()).not.toThrow();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "LIFECYCLE",
+      "CronoStar Error in disconnectedCallback:",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
   });
 });
 
@@ -915,6 +970,7 @@ describe("CardLifecycle – firstUpdated", () => {
 
   it("does not crash on internal exceptions", () => {
     const card = makeCard();
+    const errorSpy = vi.spyOn(Logger, "error").mockImplementation(() => {});
     card.shadowRoot = {
       getElementById: vi.fn(() => {
         throw new Error("oops");
@@ -924,6 +980,12 @@ describe("CardLifecycle – firstUpdated", () => {
     const lc = new CardLifecycle(card);
     vi.spyOn(lc, "isPickerPreviewContext").mockReturnValue(false);
     expect(() => lc.firstUpdated()).not.toThrow();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "LIFECYCLE",
+      "CronoStar Error in firstUpdated:",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
   });
 });
 
@@ -1007,11 +1069,18 @@ describe("CardLifecycle – cleanupCard", () => {
 
   it("does not crash on internal exceptions", () => {
     const card = makeCard();
+    const errorSpy = vi.spyOn(Logger, "error").mockImplementation(() => {});
     card.chartManager.destroy.mockImplementation(() => {
       throw new Error("oops");
     });
     const lc = new CardLifecycle(card);
     expect(() => lc.cleanupCard()).not.toThrow();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "LIFECYCLE",
+      "CronoStar Error in cleanupCard:",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
   });
 });
 
@@ -1121,10 +1190,17 @@ describe("CardLifecycle – _refreshContextFlags", () => {
   it("does not crash on internal exceptions", () => {
     const card = makeCard();
     const lc = new CardLifecycle(card);
+    const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
     vi.spyOn(lc, "isPickerPreviewContext").mockImplementation(() => {
       throw new Error("oops");
     });
     expect(() => lc._refreshContextFlags()).not.toThrow();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "LIFECYCLE",
+      "CronoStar _refreshContextFlags error:",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
   });
 });
 
@@ -1365,6 +1441,7 @@ describe("CardLifecycle – registerCard", () => {
   });
 
   it("handles errors while applying language from meta", async () => {
+    const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
     Object.defineProperty(card, "language", {
       set() {
         throw new Error("fail");
@@ -1381,6 +1458,12 @@ describe("CardLifecycle – registerCard", () => {
       },
     });
     await expect(lc.registerCard(hass)).resolves.toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "LANG",
+      "CronoStar failed to apply language from register_card meta:",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
   });
 
   it("processes valid rawSchedule", async () => {
@@ -1407,12 +1490,19 @@ describe("CardLifecycle – registerCard", () => {
   });
 
   it("ignores errors from fallback load_profile", async () => {
+    const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
     card.config.is_switch_preset = true;
     card.stateManager.scheduleData = [];
     card.profileManager.loadProfile.mockRejectedValueOnce(new Error("fail"));
     const hass = makeHass();
     hass.callWS.mockResolvedValueOnce({ response: {} });
     await expect(lc.registerCard(hass)).resolves.toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "LOAD",
+      "Fallback load_profile failed for 'Default':",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
   });
 
   it("applies entity_states from response", async () => {
@@ -1431,9 +1521,16 @@ describe("CardLifecycle – registerCard", () => {
   });
 
   it("handles registration errors without propagating", async () => {
+    const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
     const hass = makeHass();
     hass.callWS.mockRejectedValueOnce(new Error("WS error"));
     await expect(lc.registerCard(hass)).resolves.toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "LOAD",
+      "CronoStar register_card failed:",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
   });
 
   it("sets initialLoadComplete and cronostarReady after registration", async () => {
@@ -1487,9 +1584,16 @@ describe("CardLifecycle – registerCard", () => {
   });
 
   it("handles registerCard exceptions silently", async () => {
+    const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
     const hass = makeHass();
     hass.callWS.mockImplementationOnce(() => { throw new Error("fatal"); });
     await expect(lc.registerCard(hass)).resolves.toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "LOAD",
+      "CronoStar register_card failed:",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
   });
 });
 
@@ -1557,9 +1661,17 @@ describe("CardLifecycle – _updatePreviewVisibility", () => {
   it("handles _updatePreviewVisibility exceptions silently", () => {
     const card = makeCard({ config: { step: 0 } });
     const lc = new CardLifecycle(card);
+    const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
     // Use a different mock approach to avoid unhandled throw if vitest catches it
     const spy = vi.spyOn(document, "getElementById").mockImplementationOnce(() => { throw new Error("DOM fail"); });
     expect(() => lc._updatePreviewVisibility()).not.toThrow();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "PREVIEW",
+      "Error in _updatePreviewVisibility:",
+      expect.any(Error),
+    );
+    spy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   it("refreshes chart options when config changes and chart is initialized (scale update path)", () => {
@@ -1730,8 +1842,16 @@ describe("CardLifecycle – _updatePreviewVisibility", () => {
       configurable: true
     });
     const loggerSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(Logger, "error").mockImplementation(() => {});
     lc.setHass(makeHass());
     expect(loggerSpy).toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "HASS",
+      "CronoStar Error in setHass:",
+      expect.any(Error),
+    );
+    loggerSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 
   it("covers isPickerPreviewContext with host fallback", () => {

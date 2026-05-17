@@ -61,6 +61,7 @@ describe("Absolute Final Coverage 100", () => {
     
     it("Hits ALL remaining gaps", async () => {
         vi.useFakeTimers();
+        const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
         const mockFocus = vi.fn();
         const mockSelect = {
             open: true, blur: vi.fn(),
@@ -136,11 +137,18 @@ describe("Absolute Final Coverage 100", () => {
             ...card, 
             _config: card.config, _selectedPreset: "thermostat", _isEditing: true, _language: "en",
             _updateConfig: vi.fn(), _dispatchConfigChanged: vi.fn(), i18n: { _t: (k) => k },
+            _handleFinishClick: vi.fn().mockRejectedValue(new Error("finish failed")),
             renderEntityPicker: () => ({ values: [] }), renderTextInput: () => ({ values: [] }),
             serviceHandlers: { copyToClipboard: vi.fn(), downloadFile: vi.fn() }
         };
         const s1 = new Step1Preset(editor);
         triggerHandlers(s1.render(), mockEvent);
+        await s1._handleSaveAndClose();
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+            "Save & Close failed:",
+            expect.any(Error),
+        );
+        consoleErrorSpy.mockRestore();
         s1._handlePrefixChange("new_", { target: { value: "new_", selectionStart: 4 } });
         
         const s3 = new Step3Options(editor);

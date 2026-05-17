@@ -68,7 +68,9 @@ vi.mock("../src/core/CardSync.js", () => ({ CardSync: class {} }));
 
 // CardContext mocked as vi.fn() so individual tests can override it once
 vi.mock("../src/core/CardContext.js", () => ({
-  CardContext: vi.fn().mockImplementation(() => ({ registerManager: vi.fn() })),
+  CardContext: vi.fn().mockImplementation(function () {
+    this.registerManager = vi.fn();
+  }),
 }));
 
 // We use the real Logger because we want to test its console integration
@@ -169,13 +171,20 @@ describe("CronoStarCard – static helpers", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 describe("CronoStarCard – constructor catch block", () => {
   it("creates fallback cardLifecycle when CardContext throws", () => {
-    CardContext.mockImplementationOnce(() => {
+    const errorSpy = vi.spyOn(Logger, "error").mockImplementation(() => {});
+    CardContext.mockImplementationOnce(function () {
       throw new Error("CardContext init failure");
     });
     const tag = `cronostar-catch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     customElements.define(tag, class extends CronoStarCard {});
     const el = document.createElement(tag);
     expect(el.cardLifecycle).toBeDefined();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "INIT",
+      "[CronoStar] Error initializing Managers:",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
   });
 });
 
@@ -381,14 +390,21 @@ describe("CronoStarCard – setConfig", () => {
 
   it("logs error and returns when cardLifecycle is null", () => {
     const { card } = makeCard();
+    const errorSpy = vi.spyOn(Logger, "error").mockImplementation(() => {});
     card.config = null;
     card.cardLifecycle = null;
     expect(() => card.setConfig({ type: "x" })).not.toThrow();
     expect(card.eventHandlers.showNotification).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "CONFIG",
+      "[CronoStar] setConfig called but cardLifecycle is not initialized!",
+    );
+    errorSpy.mockRestore();
   });
 
   it("catch: shows notification when setConfig throws", () => {
     const { card } = makeCard();
+    const errorSpy = vi.spyOn(Logger, "error").mockImplementation(() => {});
     card.config = null;
     card.cardLifecycle.setConfig.mockImplementationOnce(() => {
       throw new Error("Boom");
@@ -398,6 +414,12 @@ describe("CronoStarCard – setConfig", () => {
       "error.config_error",
       "error"
     );
+    expect(errorSpy).toHaveBeenCalledWith(
+      "CONFIG",
+      "[CronoStar] Error in CronoStarCard.setConfig:",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
   });
 });
 

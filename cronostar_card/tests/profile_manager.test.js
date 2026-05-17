@@ -13,6 +13,7 @@ vi.mock("../src/utils/prefix_utils.js", () => ({
 }));
 
 import { ProfileManager } from "../src/managers/profile_manager.js";
+import { Logger } from "../src/utils.js";
 
 // ─── Factory: minimal context ───────────────────────────────────────────────
 function makeContext(overrides = {}) {
@@ -552,6 +553,7 @@ describe("ProfileManager – _updateConfigFromMeta", () => {
 
   it("handles errors when applying language", () => {
     const { ctx, card } = makeContext();
+    const warnSpy = vi.spyOn(Logger, "warn").mockImplementation(() => {});
     // Simulate error in setter
     Object.defineProperty(card, "language", {
       set() { throw new Error("oops"); },
@@ -560,6 +562,12 @@ describe("ProfileManager – _updateConfigFromMeta", () => {
     });
     const pm = new ProfileManager(ctx);
     expect(() => pm._updateConfigFromMeta({ language: "it" })).not.toThrow();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "LANG",
+      "Failed to apply language from meta:",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
   });
 
   it("does not apply updates if no valid key is present", () => {

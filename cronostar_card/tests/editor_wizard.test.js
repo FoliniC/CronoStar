@@ -65,12 +65,18 @@ describe("EditorWizard", () => {
   });
 
   it("should handle persistence errors in _finish() without blocking closure", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     editor._persistCardConfigNow.mockRejectedValue(new Error("fail"));
     await wizard._finish();
     
     // Wait a tick for the internal promise resolution
     await new Promise(r => setTimeout(r, 0));
     expect(editor._dispatchConfigChanged).toHaveBeenCalledWith(true);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[Wizard] Persist on finish failed:",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
   });
 
   it("should handle _finish() if _persistCardConfigNow is not defined", () => {

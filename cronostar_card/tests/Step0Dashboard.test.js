@@ -172,10 +172,16 @@ describe("Step0Dashboard", () => {
     });
 
     it("handles callWS error", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
       editor.hass.callWS.mockRejectedValue(new Error("fail"));
       await step._loadAllProfiles();
       expect(editor._dashboardProfilesData).toEqual({});
       expect(editor._dashboardLoading).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Failed to load controllers:",
+        expect.any(Error),
+      );
+      warnSpy.mockRestore();
     });
 
     it("returns early when hass is missing", async () => {
@@ -229,6 +235,7 @@ describe("Step0Dashboard", () => {
 
     it("handles delete failure", async () => {
       vi.stubGlobal("confirm", () => true);
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       editor.hass.callService.mockRejectedValue(new Error("fail"));
       await step._handleDeleteController({
         global_prefix: "p_",
@@ -239,6 +246,11 @@ describe("Step0Dashboard", () => {
         true,
       );
       expect(editor._dashboardLoading).toBe(false);
+      expect(errorSpy).toHaveBeenCalledWith(
+        "Failed to delete controller:",
+        expect.any(Error),
+      );
+      errorSpy.mockRestore();
     });
 
     it("uses italian confirm/success branches", async () => {
