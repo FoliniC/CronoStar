@@ -30,6 +30,22 @@ if (typeof globalThis.window.customElements === "undefined") {
   globalThis.window.customElements = globalThis.customElements;
 }
 
+// ─── Browser dialogs ────────────────────────────────────────────────────────
+// jsdom exposes dialog APIs such as confirm(), but they are not implemented and
+// print stack traces when called. Provide deterministic defaults; individual
+// tests can still override them with vi.stubGlobal().
+const mockConfirm = vi.fn(() => true);
+Object.defineProperty(globalThis, "confirm", {
+  value: mockConfirm,
+  writable: true,
+  configurable: true,
+});
+Object.defineProperty(globalThis.window, "confirm", {
+  value: mockConfirm,
+  writable: true,
+  configurable: true,
+});
+
 // ─── Canvas (Chart.js needs all of these) ─────────────────────────────────────
 if (typeof HTMLCanvasElement !== "undefined") {
   HTMLCanvasElement.prototype.getContext = () => ({
